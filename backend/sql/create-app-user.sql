@@ -1,0 +1,13 @@
+CREATE ROLE app_user WITH LOGIN PASSWORD :'APP_USER_PASSWORD';
+
+CREATE SCHEMA app_user_schema AUTHORIZATION app_user;
+
+ALTER ROLE app_user SET search_path TO app_user_schema, public;
+
+GRANT USAGE ON SCHEMA public TO app_user;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO app_user;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO app_user;
+
+
+
