@@ -5,10 +5,9 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel import SQLModel
-
-from dotenv import load_dotenv
 
 load_dotenv()  # reads .env in the project root if present
 
@@ -22,6 +21,7 @@ if config.config_file_name is not None:
 
 target_metadata = SQLModel.metadata
 
+
 def include_object(object, name, type_, reflected, compare_to):
 
     if type_ == "table":
@@ -29,6 +29,7 @@ def include_object(object, name, type_, reflected, compare_to):
     if type_ == "column":
         return object.table.schema == "app_user_schema"
     return True
+
 
 def get_url() -> str:
     """Return the async-compatible database URL."""
@@ -45,7 +46,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
-        version_table="video_pipeline_migration_history",  
+        version_table="video_pipeline_migration_history",
         version_table_schema="app_user_schema",
         include_schemas=True,
         include_object=include_object,

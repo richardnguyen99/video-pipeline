@@ -1,0 +1,843 @@
+"""Video-related SQLModel models."""
+
+import datetime
+from typing import Optional
+
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKeyConstraint,
+    Index,
+    Integer,
+    PrimaryKeyConstraint,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlmodel import Field, Relationship, SQLModel
+
+
+class NonDmmVideoPrefix(SQLModel, table=True):
+    """Represents a non-DMM video ID prefix."""
+
+    __tablename__ = "non_dmm_video_prefix"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="non_dmm_video_prefix_pkey"),
+        UniqueConstraint("prefix", name="non_dmm_video_prefix_prefix_key"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    prefix: str = Field(
+        sa_column=Column(
+            "prefix",
+            String(20),
+            nullable=False,
+        ),
+    )
+    scraped_at: datetime.datetime = Field(
+        sa_column=Column(
+            "scraped_at",
+            DateTime,
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"NonDmmVideoPrefix(id={self.id!r}, prefix={self.prefix!r})"
+
+
+class Video(SQLModel, table=True):
+    """Represents a video entity."""
+
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="video_pkey"),
+        UniqueConstraint("video_id", name="uq_video_video_id"),
+        Index("video_video_id_idx", "video_id"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    video_id: str = Field(
+        sa_column=Column(
+            "video_id",
+            String(255),
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    title: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "title",
+            Text,
+        ),
+    )
+    cid: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "cid",
+            String(255),
+        ),
+    )
+    duration: Optional[int] = Field(
+        default=None,
+        sa_column=Column(
+            "duration",
+            Integer,
+        ),
+    )
+    release_date: Optional[datetime.datetime] = Field(
+        default=None,
+        sa_column=Column(
+            "release_date",
+            DateTime,
+        ),
+    )
+    jancode: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "jancode",
+            String(255),
+        ),
+    )
+    maker_product: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "maker_product",
+            String(255),
+        ),
+    )
+    floor_code: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "floor_code",
+            String(50),
+        ),
+    )
+
+    video_aka: list["VideoAka"] = Relationship(back_populates="fk")
+    video_image_url: list["VideoImageUrl"] = Relationship(back_populates="fk")
+    video_m3u8: list["VideoM3u8"] = Relationship(back_populates="fk")
+    video_sample_image_url: list["VideoSampleImageUrl"] = Relationship(
+        back_populates="fk",
+    )
+    video_sample_movie_url: list["VideoSampleMovieUrl"] = Relationship(
+        back_populates="fk",
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"Video(id={self.id!r}, video_id={self.video_id!r})"
+
+
+class VideoAlias(SQLModel, table=True):
+    """Represents an alias (search/replace pattern) for a video prefix."""
+
+    __tablename__ = "video_alias"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="video_alias_pkey"),
+        UniqueConstraint(
+            "prefix",
+            "search_pattern",
+            "replace_pattern",
+            name="uix_search_replace_pattern",
+        ),
+        Index("video_alias_prefix_idx", "prefix"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    prefix: str = Field(
+        sa_column=Column(
+            "prefix",
+            String(50),
+            nullable=False,
+        ),
+    )
+    search_pattern: str = Field(
+        sa_column=Column(
+            "search_pattern",
+            String(255),
+            nullable=False,
+        ),
+    )
+    replace_pattern: str = Field(
+        sa_column=Column(
+            "replace_pattern",
+            String(255),
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoAlias(id={self.id!r}, prefix={self.prefix!r})"
+
+
+class VideoAliasBlacklist(SQLModel, table=True):
+    """Represents a blacklisted video alias prefix."""
+
+    __tablename__ = "video_alias_blacklist"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="video_alias_blacklist_pkey"),
+        UniqueConstraint("prefix", name="uq_video_alias_blacklist_prefix"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    prefix: str = Field(
+        sa_column=Column(
+            "prefix",
+            String(255),
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoAliasBlacklist(id={self.id!r}, prefix={self.prefix!r})"
+
+
+class VideoCacheAlias(SQLModel, table=True):
+    """Represents a cached video alias count for a prefix."""
+
+    __tablename__ = "video_cache_alias"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="video_cache_alias_pkey"),
+        UniqueConstraint("prefix", name="uq_video_cache_alias_prefix"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    prefix: str = Field(
+        sa_column=Column(
+            "prefix",
+            String(50),
+            nullable=False,
+        ),
+    )
+    count: int = Field(
+        sa_column=Column(
+            "count",
+            Integer,
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        )
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        )
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoCacheAlias(id={self.id!r}, prefix={self.prefix!r})"
+
+
+class VideoLastScrapeTimestamp(SQLModel, table=True):
+    """Represents the last scrape timestamp for a video."""
+
+    __tablename__ = "video_last_scrape_timestamp"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="video_last_scrape_timestamp_pkey"),
+        UniqueConstraint(
+            "video_id",
+            name="uq_video_last_scrape_timestamp_video_id",
+        ),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    last_scraped_at: datetime.datetime = Field(
+        sa_column=Column(
+            "last_scraped_at",
+            DateTime,
+            nullable=False,
+        ),
+    )
+    video_id: str = Field(
+        sa_column=Column(
+            "video_id",
+            String(255),
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoLastScrapeTimestamp(id={self.id!r})"
+
+
+class VideoScrape(SQLModel, table=True):
+    """Represents a video scrape record."""
+
+    __tablename__ = "video_scrape"
+    __table_args__ = (
+        PrimaryKeyConstraint("id", name="video_scrape_pkey"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    video_id: str = Field(
+        sa_column=Column(
+            "video_id",
+            String(255),
+            nullable=False,
+        ),
+    )
+    scraped_at: datetime.datetime = Field(
+        sa_column=Column(
+            "scraped_at",
+            DateTime,
+            nullable=False,
+        ),
+    )
+    stored: int = Field(
+        sa_column=Column(
+            "stored",
+            Integer,
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    actress_id: Optional[int] = Field(
+        default=None,
+        sa_column=Column("actress_id", Integer),
+    )
+    duration: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "duration",
+            String(20),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoScrape(id={self.id!r}, video_id={self.video_id!r})"
+
+
+class VideoAka(SQLModel, table=True):
+    """Represents an alternative name (aka) for a video."""
+
+    __tablename__ = "video_aka"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["fk_id"],
+            ["public.video.id"],
+            ondelete="CASCADE",
+            name="video_aka_fk_id_fkey",
+        ),
+        PrimaryKeyConstraint("id", name="video_aka_pkey"),
+        Index("video_aka_fk_id_idx", "fk_id"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    fk_id: int = Field(
+        sa_column=Column(
+            "fk_id",
+            Integer,
+            nullable=False,
+        ),
+    )
+    translated_name: str = Field(
+        sa_column=Column(
+            "translated_name",
+            Text,
+            nullable=False,
+        ),
+    )
+    language: str = Field(
+        sa_column=Column(
+            "language",
+            String(10),
+            nullable=False,
+        ),
+    )
+    name_type: str = Field(
+        sa_column=Column(
+            "name_type",
+            String(20),
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+    fk: "Video" = Relationship(back_populates="video_aka")
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoAka(id={self.id!r}, fk_id={self.fk_id!r})"
+
+
+class VideoImageUrl(SQLModel, table=True):
+    """Represents an image URL associated with a video."""
+
+    __tablename__ = "video_image_url"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["fk_id"],
+            ["public.video.id"],
+            ondelete="CASCADE",
+            name="video_image_url_fk_id_fkey",
+        ),
+        PrimaryKeyConstraint("id", name="video_image_url_pkey"),
+        UniqueConstraint("fk_id", "url", name="uq_video_image_url_fk_id_url"),
+        Index("video_image_url_fk_id_idx", "fk_id"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    url: str = Field(
+        sa_column=Column(
+            "url",
+            Text,
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    fk_id: int = Field(
+        sa_column=Column(
+            "fk_id",
+            Integer,
+            nullable=False,
+        ),
+    )
+    type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "type",
+            String(50),
+        ),
+    )
+
+    fk: "Video" = Relationship(back_populates="video_image_url")
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoImageUrl(id={self.id!r}, fk_id={self.fk_id!r})"
+
+
+class VideoM3u8(SQLModel, table=True):
+    """Represents an M3U8 stream URL associated with a video."""
+
+    __tablename__ = "video_m3u8"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            columns=["fk_id"],
+            refcolumns=["public.video.id"],
+            ondelete="CASCADE",
+            name="video_m3u8_fk_id_fkey",
+        ),
+        PrimaryKeyConstraint("id", name="video_m3u8_pkey"),
+        UniqueConstraint(
+            "fk_id",
+            "m3u8_url",
+            name="uq_video_m3u8_fk_id_m3u8_url",
+        ),
+        Index("video_m3u8_fk_id_idx", "fk_id"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    fk_id: int = Field(
+        sa_column=Column(
+            "fk_id",
+            Integer,
+            nullable=False,
+        ),
+    )
+    m3u8_url: str = Field(
+        sa_column=Column(
+            "m3u8_url",
+            String(2048),
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+
+    fk: "Video" = Relationship(back_populates="video_m3u8")
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoM3u8(id={self.id!r}, fk_id={self.fk_id!r})"
+
+
+class VideoSampleImageUrl(SQLModel, table=True):
+    """Represents a sample image URL associated with a video."""
+
+    __tablename__ = "video_sample_image_url"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            columns=["fk_id"],
+            refcolumns=["public.video.id"],
+            ondelete="CASCADE",
+            name="video_sample_image_url_fk_id_fkey",
+        ),
+        PrimaryKeyConstraint("id", name="video_sample_image_url_pkey"),
+        UniqueConstraint("fk_id", "url", name="uq_video_sample_image_url_fk_id_url"),
+        Index("video_sample_image_url_fk_id_idx", "fk_id"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    url: str = Field(
+        sa_column=Column(
+            "url",
+            Text,
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    fk_id: int = Field(
+        sa_column=Column(
+            "fk_id",
+            Integer,
+            nullable=False,
+        ),
+    )
+    type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "type",
+            String(50),
+        ),
+    )
+
+    fk: "Video" = Relationship(back_populates="video_sample_image_url")
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoSampleImageUrl(id={self.id!r}, fk_id={self.fk_id!r})"
+
+
+class VideoSampleMovieUrl(SQLModel, table=True):
+    """Represents a sample movie URL associated with a video."""
+
+    __tablename__ = "video_sample_movie_url"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["fk_id"],
+            ["public.video.id"],
+            ondelete="CASCADE",
+            name="video_sample_movie_url_fk_id_fkey",
+        ),
+        PrimaryKeyConstraint("id", name="video_sample_movie_url_pkey"),
+        UniqueConstraint(
+            "fk_id",
+            "url",
+            name="uq_video_sample_movie_url_fk_id_url",
+        ),
+        Index("video_sample_movie_url_fk_id_idx", "fk_id"),
+        {"schema": "public"},
+    )
+
+    id: int = Field(
+        sa_column=Column(
+            "id",
+            Integer,
+            primary_key=True,
+            autoincrement=True,
+        ),
+    )
+    url: str = Field(
+        sa_column=Column(
+            "url",
+            Text,
+            nullable=False,
+        ),
+    )
+    created_at: datetime.datetime = Field(
+        sa_column=Column(
+            "created_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    updated_at: datetime.datetime = Field(
+        sa_column=Column(
+            "updated_at",
+            DateTime,
+            nullable=False,
+            server_default=text("now()"),
+        ),
+    )
+    fk_id: int = Field(
+        sa_column=Column(
+            "fk_id",
+            Integer,
+            nullable=False,
+        ),
+    )
+    type: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "type",
+            String(50),
+        ),
+    )
+
+    fk: "Video" = Relationship(back_populates="video_sample_movie_url")
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"VideoSampleMovieUrl(id={self.id!r}, fk_id={self.fk_id!r})"
