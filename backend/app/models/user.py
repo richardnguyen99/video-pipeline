@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.comments import Comment
     from app.models.credentials import UserCredential
     from app.models.refresh_token import RefreshToken
+    from app.models.video_like import VideoLike
 
 
 class User(SQLModel, table=True):
@@ -68,6 +69,7 @@ class User(SQLModel, table=True):
     )
     refresh_tokens: list["RefreshToken"] = Relationship(back_populates="user")
     comments: list["Comment"] = Relationship(back_populates="user")
+    likes: list["VideoLike"] = Relationship(back_populates="user")
 
     def __repr__(self) -> str:
         """Return a debug-friendly representation."""

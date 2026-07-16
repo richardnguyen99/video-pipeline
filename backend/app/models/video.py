@@ -19,6 +19,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 if TYPE_CHECKING:
     from app.models.comments import Comment
+    from app.models.video_like import VideoLike
 
 
 class NonDmmVideoPrefix(SQLModel, table=True):
@@ -177,6 +178,7 @@ class Video(SQLModel, table=True):
         back_populates="fk",
     )
     comments: list["Comment"] = Relationship(back_populates="video")
+    likes: list["VideoLike"] = Relationship(back_populates="video")
 
     def __repr__(self) -> str:
         """Return a string representation."""

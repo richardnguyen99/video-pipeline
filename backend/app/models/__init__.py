@@ -44,3 +44,4 @@ from app.models.video import (
     VideoSampleMovieUrl,
     VideoScrape,
 )
+from app.models.video_like import VideoLike
