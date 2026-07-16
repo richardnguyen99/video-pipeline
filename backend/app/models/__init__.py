@@ -27,6 +27,12 @@ from app.models.director import Director, DirectorAka
 from app.models.genre import Genre, GenreAka
 from app.models.label import Label, LabelAka
 from app.models.maker import Maker, MakerAka
+from app.models.playlist import (
+    Playlist,
+    PlaylistShare,
+    PlaylistVideo,
+    PlaylistVisibility,
+)
 from app.models.refresh_token import RefreshToken
 from app.models.series import Series, SeriesAka
 from app.models.user import User
