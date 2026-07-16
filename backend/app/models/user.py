@@ -10,6 +10,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.sqltypes import AutoString
 
 if TYPE_CHECKING:
+    from app.models.comments import Comment
     from app.models.credentials import UserCredential
     from app.models.refresh_token import RefreshToken
 
@@ -66,6 +67,7 @@ class User(SQLModel, table=True):
         sa_relationship_kwargs={"uselist": False},
     )
     refresh_tokens: list["RefreshToken"] = Relationship(back_populates="user")
+    comments: list["Comment"] = Relationship(back_populates="user")
 
     def __repr__(self) -> str:
         """Return a debug-friendly representation."""

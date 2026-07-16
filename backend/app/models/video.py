@@ -1,7 +1,7 @@
 """Video-related SQLModel models."""
 
 import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
     Column,
@@ -16,6 +16,9 @@ from sqlalchemy import (
     text,
 )
 from sqlmodel import Field, Relationship, SQLModel
+
+if TYPE_CHECKING:
+    from app.models.comments import Comment
 
 
 class NonDmmVideoPrefix(SQLModel, table=True):
@@ -173,6 +176,7 @@ class Video(SQLModel, table=True):
     video_sample_movie_url: list["VideoSampleMovieUrl"] = Relationship(
         back_populates="fk",
     )
+    comments: list["Comment"] = Relationship(back_populates="video")
 
     def __repr__(self) -> str:
         """Return a string representation."""
