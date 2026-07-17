@@ -1,0 +1,33 @@
+{
+  "editor.formatOnSave": true,
+
+  "chat.instructionsFilesLocations": {
+    ".github/instructions": true,
+    ".claude/rules": true,
+    "~/.copilot/instructions": false,
+    "~/.claude/rules": false
+  },
+  "cSpell.words": [
+    "checkfirst",
+    "docstrings",
+    "dotenv",
+    "jancode",
+    "ondelete",
+    "onupdate",
+    "pkey",
+    "refcolumns",
+    "sqlacodegen",
+    "sqltypes",
+    "trgm",
+    "uselist"
+  ],
+
+  "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit"
+    }
+  },
+  "isort.args": ["--profile", "black"]
+}

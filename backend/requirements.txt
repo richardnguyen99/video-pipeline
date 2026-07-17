@@ -9,3 +9,4 @@ asyncpg>=0.27.0
 black>=24.0.0
 isort>=5.13.0
 pylint>=3.0.0
+sqlacodegen>=4.0.0
