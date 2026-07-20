@@ -1,6 +1,5 @@
 {
   "editor.formatOnSave": true,
-  "editor.wordWrap": "off",
 
   "chat.instructionsFilesLocations": {
     ".github/instructions": true,
