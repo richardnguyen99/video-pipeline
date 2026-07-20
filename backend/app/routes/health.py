@@ -1,5 +1,6 @@
 """Health check endpoint."""
 
+from app.config import settings
 from fastapi import APIRouter, status
 from pydantic import BaseModel
 
@@ -21,6 +22,5 @@ class HealthResponse(BaseModel):
 )
 async def health_check() -> HealthResponse:
     """Return the current health status of the service."""
-    from app.config import settings
 
     return HealthResponse(status="ok", version=settings.app_version)
