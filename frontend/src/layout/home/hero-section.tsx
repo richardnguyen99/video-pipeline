@@ -35,7 +35,7 @@ export default function HeroSection() {
             }`}
           >
             <img
-              src={m.image || "/placeholder.svg"}
+              src={m.image || "https://placehold.co/1920x1080"}
               alt=""
               loading={i === 0 ? "eager" : "lazy"}
               fetchPriority={i === 0 ? "high" : "auto"}
