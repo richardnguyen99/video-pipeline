@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Play, Plus, Star, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { featuredMovies } from "@/lib/movies";
+import { featuredMovies } from "#/libs/movies";
 
 const SLIDE_DURATION = 6000;
 

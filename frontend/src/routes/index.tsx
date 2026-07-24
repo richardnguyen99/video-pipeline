@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import HeroSection from "@/layout/home/hero-section";
-import GenreSection from "@/layout/home/genre-section";
+import HeroSection from "@/layouts/home/hero-section";
+import GenreSection from "@/layouts/home/genre-section";
 
 export const Route = createFileRoute("/")({ component: App });
 

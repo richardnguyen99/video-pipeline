@@ -4,6 +4,23 @@ description: "Coding conventions for Python files"
 applyTo: "**/*.py"
 ---
 
+# Tech stack
+
+- `python3.14` as the core programming language.
+- `fastapi` as the web framework for building APIs and server-side applications.
+- `sqlmodel` as the ORM for database interactions and model definitions.
+- `postgresql` as the core database for the application.
+- `redis` as the caching layer between application and database to improve performance and reduce database load.
+- `celery` as the task queue for handling asynchronous tasks and background jobs.
+- `rabbitmq` as the message broker for Celery to facilitate communication between the application and the task queue.
+- `alembic` as the database migration tool for managing schema changes and versioning.
+- `pytest` as the testing framework for writing and executing unit tests, integration tests, and end-to-end tests.
+- `pytest-asyncio` as the plugin for pytest to support testing of asynchronous code and coroutines.
+- `black` as the code formatter.
+- `isort` as the import sorting tool.
+- `pylint` as the static code analysis tool.
+- `pre-commit` as the tool for managing and maintaining pre-commit hooks to enforce code quality and consistency.
+
 # Coding conventions
 
 - ALWAYS use virtual environments for managing project dependencies.

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { genreCollections, type GenreCollection, type GenreMovie } from "@/lib/movies";
+import { genreCollections, type GenreCollection, type GenreMovie } from "#/libs/movies";
 
 interface MovieCardProps {
   movie: GenreMovie;

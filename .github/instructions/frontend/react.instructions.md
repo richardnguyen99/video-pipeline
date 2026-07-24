@@ -1,8 +1,24 @@
 ---
-name: 'React Standards'
-description: 'Coding conventions for React files'
-applyTo: '**/*.jsx, **/*.tsx'
+name: "React Standards"
+description: "Coding conventions for React files"
+applyTo: "**/*.jsx, **/*.tsx"
 ---
+
+# Tech stack
+
+- `react@19` as the core library for building user interfaces.
+- `tanstack/react-router` as the routing library for managing navigation and routing in the application.
+- `tanstack/react-query` as the data-fetching and state management library for handling server state and caching.
+- `shadcn/ui` as the core UI component library.
+- `lucide-react` as the icon library for using SVG icons in the application.
+- `tailwindcss` as the utility-first CSS framework for styling components and layouts.
+- `zustand` as the state management library for managing global state in the application.
+- `typescript` as the type-checking and static analysis tool.
+- `vite` as the build tool and development server.
+- `vitest` as the testing framework for unit and integration tests.
+- `eslint` as the static code analysis tool for identifying and fixing code quality issues.
+- `prettier` as the code formatter for maintaining consistent code style across the project.
+- `husky` as the tool for managing Git hooks to enforce code quality and consistency.
 
 # Coding Conventions
 
@@ -38,18 +54,19 @@ applyTo: '**/*.jsx, **/*.tsx'
 
 # File Structure
 
-- Use `components` directory for reusable React components.
-- Use `layouts` directory for layout components that structure pages.
-- Use `pages` directory for top-level page components.
-- Use `hooks` directory for custom React hooks.
-- Use `utils` directory for utility functions and helpers.
-- Use `styles` directory for TailwindCSS configuration and custom styles.
-- Use `assets` directory for static assets such as images, fonts, and icons.
-- Use `api` directory for API-related code such as service functions and API clients.
-- Use `contexts` directory for React context providers and related code.
-- Use `tests` directory for test files related to components, hooks, and other parts of the application.
-- Use `mocks` directory for mock data and mock implementations used in tests.
-- Use `config` directory for configuration files and environment-specific settings.
+- Use `src/components` directory for reusable React components.
+- Use `src/routes` directory for route components and route definitions.
+- Use `src/layouts` directory for layout components that structure pages.
+- Use `src/pages` directory for top-level page components.
+- Use `src/hooks` directory for custom React hooks.
+- Use `src/utils` directory for utility functions and helpers.
+- Use `src/styles` directory for TailwindCSS configuration and custom styles.
+- Use `src/assets` directory for static assets such as images, fonts, and icons.
+- Use `src/api` directory for API-related code such as service functions and API clients.
+- Use `src/contexts` directory for React context providers and related code.
+- Use `src/tests` directory for test files related to components, hooks, and other parts of the application.
+- Use `src/mocks` directory for mock data and mock implementations used in tests.
+- Use `src/config` directory for configuration files and environment-specific settings.
 
 # Naming Conventions
 
