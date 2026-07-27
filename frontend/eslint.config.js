@@ -17,7 +17,10 @@ export default [
       "@typescript-eslint/array-type": "off",
       "@typescript-eslint/require-await": "off",
       "pnpm/json-enforce-catalog": "off",
-      "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
+      "react-refresh/only-export-components": [
+        "warn",
+        { allowConstantExport: true, extraHOCs: ["createRootRoute", "createFileRoute"] },
+      ],
     },
   },
   {
