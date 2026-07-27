@@ -21,6 +21,16 @@ export default [
     },
   },
   {
-    ignores: ["eslint.config.js", "prettier.config.js", "commitlint.config.js", "vitest.config.js"],
+    ignores: [
+      "eslint.config.js",
+      "prettier.config.js",
+      "commitlint.config.js",
+      "vitest.config.js",
+      "vite.config.js",
+      "tailwind.config.js",
+      "postcss.config.js",
+      "cypress.config.js",
+      "src/routeTree.gen.ts",
+    ],
   },
 ];

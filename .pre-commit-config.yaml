@@ -21,6 +21,13 @@ repos:
         entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done; npx prettier --write "${files[@]}"' --
         files: ^frontend/.*\.(ts|tsx|js|jsx|css|md|json)$
         pass_filenames: true
+      
+      - id: frontend-build
+        name: frontend build
+        language: system
+        entry: bash -c 'cd frontend && npm run build'
+        files: ^frontend/
+        pass_filenames: false
 
       # Applies to every commit (frontend + backend + root)
       # Run from frontend/ so @commitlint/config-conventional resolves from frontend/node_modules
