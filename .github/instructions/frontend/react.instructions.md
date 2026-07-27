@@ -18,7 +18,7 @@ applyTo: "**/*.jsx, **/*.tsx"
 - `vitest` as the testing framework for unit and integration tests.
 - `eslint` as the static code analysis tool for identifying and fixing code quality issues.
 - `prettier` as the code formatter for maintaining consistent code style across the project.
-- `husky` as the tool for managing Git hooks to enforce code quality and consistency.
+- `pre-commit` (Python framework) at the monorepo root for Git hooks; only frontend files are linted/formatted. Backend is excluded.
 
 # Coding Conventions
 

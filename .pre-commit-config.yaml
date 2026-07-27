@@ -1,0 +1,34 @@
+# Monorepo pre-commit configuration
+# - Frontend: ESLint + Prettier on staged frontend files only
+# - Backend: no lint/format hooks
+# - Commit message: conventional commits for the whole monorepo
+
+default_stages: [pre-commit]
+
+repos:
+  - repo: local
+    hooks:
+      - id: frontend-eslint
+        name: frontend eslint
+        language: system
+        entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done; npx eslint --fix "${files[@]}"'
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: true
+
+      - id: frontend-prettier
+        name: frontend prettier
+        language: system
+        entry: bash -c 'cd frontend && files=(); for f in "$@"; do files+=("${f#frontend/}"); done; npx prettier --write "${files[@]}"' --
+        files: ^frontend/.*\.(ts|tsx|js|jsx|css|md|json)$
+        pass_filenames: true
+
+      # Applies to every commit (frontend + backend + root)
+      # Run from frontend/ so @commitlint/config-conventional resolves from frontend/node_modules
+      - id: commitlint
+        name: commitlint
+        language: system
+        entry: bash -c 'ROOT="$(git rev-parse --show-toplevel)"; cd "$ROOT/frontend" && npx commitlint --config "$ROOT/frontend/commitlint.config.cjs" --edit "$0"' --
+        stages: [commit-msg]
+        always_run: true
+        pass_filenames: true
+

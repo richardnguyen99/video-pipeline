@@ -1,10 +1,15 @@
 //  @ts-check
 
 import { tanstackConfig } from "@tanstack/eslint-config";
+import reactRefresh from "eslint-plugin-react-refresh";
 
+/** @type {import('eslint').Linter.Config[]} */
 export default [
   ...tanstackConfig,
   {
+    plugins: {
+      "react-refresh": reactRefresh,
+    },
     rules: {
       "import/no-cycle": "off",
       "import/order": "off",
