@@ -719,7 +719,9 @@ class VideoSampleImageUrl(SQLModel, table=True):
             name="video_sample_image_url_fk_id_fkey",
         ),
         PrimaryKeyConstraint("id", name="video_sample_image_url_pkey"),
-        UniqueConstraint("fk_id", "url", name="uq_video_sample_image_url_fk_id_url"),
+        UniqueConstraint(
+            "fk_id", "url", name="uq_video_sample_image_url_fk_id_url"
+        ),
         Index("video_sample_image_url_fk_id_idx", "fk_id"),
         {"schema": "public"},
     )

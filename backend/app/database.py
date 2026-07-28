@@ -8,11 +8,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import settings
 
-_async_url = settings.database_url.replace(
+ASYNC_URL = settings.database_url.replace(
     "postgresql://", "postgresql+asyncpg://"
 ).replace("postgres://", "postgresql+asyncpg://")
 
-engine = create_async_engine(_async_url, echo=settings.debug)
+engine = create_async_engine(ASYNC_URL, echo=settings.debug)
 
 
 async def create_db_and_tables() -> None:

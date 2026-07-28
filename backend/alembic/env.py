@@ -33,7 +33,9 @@ def include_object(object, name, type_, reflected, compare_to):
 
 def get_url() -> str:
     """Return the async-compatible database URL."""
-    url = os.environ.get("DATABASE_URL", config.get_main_option("sqlalchemy.url"))
+    url = os.environ.get(
+        "DATABASE_URL", config.get_main_option("sqlalchemy.url")
+    )
     return url.replace("postgresql://", "postgresql+asyncpg://").replace(
         "postgres://", "postgresql+asyncpg://"
     )

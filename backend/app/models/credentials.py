@@ -4,11 +4,12 @@ import datetime
 import uuid
 from typing import Optional
 
-from app.models.user import User
 from sqlalchemy.sql.functions import now
 from sqlmodel import Field, Relationship, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.sqltypes import AutoString
+
+from app.models.user import User
 
 
 class UserCredential(SQLModel, table=True):
@@ -96,7 +97,9 @@ class UserCredential(SQLModel, table=True):
             The matching ``UserCredential``, or ``None`` if not
             found.
         """
-        statement = select(UserCredential).where(UserCredential.user_id == user_id)
+        statement = select(UserCredential).where(
+            UserCredential.user_id == user_id
+        )
         result = await session.exec(statement)
 
         return result.one_or_none()

@@ -97,7 +97,9 @@ class User(SQLModel, table=True):
         return cls(username=username, email=email, **kwargs)
 
     @staticmethod
-    async def get_by_id(session: AsyncSession, user_id: uuid.UUID) -> Optional["User"]:
+    async def get_by_id(
+        session: AsyncSession, user_id: uuid.UUID
+    ) -> Optional["User"]:
         """Fetch a user by primary key.
 
         Args:

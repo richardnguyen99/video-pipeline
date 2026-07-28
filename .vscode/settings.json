@@ -18,6 +18,7 @@
     "pkey",
     "refcolumns",
     "sqlacodegen",
+    "sqlalchemy",
     "sqltypes",
     "trgm",
     "uselist"

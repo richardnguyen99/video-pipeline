@@ -1,83 +1,23 @@
 """Director-related SQLModel models."""
 
-import datetime
-from typing import Optional
-
 from sqlalchemy import (
-    Column,
-    DateTime,
     ForeignKeyConstraint,
     Index,
-    Integer,
     PrimaryKeyConstraint,
-    String,
-    Text,
     UniqueConstraint,
-    text,
 )
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Relationship
+
+from app.models.base import AkaMixin, DmmCatalogMixin
 
 
-class Director(SQLModel, table=True):
+class Director(DmmCatalogMixin, table=True):
     """Represents a director entity."""
 
     __table_args__ = (
         PrimaryKeyConstraint("id", name="director_pkey"),
         UniqueConstraint("dmm_id", name="director_dmm_id_key"),
         {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        )
-    )
-    name: str = Field(
-        sa_column=Column(
-            "name",
-            String(255),
-            nullable=False,
-        ),
-    )
-    scraped_at: datetime.datetime = Field(
-        sa_column=Column(
-            "scraped_at",
-            DateTime,
-            nullable=False,
-        )
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    dmm_id: str = Field(
-        sa_column=Column(
-            "dmm_id",
-            String(50),
-            nullable=False,
-        ),
-    )
-    ruby: Optional[str] = Field(
-        default=None,
-        sa_column=Column(
-            "ruby",
-            String(255),
-        ),
     )
 
     director_aka: list["DirectorAka"] = Relationship(back_populates="fk")
@@ -88,7 +28,7 @@ class Director(SQLModel, table=True):
         return f"Director(id={self.id!r}, name={self.name!r})"
 
 
-class DirectorAka(SQLModel, table=True):
+class DirectorAka(AkaMixin, table=True):
     """Represents an alternative name (aka) for a director."""
 
     __tablename__ = "director_aka"
@@ -107,59 +47,6 @@ class DirectorAka(SQLModel, table=True):
         ),
         Index("director_aka_fk_id_idx", "fk_id"),
         {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
-    translated_name: str = Field(
-        sa_column=Column(
-            "translated_name",
-            Text,
-            nullable=False,
-        ),
-    )
-    language: str = Field(
-        sa_column=Column(
-            "language",
-            String(10),
-            nullable=False,
-        ),
-    )
-    name_type: str = Field(
-        sa_column=Column(
-            "name_type",
-            String(20),
-            nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    fk_id: int = Field(
-        sa_column=Column(
-            "fk_id",
-            Integer,
-            nullable=False,
-        ),
     )
 
     fk: "Director" = Relationship(back_populates="director_aka")

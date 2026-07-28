@@ -20,12 +20,13 @@ import datetime
 import uuid
 from typing import Optional
 
-from app.models.user import User
-from app.models.video import Video
 from sqlalchemy import UniqueConstraint
 from sqlalchemy.sql.functions import count, now
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.models.user import User
+from app.models.video import Video
 
 
 class VideoLike(SQLModel, table=True):
@@ -122,6 +123,7 @@ class VideoLike(SQLModel, table=True):
         offset: int = 0,
     ) -> list["VideoLike"]:
         """Fetch a user's liked videos, newest first (watch-later list)."""
+
         statement = (
             select(VideoLike)
             .where(VideoLike.user_id == user_id)
@@ -131,7 +133,8 @@ class VideoLike(SQLModel, table=True):
             .limit(limit)
             .offset(offset)
         )
-        return list(session.exec(statement).all())
+
+        return list((await session.exec(statement)).all())
 
     @staticmethod
     async def unlike(

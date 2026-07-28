@@ -10,7 +10,11 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
-    database_url: str
+    # Default matches .env.example; overridden by DATABASE_URL in
+    # the environment.
+    database_url: str = (
+        "postgresql://user:password@localhost:5432/video_pipeline"
+    )
 
     model_config = SettingsConfigDict(
         env_file=".env",

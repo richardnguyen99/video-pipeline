@@ -10,6 +10,7 @@ default_stages: [pre-commit]
 repos:
   - repo: local
     hooks:
+      # ── Frontend ──────────────────────────────────────────
       - id: frontend-eslint
         name: frontend eslint
         language: system
@@ -29,6 +30,38 @@ repos:
         language: system
         entry: bash scripts/pre-commit/frontend-build.sh
         files: ^frontend/
+        pass_filenames: false
+
+      # ── Backend ───────────────────────────────────────────
+      - id: backend-black
+        name: backend black
+        language: system
+        entry: bash scripts/pre-commit/backend-black.sh
+        files: ^backend/.*\.py$
+        exclude: ^backend/alembic
+        pass_filenames: true
+
+      - id: backend-pylint
+        name: backend pylint
+        language: system
+        entry: bash scripts/pre-commit/backend-pylint.sh
+        files: ^backend/.*\.py$
+        exclude: ^backend/alembic
+        pass_filenames: true
+
+      - id: backend-mypy
+        name: backend mypy
+        language: system
+        entry: bash scripts/pre-commit/backend-mypy.sh
+        files: ^backend/.*\.py$
+        exclude: ^backend/alembic
+        pass_filenames: true
+
+      - id: backend-build
+        name: backend production build
+        language: system
+        entry: bash scripts/pre-commit/backend-build.sh
+        files: ^backend/
         pass_filenames: false
 
       - id: commitlint

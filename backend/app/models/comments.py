@@ -10,12 +10,13 @@ cross-schema foreign key.
 import datetime
 import uuid
 
-from app.models.user import User
-from app.models.video import Video
 from sqlalchemy.sql.functions import now
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.sqltypes import AutoString
+
+from app.models.user import User
+from app.models.video import Video
 
 
 class Comment(SQLModel, table=True):

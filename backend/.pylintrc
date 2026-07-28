@@ -1,0 +1,24 @@
+[MAIN]
+ignore=alembic,versions,.venv,venv,__pycache__,.mypy_cache,.pytest_cache
+ignore-patterns=alembic/versions/.*
+jobs=0
+
+[MESSAGES CONTROL]
+# Relax common FastAPI / SQLModel / dynamic patterns
+disable=
+    too-few-public-methods,
+
+[FORMAT]
+max-line-length=79
+indent-string='    '
+
+[BASIC]
+good-names=id,db,i,j,k,ex,e,_
+
+[DESIGN]
+max-args=10
+max-attributes=15
+max-locals=20
+
+[TYPECHECK]
+ignored-modules=sqlmodel,sqlalchemy,fastapi,pydantic

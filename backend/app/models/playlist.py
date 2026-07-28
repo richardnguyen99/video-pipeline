@@ -19,12 +19,10 @@ import uuid
 from enum import Enum
 from typing import Optional
 
-from app.models.user import User
-from app.models.video import Video
 from sqlalchemy import Column
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.sql.functions import max as max_
-from sqlalchemy.sql.functions import now
+from sqlalchemy.sql.functions import now as sa_now
 from sqlmodel import (
     Field,
     Relationship,
@@ -36,6 +34,9 @@ from sqlmodel import (
 )
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.sqltypes import AutoString
+
+from app.models.user import User
+from app.models.video import Video
 
 
 class PlaylistVisibility(str, Enum):
@@ -70,15 +71,19 @@ class Playlist(SQLModel, table=True):
         ),
     )
     created_at: datetime.datetime = Field(
-        default_factory=now,
+        default_factory=lambda: datetime.datetime.now(
+            datetime.timezone.utc
+        ).replace(tzinfo=None),
         sa_column_kwargs={
-            "server_default": now(),
+            "server_default": sa_now(),
         },
     )
     updated_at: datetime.datetime = Field(
-        default_factory=now,
+        default_factory=lambda: datetime.datetime.now(
+            datetime.timezone.utc
+        ).replace(tzinfo=None),
         sa_column_kwargs={
-            "server_default": now(),
+            "server_default": sa_now(),
         },
     )
 
@@ -125,13 +130,17 @@ class Playlist(SQLModel, table=True):
         """Rename the playlist, bumping ``updated_at``."""
 
         self.name = new_name
-        self.updated_at = now()
+        self.updated_at = datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None
+        )
 
     def set_visibility(self, visibility: PlaylistVisibility) -> None:
         """Change public/private visibility, bumping ``updated_at``."""
 
         self.visibility = visibility
-        self.updated_at = now()
+        self.updated_at = datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None
+        )
 
     @staticmethod
     async def get_by_id(
@@ -226,9 +235,11 @@ class PlaylistVideo(SQLModel, table=True):
     video_id: int = Field(foreign_key="public.video.id", index=True)
     position: int = Field(default=0)
     added_at: datetime.datetime = Field(
-        default_factory=now,
+        default_factory=lambda: datetime.datetime.now(
+            datetime.timezone.utc
+        ).replace(tzinfo=None),
         sa_column_kwargs={
-            "server_default": now(),
+            "server_default": sa_now(),
         },
     )
 
@@ -368,9 +379,11 @@ class PlaylistShare(SQLModel, table=True):
     )
     can_edit: bool = Field(default=False)
     created_at: datetime.datetime = Field(
-        default_factory=now,
+        default_factory=lambda: datetime.datetime.now(
+            datetime.timezone.utc
+        ).replace(tzinfo=None),
         sa_column_kwargs={
-            "server_default": now(),
+            "server_default": sa_now(),
         },
     )
     playlist: Playlist = Relationship(back_populates="shares")
@@ -419,7 +432,7 @@ class PlaylistShare(SQLModel, table=True):
             PlaylistShare.shared_with_user_id == shared_with_user_id,
         )
 
-        share = await session.exec(statement).first()
+        share = (await session.exec(statement)).first()
         if share is None:
             return False
 

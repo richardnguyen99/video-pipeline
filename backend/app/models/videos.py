@@ -1,4 +1,5 @@
-"""Re-exports for backward compatibility. Models have been split into separate modules."""
+"""Re-exports for backward compatibility. Models have been split into separate
+modules."""
 
 from app.models.actress import (
     Actress,

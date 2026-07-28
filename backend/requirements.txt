@@ -11,3 +11,4 @@ isort>=5.13.0
 pylint>=3.0.0
 sqlacodegen>=4.0.0
 pre-commit>=4.6.0
+mypy>=1.10.0

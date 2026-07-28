@@ -1,0 +1,38 @@
+[tool.black]
+line-length = 79
+target-version = ["py314"]
+include = '\.pyi?$'
+# Note: exclude is ignored when paths are passed explicitly on the CLI;
+# scripts/pre-commit/backend-black.sh also filters alembic/
+extend-exclude = '''
+/(
+  \.git
+  | \.venv
+  | venv
+  | __pycache__
+  | \.mypy_cache
+  | \.pytest_cache
+  | alembic
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 79
+skip_gitignore = true
+extend_skip = [".venv", "venv", "__pycache__", "alembic"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = ["(^|/)\\.venv/", "(^|/)venv/", "(^|/)alembic/", "(^|/)__pycache__/"]
+
+[[tool.mypy.overrides]]
+module = ["sqlalchemy.*"]
+ignore_missing_imports = true

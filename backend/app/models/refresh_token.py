@@ -9,11 +9,12 @@ import datetime
 import uuid
 from typing import Optional
 
-from app.models.user import User
 from sqlalchemy.sql.functions import now
 from sqlmodel import Field, Relationship, SQLModel, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.sqltypes import AutoString
+
+from app.models.user import User
 
 
 class RefreshToken(SQLModel, table=True):
@@ -138,7 +139,9 @@ class RefreshToken(SQLModel, table=True):
         Returns:
             The matching ``RefreshToken``, or ``None`` if not found.
         """
-        statement = select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        statement = select(RefreshToken).where(
+            RefreshToken.token_hash == token_hash
+        )
         result = await session.exec(statement)
 
         return result.first()

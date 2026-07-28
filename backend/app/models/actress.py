@@ -202,7 +202,9 @@ class ActressScrape(SQLModel, table=True):
     __tablename__ = "actress_scrape"
     __table_args__ = (
         PrimaryKeyConstraint("id", name="actress_scrape_pkey"),
-        UniqueConstraint("actress_page", "index_on_page", name="ux_actress_page_index"),
+        UniqueConstraint(
+            "actress_page", "index_on_page", name="ux_actress_page_index"
+        ),
         {"schema": "public"},
     )
 
@@ -210,7 +212,9 @@ class ActressScrape(SQLModel, table=True):
         sa_column=Column("id", Integer, primary_key=True, autoincrement=True)
     )
     name: str = Field(sa_column=Column("name", String(255), nullable=False))
-    actress_page: int = Field(sa_column=Column("actress_page", Integer, nullable=False))
+    actress_page: int = Field(
+        sa_column=Column("actress_page", Integer, nullable=False)
+    )
     index_on_page: int = Field(
         sa_column=Column("index_on_page", Integer, nullable=False)
     )
