@@ -3,6 +3,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import type { Video } from "@/mocks/videos";
 import { getMockVideoById } from "@/mocks/videos";
+import { VideoMetadata } from "@/components/video/video-metadata";
 
 export const Route = createFileRoute("/videos/$video_id")({
   component: VideoPage,
@@ -36,8 +37,9 @@ function VideoContent({ videoPromise }: { videoPromise: Promise<Video | undefine
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="aspect-video bg-zinc-950 rounded-2xl flex items-center justify-center mb-10 relative overflow-hidden">
+    <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      {/* Player */}
+      <div className="aspect-video bg-zinc-950 rounded-2xl flex items-center justify-center mb-6 relative overflow-hidden">
         <div className="text-center text-white">
           <div className="text-6xl mb-4">🎬</div>
           <p className="text-2xl font-medium">Video Player Placeholder</p>
@@ -45,12 +47,11 @@ function VideoContent({ videoPromise }: { videoPromise: Promise<Video | undefine
         </div>
       </div>
 
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">{video.title}</h1>
-        <p className="text-muted-foreground text-xl">ID: {video.video_id}</p>
-      </div>
+      {/* Metadata section (title + toolbar + report dialog) */}
+      <VideoMetadata video={video} views={124800} />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+      {/* Extra details below toolbar */}
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2">
           <h3 className="font-semibold text-lg mb-4">Details</h3>
           <div className="space-y-3 text-sm">
@@ -76,7 +77,7 @@ function VideoContent({ videoPromise }: { videoPromise: Promise<Video | undefine
         <div>
           <h3 className="font-semibold text-lg mb-4">Cast</h3>
           <div className="flex flex-wrap gap-2">
-            {video.actresses?.map((actress: any) => (
+            {video.actresses?.map((actress) => (
               <span key={actress.id} className="bg-secondary px-4 py-1.5 rounded-full text-sm">
                 {actress.name}
               </span>
@@ -90,14 +91,11 @@ function VideoContent({ videoPromise }: { videoPromise: Promise<Video | undefine
 
 function VideoPending() {
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      <div className="animate-pulse space-y-8">
-        <div className="aspect-video bg-zinc-200 dark:bg-zinc-800 rounded-2xl mb-10"></div>
-        <div className="mb-8 ">
-          <h1 className="h-10 font-bold mb-2 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-1/2"></h1>
-          <p className="h-7 text-muted-foreground text-xl rounded-lg bg-zinc-200 dark:bg-zinc-800 w-1/4"></p>
-        </div>
-        {/* more skeleton elements */}
+    <div className="max-w-6xl mx-auto p-4 sm:p-6">
+      <div className="animate-pulse space-y-6">
+        <div className="aspect-video bg-zinc-200 dark:bg-zinc-800 rounded-2xl" />
+        <div className="h-8 bg-zinc-200 dark:bg-zinc-800 rounded w-3/4" />
+        <div className="h-5 bg-zinc-200 dark:bg-zinc-800 rounded w-1/3" />
       </div>
     </div>
   );

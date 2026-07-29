@@ -1,9 +1,10 @@
-import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router";
+import { HeadContent, Outlet, Scripts, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 
 import Footer from "@/components/footer";
 import Header from "@/components/site-header";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 import appCss from "../styles/styles.css?url";
 
@@ -34,7 +35,7 @@ export const Route = createRootRoute({
   shellComponent: RootDocument,
 });
 
-function RootDocument({ children }: { children: React.ReactNode }) {
+function RootDocument() {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -42,22 +43,24 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body className="font-sans antialiased">
-        <main className="relative min-h-screen bg-background text-foreground">
-          <Header />
-          {children}
-          <Footer />
-        </main>
-        <TanStackDevtools
-          config={{
-            position: "bottom-right",
-          }}
-          plugins={[
-            {
-              name: "Tanstack Router",
-              render: <TanStackRouterDevtoolsPanel />,
-            },
-          ]}
-        />
+        <TooltipProvider>
+          <main className="relative min-h-screen bg-background text-foreground">
+            <Header />
+            <Outlet />
+            <Footer />
+          </main>
+          <TanStackDevtools
+            config={{
+              position: "bottom-right",
+            }}
+            plugins={[
+              {
+                name: "Tanstack Router",
+                render: <TanStackRouterDevtoolsPanel />,
+              },
+            ]}
+          />
+        </TooltipProvider>
         <Scripts />
       </body>
     </html>

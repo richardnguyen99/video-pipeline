@@ -1,7 +1,9 @@
 //  @ts-check
 
 import { tanstackConfig } from "@tanstack/eslint-config";
+import reactPlugin from "eslint-plugin-react";
 import reactRefresh from "eslint-plugin-react-refresh";
+import globals from "globals";
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
@@ -9,6 +11,17 @@ export default [
   {
     plugins: {
       "react-refresh": reactRefresh,
+      react: reactPlugin,
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+      },
     },
     rules: {
       "import/no-cycle": "off",
@@ -17,6 +30,7 @@ export default [
       "@typescript-eslint/array-type": "off",
       "@typescript-eslint/require-await": "off",
       "pnpm/json-enforce-catalog": "off",
+      "react/no-multi-comp": ["error", { ignoreStateless: true }],
       "react-refresh/only-export-components": [
         "warn",
         { allowConstantExport: true, extraHOCs: ["createRootRoute", "createFileRoute"] },

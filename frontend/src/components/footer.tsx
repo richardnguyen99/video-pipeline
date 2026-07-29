@@ -1,5 +1,4 @@
-import { Clapperboard, Play } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Clapperboard } from "lucide-react";
 
 export default function CtaFooter() {
   return (
