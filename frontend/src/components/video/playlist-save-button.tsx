@@ -64,6 +64,7 @@ export function PlaylistSaveButton({
   playlists: initialPlaylists = DEFAULT_PLAYLISTS,
 }: PlaylistSaveButtonProps) {
   const [playlists, setPlaylists] = useState<PlaylistOption[]>(initialPlaylists);
+  const [isOpen, setIsOpen] = useState(false);
 
   const tooltip = isAuthenticated ? "Add this to my playlist" : "Log in to add this video to playlist";
 
@@ -71,6 +72,12 @@ export function PlaylistSaveButton({
     setPlaylists((prev) =>
       prev.map((playlist) => (playlist.id === id ? { ...playlist, inPlaylist: !playlist.inPlaylist } : playlist)),
     );
+
+    setIsOpen(true);
+  }
+
+  function handleNewPlaylist() {
+    setIsOpen(true);
   }
 
   if (!isAuthenticated) {
@@ -83,7 +90,7 @@ export function PlaylistSaveButton({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <Tooltip>
         <TooltipTrigger
           render={<DropdownMenuTrigger render={<Button variant="secondary" className={videoActionBtnClass} />} />}
@@ -96,12 +103,13 @@ export function PlaylistSaveButton({
 
       <DropdownMenuContent align="end" className="w-80 p-0">
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="text-lg p-2">Playlist</DropdownMenuLabel>
+          <DropdownMenuLabel className="p-2 text-lg">Playlist</DropdownMenuLabel>
           <div className="max-h-64 overflow-y-auto p-1">
             {playlists.map((playlist) => (
               <DropdownMenuItem
                 key={playlist.id}
                 className="gap-3 py-2.5"
+                closeOnClick={false}
                 onClick={() => handleTogglePlaylist(playlist.id)}
               >
                 <img src={playlist.thumbnail} alt="" className="h-10 w-16 shrink-0 rounded object-cover" />
@@ -120,8 +128,12 @@ export function PlaylistSaveButton({
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup className="px-1 pb-1">
-          <DropdownMenuItem className="group gap-3 py-2.5 focus:bg-secondary">
-            <ListPlus className="size-4 " />
+          <DropdownMenuItem
+            className="group gap-3 py-2.5 focus:bg-secondary"
+            closeOnClick={false}
+            onClick={handleNewPlaylist}
+          >
+            <ListPlus className="size-4" />
             <p>New playlist</p>
           </DropdownMenuItem>
         </DropdownMenuGroup>
