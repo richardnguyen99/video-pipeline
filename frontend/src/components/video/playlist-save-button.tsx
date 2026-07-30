@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, ListPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { VideoActionButton, videoActionBtnClass } from "./video-action-button";
@@ -57,14 +59,22 @@ const DEFAULT_PLAYLISTS: PlaylistOption[] = [
 interface PlaylistSaveButtonProps {
   isAuthenticated: boolean;
   playlists?: PlaylistOption[];
+  /** Controlled open for the mobile dialog (e.g. from more-actions menu) */
+  mobileOpen?: boolean;
+  onMobileOpenChange?: (open: boolean) => void;
 }
 
 export function PlaylistSaveButton({
   isAuthenticated,
   playlists: initialPlaylists = DEFAULT_PLAYLISTS,
+  mobileOpen,
+  onMobileOpenChange,
 }: PlaylistSaveButtonProps) {
   const [playlists, setPlaylists] = useState<PlaylistOption[]>(initialPlaylists);
-  const [isOpen, setIsOpen] = useState(false);
+  const [desktopOpen, setDesktopOpen] = useState(false);
+
+  /** Mobile instance is controlled via mobileOpen; desktop instance has no mobile props */
+  const isMobileInstance = mobileOpen !== undefined && onMobileOpenChange !== undefined;
 
   const tooltip = isAuthenticated ? "Add this to my playlist" : "Log in to add this video to playlist";
 
@@ -72,12 +82,10 @@ export function PlaylistSaveButton({
     setPlaylists((prev) =>
       prev.map((playlist) => (playlist.id === id ? { ...playlist, inPlaylist: !playlist.inPlaylist } : playlist)),
     );
-
-    setIsOpen(true);
   }
 
   function handleNewPlaylist() {
-    setIsOpen(true);
+    // Placeholder for create-playlist flow — keep current UI open
   }
 
   if (!isAuthenticated) {
@@ -89,8 +97,63 @@ export function PlaylistSaveButton({
     );
   }
 
+  const dialogList = (
+    <div className="flex min-h-0 flex-col">
+      <ScrollArea className="max-h-64">
+        <ul className="flex flex-col gap-0.5 px-3 py-2">
+          {playlists.map((playlist) => (
+            <li key={playlist.id}>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-muted"
+                onClick={() => handleTogglePlaylist(playlist.id)}
+              >
+                <img src={playlist.thumbnail} alt="" className="h-10 w-16 shrink-0 rounded object-cover" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{playlist.name}</p>
+                  <p className="text-xs capitalize text-muted-foreground">{playlist.visibility}</p>
+                </div>
+                {playlist.inPlaylist ? (
+                  <Check className="size-4 shrink-0" />
+                ) : (
+                  <span className="size-4 shrink-0 rounded-full border border-muted-foreground/40" />
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </ScrollArea>
+      <div className="shrink-0 border-t border-border px-3 py-2">
+        <button
+          type="button"
+          className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left text-sm hover:bg-muted"
+          onClick={handleNewPlaylist}
+        >
+          <ListPlus className="size-4 shrink-0" />
+          New playlist
+        </button>
+      </div>
+    </div>
+  );
+
+  // Mobile: dialog only — never mount DropdownMenu (avoids top-left portal)
+  if (isMobileInstance) {
+    return (
+      <Dialog open={mobileOpen} onOpenChange={onMobileOpenChange}>
+        <DialogContent className="flex max-h-[90vh] w-[min(100%,24rem)] flex-col gap-0 overflow-hidden p-0">
+          <DialogHeader className="shrink-0 flex-row items-center gap-2 px-4 py-3">
+            <DialogTitle className="min-w-0 flex-1 text-base">Playlist</DialogTitle>
+            <DialogClose />
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-hidden">{dialogList}</div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Desktop: dropdown only
   return (
-    <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+    <DropdownMenu open={desktopOpen} onOpenChange={setDesktopOpen}>
       <Tooltip>
         <TooltipTrigger
           render={<DropdownMenuTrigger render={<Button variant="secondary" className={videoActionBtnClass} />} />}
@@ -104,28 +167,29 @@ export function PlaylistSaveButton({
       <DropdownMenuContent align="end" className="w-80 p-0">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="p-2 text-lg">Playlist</DropdownMenuLabel>
-          <div className="max-h-64 overflow-y-auto p-1">
-            {playlists.map((playlist) => (
-              <DropdownMenuItem
-                key={playlist.id}
-                className="gap-3 py-2.5"
-                closeOnClick={false}
-                onClick={() => handleTogglePlaylist(playlist.id)}
-              >
-                <img src={playlist.thumbnail} alt="" className="h-10 w-16 shrink-0 rounded object-cover" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{playlist.name}</p>
-                  <p className="text-xs capitalize text-muted-foreground">{playlist.visibility}</p>
-                </div>
-                {playlist.inPlaylist ? (
-                  <Check className="size-4 shrink-0" />
-                ) : (
-                  <span className="size-4 shrink-0 rounded-full border border-muted-foreground/40" />
-                )}
-              </DropdownMenuItem>
-            ))}
-          </div>
         </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <div className="max-h-64 overflow-y-auto p-1">
+          {playlists.map((playlist) => (
+            <DropdownMenuItem
+              key={playlist.id}
+              className="gap-3 py-2.5"
+              closeOnClick={false}
+              onClick={() => handleTogglePlaylist(playlist.id)}
+            >
+              <img src={playlist.thumbnail} alt="" className="h-10 w-16 shrink-0 rounded object-cover" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{playlist.name}</p>
+                <p className="text-xs capitalize text-muted-foreground">{playlist.visibility}</p>
+              </div>
+              {playlist.inPlaylist ? (
+                <Check className="size-4 shrink-0" />
+              ) : (
+                <span className="size-4 shrink-0 rounded-full border border-muted-foreground/40" />
+              )}
+            </DropdownMenuItem>
+          ))}
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuGroup className="px-1 pb-1">
           <DropdownMenuItem

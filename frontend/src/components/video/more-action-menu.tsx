@@ -1,6 +1,5 @@
 import { Flag, ListPlus, MoreHorizontal, Share2 } from "lucide-react";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,39 +8,33 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { cn } from "@/libs/utils";
 
 import { videoActionBtnClass } from "./video-action-button";
-import { cn } from "@/libs/utils";
 
 interface MoreActionsMenuProps {
   isAuthenticated: boolean;
   onReport: () => void;
+  onSaveToPlaylist: () => void;
 }
 
-export function MoreActionsMenu({ isAuthenticated, onReport }: MoreActionsMenuProps) {
+export function MoreActionsMenu({ isAuthenticated, onReport, onSaveToPlaylist }: MoreActionsMenuProps) {
   function handleShare() {
     navigator.clipboard.writeText(window.location.href);
   }
 
   function handleSaveToPlaylist() {
     if (!isAuthenticated) return;
+    onSaveToPlaylist();
   }
 
   return (
     <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <DropdownMenuTrigger
-              render={<Button variant="secondary" className={cn(videoActionBtnClass, "size-8")} />}
-            />
-          }
-        >
-          <MoreHorizontal className="size-4" />
-          <span className="sr-only">More actions</span>
-        </TooltipTrigger>
-        <TooltipContent side="top">Save to playlist</TooltipContent>
-      </Tooltip>
+      <DropdownMenuTrigger
+        render={<Button variant="secondary" className={cn(videoActionBtnClass, "size-8")} aria-label="More actions" />}
+      >
+        <MoreHorizontal className="size-4" />
+      </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleSaveToPlaylist} className="group gap-3 py-2 focus:bg-secondary">

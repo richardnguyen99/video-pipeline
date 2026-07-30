@@ -13,12 +13,14 @@ export function VideoToolbarActions() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportStep, setReportStep] = useState<1 | 2>(1);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
+  const [playlistMobileOpen, setPlaylistMobileOpen] = useState(false);
 
-  const openReport = () => {
+  function openReport() {
     setReportStep(1);
     setReportReason(null);
     setReportOpen(true);
-  };
+  }
+
   return (
     <div className="flex items-center gap-2">
       <LikeDislikeButtons isAuthenticated={IS_AUTHENTICATED} />
@@ -42,7 +44,16 @@ export function VideoToolbarActions() {
       </div>
 
       <div className="md:hidden">
-        <MoreActionsMenu isAuthenticated={IS_AUTHENTICATED} onReport={openReport} />
+        <MoreActionsMenu
+          isAuthenticated={IS_AUTHENTICATED}
+          onReport={openReport}
+          onSaveToPlaylist={() => setPlaylistMobileOpen(true)}
+        />
+        <PlaylistSaveButton
+          isAuthenticated={IS_AUTHENTICATED}
+          mobileOpen={playlistMobileOpen}
+          onMobileOpenChange={setPlaylistMobileOpen}
+        />
       </div>
     </div>
   );
