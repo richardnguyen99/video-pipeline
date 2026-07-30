@@ -1,5 +1,6 @@
 import { Flag, ListPlus, MoreHorizontal, Share2 } from "lucide-react";
 
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,11 +29,19 @@ export function MoreActionsMenu({ isAuthenticated, onReport }: MoreActionsMenuPr
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button variant="secondary" className={cn(videoActionBtnClass)} aria-label="More actions" />}
-      >
-        <MoreHorizontal className="size-4" />
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <DropdownMenuTrigger
+              render={<Button variant="secondary" className={cn(videoActionBtnClass, "size-8")} />}
+            />
+          }
+        >
+          <MoreHorizontal className="size-4" />
+          <span className="sr-only">More actions</span>
+        </TooltipTrigger>
+        <TooltipContent side="top">Save to playlist</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end" className="min-w-48">
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleSaveToPlaylist} className="group gap-3 py-2 focus:bg-secondary">
