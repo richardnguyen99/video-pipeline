@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft, PlusIcon, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -72,6 +72,12 @@ interface ReportDialogProps {
 export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack }: ReportDialogProps) {
   const [rows, setRows] = useState<MetadataRow[]>([{ field: "title", action: "modify", newValue: "", oldValue: "" }]);
 
+  useEffect(() => {
+    if (!open) {
+      setRows([{ field: "title", action: "modify", newValue: "", oldValue: "" }]);
+    }
+  }, [open]);
+
   function handleAddRow() {
     setRows((prev) => [...prev, { field: "title", action: "modify", newValue: "", oldValue: "" }]);
   }
@@ -80,17 +86,21 @@ export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack 
     setRows((prev) =>
       prev.map((row, i) => {
         if (i !== index) return row;
+
         const next = { ...row, ...patch };
-        // When field changes, clamp action to what's allowed
+
         if (patch.field != null) {
           const allowed = getActionsForField(patch.field);
+
           if (!allowed.includes(next.action)) {
             next.action = allowed[0];
           }
+
           if (!MULTI_VALUE_FIELDS.has(patch.field)) {
             next.oldValue = "";
           }
         }
+
         return next;
       }),
     );
@@ -160,8 +170,8 @@ export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack 
               Describe the metadata changes you want applied.
             </DialogDescription>
 
-            <ScrollArea className="min-h-0 flex-1 px-5 pb-5">
-              <div className="space-y-3 pb-2 h-96">
+            <ScrollArea key={rows.length} className="h-[min(20rem,calc(90vh-14rem))] px-5">
+              <div className="space-y-3 pb-2">
                 {rows.map((row, idx) => {
                   const isMulti = MULTI_VALUE_FIELDS.has(row.field);
                   const actions = getActionsForField(row.field);
