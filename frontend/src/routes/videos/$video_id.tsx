@@ -1,9 +1,10 @@
 import React from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
+import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
 import type { Video } from "@/mocks/videos";
-import { getMockVideoById } from "@/mocks/videos";
-import { VideoMetadata } from "@/components/video/video-metadata";
+import { getMockRelatedVideos, getMockVideoById } from "@/mocks/videos";
 
 export const Route = createFileRoute("/videos/$video_id")({
   component: VideoPage,
@@ -11,25 +12,27 @@ export const Route = createFileRoute("/videos/$video_id")({
   notFoundComponent: VideoNotFound,
   loader: async ({ params }) => {
     const { video_id } = params;
-    const videoPromise = getMockVideoById(video_id);
+    const videoPromise = Promise.resolve(getMockVideoById(video_id));
+    const related = getMockRelatedVideos(video_id, 12);
 
     return {
       videoPromise,
+      related,
     };
   },
 });
 
 function VideoPage() {
-  const { videoPromise } = Route.useLoaderData();
+  const { videoPromise, related } = Route.useLoaderData();
 
   return (
     <React.Suspense fallback={<VideoPending />}>
-      <VideoContent videoPromise={videoPromise} />
+      <VideoContent videoPromise={videoPromise} related={related} />
     </React.Suspense>
   );
 }
 
-function VideoContent({ videoPromise }: { videoPromise: Promise<Video | undefined> }) {
+function VideoContent({ videoPromise, related }: { videoPromise: Promise<Video | undefined>; related: Video[] }) {
   const video = React.use(videoPromise);
 
   if (!video) {
@@ -37,53 +40,56 @@ function VideoContent({ videoPromise }: { videoPromise: Promise<Video | undefine
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6">
-      {/* Player */}
-      <div className="aspect-video bg-zinc-950 rounded-2xl flex items-center justify-center mb-6 relative overflow-hidden">
-        <div className="text-center text-white">
-          <div className="text-6xl mb-4">🎬</div>
-          <p className="text-2xl font-medium">Video Player Placeholder</p>
-          <p className="text-sm mt-2 opacity-75">Duration: {video.duration || "N/A"} minutes</p>
-        </div>
-      </div>
+    <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+        <div className="min-w-0 flex-1">
+          <div className="relative mb-6 flex aspect-video items-center justify-center overflow-hidden rounded-2xl bg-zinc-950">
+            <div className="text-center text-white">
+              <div className="mb-4 text-6xl">🎬</div>
+              <p className="text-2xl font-medium">Video Player Placeholder</p>
+              <p className="mt-2 text-sm opacity-75">Duration: {video.duration || "N/A"} minutes</p>
+            </div>
+          </div>
 
-      {/* Metadata section (title + toolbar + report dialog) */}
-      <VideoMetadata video={video} views={124800} />
+          <VideoMetadata video={video} views={124800} />
 
-      {/* Extra details below toolbar */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2">
-          <h3 className="font-semibold text-lg mb-4">Details</h3>
-          <div className="space-y-3 text-sm">
-            <p>
-              <span className="font-medium">Release Date:</span> {video.release_date || "Unknown"}
-            </p>
-            <p>
-              <span className="font-medium">Duration:</span> {video.duration} minutes
-            </p>
-            {video.cid && (
-              <p>
-                <span className="font-medium">CID:</span> {video.cid}
-              </p>
-            )}
-            {video.maker_product && (
-              <p>
-                <span className="font-medium">Maker:</span> {video.maker_product}
-              </p>
-            )}
+          <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-3">
+            <div className="md:col-span-2">
+              <h3 className="mb-4 text-lg font-semibold">Details</h3>
+              <div className="space-y-3 text-sm">
+                <p>
+                  <span className="font-medium">Release Date:</span> {video.release_date || "Unknown"}
+                </p>
+                <p>
+                  <span className="font-medium">Duration:</span> {video.duration} minutes
+                </p>
+                {video.cid && (
+                  <p>
+                    <span className="font-medium">CID:</span> {video.cid}
+                  </p>
+                )}
+                {video.maker_product && (
+                  <p>
+                    <span className="font-medium">Maker:</span> {video.maker_product}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-4 text-lg font-semibold">Cast</h3>
+              <div className="flex flex-wrap gap-2">
+                {video.actresses?.map((actress) => (
+                  <span key={actress.id} className="rounded-full bg-secondary px-4 py-1.5 text-sm">
+                    {actress.name}
+                  </span>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div>
-          <h3 className="font-semibold text-lg mb-4">Cast</h3>
-          <div className="flex flex-wrap gap-2">
-            {video.actresses?.map((actress) => (
-              <span key={actress.id} className="bg-secondary px-4 py-1.5 rounded-full text-sm">
-                {actress.name}
-              </span>
-            ))}
-          </div>
-        </div>
+        <VideoSidebar videos={related} />
       </div>
     </div>
   );
@@ -91,11 +97,24 @@ function VideoContent({ videoPromise }: { videoPromise: Promise<Video | undefine
 
 function VideoPending() {
   return (
-    <div className="max-w-6xl mx-auto p-4 sm:p-6">
-      <div className="animate-pulse space-y-6">
-        <div className="aspect-video bg-zinc-200 dark:bg-zinc-800 rounded-2xl" />
-        <div className="h-8 bg-zinc-200 dark:bg-zinc-800 rounded w-3/4" />
-        <div className="h-5 bg-zinc-200 dark:bg-zinc-800 rounded w-1/3" />
+    <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
+      <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
+        <div className="min-w-0 flex-1 animate-pulse space-y-6">
+          <div className="aspect-video rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-8 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-5 w-1/3 rounded bg-zinc-200 dark:bg-zinc-800" />
+        </div>
+        <div className="hidden w-90 shrink-0 animate-pulse space-y-4 lg:block">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex gap-3">
+              <div className="aspect-video w-[42%] rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
+                <div className="h-3 w-1/2 rounded bg-zinc-200 dark:bg-zinc-800" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -103,10 +122,14 @@ function VideoPending() {
 
 function VideoError({ error, reset }: { error: Error; reset: () => void }) {
   return (
-    <div className="max-w-6xl mx-auto p-6 text-center">
-      <h2 className="text-2xl font-semibold text-red-500 mb-4">Error Loading Video</h2>
+    <div className="mx-auto w-full px-6 py-6 text-center sm:px-10 lg:px-16">
+      <h2 className="mb-4 text-2xl font-semibold text-red-500">Error Loading Video</h2>
       <p className="mb-6 text-muted-foreground">{error.message}</p>
-      <button onClick={reset} className="px-8 py-3 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90">
+      <button
+        type="button"
+        onClick={reset}
+        className="rounded-xl bg-primary px-8 py-3 text-primary-foreground hover:bg-primary/90"
+      >
         Try Again
       </button>
     </div>
@@ -115,9 +138,9 @@ function VideoError({ error, reset }: { error: Error; reset: () => void }) {
 
 function VideoNotFound() {
   return (
-    <div className="max-w-6xl mx-auto p-6 text-center py-20">
-      <h2 className="text-3xl font-semibold mb-4">Video Not Found</h2>
-      <p className="text-muted-foreground">The video you're looking for doesn't exist or has been removed.</p>
+    <div className="mx-auto w-full px-6 py-20 text-center sm:px-10 lg:px-16">
+      <h2 className="mb-4 text-3xl font-semibold">Video Not Found</h2>
+      <p className="text-muted-foreground">The video you&apos;re looking for doesn&apos;t exist or has been removed.</p>
     </div>
   );
 }
