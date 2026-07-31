@@ -13,7 +13,6 @@ export default function HeroSection() {
     setActive((index + featuredMovies.length) % featuredMovies.length);
   }, []);
 
-  // Auto-advance featured titles
   useEffect(() => {
     timerRef.current = setTimeout(() => {
       setActive((prev) => (prev + 1) % featuredMovies.length);
@@ -25,7 +24,6 @@ export default function HeroSection() {
 
   return (
     <section id="trending" className="relative flex min-h-screen flex-col overflow-hidden">
-      {/* Stacked background images with cross-fade */}
       <div aria-hidden="true" className="absolute inset-0 z-0">
         {featuredMovies.map((m, i) => (
           <div
@@ -119,7 +117,6 @@ export default function HeroSection() {
         </div>
       </div>
 
-      {/* Bottom-center slide indicators */}
       <div className="relative z-10 flex items-center justify-center gap-3 pb-10">
         {featuredMovies.map((m, i) => (
           <button

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Video } from "@/mocks/videos";
 import { cn } from "@/libs/utils";
 
@@ -14,6 +15,18 @@ const EDGE_EPS = 4;
 /** First N / last N indicator clicks do not center-scroll (edge positions). */
 const EDGE_NO_SCROLL = 2;
 
+/** Last path segment of a URL (e.g. `photo.jpg` from `…/path/photo.jpg?x=1`). */
+function imageFileName(url: string): string {
+  try {
+    const path = new URL(url, "https://local.invalid").pathname;
+    const segment = path.split("/").filter(Boolean).pop();
+    return segment ? decodeURIComponent(segment) : url;
+  } catch {
+    const segment = url.split("?")[0]?.split("/").filter(Boolean).pop();
+    return segment ?? url;
+  }
+}
+
 export function VideoReviewImages({ video, className }: VideoReviewImagesProps) {
   const images = video.sample_image_url ?? [];
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -21,24 +34,24 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
   const [canScrollPrev, setCanScrollPrev] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
 
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
+
   const getMaxScroll = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) return 0;
-
     return Math.max(0, el.scrollWidth - el.clientWidth);
   }, []);
 
   const getChildren = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) return [] as HTMLElement[];
-
     return Array.from(el.querySelectorAll<HTMLElement>("[data-sample-index]"));
   }, []);
 
   const findCenterIndex = useCallback(() => {
     const el = scrollerRef.current;
     if (!el) return 0;
-
     const children = getChildren();
     if (children.length === 0) return 0;
 
@@ -50,7 +63,6 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
       const i = Number(child.dataset.sampleIndex);
       const mid = child.offsetLeft + child.offsetWidth / 2;
       const dist = Math.abs(mid - centerX);
-
       if (dist < closestDist) {
         closestDist = dist;
         closest = i;
@@ -78,22 +90,31 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
 
     updateScrollState();
     el.addEventListener("scroll", updateScrollState, { passive: true });
-
     const ro = new ResizeObserver(updateScrollState);
     ro.observe(el);
-
     return () => {
       el.removeEventListener("scroll", updateScrollState);
       ro.disconnect();
     };
   }, [updateScrollState, images.length]);
 
-  /**
-   * Scroll policy:
-   * - First 2 indicators → stay at start (scrollLeft = 0)
-   * - Last 2 indicators → stay at end (scrollLeft = maxScroll), last card right-aligned
-   * - Otherwise → center that image in the viewport
-   */
+  useEffect(() => {
+    if (!lightboxOpen) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        setLightboxIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        setLightboxIndex((i) => Math.min(images.length - 1, i + 1));
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [lightboxOpen, images.length]);
+
   function scrollToIndex(index: number) {
     const el = scrollerRef.current;
     if (!el) return;
@@ -104,13 +125,11 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
     const clamped = Math.min(n - 1, Math.max(0, index));
     const maxScroll = getMaxScroll();
 
-    // First two: do not scroll — pin to start
     if (clamped < EDGE_NO_SCROLL) {
       el.scrollTo({ left: 0, behavior: "smooth" });
       return;
     }
 
-    // Last two: pin to end — last element flush to the right
     if (clamped >= n - EDGE_NO_SCROLL) {
       el.scrollTo({ left: maxScroll, behavior: "smooth" });
       return;
@@ -119,7 +138,6 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
     const child = el.querySelector<HTMLElement>(`[data-sample-index="${clamped}"]`);
     if (!child) return;
 
-    // Center the target image in the viewport
     const target = child.offsetLeft - (el.clientWidth - child.offsetWidth) / 2;
     const left = Math.min(maxScroll, Math.max(0, target));
     el.scrollTo({ left, behavior: "smooth" });
@@ -129,22 +147,26 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
     scrollToIndex(activeIndex + dir);
   }
 
+  function openLightbox(index: number) {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  }
+
   if (images.length === 0) return null;
 
-  // Dots only for indexes that can be centered (skip first/last EDGE_NO_SCROLL)
   const indicatorIndexes = images
     .map((_, i) => i)
     .filter((i) => i >= EDGE_NO_SCROLL && i < images.length - EDGE_NO_SCROLL);
 
-  // Map center index onto the visible indicator range when near edges
   const indicatorActive =
-    indicatorIndexes.length === 0
-      ? -1
-      : activeIndex < EDGE_NO_SCROLL
-        ? indicatorIndexes[0]
-        : activeIndex >= images.length - EDGE_NO_SCROLL
-          ? indicatorIndexes[indicatorIndexes.length - 1]
-          : activeIndex;
+    activeIndex < EDGE_NO_SCROLL
+      ? (indicatorIndexes[0] ?? -1)
+      : activeIndex >= images.length - EDGE_NO_SCROLL
+        ? (indicatorIndexes.at(-1) ?? -1)
+        : activeIndex;
+
+  const lightboxImage = images[Math.min(lightboxIndex, images.length - 1)];
+  const lightboxTitle = imageFileName(lightboxImage.url);
 
   return (
     <section className={cn("relative mt-6", className)} aria-label="Sample images">
@@ -179,7 +201,12 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
                 "sm:w-[min(48%,18rem)] lg:w-[min(36%,16rem)]",
               )}
             >
-              <div className="relative aspect-video overflow-hidden rounded-xl bg-muted">
+              <button
+                type="button"
+                className="relative aspect-video w-full cursor-zoom-in overflow-hidden rounded-xl bg-muted outline-none ring-offset-background transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => openLightbox(i)}
+                aria-label={`Expand sample ${i + 1}`}
+              >
                 <img
                   src={image.url}
                   alt={`Sample ${i + 1}`}
@@ -187,7 +214,7 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
                   loading={i < 3 ? "eager" : "lazy"}
                   draggable={false}
                 />
-              </div>
+              </button>
             </figure>
           ))}
         </div>
@@ -218,34 +245,117 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
         ) : null}
       </div>
 
-      {/* Indicators omit first/last two images — only center-scrollable positions */}
-      {indicatorIndexes.length > 0 ? (
-        <div
-          className="mt-3 flex items-center justify-center gap-1.5"
-          role="tablist"
-          aria-label="Sample image position"
-        >
-          {indicatorIndexes.map((i) => {
-            const image = images[i];
-            return (
-              <button
-                key={image.id}
+      <div
+        className="mt-3 flex items-center justify-center gap-1.5 empty:hidden"
+        role="tablist"
+        aria-label="Sample image position"
+      >
+        {indicatorIndexes.map((i) => {
+          const image = images[i];
+          return (
+            <button
+              key={image.id}
+              type="button"
+              role="tab"
+              aria-selected={i === indicatorActive}
+              aria-label={`Go to sample ${i + 1}`}
+              className={cn(
+                "h-1.5 rounded-full transition-all",
+                i === indicatorActive ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/40 hover:bg-muted-foreground/70",
+              )}
+              onClick={() => scrollToIndex(i)}
+            />
+          );
+        })}
+      </div>
+
+      <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+        <DialogContent className="w-[min(96vw,1280px)] max-w-[min(96vw,1280px)] gap-0 p-0 sm:max-w-[min(96vw,1280px)]">
+          <DialogHeader className="border-b border-border px-4 py-3 sm:px-5">
+            <DialogTitle className="min-w-0 truncate font-mono text-sm font-medium sm:text-base">
+              {lightboxTitle}
+            </DialogTitle>
+            <DialogClose />
+          </DialogHeader>
+
+          <div className="relative flex items-center justify-center bg-black px-12 py-3 sm:px-14">
+            <div className="relative aspect-video w-full max-w-7xl overflow-hidden bg-zinc-950">
+              <div
+                className="flex size-full transition-transform duration-300 ease-out"
+                style={{
+                  width: `${images.length * 100}%`,
+                  transform: `translateX(-${(lightboxIndex / images.length) * 100}%)`,
+                }}
+              >
+                {images.map((image, i) => (
+                  <div key={image.id} className="relative h-full shrink-0" style={{ width: `${100 / images.length}%` }}>
+                    <img
+                      src={image.url}
+                      alt={imageFileName(image.url)}
+                      width={1280}
+                      height={720}
+                      className="size-full object-contain"
+                      draggable={false}
+                      loading={Math.abs(i - lightboxIndex) <= 1 ? "eager" : "lazy"}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {lightboxIndex > 0 ? (
+              <Button
                 type="button"
-                role="tab"
-                aria-selected={i === indicatorActive}
-                aria-label={`Go to sample ${i + 1}`}
-                className={cn(
-                  "h-1.5 rounded-full transition-all",
-                  i === indicatorActive
-                    ? "w-5 bg-primary"
-                    : "w-1.5 bg-muted-foreground/40 hover:bg-muted-foreground/70",
-                )}
-                onClick={() => scrollToIndex(i)}
-              />
-            );
-          })}
-        </div>
-      ) : null}
+                variant="secondary"
+                size="icon-sm"
+                className="absolute top-1/2 left-2 z-10 size-9 -translate-y-1/2 rounded-full shadow-md sm:left-3"
+                aria-label="Previous image"
+                onClick={() => setLightboxIndex((i) => Math.max(0, i - 1))}
+              >
+                <ChevronLeft className="size-5" />
+              </Button>
+            ) : null}
+
+            {lightboxIndex < images.length - 1 ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon-sm"
+                className="absolute top-1/2 right-2 z-10 size-9 -translate-y-1/2 rounded-full shadow-md sm:right-3"
+                aria-label="Next image"
+                onClick={() => setLightboxIndex((i) => Math.min(images.length - 1, i + 1))}
+              >
+                <ChevronRight className="size-5" />
+              </Button>
+            ) : null}
+          </div>
+
+          {images.length > 1 ? (
+            <div
+              className="flex items-center justify-center gap-1.5 border-t border-border px-4 py-3"
+              role="tablist"
+              aria-label="Lightbox image position"
+            >
+              {images.map((image, i) => (
+                <button
+                  key={image.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={i === lightboxIndex}
+                  aria-label={`View sample ${i + 1}`}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all",
+                    i === lightboxIndex
+                      ? "w-5 bg-primary"
+                      : "w-1.5 bg-muted-foreground/40 hover:bg-muted-foreground/70",
+                  )}
+                  onClick={() => setLightboxIndex(i)}
+                />
+              ))}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

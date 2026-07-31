@@ -136,7 +136,6 @@ export function PlaylistSaveButton({
     </div>
   );
 
-  // Mobile: dialog only — never mount DropdownMenu (avoids top-left portal)
   if (isMobileInstance) {
     return (
       <Dialog open={mobileOpen} onOpenChange={onMobileOpenChange}>
@@ -151,7 +150,6 @@ export function PlaylistSaveButton({
     );
   }
 
-  // Desktop: dropdown only
   return (
     <DropdownMenu open={desktopOpen} onOpenChange={setDesktopOpen}>
       <Tooltip>
