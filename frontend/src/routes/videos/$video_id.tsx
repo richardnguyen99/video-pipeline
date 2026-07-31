@@ -2,6 +2,7 @@ import React from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { VideoInfo } from "@/layouts/video_single_page/video-info";
+import { VideoReviewImages } from "@/layouts/video_single_page/video-review-images";
 import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
 import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
 import type { Video } from "@/mocks/videos";
@@ -53,8 +54,8 @@ function VideoContent({ videoPromise, related }: { videoPromise: Promise<Video |
           </div>
 
           <VideoMetadata video={video} views={124800} />
-
           <VideoInfo video={video} />
+          <VideoReviewImages video={video} />
         </div>
 
         <VideoSidebar videos={related} />

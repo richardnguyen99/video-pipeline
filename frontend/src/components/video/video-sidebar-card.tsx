@@ -43,8 +43,8 @@ export function VideoSidebarCard({
   uploader,
   badge,
 }: VideoSidebarCardProps) {
-  const thumbnails = video.sample_image_urls?.length ? video.sample_image_urls : (video.image_urls ?? []);
-  const poster = thumbnails[0] ?? video.image_urls?.[0];
+  const poster = video.image_urls?.[0] ?? video.video_image_url?.[0]?.url;
+  const thumbnails = video.sample_image_url?.map((s) => s.url) ?? [];
 
   const [isHovering, setIsHovering] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
