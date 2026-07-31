@@ -54,3 +54,20 @@ export function formatDuration(minutes?: number): string {
 
   return `${m}:${String(s).padStart(2, "0")}`;
 }
+
+/**
+ * Absolute calendar date → `YYYY-MM-DD`.
+ * Returns em dash when missing; falls back to the raw string if unparseable.
+ */
+export function formatReleaseDate(dateStr?: string, emptyLabel = "—"): string {
+  if (!dateStr) return emptyLabel;
+
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return dateStr;
+
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+
+  return `${y}-${m}-${d}`;
+}

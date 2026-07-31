@@ -1,6 +1,7 @@
 import React from "react";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { VideoInfo } from "@/layouts/video_single_page/video-info";
 import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
 import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
 import type { Video } from "@/mocks/videos";
@@ -53,40 +54,7 @@ function VideoContent({ videoPromise, related }: { videoPromise: Promise<Video |
 
           <VideoMetadata video={video} views={124800} />
 
-          <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-3">
-            <div className="md:col-span-2">
-              <h3 className="mb-4 text-lg font-semibold">Details</h3>
-              <div className="space-y-3 text-sm">
-                <p>
-                  <span className="font-medium">Release Date:</span> {video.release_date || "Unknown"}
-                </p>
-                <p>
-                  <span className="font-medium">Duration:</span> {video.duration} minutes
-                </p>
-                {video.cid && (
-                  <p>
-                    <span className="font-medium">CID:</span> {video.cid}
-                  </p>
-                )}
-                {video.maker_product && (
-                  <p>
-                    <span className="font-medium">Maker:</span> {video.maker_product}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="mb-4 text-lg font-semibold">Cast</h3>
-              <div className="flex flex-wrap gap-2">
-                {video.actresses?.map((actress) => (
-                  <span key={actress.id} className="rounded-full bg-secondary px-4 py-1.5 text-sm">
-                    {actress.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
+          <VideoInfo video={video} />
         </div>
 
         <VideoSidebar videos={related} />
