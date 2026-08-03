@@ -71,3 +71,15 @@ export function formatReleaseDate(dateStr?: string, emptyLabel = "—"): string 
 
   return `${y}-${m}-${d}`;
 }
+
+/** Last path segment of a URL (e.g. `photo.jpg` from `…/path/photo.jpg?x=1`). */
+export function imageFileName(url: string): string {
+  try {
+    const path = new URL(url, "https://local.invalid").pathname;
+    const segment = path.split("/").filter(Boolean).pop();
+    return segment ? decodeURIComponent(segment) : url;
+  } catch {
+    const segment = url.split("?")[0]?.split("/").filter(Boolean).pop();
+    return segment ?? url;
+  }
+}

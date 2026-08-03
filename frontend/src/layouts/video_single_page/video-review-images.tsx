@@ -4,7 +4,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Video } from "@/mocks/videos";
-import { cn } from "@/libs/utils";
+import { cn, imageFileName } from "@/libs/utils";
 
 interface VideoReviewImagesProps {
   video: Video;
@@ -14,18 +14,6 @@ interface VideoReviewImagesProps {
 const EDGE_EPS = 4;
 /** First N / last N indicator clicks do not center-scroll (edge positions). */
 const EDGE_NO_SCROLL = 2;
-
-/** Last path segment of a URL (e.g. `photo.jpg` from `…/path/photo.jpg?x=1`). */
-function imageFileName(url: string): string {
-  try {
-    const path = new URL(url, "https://local.invalid").pathname;
-    const segment = path.split("/").filter(Boolean).pop();
-    return segment ? decodeURIComponent(segment) : url;
-  } catch {
-    const segment = url.split("?")[0]?.split("/").filter(Boolean).pop();
-    return segment ?? url;
-  }
-}
 
 export function VideoReviewImages({ video, className }: VideoReviewImagesProps) {
   const images = video.sample_image_url ?? [];
