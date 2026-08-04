@@ -73,10 +73,10 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
             )}
           </span>
           {/*
-            Stem through body/footer only. Replies own their own line below
-            so this flex-1 never runs past the last branch.
+            Stem only when there are sub-comments. Reply editor alone
+            (no children) must not show a trail.
           */}
-          {showThread ? <span className="mt-1 w-px flex-1 bg-border" aria-hidden /> : null}
+          {hasReplies && showThread ? <span className="mt-1 w-px flex-1 bg-border" aria-hidden /> : null}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -134,9 +134,9 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
       </div>
 
       {showThread ? (
-        <div className="ml-[18px]">
+        <div className="ml-4.5">
           {isReplying ? (
-            <div className={cn("relative border-l border-border pl-4", hasReplies && "pb-5")}>
+            <div className={cn("relative pl-4", hasReplies && "border-l border-border pb-5")}>
               <CommentComposer
                 currentUser={currentUser}
                 showAvatar={false}

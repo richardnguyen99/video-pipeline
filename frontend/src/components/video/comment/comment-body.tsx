@@ -28,7 +28,7 @@ export function CommentBody({ content, isDeleted, className }: CommentBodyProps)
   }
 
   return (
-    <p className={cn("text-sm leading-relaxed whitespace-pre-wrap break-words", className)}>
+    <p className={cn("text-sm leading-relaxed whitespace-pre-wrap wrap-break-word", className)}>
       {renderWithMentions(content)}
     </p>
   );
