@@ -5,6 +5,8 @@ import { VideoInfo } from "@/layouts/video_single_page/video-info";
 import { VideoReviewImages } from "@/layouts/video_single_page/video-review-images";
 import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
 import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
+import { VideoComments } from "@/components/video/comment";
+import { getMockComments } from "@/mocks/comments";
 import type { Video } from "@/mocks/videos";
 import { getMockRelatedVideos, getMockVideoById } from "@/mocks/videos";
 
@@ -53,9 +55,13 @@ function VideoContent({ videoPromise, related }: { videoPromise: Promise<Video |
             </div>
           </div>
 
-          <VideoMetadata video={video} views={124800} />
-          <VideoInfo video={video} />
           <VideoReviewImages video={video} />
+
+          <VideoMetadata video={video} views={124800} />
+
+          <VideoInfo video={video} />
+
+          <VideoComments comments={getMockComments(video.video_id)} videoId={video.video_id} />
         </div>
 
         <VideoSidebar videos={related} />

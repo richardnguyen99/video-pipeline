@@ -33,6 +33,7 @@ applyTo: "**/*.jsx, **/*.tsx"
 - Local states and refs should have types.
 - Prefer function declarations over arrow functions for component definitions.
 - Adhere to TypeScript and TailwindCSS instructions throughout the project.
+- Use a top-level type-only import (`import type { ... } from '...'`) instead of inline type specifiers.
 
 # State
 
