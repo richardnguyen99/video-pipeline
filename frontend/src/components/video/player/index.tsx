@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/libs/utils";
 
 import { formatPlayerTime } from "./format-time";
@@ -188,38 +189,45 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
         </div>
 
         <div className="flex items-center gap-1 text-foreground">
-          <ControlButton label={isPlaying ? "Pause" : "Play"} onClick={togglePlay}>
+          <ControlButton label={isPlaying ? "Pause" : "Resume"} onClick={togglePlay}>
             {isPlaying ? <Pause className="size-5 fill-current" /> : <Play className="size-5 fill-current" />}
           </ControlButton>
 
-          <ControlButton label={`Back ${SEEK_STEP}s`} onClick={() => seekBy(-SEEK_STEP)}>
+          <ControlButton label={`Reverse ${SEEK_STEP}s`} onClick={() => seekBy(-SEEK_STEP)}>
             <RotateCcw className="size-4" />
           </ControlButton>
 
-          <ControlButton label={`Forward ${SEEK_STEP}s`} onClick={() => seekBy(SEEK_STEP)}>
+          <ControlButton label={`Skip ${SEEK_STEP}s`} onClick={() => seekBy(SEEK_STEP)}>
             <RotateCw className="size-4" />
           </ControlButton>
 
           {/* Mobile: volume opens vertical slider above the icon */}
           <div className="sm:hidden">
             <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <button
-                    type="button"
-                    className="inline-flex size-9 items-center justify-center rounded-md text-foreground hover:bg-muted/40 hover:text-foreground"
-                    aria-label="Volume"
-                  />
-                }
-              >
-                {isMuted || volume === 0 ? (
-                  <VolumeX className="size-5" />
-                ) : volume < 0.5 ? (
-                  <Volume1 className="size-5" />
-                ) : (
-                  <Volume2 className="size-5" />
-                )}
-              </DropdownMenuTrigger>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="inline-flex size-9 items-center justify-center rounded-md text-foreground hover:bg-muted/40 hover:text-foreground"
+                          aria-label={isMuted || volume === 0 ? "Unmute" : "Mute"}
+                        />
+                      }
+                    />
+                  }
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="size-5" />
+                  ) : volume < 0.5 ? (
+                    <Volume1 className="size-5" />
+                  ) : (
+                    <Volume2 className="size-5" />
+                  )}
+                </TooltipTrigger>
+                <TooltipContent side="top">{isMuted || volume === 0 ? "Unmute" : "Mute"}</TooltipContent>
+              </Tooltip>
               <DropdownMenuContent
                 side="top"
                 align="center"
@@ -282,17 +290,25 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
           <div className="ml-auto flex items-center gap-1">
             {qualities.length > 0 ? (
               <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-xs text-foreground hover:bg-muted/40 hover:text-foreground"
-                    />
-                  }
-                >
-                  {activeQuality?.label ?? "Auto"}
-                </DropdownMenuTrigger>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs text-foreground hover:bg-muted/40 hover:text-foreground"
+                            aria-label="Select resolution"
+                          />
+                        }
+                      />
+                    }
+                  >
+                    {activeQuality?.label ?? "Auto"}
+                  </TooltipTrigger>
+                  <TooltipContent side="top">Select resolution</TooltipContent>
+                </Tooltip>
                 <DropdownMenuContent align="end" side="top" className="min-w-28">
                   <DropdownMenuGroup>
                     <DropdownMenuItem className="gap-2 text-xs" onClick={() => setQuality(-1)}>
@@ -332,13 +348,20 @@ function ControlButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      className="inline-flex size-9 items-center justify-center rounded-md text-foreground hover:bg-muted/40 hover:text-foreground"
-      aria-label={label}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            className="inline-flex size-9 items-center justify-center rounded-md text-foreground hover:bg-muted/40 hover:text-foreground"
+            aria-label={label}
+            onClick={onClick}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
   );
 }

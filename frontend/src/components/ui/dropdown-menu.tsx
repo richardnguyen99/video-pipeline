@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { Check } from "lucide-react";
 
@@ -16,14 +17,30 @@ function DropdownMenuContent({
   side = "bottom",
   sideOffset = 6,
   align = "end",
+  container,
   ...props
 }: MenuPrimitive.Popup.Props & {
   side?: "top" | "bottom" | "left" | "right";
   sideOffset?: number;
   align?: "start" | "center" | "end";
+  container?: HTMLElement | null;
 }) {
+  const [fullscreenContainer, setFullscreenContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    function syncFullscreenContainer() {
+      const el = document.fullscreenElement;
+      setFullscreenContainer(el instanceof HTMLElement ? el : null);
+    }
+    syncFullscreenContainer();
+    document.addEventListener("fullscreenchange", syncFullscreenContainer);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreenContainer);
+  }, []);
+
+  const portalContainer = container ?? fullscreenContainer ?? undefined;
+
   return (
-    <MenuPrimitive.Portal>
+    <MenuPrimitive.Portal container={portalContainer}>
       <MenuPrimitive.Positioner side={side} sideOffset={sideOffset} align={align}>
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
