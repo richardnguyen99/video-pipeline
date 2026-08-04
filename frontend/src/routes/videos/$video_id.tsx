@@ -6,6 +6,7 @@ import { VideoReviewImages } from "@/layouts/video_single_page/video-review-imag
 import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
 import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
 import { VideoComments } from "@/components/video/comment";
+import { VideoPlayer, DEMO_HLS_SRC } from "@/components/video/player";
 import { getMockComments } from "@/mocks/comments";
 import type { Video } from "@/mocks/videos";
 import { getMockRelatedVideos, getMockVideoById } from "@/mocks/videos";
@@ -47,12 +48,8 @@ function VideoContent({ videoPromise, related }: { videoPromise: Promise<Video |
     <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <div className="min-w-0 flex-1">
-          <div className="relative mb-6 flex aspect-video items-center justify-center overflow-hidden rounded-2xl bg-zinc-950">
-            <div className="text-center text-white">
-              <div className="mb-4 text-6xl">🎬</div>
-              <p className="text-2xl font-medium">Video Player Placeholder</p>
-              <p className="mt-2 text-sm opacity-75">Duration: {video.duration || "N/A"} minutes</p>
-            </div>
+          <div className="relative mb-6">
+            <VideoPlayer src={DEMO_HLS_SRC} title={video.title} poster={video.image_urls?.[0]} />
           </div>
 
           <VideoReviewImages video={video} />
