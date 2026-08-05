@@ -1,44 +1,77 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { Play, Plus, Star, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
+import { Play, Plus, Sparkles } from "lucide-react";
 
-import { featuredMovies } from "@/libs/movies";
+import { Button } from "@/components/ui/button";
+import type { Video } from "@/mocks/videos";
+import { mockVideos } from "@/mocks/videos";
 
 const SLIDE_DURATION = 6000;
+const PARALLAX_FACTOR = 0.35;
+const FEATURED_COUNT = 6;
+
+function getThumbnail(video: Video): string {
+  return video.image_urls?.[0] ?? video.video_image_url?.[0]?.url ?? "https://placehold.co/1920x1080";
+}
+
+function formatDuration(minutes?: number): string {
+  if (!minutes || minutes <= 0) return "";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+const featuredVideos = mockVideos.slice(0, FEATURED_COUNT);
 
 export default function HeroSection() {
-  const [active, setActive] = useState<number>(0);
+  const [active, setActive] = useState(0);
+  const [parallaxY, setParallaxY] = useState(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const goTo = useCallback((index: number): void => {
-    setActive((index + featuredMovies.length) % featuredMovies.length);
+  const goTo = useCallback((index: number) => {
+    setActive((index + featuredVideos.length) % featuredVideos.length);
   }, []);
 
   useEffect(() => {
     timerRef.current = setTimeout(() => {
-      setActive((prev) => (prev + 1) % featuredMovies.length);
+      setActive((prev) => (prev + 1) % featuredVideos.length);
     }, SLIDE_DURATION);
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [active]);
 
+  useEffect(() => {
+    function handleScroll() {
+      setParallaxY(window.scrollY * PARALLAX_FACTOR);
+    }
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const current = featuredVideos[active];
+
   return (
     <section id="trending" className="relative flex min-h-screen flex-col overflow-hidden">
       <div aria-hidden="true" className="absolute inset-0 z-0">
-        {featuredMovies.map((m, i) => (
+        {featuredVideos.map((video, i) => (
           <div
-            key={m.id}
+            key={video.video_id}
             className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
               active === i ? "opacity-100" : "opacity-0"
             }`}
           >
             <img
-              src={m.image || "https://placehold.co/1920x1080"}
+              src={getThumbnail(video)}
               alt=""
               loading={i === 0 ? "eager" : "lazy"}
               fetchPriority={i === 0 ? "high" : "auto"}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-[120%] w-full object-cover will-change-transform"
+              style={{
+                transform: `translate3d(0, ${parallaxY}px, 0)`,
+              }}
             />
           </div>
         ))}
@@ -68,42 +101,62 @@ export default function HeroSection() {
               This week&apos;s most-watched
             </span>
 
-            {featuredMovies.map((movie, i) => (
+            {featuredVideos.map((video, i) => (
               <div
-                key={movie.id}
+                key={video.video_id}
                 className={active === i ? "block animate-in fade-in slide-in-from-bottom-4 duration-700" : "hidden"}
               >
                 <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-medium">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-primary/20 px-2 py-1 text-primary">
-                    <Star className="size-3 fill-current" />
-                    {movie.match}% Match
-                  </span>
-                  <span className="rounded-md border border-border px-2 py-1 text-muted-foreground">
-                    {movie.rating}
-                  </span>
-                  <span className="text-muted-foreground">{movie.year}</span>
-                  <span className="text-muted-foreground">{movie.duration}</span>
+                  {video.cid ? (
+                    <span className="rounded-md border border-border px-2 py-1 text-muted-foreground">{video.cid}</span>
+                  ) : null}
+                  {video.release_date ? (
+                    <span className="text-muted-foreground">{video.release_date.slice(0, 4)}</span>
+                  ) : null}
+                  {video.duration ? (
+                    <span className="text-muted-foreground">{formatDuration(video.duration)}</span>
+                  ) : null}
+                  {video.maker ? <span className="text-muted-foreground">{video.maker.name}</span> : null}
                 </div>
 
-                <h1 className="mt-4 text-pretty text-5xl font-semibold tracking-tight sm:text-7xl">{movie.title}</h1>
-                <p className="mt-2 text-base font-medium text-primary sm:text-lg">{movie.tagline}</p>
-                <p className="mt-4 max-w-md text-sm leading-relaxed text-muted-foreground sm:text-base">
-                  {movie.description}
-                </p>
+                <h1 className="mt-4 text-pretty text-5xl font-semibold tracking-tight sm:text-7xl">
+                  <Link
+                    to="/videos/$video_id"
+                    params={{ video_id: video.video_id }}
+                    className="hover:text-primary transition-colors"
+                  >
+                    {video.title}
+                  </Link>
+                </h1>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {movie.genres.map((g) => (
-                    <span
-                      key={g}
-                      className="rounded-full border border-border bg-card/40 px-3 py-1 text-xs text-muted-foreground backdrop-blur"
-                    >
-                      {g}
-                    </span>
-                  ))}
-                </div>
+                {video.actresses && video.actresses.length > 0 ? (
+                  <p className="mt-2 text-base font-medium text-primary sm:text-lg">
+                    {video.actresses
+                      .slice(0, 3)
+                      .map((a) => a.name)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+
+                {video.genres && video.genres.length > 0 ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {video.genres.slice(0, 5).map((g) => (
+                      <span
+                        key={g.id}
+                        className="rounded-full border border-border bg-card/40 px-3 py-1 text-xs text-muted-foreground backdrop-blur"
+                      >
+                        {g.name}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
 
                 <div className="mt-7 flex flex-wrap items-center gap-3">
-                  <Button size="lg" className="gap-2">
+                  <Button
+                    size="lg"
+                    className="gap-2"
+                    render={<Link to="/videos/$video_id" params={{ video_id: video.video_id }} />}
+                  >
                     <Play className="size-4 fill-current" />
                     Play Now
                   </Button>
@@ -119,16 +172,17 @@ export default function HeroSection() {
       </div>
 
       <div className="relative z-10 flex items-center justify-center gap-3 pb-10">
-        {featuredMovies.map((m, i) => (
+        {featuredVideos.map((video, i) => (
           <button
-            key={m.id}
+            key={video.video_id}
+            type="button"
             onClick={() => goTo(i)}
-            aria-label={`Show ${m.title}`}
+            aria-label={`Show ${video.title}`}
             aria-pressed={active === i}
             className="group relative h-1.5 overflow-hidden rounded-full bg-border transition-all"
             style={{ width: active === i ? 44 : 20 }}
           >
-            {active === i && (
+            {active === i ? (
               <span
                 key={active}
                 className="absolute inset-y-0 left-0 block rounded-full bg-primary"
@@ -136,11 +190,13 @@ export default function HeroSection() {
                   animation: `hero-progress ${SLIDE_DURATION}ms linear forwards`,
                 }}
               />
-            )}
+            ) : null}
             <span className="absolute inset-0 rounded-full bg-primary/40 opacity-0 transition-opacity group-hover:opacity-100" />
           </button>
         ))}
       </div>
+
+      <span className="sr-only">Now featuring {current.title}</span>
     </section>
   );
 }
