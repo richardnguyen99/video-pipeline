@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { CategoryBrowse } from "@/layouts/home/category-browse";
+import { VideoBrowse } from "@/layouts/video-browse";
 import { getLatestVideos } from "@/libs/category-videos";
 
 export const Route = createFileRoute("/latest")({
@@ -10,5 +10,5 @@ export const Route = createFileRoute("/latest")({
 
 function LatestPage() {
   const { videos } = Route.useLoaderData();
-  return <CategoryBrowse title="Latest" description="Fresh releases just added." videos={videos} />;
+  return <VideoBrowse title="Latest" description="Fresh releases just added." videos={videos} />;
 }

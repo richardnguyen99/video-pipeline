@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { CategoryVideoCard } from "@/components/video/category-video-card";
 import type { Video } from "@/mocks/videos";
 import { mockVideos } from "@/mocks/videos";
 
@@ -15,14 +16,6 @@ interface CategoryCollection {
   blurb: string;
   more: CategoryMoreLink;
   videos: Video[];
-}
-
-function getThumbnail(video: Video): string {
-  return video.image_urls?.[0] ?? video.video_image_url?.[0]?.url ?? "https://placehold.co/1280x720";
-}
-
-function getCode(video: Video): string {
-  return video.cid ?? video.video_id;
 }
 
 function sortByReleaseDesc(videos: Video[]): Video[] {
@@ -83,36 +76,6 @@ function buildCategoryCollections(videos: Video[]): CategoryCollection[] {
     },
     ...genreCategories,
   ];
-}
-
-interface VideoCardProps {
-  video: Video;
-}
-
-function VideoCard({ video }: VideoCardProps) {
-  const code = getCode(video);
-
-  return (
-    <Link
-      to="/videos/$video_id"
-      params={{ video_id: video.video_id }}
-      className="group relative w-64 shrink-0 snap-start overflow-hidden rounded-2xl border border-border bg-card/40 transition-all hover:border-primary/50 hover:shadow-[0_0_35px_-12px_var(--color-primary)] sm:w-80"
-    >
-      <div className="relative aspect-video w-full">
-        <img
-          src={getThumbnail(video)}
-          alt={video.title}
-          loading="lazy"
-          className="h-full w-full object-cover transition-transform duration-500 scale-101 group-hover:scale-105"
-        />
-        <div className="absolute inset-0 bg-linear-to-t from-background via-background/40 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-4">
-          <h4 className="line-clamp-2 text-sm font-semibold tracking-tight sm:text-base">{video.title}</h4>
-          <p className="mt-0.5 text-xs text-muted-foreground">{code}</p>
-        </div>
-      </div>
-    </Link>
-  );
 }
 
 const moreLinkClassName =
@@ -206,7 +169,7 @@ function CategoryRow({ collection }: CategoryRowProps) {
           className="flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 scrollbar-none scroll-pl-6 sm:px-10 sm:scroll-pl-10 lg:px-16 lg:scroll-pl-16 [&::-webkit-scrollbar]:hidden"
         >
           {collection.videos.map((video) => (
-            <VideoCard key={video.video_id} video={video} />
+            <CategoryVideoCard key={video.video_id} video={video} />
           ))}
         </div>
 

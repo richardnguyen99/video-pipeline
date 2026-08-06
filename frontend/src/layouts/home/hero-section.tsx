@@ -107,8 +107,10 @@ export default function HeroSection() {
                 className={active === i ? "block animate-in fade-in slide-in-from-bottom-4 duration-700" : "hidden"}
               >
                 <div className="mt-5 flex flex-wrap items-center gap-2 text-xs font-medium">
-                  {video.cid ? (
-                    <span className="rounded-md border border-border px-2 py-1 text-muted-foreground">{video.cid}</span>
+                  {video.maker ? (
+                    <span className="rounded-md border border-border px-2 py-1 text-muted-foreground">
+                      {video.maker.name}
+                    </span>
                   ) : null}
                   {video.release_date ? (
                     <span className="text-muted-foreground">{video.release_date.slice(0, 4)}</span>
@@ -116,7 +118,6 @@ export default function HeroSection() {
                   {video.duration ? (
                     <span className="text-muted-foreground">{formatDuration(video.duration)}</span>
                   ) : null}
-                  {video.maker ? <span className="text-muted-foreground">{video.maker.name}</span> : null}
                 </div>
 
                 <h1 className="mt-4 text-pretty text-5xl font-semibold tracking-tight sm:text-7xl">
@@ -125,7 +126,7 @@ export default function HeroSection() {
                     params={{ video_id: video.video_id }}
                     className="hover:text-primary transition-colors"
                   >
-                    {video.title}
+                    {video.cid}
                   </Link>
                 </h1>
 
@@ -155,6 +156,7 @@ export default function HeroSection() {
                   <Button
                     size="lg"
                     className="gap-2"
+                    nativeButton={false}
                     render={<Link to="/videos/$video_id" params={{ video_id: video.video_id }} />}
                   >
                     <Play className="size-4 fill-current" />

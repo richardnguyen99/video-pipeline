@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { CategoryBrowse } from "@/layouts/home/category-browse";
+import { VideoBrowse } from "@/layouts/video-browse";
 import { getGenreNameBySlug, getVideosByGenreSlug } from "@/libs/category-videos";
 
 export const Route = createFileRoute("/genres/$genre")({
@@ -24,5 +24,5 @@ export const Route = createFileRoute("/genres/$genre")({
 
 function GenrePage() {
   const { name, videos } = Route.useLoaderData();
-  return <CategoryBrowse title={name} description={`Browse ${name.toLowerCase()} titles.`} videos={videos} />;
+  return <VideoBrowse title={name} description={`Browse ${name.toLowerCase()} titles.`} videos={videos} />;
 }

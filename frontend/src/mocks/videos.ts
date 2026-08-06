@@ -14,8 +14,15 @@ export interface VideoImageUrl {
   type?: string | null;
 }
 
-/** Backend `VideoSampleImageUrl` — sample / review images for the gallery. */
-export interface VideoSampleImageUrl {
+/** Backend `VideoVideoSampleImageUrlUrl` — sample / review images for the gallery. */
+export interface VideoVideoSampleImageUrlUrl {
+  id: number;
+  url: string;
+  type?: string | null;
+}
+
+/** Backend `VideoSampleMovieUrl` — short sample / review movie clips. */
+export interface VideoSampleMovieUrl {
   id: number;
   url: string;
   type?: string | null;
@@ -35,8 +42,14 @@ export interface Video {
   image_urls?: string[];
   video_image_url?: VideoImageUrl[];
   /** Sample / review images (`video_sample_image_url`) — do not use image_urls here */
-  sample_image_url?: VideoSampleImageUrl[];
+  sample_image_url?: VideoVideoSampleImageUrlUrl[];
+  /** Sample / review movie clips (`video_sample_movie_url`) */
+  sample_movie_url?: VideoSampleMovieUrl[];
   m3u8_urls?: string[];
+  /** Mock engagement counters for UI */
+  views?: number;
+  likes?: number;
+  comments?: number;
   maker?: NamedEntity | null;
   label?: NamedEntity | null;
   director?: NamedEntity | null;
@@ -69,6 +82,12 @@ export const mockVideos: Video[] = [
       { id: 10, url: "https://picsum.photos/id/1044/640/360", type: "sample" },
     ],
     m3u8_urls: ["https://example.com/video1.m3u8"],
+    sample_movie_url: [
+      { id: 1, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 2933,
+    likes: 127,
+    comments: 14,
     maker: { id: 1, name: "STUDIO-A" },
     label: { id: 1, name: "Velvet Soft" },
     director: { id: 1, name: "Kenji Morita" },
@@ -113,6 +132,12 @@ export const mockVideos: Video[] = [
     floor_code: "videob",
     image_urls: ["https://picsum.photos/id/1027/800/450"],
     m3u8_urls: ["https://example.com/video2.m3u8"],
+    sample_movie_url: [
+      { id: 2, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 4666,
+    likes: 174,
+    comments: 23,
     maker: { id: 2, name: "DREAM-STUDIO" },
     label: { id: 2, name: "Night Pulse" },
     director: { id: 2, name: "Aya Fujimoto" },
@@ -132,6 +157,12 @@ export const mockVideos: Video[] = [
     maker_product: "HORIZON-FILMS",
     floor_code: "videoc",
     image_urls: ["https://picsum.photos/id/106/800/450", "https://picsum.photos/id/107/800/450"],
+    sample_movie_url: [
+      { id: 3, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 6399,
+    likes: 221,
+    comments: 32,
     maker: { id: 3, name: "HORIZON-FILMS" },
     label: null,
     director: { id: 3, name: "Ryo Tanaka" },
@@ -173,6 +204,12 @@ export const mockVideos: Video[] = [
     release_date: "2024-04-05",
     jancode: "1112223334445",
     image_urls: ["https://picsum.photos/id/201/800/450"],
+    sample_movie_url: [
+      { id: 4, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 8132,
+    likes: 268,
+    comments: 41,
     maker: { id: 1, name: "STUDIO-A" },
     label: { id: 3, name: "Cherry Line" },
     director: null,
@@ -188,6 +225,12 @@ export const mockVideos: Video[] = [
     release_date: "2024-05-12",
     maker_product: "PREMIUM-LINE",
     image_urls: ["https://picsum.photos/id/208/800/450"],
+    sample_movie_url: [
+      { id: 5, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 9865,
+    likes: 315,
+    comments: 50,
     maker: { id: 4, name: "PREMIUM-LINE" },
     label: { id: 1, name: "Velvet Soft" },
     director: { id: 1, name: "Kenji Morita" },
@@ -206,6 +249,12 @@ export const mockVideos: Video[] = [
     release_date: "2024-06-18",
     floor_code: "videod",
     image_urls: ["https://picsum.photos/id/301/800/450"],
+    sample_movie_url: [
+      { id: 6, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 11598,
+    likes: 362,
+    comments: 59,
     maker: { id: 5, name: "SHADOW-HOUSE" },
     label: null,
     director: { id: 4, name: "Mika Sato" },
@@ -224,6 +273,12 @@ export const mockVideos: Video[] = [
     release_date: "2024-07-22",
     maker_product: "SUNSHINE-PROD",
     image_urls: ["https://picsum.photos/id/367/800/450"],
+    sample_movie_url: [
+      { id: 7, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 13331,
+    likes: 409,
+    comments: 68,
     maker: { id: 6, name: "SUNSHINE-PROD" },
     label: { id: 4, name: "Summer Wave" },
     director: { id: 2, name: "Aya Fujimoto" },
@@ -238,6 +293,12 @@ export const mockVideos: Video[] = [
     duration: 108,
     release_date: "2024-08-08",
     image_urls: ["https://picsum.photos/id/433/800/450"],
+    sample_movie_url: [
+      { id: 8, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 15064,
+    likes: 456,
+    comments: 77,
     maker: { id: 4, name: "PREMIUM-LINE" },
     label: { id: 2, name: "Night Pulse" },
     director: { id: 3, name: "Ryo Tanaka" },
@@ -256,6 +317,12 @@ export const mockVideos: Video[] = [
     release_date: "2024-09-14",
     maker_product: "NIGHT-RIDER",
     image_urls: ["https://picsum.photos/id/1018/800/450"],
+    sample_movie_url: [
+      { id: 9, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 16797,
+    likes: 503,
+    comments: 86,
     maker: { id: 7, name: "NIGHT-RIDER" },
     label: null,
     director: null,
@@ -283,6 +350,12 @@ export const mockVideos: Video[] = [
       { id: 1109, url: "https://picsum.photos/id/1043/640/360", type: "sample" },
       { id: 11010, url: "https://picsum.photos/id/1044/640/360", type: "sample" },
     ],
+    sample_movie_url: [
+      { id: 10, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 18530,
+    likes: 550,
+    comments: 95,
     maker: { id: 1, name: "STUDIO-A" },
     label: { id: 1, name: "Velvet Soft" },
     director: { id: 1, name: "Kenji Morita" },
@@ -324,6 +397,12 @@ export const mockVideos: Video[] = [
     release_date: "2024-11-05",
     maker_product: "NEON-WORKS",
     image_urls: ["https://picsum.photos/id/129/800/450"],
+    sample_movie_url: [
+      { id: 11, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 20263,
+    likes: 597,
+    comments: 104,
     maker: { id: 8, name: "NEON-WORKS" },
     label: { id: 5, name: "Urban Glow" },
     director: { id: 4, name: "Mika Sato" },
@@ -338,6 +417,12 @@ export const mockVideos: Video[] = [
     duration: 119,
     release_date: "2024-12-12",
     image_urls: ["https://picsum.photos/id/137/800/450"],
+    sample_movie_url: [
+      { id: 12, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 21996,
+    likes: 644,
+    comments: 113,
     maker: null,
     label: { id: 3, name: "Cherry Line" },
     director: { id: 2, name: "Aya Fujimoto" },
@@ -353,6 +438,12 @@ export const mockVideos: Video[] = [
     release_date: "2025-01-20",
     maker_product: "SNOW-FILM",
     image_urls: ["https://picsum.photos/id/145/800/450"],
+    sample_movie_url: [
+      { id: 13, url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", type: "sample" },
+    ],
+    views: 23729,
+    likes: 691,
+    comments: 122,
     maker: { id: 9, name: "SNOW-FILM" },
     label: null,
     director: null,
