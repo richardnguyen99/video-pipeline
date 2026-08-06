@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
 import { ActressCard } from "@/components/actress/actress-card";
+import { ActressesToolbar } from "@/layouts/actresses/actresses-toolbar";
 import {
   Pagination,
   PaginationContent,
@@ -9,7 +10,8 @@ import {
   PaginationItem,
   PaginationLink,
 } from "@/components/ui/pagination";
-import type { ActressSummary } from "@/libs/actresses";
+import type { ActressFilters, ActressSort, ActressSummary } from "@/libs/actresses";
+import { buildActressesSearch } from "@/libs/actresses";
 import { buttonVariants } from "@/libs/shadcn_variants";
 import { cn } from "@/libs/utils";
 
@@ -18,15 +20,21 @@ interface ActressesIndexProps {
   page: number;
   totalPages: number;
   total: number;
+  sort: ActressSort;
+  filters: ActressFilters;
 }
 
-export function ActressesIndex({ actresses, page, totalPages, total }: ActressesIndexProps) {
+export function ActressesIndex({ actresses, page, totalPages, total, sort, filters }: ActressesIndexProps) {
   const prevPage = page > 1 ? page - 1 : null;
   const nextPage = page < totalPages ? page + 1 : null;
 
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
     (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2,
   );
+
+  function pageSearch(targetPage: number) {
+    return buildActressesSearch({ page: targetPage, sort, filters });
+  }
 
   return (
     <div className="min-h-screen pt-16">
@@ -37,6 +45,8 @@ export function ActressesIndex({ actresses, page, totalPages, total }: Actresses
             Browse performers and their featured titles. {total} profiles.
           </p>
         </header>
+
+        <ActressesToolbar sort={sort} filters={filters} />
 
         {actresses.length === 0 ? (
           <p className="text-sm text-muted-foreground">No actresses found.</p>
@@ -57,7 +67,7 @@ export function ActressesIndex({ actresses, page, totalPages, total }: Actresses
                 {prevPage != null ? (
                   <Link
                     to="/actresses"
-                    search={{ page: prevPage }}
+                    search={pageSearch(prevPage)}
                     aria-label="Go to previous page"
                     className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pr-2.5")}
                   >
@@ -90,7 +100,7 @@ export function ActressesIndex({ actresses, page, totalPages, total }: Actresses
                     <PaginationItem>
                       <Link
                         to="/actresses"
-                        search={{ page: p }}
+                        search={pageSearch(p)}
                         aria-current={p === page ? "page" : undefined}
                         className={cn(
                           buttonVariants({
@@ -110,7 +120,7 @@ export function ActressesIndex({ actresses, page, totalPages, total }: Actresses
                 {nextPage != null ? (
                   <Link
                     to="/actresses"
-                    search={{ page: nextPage }}
+                    search={pageSearch(nextPage)}
                     aria-label="Go to next page"
                     className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pl-2.5")}
                   >
