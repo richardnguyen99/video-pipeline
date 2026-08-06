@@ -16,6 +16,8 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as TrendingRouteImport } from './routes/trending'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
+import { Route as ActressesIndexRouteImport } from './routes/actresses/index'
+import { Route as ActressesActressIdRouteImport } from './routes/actresses/$actressId'
 import { Route as GenresIndexRouteImport } from './routes/genres/index'
 import { Route as GenresGenreRouteImport } from './routes/genres/$genre'
 import { Route as VideosVideo_idRouteImport } from './routes/videos/$video_id'
@@ -55,6 +57,16 @@ const VideosRouteRoute = VideosRouteRouteImport.update({
   path: '/videos',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActressesIndexRoute = ActressesIndexRouteImport.update({
+  id: '/actresses/',
+  path: '/actresses/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ActressesActressIdRoute = ActressesActressIdRouteImport.update({
+  id: '/actresses/$actressId',
+  path: '/actresses/$actressId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GenresIndexRoute = GenresIndexRouteImport.update({
   id: '/genres/',
   path: '/genres/',
@@ -79,8 +91,10 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/trending': typeof TrendingRoute
+  '/actresses/$actressId': typeof ActressesActressIdRoute
   '/genres/$genre': typeof GenresGenreRoute
   '/videos/$video_id': typeof VideosVideo_idRoute
+  '/actresses/': typeof ActressesIndexRoute
   '/genres/': typeof GenresIndexRoute
 }
 export interface FileRoutesByTo {
@@ -91,8 +105,10 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/trending': typeof TrendingRoute
+  '/actresses/$actressId': typeof ActressesActressIdRoute
   '/genres/$genre': typeof GenresGenreRoute
   '/videos/$video_id': typeof VideosVideo_idRoute
+  '/actresses': typeof ActressesIndexRoute
   '/genres': typeof GenresIndexRoute
 }
 export interface FileRoutesById {
@@ -104,8 +120,10 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/trending': typeof TrendingRoute
+  '/actresses/$actressId': typeof ActressesActressIdRoute
   '/genres/$genre': typeof GenresGenreRoute
   '/videos/$video_id': typeof VideosVideo_idRoute
+  '/actresses/': typeof ActressesIndexRoute
   '/genres/': typeof GenresIndexRoute
 }
 export interface FileRouteTypes {
@@ -118,8 +136,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/trending'
+    | '/actresses/$actressId'
     | '/genres/$genre'
     | '/videos/$video_id'
+    | '/actresses/'
     | '/genres/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -130,8 +150,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/trending'
+    | '/actresses/$actressId'
     | '/genres/$genre'
     | '/videos/$video_id'
+    | '/actresses'
     | '/genres'
   id:
     | '__root__'
@@ -142,8 +164,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/trending'
+    | '/actresses/$actressId'
     | '/genres/$genre'
     | '/videos/$video_id'
+    | '/actresses/'
     | '/genres/'
   fileRoutesById: FileRoutesById
 }
@@ -155,7 +179,9 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   SignInRoute: typeof SignInRoute
   TrendingRoute: typeof TrendingRoute
+  ActressesActressIdRoute: typeof ActressesActressIdRoute
   GenresGenreRoute: typeof GenresGenreRoute
+  ActressesIndexRoute: typeof ActressesIndexRoute
   GenresIndexRoute: typeof GenresIndexRoute
 }
 
@@ -210,6 +236,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VideosRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/actresses/': {
+      id: '/actresses/'
+      path: '/actresses'
+      fullPath: '/actresses/'
+      preLoaderRoute: typeof ActressesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/actresses/$actressId': {
+      id: '/actresses/$actressId'
+      path: '/actresses/$actressId'
+      fullPath: '/actresses/$actressId'
+      preLoaderRoute: typeof ActressesActressIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/genres/': {
       id: '/genres/'
       path: '/genres'
@@ -254,7 +294,9 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   SignInRoute: SignInRoute,
   TrendingRoute: TrendingRoute,
+  ActressesActressIdRoute: ActressesActressIdRoute,
   GenresGenreRoute: GenresGenreRoute,
+  ActressesIndexRoute: ActressesIndexRoute,
   GenresIndexRoute: GenresIndexRoute,
 }
 export const routeTree = rootRouteImport
