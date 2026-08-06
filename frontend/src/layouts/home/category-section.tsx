@@ -134,7 +134,10 @@ function CategoryRow({ collection }: CategoryRowProps) {
   const scrollByDirection = useCallback((direction: "left" | "right") => {
     const el = scrollRef.current;
     if (!el) return;
-    const amount = el.clientWidth * 0.8 * (direction === "left" ? -1 : 1);
+    const firstCard = el.querySelector<HTMLElement>(":scope > *");
+    const gap = Number.parseFloat(getComputedStyle(el).columnGap || getComputedStyle(el).gap) || 16;
+    const cardWidth = firstCard?.offsetWidth ?? 320;
+    const amount = (cardWidth + gap) * (direction === "left" ? -1 : 1);
     el.scrollBy({ left: amount, behavior: "smooth" });
   }, []);
 
@@ -166,7 +169,7 @@ function CategoryRow({ collection }: CategoryRowProps) {
 
         <div
           ref={scrollRef}
-          className="flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 pb-2 scrollbar-none scroll-pl-6 sm:px-10 sm:scroll-pl-10 lg:px-16 lg:scroll-pl-16 [&::-webkit-scrollbar]:hidden"
+          className="flex snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain px-6 py-8 scrollbar-none scroll-pl-6 sm:px-10 sm:scroll-pl-10 lg:px-16 lg:scroll-pl-16 [&::-webkit-scrollbar]:hidden"
         >
           {collection.videos.map((video) => (
             <CategoryVideoCard key={video.video_id} video={video} />
