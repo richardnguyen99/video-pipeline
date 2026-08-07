@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ActressFilters, ActressSort } from "@/libs/actresses";
 import {
   ACTRESS_SORT_OPTIONS,
@@ -22,6 +23,7 @@ import {
   buildActressesSearch,
   getAvailableActressGenres,
   getAvailableActressLabels,
+  getAvailableActressMakers,
   getAvailableCupSizes,
 } from "@/libs/actresses";
 import { cn } from "@/libs/utils";
@@ -33,13 +35,17 @@ interface ActressesToolbarProps {
 
 function parseOptionalInt(value: string): number | undefined {
   if (value.trim() === "") return undefined;
+
   const n = Number.parseInt(value, 10);
+
   return Number.isFinite(n) ? n : undefined;
 }
 
 function sortLabel(sort: ActressSort): string {
   const opt = ACTRESS_SORT_OPTIONS.find((o) => o.value === sort);
+
   if (!opt) return "Sort";
+
   return opt.group ? `${opt.group}: ${opt.label}` : opt.label;
 }
 
@@ -47,6 +53,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const navigate = useNavigate();
   const labels = getAvailableActressLabels();
   const genres = getAvailableActressGenres();
+  const makers = getAvailableActressMakers();
   const cups = getAvailableCupSizes();
   const [moreOpen, setMoreOpen] = useState(
     Boolean(
@@ -75,9 +82,10 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
     });
   }
 
-  function toggleListValue(key: "labels" | "genres" | "cups", value: string, checked: boolean) {
+  function toggleListValue(key: "labels" | "genres" | "makers" | "cups", value: string, checked: boolean) {
     const current = filters[key];
     const nextValues = checked ? [...current, value] : current.filter((v) => v !== value);
+
     updateSearch({
       filters: { ...filters, [key]: nextValues },
       page: 1,
@@ -90,6 +98,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const hasActiveFilters =
     filters.labels.length > 0 ||
     filters.genres.length > 0 ||
+    filters.makers.length > 0 ||
     filters.cups.length > 0 ||
     filters.bustMin != null ||
     filters.bustMax != null ||
@@ -158,18 +167,22 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
             {filters.labels.length > 0 ? ` (${filters.labels.length})` : ""}
             <ChevronDown className="size-3.5 opacity-60" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48">
+          <DropdownMenuContent align="start" className="min-w-48 p-0">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Label (OR)</DropdownMenuLabel>
-              {labels.map((label) => (
-                <DropdownMenuCheckboxItem
-                  key={label}
-                  checked={filters.labels.includes(label)}
-                  onCheckedChange={(checked) => toggleListValue("labels", label, Boolean(checked))}
-                >
-                  {label}
-                </DropdownMenuCheckboxItem>
-              ))}
+              <DropdownMenuLabel className="px-2 pt-2">Label (OR)</DropdownMenuLabel>
+              <ScrollArea className="h-auto">
+                <div className="py-1 px-2 max-h-75">
+                  {labels.map((label) => (
+                    <DropdownMenuCheckboxItem
+                      key={label}
+                      checked={filters.labels.includes(label)}
+                      onCheckedChange={(checked) => toggleListValue("labels", label, Boolean(checked))}
+                    >
+                      {label}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+              </ScrollArea>
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -186,18 +199,54 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
             {filters.genres.length > 0 ? ` (${filters.genres.length})` : ""}
             <ChevronDown className="size-3.5 opacity-60" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48">
+          <DropdownMenuContent align="start" className="min-w-48 p-0">
             <DropdownMenuGroup>
-              <DropdownMenuLabel>Genre (OR)</DropdownMenuLabel>
-              {genres.map((genre) => (
-                <DropdownMenuCheckboxItem
-                  key={genre}
-                  checked={filters.genres.includes(genre)}
-                  onCheckedChange={(checked) => toggleListValue("genres", genre, Boolean(checked))}
-                >
-                  {genre}
-                </DropdownMenuCheckboxItem>
-              ))}
+              <DropdownMenuLabel className="px-2 pt-2">Genre (OR)</DropdownMenuLabel>
+              <ScrollArea className="h-auto">
+                <div className="py-1 px-2 max-h-75">
+                  {genres.map((genre) => (
+                    <DropdownMenuCheckboxItem
+                      key={genre}
+                      checked={filters.genres.includes(genre)}
+                      onCheckedChange={(checked) => toggleListValue("genres", genre, Boolean(checked))}
+                    >
+                      {genre}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+              </ScrollArea>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium",
+              "hover:bg-muted",
+              filters.makers.length > 0 && "border-primary/50 text-primary",
+            )}
+          >
+            Maker
+            {filters.makers.length > 0 ? ` (${filters.makers.length})` : ""}
+            <ChevronDown className="size-3.5 opacity-60" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-48 p-0">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="px-2 pt-2">Maker (OR)</DropdownMenuLabel>
+              <ScrollArea className="h-auto">
+                <div className="py-1 px-2 max-h-75">
+                  {makers.map((maker) => (
+                    <DropdownMenuCheckboxItem
+                      key={maker}
+                      checked={filters.makers.includes(maker)}
+                      onCheckedChange={(checked) => toggleListValue("makers", maker, Boolean(checked))}
+                    >
+                      {maker}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+              </ScrollArea>
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -219,7 +268,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
         {hasActiveFilters ? (
           <Button
             type="button"
-            variant="ghost"
+            variant="destructive"
             size="sm"
             onClick={() => updateSearch({ filters: { ...DEFAULT_ACTRESS_FILTERS }, page: 1 })}
           >

@@ -8,8 +8,10 @@ export const Route = createFileRoute("/actresses/$actressId")({
   loader: ({ params }) => {
     const id = Number.parseInt(params.actressId, 10);
     if (Number.isNaN(id)) throw notFound();
+
     const actress = getActressById(id);
     if (!actress) throw notFound();
+
     return {
       actress,
       videos: getVideosByActressId(id),
@@ -24,5 +26,6 @@ export const Route = createFileRoute("/actresses/$actressId")({
 
 function ActressDetailPage() {
   const { actress, videos } = Route.useLoaderData();
+
   return <ActressDetail actress={actress} videos={videos} />;
 }

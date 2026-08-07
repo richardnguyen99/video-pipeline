@@ -16,6 +16,7 @@ export type ActressSort =
 export interface ActressFilters {
   labels: string[];
   genres: string[];
+  makers: string[];
   cups: string[];
   bustMin?: number;
   bustMax?: number;
@@ -32,6 +33,7 @@ export interface ActressFilters {
 export const DEFAULT_ACTRESS_FILTERS: ActressFilters = {
   labels: [],
   genres: [],
+  makers: [],
   cups: [],
 };
 
@@ -54,6 +56,7 @@ export interface ActressSummary extends ActressRef {
   viewsWeek: number;
   labels: string[];
   genres: string[];
+  makers: string[];
 }
 
 function engagementFromVideos(videos: Video[]): Map<
@@ -65,6 +68,7 @@ function engagementFromVideos(videos: Video[]): Map<
     totalComments: number;
     labels: Set<string>;
     genres: Set<string>;
+    makers: Set<string>;
   }
 > {
   const map = new Map<
@@ -76,8 +80,10 @@ function engagementFromVideos(videos: Video[]): Map<
       totalComments: number;
       labels: Set<string>;
       genres: Set<string>;
+      makers: Set<string>;
     }
   >();
+
   for (const video of videos) {
     for (const actress of video.actresses ?? []) {
       const cur = map.get(actress.id) ?? {
@@ -87,12 +93,17 @@ function engagementFromVideos(videos: Video[]): Map<
         totalComments: 0,
         labels: new Set<string>(),
         genres: new Set<string>(),
+        makers: new Set<string>(),
       };
+
       cur.videoCount += 1;
       cur.totalViews += video.views ?? 0;
       cur.totalLikes += video.likes ?? 0;
       cur.totalComments += video.comments ?? 0;
+
       if (video.label?.name) cur.labels.add(video.label.name);
+      if (video.maker?.name) cur.makers.add(video.maker.name);
+
       for (const g of video.genres ?? []) cur.genres.add(g.name);
       map.set(actress.id, cur);
     }
@@ -117,6 +128,21 @@ const GENRE_POOL = [
   "Ensemble",
 ];
 
+const MAKER_POOL = [
+  "STUDIO-A",
+  "PREMIUM-LINE",
+  "NIGHT-RIDER",
+  "HORIZON-FILMS",
+  "NEON-WORKS",
+  "DREAM-STUDIO",
+  "SNOW-FILM",
+  "SHADOW-HOUSE",
+  "SUNSHINE-PROD",
+];
+
+/** Cup sizes A–Q for measurement filters. */
+export const CUP_SIZES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"] as const;
+
 export function getAvailableActressLabels(): string[] {
   return [...LABEL_POOL].sort();
 }
@@ -125,12 +151,12 @@ export function getAvailableActressGenres(): string[] {
   return [...GENRE_POOL].sort();
 }
 
-export function getAvailableCupSizes(videos: Video[] = mockVideos): string[] {
-  const cups = new Set<string>();
-  for (const a of getActressSummaries(videos)) {
-    if (a.cup) cups.add(a.cup);
-  }
-  return [...cups].sort();
+export function getAvailableActressMakers(): string[] {
+  return [...MAKER_POOL].sort();
+}
+
+export function getAvailableCupSizes(): string[] {
+  return [...CUP_SIZES];
 }
 
 export function getActressSummaries(videos: Video[] = mockVideos): ActressSummary[] {
@@ -141,13 +167,18 @@ export function getActressSummaries(videos: Video[] = mockVideos): ActressSummar
     const seed = profile.id * 17 + index;
     const labelCount = 1 + (seed % 2);
     const genreCount = 1 + (seed % 3);
+
     const seededLabels = Array.from({ length: labelCount }, (_, i) => {
       return LABEL_POOL[(seed + i * 3) % LABEL_POOL.length];
     });
+
     const seededGenres = Array.from({ length: genreCount }, (_, i) => {
       return GENRE_POOL[(seed + i * 5) % GENRE_POOL.length];
     });
+
+    const seededMakers = [MAKER_POOL[(seed + 2) % MAKER_POOL.length]];
     const totalViews = stats?.totalViews ?? 5_000 + seed * 130;
+
     return {
       id: profile.id,
       name: profile.name,
@@ -169,6 +200,7 @@ export function getActressSummaries(videos: Video[] = mockVideos): ActressSummar
       viewsWeek: Math.floor(totalViews * (0.03 + (seed % 10) / 100)),
       labels: stats && stats.labels.size > 0 ? [...stats.labels] : [...new Set(seededLabels)],
       genres: stats && stats.genres.size > 0 ? [...stats.genres] : [...new Set(seededGenres)],
+      makers: stats && stats.makers.size > 0 ? [...stats.makers] : seededMakers,
     };
   });
 }
@@ -183,32 +215,41 @@ export function getVideosByActressId(id: number, videos: Video[] = mockVideos): 
 
 export function formatAge(birthday?: string | null): number | null {
   if (!birthday) return null;
+
   const dob = new Date(birthday);
   if (Number.isNaN(dob.getTime())) return null;
+
   const now = new Date();
   let age = now.getFullYear() - dob.getFullYear();
   const m = now.getMonth() - dob.getMonth();
+
   if (m < 0 || (m === 0 && now.getDate() < dob.getDate())) age -= 1;
+
   return age >= 0 ? age : null;
 }
 
 export function formatBirthdayLabel(birthday?: string | null): string | null {
   if (!birthday) return null;
+
   const age = formatAge(birthday);
   if (age == null) return birthday;
+
   return `${birthday} (${age})`;
 }
 
 export function formatMeasurements(actress: ActressSummary): string | null {
   const parts: string[] = [];
+
   if (actress.bust != null) {
     parts.push(actress.cup ? `B${actress.bust}${actress.cup}` : `B${actress.bust}`);
   } else if (actress.cup) {
     parts.push(`Cup ${actress.cup}`);
   }
+
   if (actress.waist != null) parts.push(`W${actress.waist}`);
   if (actress.hip != null) parts.push(`H${actress.hip}`);
   if (actress.height != null) parts.push(`${actress.height}cm`);
+
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
@@ -216,6 +257,7 @@ function inRange(value: number | null | undefined, min?: number, max?: number): 
   if (value == null) return min == null && max == null;
   if (min != null && value < min) return false;
   if (max != null && value > max) return false;
+
   return true;
 }
 
@@ -224,22 +266,31 @@ export function filterActresses(actresses: ActressSummary[], filters: ActressFil
     if (filters.labels.length > 0) {
       if (!filters.labels.some((l) => a.labels.includes(l))) return false;
     }
+
     if (filters.genres.length > 0) {
       if (!filters.genres.some((g) => a.genres.includes(g))) return false;
     }
+
+    if (filters.makers.length > 0) {
+      if (!filters.makers.some((m) => a.makers.includes(m))) return false;
+    }
+
     if (filters.cups.length > 0) {
       if (!a.cup || !filters.cups.includes(a.cup)) return false;
     }
+
     if (!inRange(a.bust, filters.bustMin, filters.bustMax)) return false;
     if (!inRange(a.waist, filters.waistMin, filters.waistMax)) return false;
     if (!inRange(a.hip, filters.hipMin, filters.hipMax)) return false;
     if (!inRange(a.height, filters.heightMin, filters.heightMax)) return false;
+
     const age = formatAge(a.birthday);
     if (filters.ageMin != null || filters.ageMax != null) {
       if (age == null) return false;
       if (filters.ageMin != null && age < filters.ageMin) return false;
       if (filters.ageMax != null && age >= filters.ageMax) return false;
     }
+
     return true;
   });
 }
@@ -328,6 +379,7 @@ export type ActressesSearchParams = {
   sort?: ActressSort;
   labels?: string[];
   genres?: string[];
+  makers?: string[];
   cups?: string[];
   bustMin?: number;
   bustMax?: number;
@@ -360,6 +412,7 @@ export function buildActressesSearch(input: {
 
   if (filters.labels.length > 0) search.labels = filters.labels;
   if (filters.genres.length > 0) search.genres = filters.genres;
+  if (filters.makers.length > 0) search.makers = filters.makers;
   if (filters.cups.length > 0) search.cups = filters.cups;
   if (filters.bustMin != null) search.bustMin = filters.bustMin;
   if (filters.bustMax != null) search.bustMax = filters.bustMax;
