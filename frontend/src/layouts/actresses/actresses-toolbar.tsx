@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { Check, ChevronDown, ListFilter, ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ListFilter } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -26,6 +26,7 @@ import {
   getAvailableActressMakers,
   getAvailableCupSizes,
 } from "@/libs/actresses";
+import type { NamedEntity } from "@/mocks/videos";
 import { cn } from "@/libs/utils";
 
 interface ActressesToolbarProps {
@@ -33,20 +34,66 @@ interface ActressesToolbarProps {
   filters: ActressFilters;
 }
 
+function filterTriggerClass(active?: boolean) {
+  return cn(
+    "inline-flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium sm:h-8 sm:w-auto sm:justify-center",
+    "hover:bg-muted",
+    active && "border-primary/50 text-primary",
+  );
+}
+
 function parseOptionalInt(value: string): number | undefined {
   if (value.trim() === "") return undefined;
-
   const n = Number.parseInt(value, 10);
-
   return Number.isFinite(n) ? n : undefined;
 }
 
 function sortLabel(sort: ActressSort): string {
   const opt = ACTRESS_SORT_OPTIONS.find((o) => o.value === sort);
-
   if (!opt) return "Sort";
-
   return opt.group ? `${opt.group}: ${opt.label}` : opt.label;
+}
+
+function EntityFilterDropdown({
+  label,
+  items,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  items: NamedEntity[];
+  selected: number[];
+  onToggle: (id: number, checked: boolean) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={filterTriggerClass(selected.length > 0)}>
+        <span className="truncate">
+          {label}
+          {selected.length > 0 ? ` (${selected.length})` : ""}
+        </span>
+        <ChevronDown className="size-3.5 shrink-0 opacity-60" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="px-2 pt-2">{label} (OR)</DropdownMenuLabel>
+          <ScrollArea className="h-auto">
+            <div className="max-h-75 px-2 py-1">
+              {items.map((item) => (
+                <DropdownMenuCheckboxItem
+                  key={item.id}
+                  checked={selected.includes(item.id)}
+                  onCheckedChange={(checked) => onToggle(item.id, Boolean(checked))}
+                >
+                  {item.name}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </div>
+          </ScrollArea>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
@@ -55,6 +102,10 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const genres = getAvailableActressGenres();
   const makers = getAvailableActressMakers();
   const cups = getAvailableCupSizes();
+
+  const nonMeasurementCount = filters.labels.length + filters.genres.length + filters.makers.length;
+
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(
     Boolean(
       filters.cups.length ||
@@ -85,7 +136,6 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   function toggleIdFilter(key: "labels" | "genres" | "makers", id: number, checked: boolean) {
     const current = filters[key];
     const nextValues = checked ? [...current, id] : current.filter((v) => v !== id);
-
     updateSearch({
       filters: { ...filters, [key]: nextValues },
       page: 1,
@@ -94,7 +144,6 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
 
   function toggleCup(value: string, checked: boolean) {
     const nextValues = checked ? [...filters.cups, value] : filters.cups.filter((v) => v !== value);
-
     updateSearch({
       filters: { ...filters, cups: nextValues },
       page: 1,
@@ -105,9 +154,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const otherSorts = ACTRESS_SORT_OPTIONS.filter((o) => !o.group);
 
   const hasActiveFilters =
-    filters.labels.length > 0 ||
-    filters.genres.length > 0 ||
-    filters.makers.length > 0 ||
+    nonMeasurementCount > 0 ||
     filters.cups.length > 0 ||
     filters.bustMin != null ||
     filters.bustMax != null ||
@@ -120,21 +167,41 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
     filters.ageMin != null ||
     filters.ageMax != null;
 
+  const entityFilters = (
+    <>
+      <EntityFilterDropdown
+        label="Label"
+        items={labels}
+        selected={filters.labels}
+        onToggle={(id, checked) => toggleIdFilter("labels", id, checked)}
+      />
+      <EntityFilterDropdown
+        label="Genre"
+        items={genres}
+        selected={filters.genres}
+        onToggle={(id, checked) => toggleIdFilter("genres", id, checked)}
+      />
+      <EntityFilterDropdown
+        label="Maker"
+        items={makers}
+        selected={filters.makers}
+        onToggle={(id, checked) => toggleIdFilter("makers", id, checked)}
+      />
+    </>
+  );
+
   return (
     <div className="mb-6 space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium",
-              "hover:bg-muted",
-            )}
-          >
-            <ArrowUpDown className="size-3.5" />
-            {sortLabel(sort)}
-            <ChevronDown className="size-3.5 opacity-60" />
+          <DropdownMenuTrigger className={filterTriggerClass()}>
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <ArrowUpDown className="size-3.5 shrink-0" />
+              <span className="truncate">{sortLabel(sort)}</span>
+            </span>
+            <ChevronDown className="size-3.5 shrink-0 opacity-60" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48">
+          <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0">
             <DropdownMenuGroup>
               <DropdownMenuLabel>Trending</DropdownMenuLabel>
               {trending.map((opt) => (
@@ -164,114 +231,42 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium",
-              "hover:bg-muted",
-              filters.labels.length > 0 && "border-primary/50 text-primary",
-            )}
+        <div className="w-full space-y-2 sm:hidden">
+          <button
+            type="button"
+            className={cn(filterTriggerClass(filtersOpen || nonMeasurementCount > 0))}
+            onClick={() => setFiltersOpen((v) => !v)}
           >
-            Label
-            {filters.labels.length > 0 ? ` (${filters.labels.length})` : ""}
-            <ChevronDown className="size-3.5 opacity-60" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48 p-0">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="px-2 pt-2">Label (OR)</DropdownMenuLabel>
-              <ScrollArea className="h-auto">
-                <div className="py-1 px-2 max-h-75">
-                  {labels.map((label) => (
-                    <DropdownMenuCheckboxItem
-                      key={label.id}
-                      checked={filters.labels.includes(label.id)}
-                      onCheckedChange={(checked) => toggleIdFilter("labels", label.id, Boolean(checked))}
-                    >
-                      {label.name}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </div>
-              </ScrollArea>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <ListFilter className="size-3.5 shrink-0" />
+              <span className="truncate">
+                Filters
+                {nonMeasurementCount > 0 ? ` (${nonMeasurementCount})` : ""}
+              </span>
+            </span>
+            <ChevronDown
+              className={cn("size-3.5 shrink-0 opacity-60 transition-transform", filtersOpen && "rotate-180")}
+            />
+          </button>
+          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+            <CollapsibleContent>
+              <div className="grid grid-cols-1 gap-2 pt-1">{entityFilters}</div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium",
-              "hover:bg-muted",
-              filters.genres.length > 0 && "border-primary/50 text-primary",
-            )}
-          >
-            Genre
-            {filters.genres.length > 0 ? ` (${filters.genres.length})` : ""}
-            <ChevronDown className="size-3.5 opacity-60" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48 p-0">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="px-2 pt-2">Genre (OR)</DropdownMenuLabel>
-              <ScrollArea className="h-auto">
-                <div className="py-1 px-2 max-h-75">
-                  {genres.map((genre) => (
-                    <DropdownMenuCheckboxItem
-                      key={genre.id}
-                      checked={filters.genres.includes(genre.id)}
-                      onCheckedChange={(checked) => toggleIdFilter("genres", genre.id, Boolean(checked))}
-                    >
-                      {genre.name}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </div>
-              </ScrollArea>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium",
-              "hover:bg-muted",
-              filters.makers.length > 0 && "border-primary/50 text-primary",
-            )}
-          >
-            Maker
-            {filters.makers.length > 0 ? ` (${filters.makers.length})` : ""}
-            <ChevronDown className="size-3.5 opacity-60" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48 p-0">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel className="px-2 pt-2">Maker (OR)</DropdownMenuLabel>
-              <ScrollArea className="h-auto">
-                <div className="py-1 px-2 max-h-75">
-                  {makers.map((maker) => (
-                    <DropdownMenuCheckboxItem
-                      key={maker.id}
-                      checked={filters.makers.includes(maker.id)}
-                      onCheckedChange={(checked) => toggleIdFilter("makers", maker.id, Boolean(checked))}
-                    >
-                      {maker.name}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </div>
-              </ScrollArea>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="hidden sm:contents">{entityFilters}</div>
 
         <button
           type="button"
           onClick={() => setMoreOpen((v) => !v)}
-          className={cn(
-            "inline-flex h-8 items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-sm font-medium",
-            "hover:bg-muted",
-            moreOpen && "bg-muted",
-          )}
+          className={cn(filterTriggerClass(moreOpen), moreOpen && "bg-muted")}
         >
-          <ListFilter className="size-3.5" />
-          More filters
-          <ChevronDown className={cn("size-3.5 opacity-60 transition-transform", moreOpen && "rotate-180")} />
+          <span className="inline-flex min-w-0 items-center gap-1.5">
+            <ListFilter className="size-3.5 shrink-0" />
+            <span className="truncate">More filters</span>
+          </span>
+          <ChevronDown className={cn("size-3.5 shrink-0 opacity-60 transition-transform", moreOpen && "rotate-180")} />
         </button>
 
         {hasActiveFilters ? (
@@ -279,6 +274,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
             type="button"
             variant="destructive"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => updateSearch({ filters: { ...DEFAULT_ACTRESS_FILTERS }, page: 1 })}
           >
             Clear filters
@@ -288,7 +284,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
 
       <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>
         <CollapsibleContent>
-          <div className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card/40 p-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 rounded-xl border border-border bg-card/40 p-3 xs:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
               <p className="text-xs font-medium text-muted-foreground">Cup size</p>
               <div className="flex flex-wrap gap-1.5">
@@ -323,7 +319,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
             ).map(([label, minKey, maxKey]) => (
               <div key={label} className="space-y-1.5">
                 <p className="text-xs font-medium text-muted-foreground">{label}</p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -340,7 +336,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                       })
                     }
                   />
-                  <span className="text-xs text-muted-foreground">–</span>
+                  <span className="hidden text-xs text-muted-foreground sm:inline">–</span>
                   <Input
                     type="number"
                     inputMode="numeric"
@@ -363,7 +359,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
 
             <div className="space-y-1.5">
               <p className="text-xs font-medium text-muted-foreground">Age range [18, 99)</p>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   type="number"
                   inputMode="numeric"
@@ -383,7 +379,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                     });
                   }}
                 />
-                <span className="text-xs text-muted-foreground">–</span>
+                <span className="hidden text-xs text-muted-foreground sm:inline">–</span>
                 <Input
                   type="number"
                   inputMode="numeric"
