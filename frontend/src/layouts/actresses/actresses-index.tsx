@@ -51,7 +51,7 @@ export function ActressesIndex({ actresses, page, totalPages, total, sort, filte
         {actresses.length === 0 ? (
           <p className="text-sm text-muted-foreground">No actresses found.</p>
         ) : (
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {actresses.map((actress) => (
               <li key={actress.id} className="h-full min-w-0">
                 <ActressCard actress={actress} className="h-full" />
