@@ -9,6 +9,7 @@ const navLinks = [
   { label: "Latest", to: "/latest" as const },
   { label: "For you", to: "/for-you" as const },
   { label: "Genres", to: "/genres" as const },
+  { label: "Actresses", to: "/actresses" as const },
 ] as const;
 
 export default function SiteHeader() {
