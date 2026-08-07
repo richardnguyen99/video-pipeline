@@ -82,12 +82,21 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
     });
   }
 
-  function toggleListValue(key: "labels" | "genres" | "makers" | "cups", value: string, checked: boolean) {
+  function toggleIdFilter(key: "labels" | "genres" | "makers", id: number, checked: boolean) {
     const current = filters[key];
-    const nextValues = checked ? [...current, value] : current.filter((v) => v !== value);
+    const nextValues = checked ? [...current, id] : current.filter((v) => v !== id);
 
     updateSearch({
       filters: { ...filters, [key]: nextValues },
+      page: 1,
+    });
+  }
+
+  function toggleCup(value: string, checked: boolean) {
+    const nextValues = checked ? [...filters.cups, value] : filters.cups.filter((v) => v !== value);
+
+    updateSearch({
+      filters: { ...filters, cups: nextValues },
       page: 1,
     });
   }
@@ -174,11 +183,11 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                 <div className="py-1 px-2 max-h-75">
                   {labels.map((label) => (
                     <DropdownMenuCheckboxItem
-                      key={label}
-                      checked={filters.labels.includes(label)}
-                      onCheckedChange={(checked) => toggleListValue("labels", label, Boolean(checked))}
+                      key={label.id}
+                      checked={filters.labels.includes(label.id)}
+                      onCheckedChange={(checked) => toggleIdFilter("labels", label.id, Boolean(checked))}
                     >
-                      {label}
+                      {label.name}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </div>
@@ -206,11 +215,11 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                 <div className="py-1 px-2 max-h-75">
                   {genres.map((genre) => (
                     <DropdownMenuCheckboxItem
-                      key={genre}
-                      checked={filters.genres.includes(genre)}
-                      onCheckedChange={(checked) => toggleListValue("genres", genre, Boolean(checked))}
+                      key={genre.id}
+                      checked={filters.genres.includes(genre.id)}
+                      onCheckedChange={(checked) => toggleIdFilter("genres", genre.id, Boolean(checked))}
                     >
-                      {genre}
+                      {genre.name}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </div>
@@ -238,11 +247,11 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                 <div className="py-1 px-2 max-h-75">
                   {makers.map((maker) => (
                     <DropdownMenuCheckboxItem
-                      key={maker}
-                      checked={filters.makers.includes(maker)}
-                      onCheckedChange={(checked) => toggleListValue("makers", maker, Boolean(checked))}
+                      key={maker.id}
+                      checked={filters.makers.includes(maker.id)}
+                      onCheckedChange={(checked) => toggleIdFilter("makers", maker.id, Boolean(checked))}
                     >
-                      {maker}
+                      {maker.name}
                     </DropdownMenuCheckboxItem>
                   ))}
                 </div>
@@ -289,7 +298,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                     <button
                       key={cup}
                       type="button"
-                      onClick={() => toggleListValue("cups", cup, !active)}
+                      onClick={() => toggleCup(cup, !active)}
                       className={cn(
                         "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
                         active

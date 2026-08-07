@@ -14,6 +14,26 @@ const SORT_VALUES: ActressSort[] = [
   "most-likes",
 ];
 
+function asIdArray(value: unknown): number[] | undefined {
+  if (Array.isArray(value)) {
+    const list = value
+      .map((v) => (typeof v === "number" ? v : Number(v)))
+      .filter((n): n is number => Number.isFinite(n));
+    return list.length > 0 ? list : undefined;
+  }
+  if (typeof value === "string" && value.length > 0) {
+    const list = value
+      .split(",")
+      .map((s) => Number(s.trim()))
+      .filter((n) => Number.isFinite(n));
+    return list.length > 0 ? list : undefined;
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return [value];
+  }
+  return undefined;
+}
+
 function asStringArray(value: unknown): string[] | undefined {
   if (Array.isArray(value)) {
     const list = value.filter((v): v is string => typeof v === "string");
@@ -68,13 +88,13 @@ export const Route = createFileRoute("/actresses/")({
       result.sort = sort;
     }
 
-    const labels = asStringArray(search.labels);
+    const labels = asIdArray(search.labels);
     if (labels) result.labels = labels;
 
-    const genres = asStringArray(search.genres);
+    const genres = asIdArray(search.genres);
     if (genres) result.genres = genres;
 
-    const makers = asStringArray(search.makers);
+    const makers = asIdArray(search.makers);
     if (makers) result.makers = makers;
 
     const cups = asStringArray(search.cups);
