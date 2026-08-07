@@ -1,6 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { ActressDetail } from "@/layouts/actresses/actress-detail";
+import { ActressDetail } from "@/layouts/single-actress/actress-detail";
 import { getActressById, getVideosByActressId } from "@/libs/actresses";
 
 export const Route = createFileRoute("/actresses/$actressId")({
