@@ -38,14 +38,16 @@ export function ActressReportDialog({ open, onOpenChange }: ActressReportDialogP
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] w-full max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="flex flex-row items-center justify-between gap-3 border-b border-border px-4 py-3">
-          <DialogTitle className="text-base sm:text-lg">Report a problem with this actress</DialogTitle>
-          <DialogClose className="size-8" />
+      <DialogContent className="left-4 right-4 flex w-auto max-w-none translate-x-0 max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-md sm:-translate-x-1/2">
+        <DialogHeader className="flex flex-row items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
+          <DialogTitle className="line-clamp-1 text-sm sm:text-base md:text-lg">
+            Report a problem with this actress
+          </DialogTitle>
+          <DialogClose className="size-8 shrink-0" />
         </DialogHeader>
 
-        <ScrollArea className="w-full ">
-          <div className="px-3 py-3 max-h-[min(24rem,50vh)]">
+        <ScrollArea className="w-full">
+          <div className="max-h-[min(24rem,50vh)] px-4 py-3 sm:px-5">
             <ItemGroup>
               {REPORT_REASONS.map((item, index) => {
                 const prev = REPORT_REASONS[index - 1];
@@ -54,7 +56,7 @@ export function ActressReportDialog({ open, onOpenChange }: ActressReportDialogP
                 return (
                   <div key={item.id}>
                     {showGroup ? (
-                      <p className="mt-3 mb-1.5 px-3 text-xs font-medium text-muted-foreground first:mt-0">
+                      <p className="mt-3 mb-1.5 px-1 text-xs font-medium text-muted-foreground first:mt-0 sm:px-2">
                         {item.group}
                       </p>
                     ) : null}
@@ -67,9 +69,11 @@ export function ActressReportDialog({ open, onOpenChange }: ActressReportDialogP
                       )}
                     >
                       <ItemContent>
-                        <ItemTitle>{item.label}</ItemTitle>
+                        <ItemTitle className="line-clamp-1 text-xs sm:text-sm">{item.label}</ItemTitle>
                       </ItemContent>
-                      {reason === item.id ? <Check className="size-4 shrink-0 text-primary" aria-hidden /> : null}
+                      {reason === item.id ? (
+                        <Check className="size-3.5 shrink-0 text-primary sm:size-4" aria-hidden />
+                      ) : null}
                     </Item>
                   </div>
                 );
@@ -78,8 +82,8 @@ export function ActressReportDialog({ open, onOpenChange }: ActressReportDialogP
           </div>
         </ScrollArea>
 
-        <DialogFooter className="flex-col gap-3 border-t border-border px-4 py-3 sm:flex-col">
-          <p className="text-xs text-muted-foreground italic">
+        <DialogFooter className="flex-col gap-3 border-t border-border px-4 py-3 sm:flex-col sm:px-5">
+          <p className="text-[11px] text-muted-foreground italic sm:text-xs">
             *By clicking on this confirmation, you agree the report is correct and assume any legal matters to yourself
             if any.
           </p>
