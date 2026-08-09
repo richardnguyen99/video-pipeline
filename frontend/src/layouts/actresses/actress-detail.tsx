@@ -1,4 +1,5 @@
-import { VideoBrowse } from "@/layouts/video-browse";
+import { ActressBanner } from "@/layouts/single-actress/actress-banner";
+import { ActressVideos } from "@/layouts/single-actress/actress-videos";
 import type { ActressSummary } from "@/libs/actresses";
 import type { Video } from "@/mocks/videos";
 
@@ -9,10 +10,9 @@ interface ActressDetailProps {
 
 export function ActressDetail({ actress, videos }: ActressDetailProps) {
   return (
-    <VideoBrowse
-      title={actress.name}
-      description={`${videos.length} featured ${videos.length === 1 ? "video" : "videos"}`}
-      videos={videos}
-    />
+    <div className="min-h-screen">
+      <ActressBanner actress={actress} />
+      <ActressVideos videos={videos} />
+    </div>
   );
 }

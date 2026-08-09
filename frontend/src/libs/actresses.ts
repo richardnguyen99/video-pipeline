@@ -194,7 +194,7 @@ export function getActressSummaries(videos: Video[] = mockVideos): ActressSummar
       waist: profile.waist ?? null,
       hip: profile.hip ?? null,
       height: profile.height ?? null,
-      videoCount: stats?.videoCount ?? 1 + (seed % 12),
+      videoCount: getVideosByActressId(profile.id, videos).length,
       totalViews,
       totalLikes: stats?.totalLikes ?? 200 + seed * 3,
       totalComments: stats?.totalComments ?? 20 + (seed % 90),
@@ -221,7 +221,35 @@ export function getActressById(id: number, videos: Video[] = mockVideos): Actres
 }
 
 export function getVideosByActressId(id: number, videos: Video[] = mockVideos): Video[] {
-  return videos.filter((v) => (v.actresses ?? []).some((a) => a.id === id));
+  const matched = videos.filter((v) => (v.actresses ?? []).some((a) => a.id === id));
+  if (matched.length > 0) return matched;
+
+  const actress = mockActressCatalog.find((a) => a.id === id);
+  if (!actress || videos.length === 0) return [];
+
+  const count = Math.min(videos.length, 6 + (id % 7));
+  const start = (id * 5) % videos.length;
+  const seen = new Set<string>();
+  const result: Video[] = [];
+
+  for (let i = 0; i < videos.length && result.length < count; i += 1) {
+    const base = videos[(start + i) % videos.length];
+    if (seen.has(base.video_id)) continue;
+    seen.add(base.video_id);
+    result.push({
+      ...base,
+      actresses: [
+        {
+          id: actress.id,
+          name: actress.name,
+          image_url: actress.image_url,
+        },
+        ...(base.actresses ?? []).filter((a) => a.id !== actress.id).slice(0, 2),
+      ],
+    });
+  }
+
+  return result;
 }
 
 export function formatAge(birthday?: string | null): number | null {

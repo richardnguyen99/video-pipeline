@@ -82,7 +82,7 @@ export function ActressBanner({ actress, className }: ActressBannerProps) {
                     type="button"
                     variant={subscribed ? "secondary" : "default"}
                     size="sm"
-                    className="w-fit max-w-[12rem]"
+                    className="w-fit max-w-48"
                     onClick={() => setSubscribed((v) => !v)}
                   >
                     <UserPlus className="size-3.5 shrink-0 xs:size-4" />
