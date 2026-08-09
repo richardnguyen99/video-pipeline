@@ -1,6 +1,9 @@
 import type { NamedEntity, Video } from "@/mocks/videos";
 import { getVideosByActressId } from "@/libs/actresses";
 
+/** 4 rows × 4 columns */
+export const ACTRESS_VIDEO_PAGE_SIZE = 16;
+
 export type ActressVideoSort = "latest" | "most-viewed" | "most-liked" | "most-comments" | "title";
 
 export interface ActressVideoFilters {
@@ -29,6 +32,7 @@ export const ACTRESS_VIDEO_SORT_OPTIONS: {
 ];
 
 export type ActressVideoSearchParams = {
+  page?: number;
   sort?: ActressVideoSort;
   labels?: number[];
   genres?: number[];
@@ -36,11 +40,15 @@ export type ActressVideoSearchParams = {
 };
 
 export function buildActressVideoSearch(input: {
+  page?: number;
   sort?: ActressVideoSort;
   filters?: ActressVideoFilters;
 }): ActressVideoSearchParams {
   const filters = input.filters ?? DEFAULT_ACTRESS_VIDEO_FILTERS;
   const search: ActressVideoSearchParams = {};
+
+  const page = input.page ?? 1;
+  if (page > 1) search.page = page;
 
   const sort = input.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
   if (sort !== DEFAULT_ACTRESS_VIDEO_SORT) search.sort = sort;
@@ -122,12 +130,15 @@ export function sortActressVideos(videos: Video[], sort: ActressVideoSort): Vide
 export function getActressVideoPage(
   actressId: number,
   options: {
+    page?: number;
     sort?: ActressVideoSort;
     filters?: ActressVideoFilters;
   } = {},
 ): {
   videos: Video[];
   total: number;
+  page: number;
+  totalPages: number;
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
   allVideos: Video[];
@@ -138,9 +149,17 @@ export function getActressVideoPage(
   const filtered = filterActressVideos(allVideos, filters);
   const sorted = sortActressVideos(filtered, sort);
 
+  const total = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / ACTRESS_VIDEO_PAGE_SIZE));
+  const page = Math.min(Math.max(1, options.page ?? 1), totalPages);
+  const start = (page - 1) * ACTRESS_VIDEO_PAGE_SIZE;
+  const videos = sorted.slice(start, start + ACTRESS_VIDEO_PAGE_SIZE);
+
   return {
-    videos: sorted,
-    total: sorted.length,
+    videos,
+    total,
+    page,
+    totalPages,
     sort,
     filters,
     allVideos,

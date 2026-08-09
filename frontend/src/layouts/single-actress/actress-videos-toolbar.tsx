@@ -105,6 +105,7 @@ export function ActressVideosToolbar({ sort, filters, allVideos }: ActressVideos
       to: "/actresses/$actressId",
       params: { actressId },
       search: buildActressVideoSearch({
+        page: 1,
         sort: next.sort ?? sort,
         filters: next.filters ?? filters,
       }),

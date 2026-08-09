@@ -474,7 +474,13 @@ export const mockVideos: Video[] = [
 ];
 
 export function getMockVideoById(videoId: string): Video | undefined {
-  return mockVideos.find((v) => v.video_id === videoId);
+  const exact = mockVideos.find((v) => v.video_id === videoId);
+  if (exact) return exact;
+  const baseId = videoId.replace(/__\d+$/, "");
+  if (baseId !== videoId) {
+    return mockVideos.find((v) => v.video_id === baseId);
+  }
+  return undefined;
 }
 
 export function getMockRelatedVideos(excludeVideoId: string, limit = 12): Video[] {

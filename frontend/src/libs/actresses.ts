@@ -222,22 +222,35 @@ export function getActressById(id: number, videos: Video[] = mockVideos): Actres
 
 export function getVideosByActressId(id: number, videos: Video[] = mockVideos): Video[] {
   const matched = videos.filter((v) => (v.actresses ?? []).some((a) => a.id === id));
-  if (matched.length > 0) return matched;
 
   const actress = mockActressCatalog.find((a) => a.id === id);
-  if (!actress || videos.length === 0) return [];
+  if (!actress || videos.length === 0) {
+    return matched;
+  }
 
-  const count = Math.min(videos.length, 6 + (id % 7));
-  const start = (id * 5) % videos.length;
-  const seen = new Set<string>();
+  // Enough items for multi-page grids (4x4 = 16 per page)
+  const targetCount = matched.length > 0 ? Math.max(matched.length, 24 + (id % 17)) : 24 + (id % 17);
+
+  const pool = matched.length > 0 ? matched : videos;
+  const start = (id * 5) % pool.length;
   const result: Video[] = [];
 
-  for (let i = 0; i < videos.length && result.length < count; i += 1) {
-    const base = videos[(start + i) % videos.length];
-    if (seen.has(base.video_id)) continue;
-    seen.add(base.video_id);
+  for (let i = 0; result.length < targetCount; i += 1) {
+    const base = pool[(start + i) % pool.length];
+    const cloneIndex = Math.floor(i / pool.length);
+    const videoId =
+      cloneIndex === 0 && matched.some((v) => v.video_id === base.video_id)
+        ? base.video_id
+        : `${base.video_id}__${result.length}`;
+
     result.push({
       ...base,
+      id: base.id * 1000 + result.length,
+      video_id: videoId,
+      title: cloneIndex === 0 ? base.title : `${base.title} (${cloneIndex + 1})`,
+      views: (base.views ?? 0) + result.length * 137,
+      likes: (base.likes ?? 0) + result.length * 11,
+      comments: (base.comments ?? 0) + (result.length % 9),
       actresses: [
         {
           id: actress.id,

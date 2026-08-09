@@ -39,6 +39,12 @@ export const Route = createFileRoute("/actresses/$actressId")({
   validateSearch: (search: Record<string, unknown>): ActressVideoSearchParams => {
     const result: ActressVideoSearchParams = {};
 
+    const rawPage = search.page;
+    const pageNum = typeof rawPage === "number" ? rawPage : Number(rawPage);
+    if (Number.isFinite(pageNum) && pageNum > 1) {
+      result.page = Math.floor(pageNum);
+    }
+
     const sort = asSort(search.sort);
     if (sort && sort !== DEFAULT_ACTRESS_VIDEO_SORT) {
       result.sort = sort;
@@ -68,6 +74,7 @@ export const Route = createFileRoute("/actresses/$actressId")({
     };
 
     const page = getActressVideoPage(id, {
+      page: deps.page ?? 1,
       sort: deps.sort ?? DEFAULT_ACTRESS_VIDEO_SORT,
       filters,
     });
@@ -76,6 +83,8 @@ export const Route = createFileRoute("/actresses/$actressId")({
       actress,
       videos: page.videos,
       total: page.total,
+      page: page.page,
+      totalPages: page.totalPages,
       sort: page.sort,
       filters: page.filters,
       allVideos: page.allVideos,
@@ -96,6 +105,8 @@ function ActressDetailPage() {
       actress={data.actress}
       videos={data.videos}
       total={data.total}
+      page={data.page}
+      totalPages={data.totalPages}
       sort={data.sort}
       filters={data.filters}
       allVideos={data.allVideos}

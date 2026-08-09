@@ -8,16 +8,35 @@ interface ActressDetailProps {
   actress: ActressSummary;
   videos: Video[];
   total: number;
+  page: number;
+  totalPages: number;
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
   allVideos: Video[];
 }
 
-export function ActressDetail({ actress, videos, total, sort, filters, allVideos }: ActressDetailProps) {
+export function ActressDetail({
+  actress,
+  videos,
+  total,
+  page,
+  totalPages,
+  sort,
+  filters,
+  allVideos,
+}: ActressDetailProps) {
   return (
     <div className="min-h-screen">
       <ActressBanner actress={actress} />
-      <ActressVideos videos={videos} total={total} sort={sort} filters={filters} allVideos={allVideos} />
+      <ActressVideos
+        videos={videos}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        sort={sort}
+        filters={filters}
+        allVideos={allVideos}
+      />
     </div>
   );
 }
