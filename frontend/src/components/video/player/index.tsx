@@ -201,7 +201,6 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
             <RotateCw className="size-4" />
           </ControlButton>
 
-          {/* Mobile: volume opens vertical slider above the icon */}
           <div className="sm:hidden">
             <DropdownMenu>
               <Tooltip>
@@ -257,7 +256,6 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
             </DropdownMenu>
           </div>
 
-          {/* Desktop: mute + horizontal slider */}
           <div className="hidden items-center gap-2 sm:flex">
             <ControlButton label={isMuted || volume === 0 ? "Unmute" : "Mute"} onClick={toggleMute}>
               {isMuted || volume === 0 ? (
