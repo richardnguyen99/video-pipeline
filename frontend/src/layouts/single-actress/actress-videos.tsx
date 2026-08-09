@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 
@@ -11,10 +12,10 @@ import {
 } from "@/components/ui/pagination";
 import { ActressVideosToolbar } from "@/layouts/single-actress/actress-videos-toolbar";
 import type { ActressVideoFilters, ActressVideoSort } from "@/libs/actress-videos";
-import { buildActressVideoSearch } from "@/libs/actress-videos";
+import { ACTRESS_VIDEO_PAGE_SIZE, buildActressVideoSearch } from "@/libs/actress-videos";
 import { buttonVariants } from "@/libs/shadcn_variants";
 import type { Video } from "@/mocks/videos";
-import { cn } from "@/libs/utils";
+import { captureScrollPosition, cn, restoreScrollPosition } from "@/libs/utils";
 
 interface ActressVideosProps {
   videos: Video[];
@@ -49,6 +50,10 @@ export function ActressVideos({
     return buildActressVideoSearch({ page: targetPage, sort, filters });
   }
 
+  useLayoutEffect(() => {
+    restoreScrollPosition();
+  }, [videos, sort, filters, page]);
+
   return (
     <section className={cn("mx-auto w-full px-6 py-10 sm:px-10 lg:px-16", className)}>
       <header className="mb-6">
@@ -60,17 +65,18 @@ export function ActressVideos({
 
       <ActressVideosToolbar sort={sort} filters={filters} allVideos={allVideos} />
 
-      {videos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No videos match these filters.</p>
-      ) : (
-        <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {videos.map((video) => (
+      {total === 0 ? <p className="text-sm text-muted-foreground">No videos match these filters.</p> : null}
+
+      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: ACTRESS_VIDEO_PAGE_SIZE }, (_, index) => {
+          const video = videos[index];
+          return (
             <li key={video.video_id} className="min-w-0">
               <CategoryVideoCard video={video} variant="grid" />
             </li>
-          ))}
-        </ul>
-      )}
+          );
+        })}
+      </ul>
 
       {totalPages > 1 ? (
         <Pagination className="mt-10">
@@ -81,6 +87,8 @@ export function ActressVideos({
                   to="/actresses/$actressId"
                   params={{ actressId }}
                   search={pageSearch(prevPage)}
+                  resetScroll={false}
+                  onClick={() => captureScrollPosition()}
                   aria-label="Go to previous page"
                   className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pr-2.5")}
                 >
@@ -110,6 +118,8 @@ export function ActressVideos({
                     to="/actresses/$actressId"
                     params={{ actressId }}
                     search={pageSearch(p)}
+                    resetScroll={false}
+                    onClick={() => captureScrollPosition()}
                     aria-label={`Go to page ${p}`}
                     aria-current={p === page ? "page" : undefined}
                     className={cn(
@@ -131,6 +141,8 @@ export function ActressVideos({
                   to="/actresses/$actressId"
                   params={{ actressId }}
                   search={pageSearch(nextPage)}
+                  resetScroll={false}
+                  onClick={() => captureScrollPosition()}
                   aria-label="Go to next page"
                   className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pl-2.5")}
                 >

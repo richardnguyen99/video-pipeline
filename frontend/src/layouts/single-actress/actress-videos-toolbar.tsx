@@ -23,7 +23,7 @@ import {
   getAvailableVideoMakers,
 } from "@/libs/actress-videos";
 import type { NamedEntity, Video } from "@/mocks/videos";
-import { cn } from "@/libs/utils";
+import { captureScrollPosition, cn } from "@/libs/utils";
 
 interface ActressVideosToolbarProps {
   sort: ActressVideoSort;
@@ -65,11 +65,11 @@ function EntityFilterDropdown({
         </span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-48 w-[var(--anchor-width)] max-sm:min-w-0 p-0">
+      <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="px-2 pt-2">{label} (OR)</DropdownMenuLabel>
-          <ScrollArea className="h-auto max-h-[500px]">
-            <div className="p-1">
+          <ScrollArea className="h-auto">
+            <div className="p-1 max-h-75">
               {items.map((item) => (
                 <DropdownMenuCheckboxItem
                   key={item.id}
@@ -101,6 +101,7 @@ export function ActressVideosToolbar({ sort, filters, allVideos }: ActressVideos
   const hasActiveFilters = nonMeasurementCount > 0;
 
   function updateSearch(next: { sort?: ActressVideoSort; filters?: ActressVideoFilters }) {
+    captureScrollPosition();
     void navigate({
       to: "/actresses/$actressId",
       params: { actressId },
@@ -109,6 +110,8 @@ export function ActressVideosToolbar({ sort, filters, allVideos }: ActressVideos
         sort: next.sort ?? sort,
         filters: next.filters ?? filters,
       }),
+      replace: true,
+      resetScroll: false,
     });
   }
 
@@ -154,7 +157,7 @@ export function ActressVideosToolbar({ sort, filters, allVideos }: ActressVideos
             </span>
             <ChevronDown className="size-3.5 shrink-0 opacity-60" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48 w-[var(--anchor-width)] max-sm:min-w-0">
+          <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0">
             <DropdownMenuGroup>
               {ACTRESS_VIDEO_SORT_OPTIONS.map((opt) => (
                 <DropdownMenuItem

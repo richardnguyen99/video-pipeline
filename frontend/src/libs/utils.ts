@@ -83,3 +83,21 @@ export function imageFileName(url: string): string {
     return segment ?? url;
   }
 }
+
+let pendingScrollY: number | null = null;
+
+export function captureScrollPosition(): void {
+  if (typeof window === "undefined") return;
+  pendingScrollY = window.scrollY;
+}
+
+export function restoreScrollPosition(): void {
+  if (typeof window === "undefined") return;
+  if (pendingScrollY == null) return;
+  const y = pendingScrollY;
+  pendingScrollY = null;
+  window.scrollTo({ top: y, left: 0, behavior: "auto" });
+
+  // rAF re-applies after React finishes any remaining paint passes
+  requestAnimationFrame(() => window.scrollTo({ top: y, left: 0, behavior: "auto" }));
+}
