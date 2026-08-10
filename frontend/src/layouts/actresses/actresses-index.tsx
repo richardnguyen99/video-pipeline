@@ -31,11 +31,11 @@ export function ActressesShell({ sort, filters, totalSlot, total, children }: Ac
       <div className="mx-auto w-full px-6 py-10 sm:px-10 lg:px-16">
         <header className="mb-8">
           <h1 className="text-pretty text-3xl font-semibold tracking-tight sm:text-4xl">Actresses</h1>
-          <p className="mt-2 max-w-xl text-sm text-muted-foreground sm:text-base">
+          <div className="mt-2 max-w-xl text-sm text-muted-foreground sm:text-base">
             Browse performers and their featured titles.
             {totalSlot}
             {typeof total === "number" ? ` ${total} profiles.` : null}
-          </p>
+          </div>
         </header>
 
         <ActressesToolbar sort={sort} filters={filters} />
