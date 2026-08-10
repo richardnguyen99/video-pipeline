@@ -82,7 +82,7 @@ export function ActressVideos({
         })}
       </ul>
 
-      {totalPages > 1 ? (
+      {total > 0 ? (
         <Pagination className="mt-10">
           <PaginationContent>
             <PaginationItem>
@@ -128,7 +128,7 @@ export function ActressVideos({
                     aria-current={p === page ? "page" : undefined}
                     className={cn(
                       buttonVariants({
-                        variant: p === page ? "outline" : "ghost",
+                        variant: p === page ? "default" : "outline",
                         size: "icon",
                       }),
                     )}
