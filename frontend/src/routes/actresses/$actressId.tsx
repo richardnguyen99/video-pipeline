@@ -1,9 +1,10 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { ActressDetail } from "@/layouts/single-actress/actress-detail";
+import { ActressVideosGridSkeleton } from "@/layouts/single-actress/actress-videos-skeleton";
 import type { ActressVideoFilters, ActressVideoSearchParams, ActressVideoSort } from "@/libs/actress-videos";
 import { DEFAULT_ACTRESS_VIDEO_SORT, getActressVideoPage } from "@/libs/actress-videos";
-import { getActressById } from "@/libs/actresses";
+import { getActressById, getVideosByActressId } from "@/libs/actresses";
 
 const SORT_VALUES: ActressVideoSort[] = ["latest", "most-viewed", "most-liked", "most-comments", "title"];
 
@@ -60,11 +61,11 @@ export const Route = createFileRoute("/actresses/$actressId")({
     return result;
   },
   loaderDeps: ({ search }) => search,
-  loader: ({ params, deps }) => {
+  loader: async ({ params, deps }) => {
     const id = Number.parseInt(params.actressId, 10);
     if (Number.isNaN(id)) throw notFound();
 
-    const actress = getActressById(id);
+    const actress = await getActressById(id);
     if (!actress) throw notFound();
 
     const filters: ActressVideoFilters = {
@@ -72,24 +73,33 @@ export const Route = createFileRoute("/actresses/$actressId")({
       genres: deps.genres ?? [],
       makers: deps.makers ?? [],
     };
+    const sort = deps.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
+    const page = deps.page ?? 1;
 
-    const page = getActressVideoPage(id, {
-      page: deps.page ?? 1,
-      sort: deps.sort ?? DEFAULT_ACTRESS_VIDEO_SORT,
+    const allVideos = getVideosByActressId(id);
+
+    const pagePromise = getActressVideoPage(id, {
+      page,
+      sort,
       filters,
+      allVideos,
     });
 
     return {
       actress,
-      videos: page.videos,
-      total: page.total,
-      page: page.page,
-      totalPages: page.totalPages,
-      sort: page.sort,
-      filters: page.filters,
-      allVideos: page.allVideos,
+      sort,
+      filters,
+      allVideos,
+      pagePromise,
     };
   },
+  pendingComponent: () => (
+    <div className="min-h-screen pt-16">
+      <div className="mx-auto w-full px-6 py-10 sm:px-10 lg:px-16">
+        <ActressVideosGridSkeleton />
+      </div>
+    </div>
+  ),
   notFoundComponent: () => (
     <div className="flex min-h-screen items-center justify-center pt-16">
       <p className="text-muted-foreground">Actress not found.</p>
@@ -103,13 +113,10 @@ function ActressDetailPage() {
   return (
     <ActressDetail
       actress={data.actress}
-      videos={data.videos}
-      total={data.total}
-      page={data.page}
-      totalPages={data.totalPages}
       sort={data.sort}
       filters={data.filters}
       allVideos={data.allVideos}
+      pagePromise={data.pagePromise}
     />
   );
 }

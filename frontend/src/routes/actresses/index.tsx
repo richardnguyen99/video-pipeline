@@ -5,6 +5,7 @@ import { ActressesGrid, ActressesShell } from "@/layouts/actresses/actresses-ind
 import { ActressesGridSkeleton, ActressesIndexSkeleton } from "@/layouts/actresses/actresses-index-skeleton";
 import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchParams } from "@/libs/actresses";
 import { DEFAULT_ACTRESS_SORT, getActressPage } from "@/libs/actresses";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const SORT_VALUES: ActressSort[] = [
   "trending-year",
@@ -146,10 +147,8 @@ export const Route = createFileRoute("/actresses/")({
     const sort = deps.sort ?? DEFAULT_ACTRESS_SORT;
     const page = deps.page ?? 1;
 
-    // Slow data — deferred promise (not awaited)
     const pagePromise = getActressPage(page, { sort, filters });
 
-    // Fast data — available immediately for shell / toolbar
     return {
       sort,
       filters,
@@ -168,7 +167,7 @@ function ActressesPage() {
       sort={sort}
       filters={filters}
       totalSlot={
-        <React.Suspense fallback={null}>
+        <React.Suspense fallback={<Skeleton className="ml-1 inline-block h-4 w-24 align-middle sm:h-5" />}>
           <ActressesTotalCount pagePromise={pagePromise} />
         </React.Suspense>
       }

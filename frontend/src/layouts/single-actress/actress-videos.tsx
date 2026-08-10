@@ -17,27 +17,38 @@ import { buttonVariants } from "@/libs/shadcn_variants";
 import type { Video } from "@/mocks/videos";
 import { captureScrollPosition, cn, restoreScrollPosition } from "@/libs/utils";
 
-interface ActressVideosProps {
+interface ActressVideosShellProps {
+  sort: ActressVideoSort;
+  filters: ActressVideoFilters;
+  allVideos: Video[];
+  children: React.ReactNode;
+  className?: string;
+}
+
+export function ActressVideosShell({ sort, filters, allVideos, children, className }: ActressVideosShellProps) {
+  return (
+    <section className={cn("mx-auto w-full px-6 py-10 sm:px-10 lg:px-16", className)}>
+      <header className="mb-6">
+        <h2 className="text-pretty text-2xl font-semibold tracking-tight sm:text-3xl">Featured videos</h2>
+      </header>
+
+      <ActressVideosToolbar sort={sort} filters={filters} allVideos={allVideos} />
+
+      {children}
+    </section>
+  );
+}
+
+interface ActressVideosGridProps {
   videos: Video[];
   total: number;
   page: number;
   totalPages: number;
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
-  allVideos: Video[];
-  className?: string;
 }
 
-export function ActressVideos({
-  videos,
-  total,
-  page,
-  totalPages,
-  sort,
-  filters,
-  allVideos,
-  className,
-}: ActressVideosProps) {
+export function ActressVideosGrid({ videos, total, page, totalPages, sort, filters }: ActressVideosGridProps) {
   const { actressId } = useParams({ from: "/actresses/$actressId" });
   const prevPage = page > 1 ? page - 1 : null;
   const nextPage = page < totalPages ? page + 1 : null;
@@ -55,16 +66,7 @@ export function ActressVideos({
   }, [videos, sort, filters, page]);
 
   return (
-    <section className={cn("mx-auto w-full px-6 py-10 sm:px-10 lg:px-16", className)}>
-      <header className="mb-6">
-        <h2 className="text-pretty text-2xl font-semibold tracking-tight sm:text-3xl">Featured videos</h2>
-        <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-          {total} {total === 1 ? "video" : "videos"}
-        </p>
-      </header>
-
-      <ActressVideosToolbar sort={sort} filters={filters} allVideos={allVideos} />
-
+    <>
       {total === 0 ? <p className="text-sm text-muted-foreground">No videos match these filters.</p> : null}
 
       <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -169,6 +171,42 @@ export function ActressVideos({
           </PaginationContent>
         </Pagination>
       ) : null}
-    </section>
+    </>
+  );
+}
+
+export function ActressVideos({
+  videos,
+  total,
+  page,
+  totalPages,
+  sort,
+  filters,
+  allVideos,
+  className,
+}: {
+  videos: Video[];
+  total: number;
+  page: number;
+  totalPages: number;
+  sort: ActressVideoSort;
+  filters: ActressVideoFilters;
+  allVideos: Video[];
+  className?: string;
+}) {
+  return (
+    <ActressVideosShell sort={sort} filters={filters} allVideos={allVideos} className={className}>
+      <p className="mb-6 flex h-5 items-center text-sm text-muted-foreground sm:text-base">
+        {total} {total === 1 ? "video" : "videos"}
+      </p>
+      <ActressVideosGrid
+        videos={videos}
+        total={total}
+        page={page}
+        totalPages={totalPages}
+        sort={sort}
+        filters={filters}
+      />
+    </ActressVideosShell>
   );
 }

@@ -14,11 +14,8 @@ export type ActressSort =
   | "most-likes";
 
 export interface ActressFilters {
-  /** Label entity ids (backend `label.id`) */
   labels: number[];
-  /** Genre entity ids (backend `genre.id`) */
   genres: number[];
-  /** Maker entity ids (backend `maker.id`) */
   makers: number[];
   cups: string[];
   bustMin?: number;
@@ -216,7 +213,7 @@ export function getActressSummaries(videos: Video[] = mockVideos): ActressSummar
   });
 }
 
-export function getActressById(id: number, videos: Video[] = mockVideos): ActressSummary | undefined {
+export async function getActressById(id: number, videos: Video[] = mockVideos): Promise<ActressSummary | undefined> {
   return getActressSummaries(videos).find((a) => a.id === id);
 }
 

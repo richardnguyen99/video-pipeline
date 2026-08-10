@@ -127,14 +127,7 @@ export function sortActressVideos(videos: Video[], sort: ActressVideoSort): Vide
   }
 }
 
-export function getActressVideoPage(
-  actressId: number,
-  options: {
-    page?: number;
-    sort?: ActressVideoSort;
-    filters?: ActressVideoFilters;
-  } = {},
-): {
+export type ActressVideoPageResult = {
   videos: Video[];
   total: number;
   page: number;
@@ -142,10 +135,20 @@ export function getActressVideoPage(
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
   allVideos: Video[];
-} {
+};
+
+export async function getActressVideoPage(
+  actressId: number,
+  options: {
+    page?: number;
+    sort?: ActressVideoSort;
+    filters?: ActressVideoFilters;
+    allVideos?: Video[];
+  } = {},
+): Promise<ActressVideoPageResult> {
   const sort = options.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
   const filters = options.filters ?? DEFAULT_ACTRESS_VIDEO_FILTERS;
-  const allVideos = getVideosByActressId(actressId);
+  const allVideos = options.allVideos ?? getVideosByActressId(actressId);
   const filtered = filterActressVideos(allVideos, filters);
   const sorted = sortActressVideos(filtered, sort);
 
