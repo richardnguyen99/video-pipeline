@@ -69,10 +69,14 @@ export function ActressVideos({
 
       <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: ACTRESS_VIDEO_PAGE_SIZE }, (_, index) => {
-          const video = videos[index];
+          const video: Video | undefined = index < videos.length ? videos[index] : undefined;
           return (
-            <li key={video.video_id} className="min-w-0">
-              <CategoryVideoCard video={video} variant="grid" />
+            <li key={video?.video_id ?? `empty-${index}`} className="min-w-0">
+              {video ? (
+                <CategoryVideoCard video={video} variant="grid" />
+              ) : (
+                <div className="aspect-video w-full rounded-2xl border border-transparent bg-transparent" aria-hidden />
+              )}
             </li>
           );
         })}
