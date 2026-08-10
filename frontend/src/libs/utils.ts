@@ -6,6 +6,10 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export async function randomDelay(): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, 200 + Math.random() * 300));
+}
+
 export function formatRelativeDate(dateStr?: string, options?: { unknownLabel?: string }): string {
   const unknownLabel = options?.unknownLabel ?? "Unknown";
   if (!dateStr) return unknownLabel;

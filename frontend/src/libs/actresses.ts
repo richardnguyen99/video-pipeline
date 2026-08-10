@@ -356,15 +356,7 @@ export function sortActresses(actresses: ActressSummary[], sort: ActressSort): A
   }
 }
 
-export function getActressPage(
-  page: number,
-  options: {
-    pageSize?: number;
-    sort?: ActressSort;
-    filters?: ActressFilters;
-    videos?: Video[];
-  } = {},
-): {
+export type ActressPageResult = {
   items: ActressSummary[];
   page: number;
   pageSize: number;
@@ -372,7 +364,17 @@ export function getActressPage(
   totalPages: number;
   sort: ActressSort;
   filters: ActressFilters;
-} {
+};
+
+export async function getActressPage(
+  page: number,
+  options: {
+    pageSize?: number;
+    sort?: ActressSort;
+    filters?: ActressFilters;
+    videos?: Video[];
+  } = {},
+): Promise<ActressPageResult> {
   const pageSize = options.pageSize ?? ACTRESSES_PAGE_SIZE;
   const sort = options.sort ?? DEFAULT_ACTRESS_SORT;
   const filters = options.filters ?? DEFAULT_ACTRESS_FILTERS;

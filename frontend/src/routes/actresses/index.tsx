@@ -1,7 +1,9 @@
+import React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ActressesIndex } from "@/layouts/actresses/actresses-index";
-import type { ActressFilters, ActressSort, ActressesSearchParams } from "@/libs/actresses";
+import { ActressesGrid, ActressesShell } from "@/layouts/actresses/actresses-index";
+import { ActressesGridSkeleton, ActressesIndexSkeleton } from "@/layouts/actresses/actresses-index-skeleton";
+import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchParams } from "@/libs/actresses";
 import { DEFAULT_ACTRESS_SORT, getActressPage } from "@/libs/actresses";
 
 const SORT_VALUES: ActressSort[] = [
@@ -123,7 +125,7 @@ export const Route = createFileRoute("/actresses/")({
   },
 
   loaderDeps: ({ search }) => search,
-  loader: ({ deps }) => {
+  loader: async ({ deps }) => {
     const filters: ActressFilters = {
       labels: deps.labels ?? [],
       genres: deps.genres ?? [],
@@ -141,22 +143,56 @@ export const Route = createFileRoute("/actresses/")({
       ageMax: deps.ageMax,
     };
 
-    return getActressPage(deps.page ?? 1, {
-      sort: deps.sort ?? DEFAULT_ACTRESS_SORT,
-      filters: filters,
-    });
+    const sort = deps.sort ?? DEFAULT_ACTRESS_SORT;
+    const page = deps.page ?? 1;
+
+    // Slow data — deferred promise (not awaited)
+    const pagePromise = getActressPage(page, { sort, filters });
+
+    // Fast data — available immediately for shell / toolbar
+    return {
+      sort,
+      filters,
+      page,
+      pagePromise,
+    };
   },
+  pendingComponent: ActressesIndexSkeleton,
 });
 
 function ActressesPage() {
-  const data = Route.useLoaderData();
+  const { sort, filters, pagePromise } = Route.useLoaderData();
 
   return (
-    <ActressesIndex
+    <ActressesShell
+      sort={sort}
+      filters={filters}
+      totalSlot={
+        <React.Suspense fallback={null}>
+          <ActressesTotalCount pagePromise={pagePromise} />
+        </React.Suspense>
+      }
+    >
+      <React.Suspense fallback={<ActressesGridSkeleton />}>
+        <ActressesGridContent pagePromise={pagePromise} />
+      </React.Suspense>
+    </ActressesShell>
+  );
+}
+
+function ActressesTotalCount({ pagePromise }: { pagePromise: Promise<ActressPageResult> }) {
+  const data = React.use(pagePromise);
+  return <>{` ${data.total} profiles.`}</>;
+}
+
+function ActressesGridContent({ pagePromise }: { pagePromise: Promise<ActressPageResult> }) {
+  const data = React.use(pagePromise);
+
+  return (
+    <ActressesGrid
       actresses={data.items}
       page={data.page}
       totalPages={data.totalPages}
-      total={data.total}
       sort={data.sort}
       filters={data.filters}
     />
