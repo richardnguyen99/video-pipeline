@@ -52,7 +52,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 4,
     name: "Yua Mikami",
-    image_url: "https://picsum.photos/id/14/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/mikami_yua.jpg",
     ruby: "みかみ ゆあ",
     birthday: "1993-08-16",
     bust: 88,
@@ -88,7 +88,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 7,
     name: "Saika Kawakita",
-    image_url: "https://picsum.photos/id/17/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/kawakita_saika.jpg",
     ruby: "かわきた さいか",
     birthday: "1999-02-26",
     bust: 88,
@@ -148,7 +148,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 12,
     name: "Hibiki Otsuki",
-    image_url: "https://picsum.photos/id/22/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/ootuki_hibiki.jpg",
     ruby: "おおつき ひびき",
     birthday: "1988-02-21",
     bust: 89,
@@ -184,7 +184,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 15,
     name: "Yui Hatano",
-    image_url: "https://picsum.photos/id/25/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/hatano_yui.jpg",
     ruby: "はたの ゆい",
     birthday: "1988-05-24",
     bust: 88,
@@ -388,7 +388,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 32,
     name: "Ameri Ichinose",
-    image_url: "https://picsum.photos/id/42/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/itinose_ameri.jpg",
     ruby: "いちのせ あめり",
     birthday: "1996-01-01",
     bust: 88,
@@ -400,7 +400,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 33,
     name: "Eimi Fukada",
-    image_url: "https://picsum.photos/id/43/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/hukada_eimi.jpg",
     ruby: "ふかだ えいみ",
     birthday: "1998-03-18",
     bust: 90,
@@ -748,7 +748,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 62,
     name: "Kaho Shibuya",
-    image_url: "https://picsum.photos/id/72/160/160",
+    image_url: "https://fourhoi.com/actress/1027409-t.jpg",
     ruby: "しぶや かほ",
     birthday: "1993-01-01",
     bust: 100,
@@ -892,7 +892,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 74,
     name: "Yuu Shinoda",
-    image_url: "https://picsum.photos/id/84/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/sinoda_yuu.jpg",
     ruby: "しのだ ゆう",
     birthday: "1988-01-01",
     bust: 86,
@@ -1264,7 +1264,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 105,
     name: "Ria Sakurai",
-    image_url: "https://picsum.photos/id/15/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/sakurai_ria.jpg",
     ruby: "さくらい りあ",
     birthday: "1992-01-01",
     bust: 85,
@@ -2236,7 +2236,7 @@ export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 186,
     name: "Alice Otsu",
-    image_url: "https://picsum.photos/id/96/160/160",
+    image_url: "https://pics.dmm.co.jp/mono/actjpgs/otu_arisu.jpg",
     ruby: "おおつ ありす",
     birthday: "1999-01-01",
     bust: 85,

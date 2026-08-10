@@ -41,8 +41,9 @@ export function ActressBanner({ actress, className }: ActressBannerProps) {
         <img
           src={backgroundUrl}
           alt=""
-          className="absolute inset-0 h-[120%] w-full object-cover will-change-transform"
+          className="absolute inset-0 h-full w-full object-cover will-change-transform"
           style={{ transform: `translate3d(0, ${parallaxY}px, 0)` }}
+          referrerPolicy="no-referrer"
         />
       </div>
 
@@ -56,7 +57,14 @@ export function ActressBanner({ actress, className }: ActressBannerProps) {
           <div className="flex min-w-0 flex-col gap-4 xs:flex-row xs:items-center xs:gap-5">
             <span className="size-[min(8.75rem,calc(100vw-3rem))] shrink-0 overflow-hidden rounded-xl bg-muted shadow-lg">
               {actress.image_url ? (
-                <img src={actress.image_url} alt="" width={140} height={140} className="size-full object-cover" />
+                <img
+                  src={actress.image_url}
+                  alt=""
+                  width={140}
+                  height={140}
+                  className="size-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
               ) : (
                 <span className="flex size-full items-center justify-center text-2xl font-semibold text-muted-foreground">
                   {actress.name.slice(0, 1)}
