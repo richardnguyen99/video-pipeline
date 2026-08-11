@@ -12,7 +12,6 @@ interface CommentComposerProps {
   onCancel?: () => void;
   onSubmit?: (content: string) => void;
   autoFocus?: boolean;
-  /** Top-level composer shows avatar; reply composers hide it to save space. */
   showAvatar?: boolean;
   className?: string;
 }

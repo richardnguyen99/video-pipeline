@@ -18,9 +18,7 @@ import { cn } from "@/libs/utils";
 interface ActressesShellProps {
   sort: ActressSort;
   filters: ActressFilters;
-  /** Deferred fragment for profile count (e.g. Suspense + React.use) */
   totalSlot?: React.ReactNode;
-  /** Optional resolved count (non-deferred usage) */
   total?: number;
   children: React.ReactNode;
 }
@@ -167,7 +165,6 @@ export function ActressesGrid({ actresses, page, totalPages, sort, filters }: Ac
   );
 }
 
-/** Full page when all data is already resolved (non-deferred). */
 export function ActressesIndex({
   actresses,
   page,

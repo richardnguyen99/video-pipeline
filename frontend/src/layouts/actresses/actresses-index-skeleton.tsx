@@ -43,7 +43,6 @@ export function ActressesGridSkeleton() {
   );
 }
 
-/** Full-page shell used only as route pendingComponent before loader resolves. */
 export function ActressesIndexSkeleton() {
   return (
     <div className="min-h-screen pt-16">

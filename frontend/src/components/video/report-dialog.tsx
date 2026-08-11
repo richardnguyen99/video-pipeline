@@ -40,7 +40,6 @@ const VIDEO_FIELDS = [
   "label",
 ] as const;
 
-/** Multi-valued fields: can remove/modify individual items */
 const MULTI_VALUE_FIELDS = new Set(["genres", "actresses"]);
 
 type VideoField = (typeof VIDEO_FIELDS)[number];

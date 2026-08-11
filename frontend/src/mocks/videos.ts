@@ -7,21 +7,18 @@ export interface ActressRef extends NamedEntity {
   image_url?: string;
 }
 
-/** Backend `VideoImageUrl` — thumbnails / covers (not sample review strip). */
 export interface VideoImageUrl {
   id: number;
   url: string;
   type?: string | null;
 }
 
-/** Backend `VideoVideoSampleImageUrlUrl` — sample / review images for the gallery. */
 export interface VideoVideoSampleImageUrlUrl {
   id: number;
   url: string;
   type?: string | null;
 }
 
-/** Backend `VideoSampleMovieUrl` — short sample / review movie clips. */
 export interface VideoSampleMovieUrl {
   id: number;
   url: string;
@@ -38,21 +35,19 @@ export interface Video {
   jancode?: string;
   maker_product?: string;
   floor_code?: string;
-  /** Thumbnails / covers (`video_image_url`) */
   image_urls?: string[];
   video_image_url?: VideoImageUrl[];
-  /** Sample / review images (`video_sample_image_url`) — do not use image_urls here */
   sample_image_url?: VideoVideoSampleImageUrlUrl[];
-  /** Sample / review movie clips (`video_sample_movie_url`) */
   sample_movie_url?: VideoSampleMovieUrl[];
   m3u8_urls?: string[];
-  /** Mock engagement counters for UI */
   views?: number;
   likes?: number;
+  dislikes?: number;
   comments?: number;
   maker?: NamedEntity | null;
   label?: NamedEntity | null;
   director?: NamedEntity | null;
+  series?: NamedEntity | null;
   actresses?: ActressRef[];
   genres?: NamedEntity[];
 }
@@ -91,6 +86,7 @@ export const mockVideos: Video[] = [
     maker: { id: 1, name: "STUDIO-A" },
     label: { id: 1, name: "Velvet Soft" },
     director: { id: 1, name: "Kenji Morita" },
+    series: { id: 1, name: "Velvet Chronicle" },
     actresses: [
       { id: 1, name: "Aoi Tsukasa", image_url: "https://picsum.photos/id/11/160/160" },
       { id: 8, name: "Ena Satsuki", image_url: "https://picsum.photos/id/18/160/160" },
@@ -131,6 +127,7 @@ export const mockVideos: Video[] = [
     maker: { id: 2, name: "DREAM-STUDIO" },
     label: { id: 2, name: "Night Pulse" },
     director: { id: 2, name: "Aya Fujimoto" },
+    series: { id: 2, name: "Night Pulse Arc" },
     actresses: [
       { id: 4, name: "Yua Mikami", image_url: "https://picsum.photos/id/14/160/160" },
       { id: 11, name: "Minami Aizawa", image_url: "https://picsum.photos/id/21/160/160" },
@@ -160,6 +157,7 @@ export const mockVideos: Video[] = [
     maker: { id: 3, name: "HORIZON-FILMS" },
     label: null,
     director: { id: 3, name: "Ryo Tanaka" },
+    series: { id: 1, name: "Velvet Chronicle" },
     actresses: [
       { id: 7, name: "Saika Kawakita", image_url: "https://picsum.photos/id/17/160/160" },
       { id: 14, name: "Julia", image_url: "https://picsum.photos/id/24/160/160" },

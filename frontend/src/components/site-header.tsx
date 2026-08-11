@@ -5,12 +5,20 @@ import { Clapperboard, Menu, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const navLinks = [
-  { label: "Trending", to: "/trending" as const },
-  { label: "Latest", to: "/latest" as const },
-  { label: "For you", to: "/for-you" as const },
+  { label: "Videos", to: "/videos" as const },
+  {
+    label: "Trending",
+    to: "/videos" as const,
+    search: { sort: "trending-week" as const },
+  },
+  {
+    label: "Latest",
+    to: "/videos" as const,
+    search: { sort: "latest" as const },
+  },
   { label: "Genres", to: "/genres" as const },
   { label: "Actresses", to: "/actresses" as const },
-] as const;
+];
 
 export default function SiteHeader() {
   const [open, setOpen] = useState(false);
@@ -43,8 +51,9 @@ export default function SiteHeader() {
         <nav className="hidden items-center gap-1 md:flex">
           {navLinks.map((link) => (
             <Link
-              key={link.to}
+              key={link.label}
               to={link.to}
+              search={"search" in link ? link.search : undefined}
               className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground data-[status=active]:text-foreground"
             >
               {link.label}
@@ -76,8 +85,9 @@ export default function SiteHeader() {
           <nav className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link
-                key={link.to}
+                key={link.label}
                 to={link.to}
+                search={"search" in link ? link.search : undefined}
                 onClick={() => setOpen(false)}
                 className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[status=active]:text-foreground"
               >

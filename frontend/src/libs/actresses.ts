@@ -39,7 +39,6 @@ export const DEFAULT_ACTRESS_FILTERS: ActressFilters = {
 
 export const DEFAULT_ACTRESS_SORT: ActressSort = "trending-month";
 
-/** Aligns with backend `Actress` profile fields used in UI. */
 export interface ActressSummary extends ActressRef {
   ruby?: string | null;
   birthday?: string | null;
@@ -428,7 +427,6 @@ export type ActressesSearchParams = {
   ageMax?: number;
 };
 
-/** Build search params, omitting defaults so the URL stays clean. */
 export function buildActressesSearch(input: {
   page?: number;
   sort?: ActressSort;

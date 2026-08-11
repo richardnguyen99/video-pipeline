@@ -16,7 +16,6 @@ import { cn } from "@/libs/utils";
 import { formatPlayerTime } from "./format-time";
 import { useHlsPlayer } from "./use-hls-player";
 
-/** Public demo HLS stream (Mux test / Big Buck Bunny). */
 export const DEMO_HLS_SRC = "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8";
 
 const SEEK_STEP = 10;

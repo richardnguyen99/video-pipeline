@@ -11,7 +11,6 @@ export interface MockActressProfile {
   height?: number | null;
 }
 
-/** Catalog-style mock actresses for listing / pagination (UI only). */
 export const mockActressCatalog: MockActressProfile[] = [
   {
     id: 1,

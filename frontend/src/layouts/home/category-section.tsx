@@ -4,11 +4,12 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
+import type { VideoSort } from "@/libs/discover-videos";
 import type { Video } from "@/mocks/videos";
 import { mockVideos } from "@/mocks/videos";
 
-/** Link targets aligned with `routeTree.gen.ts` FileRoutesByPath. */
-type CategoryMoreLink = { to: "/latest" } | { to: "/for-you" } | { to: "/genres/$genre"; params: { genre: string } };
+type CategoryMoreLink =
+  { to: "/videos"; search?: { sort?: VideoSort } } | { to: "/genres/$genre"; params: { genre: string } };
 
 interface CategoryCollection {
   id: string;
@@ -64,14 +65,14 @@ function buildCategoryCollections(videos: Video[]): CategoryCollection[] {
       id: "latest",
       name: "Latest",
       blurb: "Fresh releases just added",
-      more: { to: "/latest" },
+      more: { to: "/videos", search: { sort: "latest" as const } },
       videos: latest,
     },
     {
-      id: "for-you",
-      name: "For you",
-      blurb: "Picks tailored to your taste",
-      more: { to: "/for-you" },
+      id: "trending",
+      name: "Trending",
+      blurb: "What everyone is watching right now",
+      more: { to: "/videos", search: { sort: "trending-week" as const } },
       videos: forYou,
     },
     ...genreCategories,
@@ -92,7 +93,7 @@ function CategoryMoreLinkButton({ more }: { more: CategoryMoreLink }) {
   }
 
   return (
-    <Link to={more.to} className={moreLinkClassName}>
+    <Link to="/videos" search={more.search} className={moreLinkClassName}>
       More
       <ArrowRight className="size-4" />
     </Link>

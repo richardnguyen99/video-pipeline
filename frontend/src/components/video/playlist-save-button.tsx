@@ -59,7 +59,6 @@ const DEFAULT_PLAYLISTS: PlaylistOption[] = [
 interface PlaylistSaveButtonProps {
   isAuthenticated: boolean;
   playlists?: PlaylistOption[];
-  /** Controlled open for the mobile dialog (e.g. from more-actions menu) */
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 }
@@ -73,7 +72,6 @@ export function PlaylistSaveButton({
   const [playlists, setPlaylists] = useState<PlaylistOption[]>(initialPlaylists);
   const [desktopOpen, setDesktopOpen] = useState(false);
 
-  /** Mobile instance is controlled via mobileOpen; desktop instance has no mobile props */
   const isMobileInstance = mobileOpen !== undefined && onMobileOpenChange !== undefined;
 
   const tooltip = isAuthenticated ? "Add this to my playlist" : "Log in to add this video to playlist";
