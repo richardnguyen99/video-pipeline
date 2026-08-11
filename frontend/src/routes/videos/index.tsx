@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { VideoBrowse } from "@/layouts/video-browse";
-import type { VideoDiscoverFilters, VideoDiscoverSearchParams, VideoSort } from "@/libs/discover-videos";
+import type { VideoDiscoverFilters } from "@/libs/discover-videos";
 import {
   DEFAULT_VIDEO_SORT,
   getAvailableDiscoverActresses,
@@ -12,93 +12,41 @@ import {
   getAvailableDiscoverSeries,
   getDiscoverVideos,
   parseFeaturesCnt,
+  softParseVideoDiscoverSearch,
 } from "@/libs/discover-videos";
-
-const SORT_VALUES: VideoSort[] = ["trending-week", "trending-month", "trending-all", "latest", "views", "likes"];
-
-function asIdArray(value: unknown): number[] | undefined {
-  if (Array.isArray(value)) {
-    const list = value
-      .map((v) => (typeof v === "number" ? v : Number(v)))
-      .filter((n): n is number => Number.isFinite(n));
-    return list.length > 0 ? list : undefined;
-  }
-  if (typeof value === "string" && value.length > 0) {
-    const list = value
-      .split(",")
-      .map((s) => Number(s.trim()))
-      .filter((n) => Number.isFinite(n));
-    return list.length > 0 ? list : undefined;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return [value];
-  }
-  return undefined;
-}
-
-function asOptionalId(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  return undefined;
-}
-
-function asSort(value: unknown): VideoSort | undefined {
-  if (typeof value === "string" && SORT_VALUES.includes(value as VideoSort)) {
-    return value as VideoSort;
-  }
-  return undefined;
-}
+import { parseSearch } from "@/libs/search-params";
 
 export const Route = createFileRoute("/videos/")({
   component: VideosDiscoverPage,
-  validateSearch: (search: Record<string, unknown>): VideoDiscoverSearchParams => {
-    const result: VideoDiscoverSearchParams = {};
+  validateSearch: (search: Record<string, unknown>) => {
+    const { data } = softParseVideoDiscoverSearch(search);
 
-    const sort = asSort(search.sort);
-    if (sort && sort !== DEFAULT_VIDEO_SORT) {
-      result.sort = sort;
-    }
-
-    const actress = asIdArray(search.actress);
-    if (actress) result.actress = actress;
-
-    const genre = asIdArray(search.genre);
-    if (genre) result.genre = genre;
-
-    const maker = asOptionalId(search.maker);
-    if (maker != null) result.maker = maker;
-
-    const label = asOptionalId(search.label);
-    if (label != null) result.label = label;
-
-    const director = asOptionalId(search.director);
-    if (director != null) result.director = director;
-
-    const series = asOptionalId(search.series);
-    if (series != null) result.series = series;
-
-    if (search.features_cnt != null && String(search.features_cnt).trim() !== "") {
-      const parsed = parseFeaturesCnt(search.features_cnt);
-      if (parsed) result.features_cnt = String(search.features_cnt).trim();
-    }
-
-    return result;
+    return data;
   },
-  loaderDeps: ({ search }) => search,
-  loader: async ({ deps }) => {
+  loaderDeps: ({ search }) => ({
+    sort: search.sort,
+    actress: search.actress,
+    genre: search.genre,
+    maker: search.maker,
+    label: search.label,
+    director: search.director,
+    series: search.series,
+    features_cnt: search.features_cnt,
+  }),
+  loader: async ({ location }) => {
+    const rawSearch = parseSearch(location.searchStr);
+    const { data, issues } = softParseVideoDiscoverSearch(rawSearch);
+
     const filters: VideoDiscoverFilters = {
-      actresses: deps.actress ?? [],
-      genres: deps.genre ?? [],
-      maker: deps.maker,
-      label: deps.label,
-      director: deps.director,
-      series: deps.series,
-      features_cnt: parseFeaturesCnt(deps.features_cnt),
+      actresses: data.actress ?? [],
+      genres: data.genre ?? [],
+      maker: data.maker,
+      label: data.label,
+      director: data.director,
+      series: data.series,
+      features_cnt: parseFeaturesCnt(data.features_cnt),
     };
-    const sort = deps.sort ?? DEFAULT_VIDEO_SORT;
+    const sort = data.sort ?? DEFAULT_VIDEO_SORT;
 
     const page = await getDiscoverVideos({ sort, filters });
 
@@ -107,6 +55,7 @@ export const Route = createFileRoute("/videos/")({
       total: page.total,
       sort: page.sort,
       filters: page.filters,
+      searchIssues: issues,
       actressOptions: getAvailableDiscoverActresses(),
       genreOptions: getAvailableDiscoverGenres(),
       makerOptions: getAvailableDiscoverMakers(),
@@ -128,6 +77,7 @@ function VideosDiscoverPage() {
       total={data.total}
       sort={data.sort}
       filters={data.filters}
+      searchIssues={data.searchIssues}
       actressOptions={data.actressOptions}
       genreOptions={data.genreOptions}
       makerOptions={data.makerOptions}

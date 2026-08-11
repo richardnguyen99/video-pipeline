@@ -27,6 +27,7 @@ export function stringifySearch(search: Record<string, unknown>): string {
   const params = new URLSearchParams();
 
   for (const [key, value] of Object.entries(search)) {
+    if (key.startsWith("_")) continue;
     if (value == null) continue;
     if (Array.isArray(value)) {
       if (value.length === 0) continue;

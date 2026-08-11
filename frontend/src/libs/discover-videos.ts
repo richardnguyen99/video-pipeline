@@ -1,23 +1,37 @@
+import { z } from "zod";
+
 import type { NamedEntity, Video } from "@/mocks/videos";
 import { mockVideos } from "@/mocks/videos";
 
-export type VideoSort = "trending-week" | "trending-month" | "trending-all" | "latest" | "views" | "likes";
+export const VIDEO_SORT_VALUES = [
+  "trending-week",
+  "trending-month",
+  "trending-all",
+  "latest",
+  "views",
+  "likes",
+] as const;
+
+export const videoSortSchema = z.enum(VIDEO_SORT_VALUES);
+export type VideoSort = z.infer<typeof videoSortSchema>;
 
 /** Actress feature-count range. `max` omitted means open-ended (N or more). */
-export type FeaturesCountRange = {
-  min: number;
-  max?: number;
-};
+export const featuresCountRangeSchema = z.object({
+  min: z.number().int().nonnegative(),
+  max: z.number().int().nonnegative().optional(),
+});
+export type FeaturesCountRange = z.infer<typeof featuresCountRangeSchema>;
 
-export interface VideoDiscoverFilters {
-  actresses: number[];
-  genres: number[];
-  maker?: number;
-  label?: number;
-  director?: number;
-  series?: number;
-  features_cnt?: FeaturesCountRange;
-}
+export const videoDiscoverFiltersSchema = z.object({
+  actresses: z.array(z.number().int()).default([]),
+  genres: z.array(z.number().int()).default([]),
+  maker: z.number().int().optional(),
+  label: z.number().int().optional(),
+  director: z.number().int().optional(),
+  series: z.number().int().optional(),
+  features_cnt: featuresCountRangeSchema.optional(),
+});
+export type VideoDiscoverFilters = z.infer<typeof videoDiscoverFiltersSchema>;
 
 export const DEFAULT_VIDEO_SORT: VideoSort = "trending-week";
 
@@ -39,12 +53,146 @@ export const VIDEO_SORT_OPTIONS: {
   { value: "likes", label: "Most liked" },
 ];
 
+const UNSIGNED_INT_RE = /^\d+$/;
+
+function describeType(value: unknown): string {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  return typeof value;
+}
+
+function describeValue(value: unknown): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value === null) return "null";
+  if (value === undefined) return "undefined";
+  if (Array.isArray(value)) return JSON.stringify(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function expectedGotMessage(expected: string, value: unknown): string {
+  return `Expected ${expected}. Got ${describeValue(value)} (${describeType(value)})`;
+}
+
+/** One unsigned integer from query (number or digit string). Rejects arrays and non-integers. */
+export const unsignedIntIdSchema = z.union([
+  z
+    .number({ error: "Expected an unsigned integer" })
+    .int({ error: "Expected an unsigned integer" })
+    .nonnegative({ error: "Expected an unsigned integer >= 0" }),
+  z
+    .string({ error: "Expected an unsigned integer" })
+    .regex(UNSIGNED_INT_RE, { error: "Expected an unsigned integer" })
+    .transform((s) => Number(s)),
+]);
+
 /**
- * URL search shape (FastAPI-compatible keys).
- * - `actress` / `genre`: repeated values
- * - `maker` / `label` / `director` / `series`: single int
- * - `features_cnt`: "2" | "3," | "1,3"
+ * Multi-value unsigned int list (FastAPI repeated keys).
+ * Accepts a single value or an array; every entry must be an unsigned integer.
  */
+export const unsignedIntIdListSchema = z.union([
+  unsignedIntIdSchema.transform((id) => [id]),
+  z
+    .array(unsignedIntIdSchema, {
+      error: "Expected one or more unsigned integers",
+    })
+    .min(1, { error: "Expected one or more unsigned integers" }),
+]);
+
+const optionalUnsignedIntIdSchema = z.optional(unsignedIntIdSchema);
+const optionalUnsignedIntIdListSchema = z.optional(unsignedIntIdListSchema);
+
+const featuresCntQuerySchema = z
+  .string({ error: "features_cnt must be a string like 2, 3,, or 1,3" })
+  .trim()
+  .min(1)
+  .refine((raw) => parseFeaturesCnt(raw) != null, {
+    error: "Invalid features_cnt; use 2 (exact), 3, (min open), or 1,3 (range)",
+  });
+
+const optionalFeaturesCntQuerySchema = z.optional(
+  z.union([
+    featuresCntQuerySchema,
+    z
+      .number()
+      .int()
+      .nonnegative()
+      .transform((n) => String(n))
+      .pipe(featuresCntQuerySchema),
+  ]),
+);
+
+/**
+ * URL search schema (FastAPI-compatible keys).
+ * - `actress` / `genre`: repeated unsigned ints → number[]
+ * - `maker` / `label` / `director` / `series`: single unsigned int
+ * - `features_cnt`: "2" | "3," | "1,3"
+ *
+ * Strict: invalid values fail the whole schema (use softParse for page UX).
+ */
+export const videoDiscoverSearchSchema = z
+  .object({
+    sort: videoSortSchema.optional(),
+    actress: optionalUnsignedIntIdListSchema,
+    genre: optionalUnsignedIntIdListSchema,
+    maker: optionalUnsignedIntIdSchema,
+    label: optionalUnsignedIntIdSchema,
+    director: optionalUnsignedIntIdSchema,
+    series: optionalUnsignedIntIdSchema,
+    features_cnt: optionalFeaturesCntQuerySchema,
+  })
+  .transform((data) => {
+    const result: {
+      sort?: VideoSort;
+      actress?: number[];
+      genre?: number[];
+      maker?: number;
+      label?: number;
+      director?: number;
+      series?: number;
+      features_cnt?: string;
+    } = {};
+
+    if (data.sort && data.sort !== DEFAULT_VIDEO_SORT) {
+      result.sort = data.sort;
+    }
+
+    if (data.actress && data.actress.length > 0) {
+      result.actress = data.actress;
+    }
+
+    if (data.genre && data.genre.length > 0) {
+      result.genre = data.genre;
+    }
+
+    if (data.maker != null) {
+      result.maker = data.maker;
+    }
+
+    if (data.label != null) {
+      result.label = data.label;
+    }
+
+    if (data.director != null) {
+      result.director = data.director;
+    }
+
+    if (data.series != null) {
+      result.series = data.series;
+    }
+
+    if (data.features_cnt) {
+      result.features_cnt = data.features_cnt;
+    }
+
+    return result;
+  });
+
+/** URL query type for `/videos` (validated / normalized). */
 export type VideoDiscoverSearchParams = {
   sort?: VideoSort;
   actress?: number[];
@@ -54,7 +202,179 @@ export type VideoDiscoverSearchParams = {
   director?: number;
   series?: number;
   features_cnt?: string;
+  /** Internal: validation issues; never written to the URL. */
+  _searchIssues?: VideoDiscoverSearchIssue[];
 };
+
+export type VideoDiscoverSearchIssue = {
+  path: string;
+  message: string;
+};
+
+export type VideoDiscoverSearchParseResult =
+  | { success: true; data: VideoDiscoverSearchParams }
+  | {
+      success: false;
+      error: z.ZodError;
+      issues: VideoDiscoverSearchIssue[];
+    };
+
+export function formatVideoDiscoverSearchIssues(error: z.ZodError): VideoDiscoverSearchIssue[] {
+  return error.issues.map((issue) => ({
+    path: issue.path.length > 0 ? issue.path.join(".") : "(root)",
+    message: issue.message,
+  }));
+}
+
+function issuesFromResult(
+  path: string,
+  result: { success: false; error: z.ZodError },
+  value?: unknown,
+  expected?: string,
+): VideoDiscoverSearchIssue[] {
+  if (expected !== undefined) {
+    return [
+      {
+        path,
+        message: expectedGotMessage(expected, value),
+      },
+    ];
+  }
+
+  return result.error.issues.map((issue) => ({
+    path: issue.path.length > 0 ? `${path}.${issue.path.join(".")}` : path,
+    message: issue.message,
+  }));
+}
+
+/**
+ * Per-field soft validation: invalid values become undefined and are listed in
+ * `issues`. Valid fields still apply. Multi-value lists keep only valid ids.
+ */
+export function softParseVideoDiscoverSearch(search: unknown): {
+  data: VideoDiscoverSearchParams;
+  issues: VideoDiscoverSearchIssue[];
+} {
+  const input = typeof search === "object" && search !== null ? (search as Record<string, unknown>) : {};
+
+  const issues: VideoDiscoverSearchIssue[] = [];
+  const data: VideoDiscoverSearchParams = {};
+
+  if (input.sort != null && input.sort !== "") {
+    const result = videoSortSchema.safeParse(input.sort);
+
+    if (result.success) {
+      if (result.data !== DEFAULT_VIDEO_SORT) {
+        data.sort = result.data;
+      }
+    } else {
+      issues.push(...issuesFromResult("sort", result, input.sort, `one of ${VIDEO_SORT_VALUES.join(" | ")}`));
+    }
+  }
+
+  const actressRaw = input.actress != null && input.actress !== "" ? input.actress : undefined;
+  const actressParsed = softParseIdList("actress", actressRaw, issues);
+
+  if (actressParsed && actressParsed.length > 0) {
+    data.actress = actressParsed;
+  }
+
+  // Accept `genre` (canonical) and accidental `genres` alias from the URL.
+  const genreRaw =
+    input.genre != null && input.genre !== ""
+      ? input.genre
+      : input.genres != null && input.genres !== ""
+        ? input.genres
+        : undefined;
+  const genrePath = input.genre != null && input.genre !== "" ? "genre" : "genres";
+  const genreParsed = softParseIdList(genrePath, genreRaw, issues);
+
+  if (genreParsed && genreParsed.length > 0) {
+    data.genre = genreParsed;
+  }
+
+  for (const key of ["maker", "label", "director", "series"] as const) {
+    if (input[key] == null || input[key] === "") {
+      continue;
+    }
+
+    const result = unsignedIntIdSchema.safeParse(input[key]);
+
+    if (result.success) {
+      data[key] = result.data;
+    } else {
+      issues.push(...issuesFromResult(key, result, input[key], "an unsigned integer"));
+    }
+  }
+
+  if (input.features_cnt != null && input.features_cnt !== "") {
+    const raw =
+      typeof input.features_cnt === "string" || typeof input.features_cnt === "number"
+        ? String(input.features_cnt).trim()
+        : null;
+
+    if (raw == null || raw === "") {
+      issues.push({
+        path: "features_cnt",
+        message: expectedGotMessage('a features_cnt string like "2", "3,", or "1,3"', input.features_cnt),
+      });
+    } else {
+      const parsed = parseFeaturesCnt(raw);
+
+      if (parsed) {
+        data.features_cnt = raw;
+      } else {
+        issues.push({
+          path: "features_cnt",
+          message: expectedGotMessage('a features_cnt string like "2", "3,", or "1,3"', input.features_cnt),
+        });
+      }
+    }
+  }
+
+  return { data, issues };
+}
+
+function softParseIdList(path: string, raw: unknown, issues: VideoDiscoverSearchIssue[]): number[] | undefined {
+  if (raw == null || raw === "") {
+    return undefined;
+  }
+
+  const values = Array.isArray(raw) ? raw : [raw];
+  const ids: number[] = [];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    const result = unsignedIntIdSchema.safeParse(value);
+
+    if (result.success) {
+      ids.push(result.data);
+    } else {
+      const suffix = values.length > 1 ? `[${index}]` : "";
+      issues.push({
+        path: `${path}${suffix}`,
+        message: expectedGotMessage("an unsigned integer", value),
+      });
+    }
+  }
+
+  return ids.length > 0 ? ids : undefined;
+}
+
+/** Validate URL search without throwing (strict: any invalid field fails). */
+export function parseVideoDiscoverSearch(search: unknown): VideoDiscoverSearchParseResult {
+  const parsed = videoDiscoverSearchSchema.safeParse(search);
+
+  if (parsed.success) {
+    return { success: true, data: parsed.data };
+  }
+
+  return {
+    success: false,
+    error: parsed.error,
+    issues: formatVideoDiscoverSearchIssues(parsed.error),
+  };
+}
 
 export function parseFeaturesCnt(value: unknown): FeaturesCountRange | undefined {
   if (value == null) return undefined;

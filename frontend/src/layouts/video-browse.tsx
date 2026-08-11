@@ -1,8 +1,10 @@
 import { useEffect, useId, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowUpDown, Check, ChevronDown } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronRight, X } from "lucide-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
@@ -17,7 +19,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { FeaturesCountRange, VideoDiscoverFilters, VideoSort } from "@/libs/discover-videos";
+import type {
+  FeaturesCountRange,
+  VideoDiscoverFilters,
+  VideoDiscoverSearchIssue,
+  VideoSort,
+} from "@/libs/discover-videos";
 import {
   DEFAULT_VIDEO_FILTERS,
   DEFAULT_VIDEO_SORT,
@@ -41,6 +48,7 @@ interface VideoBrowseProps {
   labelOptions: NamedEntity[];
   directorOptions: NamedEntity[];
   seriesOptions: NamedEntity[];
+  searchIssues?: VideoDiscoverSearchIssue[];
   className?: string;
 }
 
@@ -83,9 +91,18 @@ export function VideoBrowse({
   labelOptions,
   directorOptions,
   seriesOptions,
+  searchIssues = [],
   className,
 }: VideoBrowseProps) {
   const navigate = useNavigate();
+  const [alertDismissed, setAlertDismissed] = useState(false);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const issueKey = searchIssues.map((i) => `${i.path}:${i.message}`).join("|");
+
+  useEffect(() => {
+    setAlertDismissed(false);
+    setAlertOpen(false);
+  }, [issueKey]);
 
   const trending = VIDEO_SORT_OPTIONS.filter((o) => o.group === "Trending");
   const otherSorts = VIDEO_SORT_OPTIONS.filter((o) => !o.group);
@@ -130,6 +147,45 @@ export function VideoBrowse({
           {` ${total} ${total === 1 ? "video" : "videos"}.`}
         </p>
       </header>
+
+      {searchIssues.length > 0 && !alertDismissed ? (
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle />
+          <div className="flex items-start justify-between gap-3 col-start-2">
+            <div className="min-w-0 flex-1">
+              <AlertTitle>Some search parameters were ignored</AlertTitle>
+              <AlertDescription>
+                Invalid query values were skipped so results still load. Expand for details.
+              </AlertDescription>
+              <Collapsible open={alertOpen} onOpenChange={setAlertOpen} className="mt-2">
+                <CollapsibleTrigger className="inline-flex items-center gap-1 text-xs font-medium text-current/80 hover:text-current">
+                  <ChevronRight className={cn("size-3.5 transition-transform", alertOpen && "rotate-90")} />
+                  {alertOpen ? "Hide details" : "Show details"}
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <ul className="mt-2 list-disc space-y-1 pl-4 text-xs">
+                    {searchIssues.map((issue, index) => (
+                      <li key={`${issue.path}-${index}`}>
+                        <span className="font-medium">{issue.path}</span>
+                        {": "}
+                        {issue.message}
+                      </li>
+                    ))}
+                  </ul>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss alert"
+              className="shrink-0 rounded-md p-1 text-current/70 transition-colors hover:bg-black/5 hover:text-current dark:hover:bg-white/10"
+              onClick={() => setAlertDismissed(true)}
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </Alert>
+      ) : null}
 
       <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <DropdownMenu>
