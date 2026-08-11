@@ -147,10 +147,12 @@ export function VideoBrowse({
                 <DropdownMenuItem
                   key={opt.value}
                   onClick={() => updateSearch({ sort: opt.value })}
-                  className="flex items-center justify-between gap-2"
+                  className="relative pl-8"
                 >
+                  <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+                    {sort === opt.value ? <Check className="size-4" /> : null}
+                  </span>
                   {opt.label}
-                  {sort === opt.value ? <Check className="size-4" /> : null}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
@@ -160,10 +162,12 @@ export function VideoBrowse({
                 <DropdownMenuItem
                   key={opt.value}
                   onClick={() => updateSearch({ sort: opt.value })}
-                  className="flex items-center justify-between gap-2"
+                  className="relative pl-8"
                 >
+                  <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+                    {sort === opt.value ? <Check className="size-4" /> : null}
+                  </span>
                   {opt.label}
-                  {sort === opt.value ? <Check className="size-4" /> : null}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuGroup>
@@ -323,18 +327,18 @@ function SingleEntityFilter({
       <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0">
         <ScrollArea className="h-auto ">
           <div className="p-1 max-h-125">
-            <DropdownMenuItem onClick={() => onChange(undefined)} className="flex items-center justify-between gap-2">
+            <DropdownMenuItem onClick={() => onChange(undefined)} className="relative pl-8">
+              <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+                {value == null ? <Check className="size-4" /> : null}
+              </span>
               Any
-              {value == null ? <Check className="size-4" /> : null}
             </DropdownMenuItem>
             {options.map((item) => (
-              <DropdownMenuItem
-                key={item.id}
-                onClick={() => onChange(item.id)}
-                className="flex items-center justify-between gap-2"
-              >
+              <DropdownMenuItem key={item.id} onClick={() => onChange(item.id)} className="relative pl-8">
+                <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+                  {value === item.id ? <Check className="size-4" /> : null}
+                </span>
                 {item.name}
-                {value === item.id ? <Check className="size-4" /> : null}
               </DropdownMenuItem>
             ))}
           </div>

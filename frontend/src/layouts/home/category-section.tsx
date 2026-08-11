@@ -8,8 +8,7 @@ import type { VideoSort } from "@/libs/discover-videos";
 import type { Video } from "@/mocks/videos";
 import { mockVideos } from "@/mocks/videos";
 
-type CategoryMoreLink =
-  { to: "/videos"; search?: { sort?: VideoSort } } | { to: "/genres/$genre"; params: { genre: string } };
+type CategoryMoreLink = { to: "/videos"; search?: { sort?: VideoSort; genre?: number[] } };
 
 interface CategoryCollection {
   id: string;
@@ -54,8 +53,8 @@ function buildCategoryCollections(videos: Video[]): CategoryCollection[] {
       name: g.name,
       blurb: `Browse ${g.name.toLowerCase()} titles`,
       more: {
-        to: "/genres/$genre" as const,
-        params: { genre: g.name.toLowerCase().replace(/\s+/g, "-") },
+        to: "/videos" as const,
+        search: { genre: [g.id] },
       },
       videos: g.videos,
     }));
@@ -83,15 +82,6 @@ const moreLinkClassName =
   "inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary-active";
 
 function CategoryMoreLinkButton({ more }: { more: CategoryMoreLink }) {
-  if (more.to === "/genres/$genre") {
-    return (
-      <Link to="/genres/$genre" params={more.params} className={moreLinkClassName}>
-        More
-        <ArrowRight className="size-4" />
-      </Link>
-    );
-  }
-
   return (
     <Link to="/videos" search={more.search} className={moreLinkClassName}>
       More

@@ -16,7 +16,6 @@ const navLinks = [
     to: "/videos" as const,
     search: { sort: "latest" as const },
   },
-  { label: "Genres", to: "/genres" as const },
   { label: "Actresses", to: "/actresses" as const },
 ];
 

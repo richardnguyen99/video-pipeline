@@ -10,19 +10,23 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
 import { Route as ActressesIndexRouteImport } from './routes/actresses/index'
 import { Route as ActressesActressIdRouteImport } from './routes/actresses/$actressId'
-import { Route as GenresIndexRouteImport } from './routes/genres/index'
-import { Route as GenresGenreRouteImport } from './routes/genres/$genre'
 import { Route as VideosIndexRouteImport } from './routes/videos/index'
 import { Route as VideosVideo_idRouteImport } from './routes/videos/$video_id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RegisterRoute = RegisterRouteImport.update({
@@ -50,16 +54,6 @@ const ActressesActressIdRoute = ActressesActressIdRouteImport.update({
   path: '/actresses/$actressId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GenresIndexRoute = GenresIndexRouteImport.update({
-  id: '/genres/',
-  path: '/genres/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GenresGenreRoute = GenresGenreRouteImport.update({
-  id: '/genres/$genre',
-  path: '/genres/$genre',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const VideosIndexRoute = VideosIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -74,37 +68,34 @@ const VideosVideo_idRoute = VideosVideo_idRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/videos': typeof VideosRouteRouteWithChildren
+  '/about': typeof AboutRoute
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
-  '/genres/$genre': typeof GenresGenreRoute
   '/videos/$video_id': typeof VideosVideo_idRoute
   '/actresses/': typeof ActressesIndexRoute
-  '/genres/': typeof GenresIndexRoute
   '/videos/': typeof VideosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
-  '/genres/$genre': typeof GenresGenreRoute
   '/videos/$video_id': typeof VideosVideo_idRoute
   '/actresses': typeof ActressesIndexRoute
-  '/genres': typeof GenresIndexRoute
   '/videos': typeof VideosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/videos': typeof VideosRouteRouteWithChildren
+  '/about': typeof AboutRoute
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
-  '/genres/$genre': typeof GenresGenreRoute
   '/videos/$video_id': typeof VideosVideo_idRoute
   '/actresses/': typeof ActressesIndexRoute
-  '/genres/': typeof GenresIndexRoute
   '/videos/': typeof VideosIndexRoute
 }
 export interface FileRouteTypes {
@@ -112,48 +103,44 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/videos'
+    | '/about'
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
-    | '/genres/$genre'
     | '/videos/$video_id'
     | '/actresses/'
-    | '/genres/'
     | '/videos/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
-    | '/genres/$genre'
     | '/videos/$video_id'
     | '/actresses'
-    | '/genres'
     | '/videos'
   id:
     | '__root__'
     | '/'
     | '/videos'
+    | '/about'
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
-    | '/genres/$genre'
     | '/videos/$video_id'
     | '/actresses/'
-    | '/genres/'
     | '/videos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   VideosRouteRoute: typeof VideosRouteRouteWithChildren
+  AboutRoute: typeof AboutRoute
   RegisterRoute: typeof RegisterRoute
   SignInRoute: typeof SignInRoute
   ActressesActressIdRoute: typeof ActressesActressIdRoute
-  GenresGenreRoute: typeof GenresGenreRoute
   ActressesIndexRoute: typeof ActressesIndexRoute
-  GenresIndexRoute: typeof GenresIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -163,6 +150,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/register': {
@@ -200,20 +194,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActressesActressIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/genres/': {
-      id: '/genres/'
-      path: '/genres'
-      fullPath: '/genres/'
-      preLoaderRoute: typeof GenresIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/genres/$genre': {
-      id: '/genres/$genre'
-      path: '/genres/$genre'
-      fullPath: '/genres/$genre'
-      preLoaderRoute: typeof GenresGenreRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/videos/': {
       id: '/videos/'
       path: '/'
@@ -248,12 +228,11 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   VideosRouteRoute: VideosRouteRouteWithChildren,
+  AboutRoute: AboutRoute,
   RegisterRoute: RegisterRoute,
   SignInRoute: SignInRoute,
   ActressesActressIdRoute: ActressesActressIdRoute,
-  GenresGenreRoute: GenresGenreRoute,
   ActressesIndexRoute: ActressesIndexRoute,
-  GenresIndexRoute: GenresIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

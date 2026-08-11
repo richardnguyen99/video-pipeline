@@ -1,6 +1,6 @@
-import type { NamedEntity } from "@/mocks/videos";
+import { Link } from "@tanstack/react-router";
 
-import { EntityLink } from "./entity-link";
+import type { NamedEntity } from "@/mocks/videos";
 
 export interface GenreTagProps {
   genre: NamedEntity;
@@ -9,12 +9,13 @@ export interface GenreTagProps {
 
 export function GenreTag({ genre, asListItem = true }: GenreTagProps) {
   const tag = (
-    <EntityLink
-      to={`/genres/${genre.id}`}
+    <Link
+      to="/videos"
+      search={{ genre: [genre.id] }}
       className="inline-flex rounded-full bg-secondary px-3 py-1 text-sm no-underline hover:bg-secondary/80 hover:no-underline"
     >
       {genre.name}
-    </EntityLink>
+    </Link>
   );
 
   if (asListItem) {
