@@ -1,10 +1,11 @@
 import { useEffect, useId, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronRight, X } from "lucide-react";
+import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronRight, ListFilter, X } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
@@ -97,6 +98,10 @@ export function VideoBrowse({
   const navigate = useNavigate();
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [alertOpen, setAlertOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState(filters);
+  const [menuPortal, setMenuPortal] = useState<HTMLDivElement | null>(null);
+  const [dialogBody, setDialogBody] = useState<HTMLDivElement | null>(null);
   const issueKey = searchIssues.map((i) => `${i.path}:${i.message}`).join("|");
 
   useEffect(() => {
@@ -104,9 +109,23 @@ export function VideoBrowse({
     setAlertOpen(false);
   }, [issueKey]);
 
+  function openFiltersDialog() {
+    setDraftFilters(filters);
+    setFiltersOpen(true);
+  }
+
   const trending = VIDEO_SORT_OPTIONS.filter((o) => o.group === "Trending");
   const otherSorts = VIDEO_SORT_OPTIONS.filter((o) => !o.group);
   const filtersActive = hasActiveDiscoverFilters(filters);
+  const activeFilterCount = [
+    filters.actresses.length > 0,
+    filters.genres.length > 0,
+    filters.maker != null,
+    filters.label != null,
+    filters.director != null,
+    filters.series != null,
+    filters.features_cnt != null,
+  ].filter(Boolean).length;
 
   function updateSearch(next: { sort?: VideoSort; filters?: VideoDiscoverFilters }) {
     void navigate({
@@ -230,68 +249,201 @@ export function VideoBrowse({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <MultiEntityFilter
-          label="Actress"
-          selected={filters.actresses}
-          options={actressOptions}
-          onChange={(actresses) => updateSearch({ filters: { ...filters, actresses } })}
-        />
-
-        <MultiEntityFilter
-          label="Genre"
-          selected={filters.genres}
-          options={genreOptions}
-          onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
-        />
-
-        <SingleEntityFilter
-          label="Maker"
-          value={filters.maker}
-          display={entityName(makerOptions, filters.maker)}
-          options={makerOptions}
-          onChange={(id) => setSingle("maker", id)}
-        />
-
-        <SingleEntityFilter
-          label="Label"
-          value={filters.label}
-          display={entityName(labelOptions, filters.label)}
-          options={labelOptions}
-          onChange={(id) => setSingle("label", id)}
-        />
-
-        <SingleEntityFilter
-          label="Director"
-          value={filters.director}
-          display={entityName(directorOptions, filters.director)}
-          options={directorOptions}
-          onChange={(id) => setSingle("director", id)}
-        />
-
-        <SingleEntityFilter
-          label="Series"
-          value={filters.series}
-          display={entityName(seriesOptions, filters.series)}
-          options={seriesOptions}
-          onChange={(id) => setSingle("series", id)}
-        />
-
-        <FeaturesCountFilter value={filters.features_cnt} onChange={setFeaturesCnt} />
-
-        {filtersActive || sort !== DEFAULT_VIDEO_SORT ? (
+        <div className="flex w-full flex-col gap-2 sm:hidden">
           <button
             type="button"
-            className={cn(filterTriggerClass(true), "border-destructive/40 text-destructive hover:bg-destructive/10")}
-            onClick={() =>
-              updateSearch({
-                sort: DEFAULT_VIDEO_SORT,
-                filters: { ...DEFAULT_VIDEO_FILTERS },
-              })
-            }
+            className={cn(filterTriggerClass(filtersActive || filtersOpen), "w-full")}
+            onClick={openFiltersDialog}
           >
-            Clear
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <ListFilter className="size-3.5 shrink-0" />
+              <span className="truncate">
+                Filters
+                {activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
+              </span>
+            </span>
+            <ChevronDown className="size-3.5 shrink-0 opacity-60" />
           </button>
-        ) : null}
+
+          {filtersActive || sort !== DEFAULT_VIDEO_SORT ? (
+            <button
+              type="button"
+              className={cn(
+                filterTriggerClass(true),
+                "w-full border-destructive/40 text-destructive hover:bg-destructive/10",
+              )}
+              onClick={() =>
+                updateSearch({
+                  sort: DEFAULT_VIDEO_SORT,
+                  filters: { ...DEFAULT_VIDEO_FILTERS },
+                })
+              }
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+
+        <Dialog
+          open={filtersOpen}
+          onOpenChange={(open) => {
+            if (!open) {
+              updateSearch({ filters: draftFilters });
+            }
+            setFiltersOpen(open);
+          }}
+        >
+          <DialogContent className="max-w-md gap-0 overflow-visible sm:hidden">
+            <DialogHeader>
+              <DialogTitle>Filters</DialogTitle>
+              <DialogClose />
+            </DialogHeader>
+            <div className="relative">
+              <div ref={setDialogBody} className="absolute top-0 left-0 z-100 h-0 w-0 overflow-visible" aria-hidden />
+              <div className="flex max-h-[min(70vh,28rem)] flex-col gap-2 overflow-y-auto px-5 py-4">
+                <MultiEntityFilter
+                  label="Actress"
+                  selected={draftFilters.actresses}
+                  options={actressOptions}
+                  onChange={(actresses) => setDraftFilters((prev) => ({ ...prev, actresses }))}
+                  container={dialogBody}
+                />
+                <MultiEntityFilter
+                  label="Genre"
+                  selected={draftFilters.genres}
+                  options={genreOptions}
+                  onChange={(genres) => setDraftFilters((prev) => ({ ...prev, genres }))}
+                  container={dialogBody}
+                />
+                <SingleEntityFilter
+                  label="Maker"
+                  value={draftFilters.maker}
+                  display={entityName(makerOptions, draftFilters.maker)}
+                  options={makerOptions}
+                  onChange={(id) => setDraftFilters((prev) => ({ ...prev, maker: id }))}
+                  container={dialogBody}
+                />
+                <SingleEntityFilter
+                  label="Label"
+                  value={draftFilters.label}
+                  display={entityName(labelOptions, draftFilters.label)}
+                  options={labelOptions}
+                  onChange={(id) => setDraftFilters((prev) => ({ ...prev, label: id }))}
+                  container={dialogBody}
+                />
+                <SingleEntityFilter
+                  label="Director"
+                  value={draftFilters.director}
+                  display={entityName(directorOptions, draftFilters.director)}
+                  options={directorOptions}
+                  onChange={(id) => setDraftFilters((prev) => ({ ...prev, director: id }))}
+                  container={dialogBody}
+                />
+                <SingleEntityFilter
+                  label="Series"
+                  value={draftFilters.series}
+                  display={entityName(seriesOptions, draftFilters.series)}
+                  options={seriesOptions}
+                  onChange={(id) => setDraftFilters((prev) => ({ ...prev, series: id }))}
+                  container={dialogBody}
+                />
+                <FeaturesCountFilter
+                  value={draftFilters.features_cnt}
+                  onChange={(range) => setDraftFilters((prev) => ({ ...prev, features_cnt: range }))}
+                  container={dialogBody}
+                />
+              </div>
+            </div>
+            <DialogFooter className="border-t border-border">
+              {hasActiveDiscoverFilters(draftFilters) ? (
+                <button
+                  type="button"
+                  className={cn(
+                    filterTriggerClass(true),
+                    "w-full border-destructive/40 text-destructive hover:bg-destructive/10",
+                  )}
+                  onClick={() => setDraftFilters({ ...DEFAULT_VIDEO_FILTERS })}
+                >
+                  Clear filters
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className={cn(filterTriggerClass(), "w-full bg-primary text-primary-foreground hover:bg-primary/90")}
+                onClick={() => {
+                  updateSearch({ filters: draftFilters });
+                  setFiltersOpen(false);
+                }}
+              >
+                Done
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <div className="hidden sm:contents">
+          <MultiEntityFilter
+            label="Actress"
+            selected={filters.actresses}
+            options={actressOptions}
+            onChange={(actresses) => updateSearch({ filters: { ...filters, actresses } })}
+            container={menuPortal}
+          />
+          <MultiEntityFilter
+            label="Genre"
+            selected={filters.genres}
+            options={genreOptions}
+            onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
+            container={menuPortal}
+          />
+          <SingleEntityFilter
+            label="Maker"
+            value={filters.maker}
+            display={entityName(makerOptions, filters.maker)}
+            options={makerOptions}
+            onChange={(id) => setSingle("maker", id)}
+            container={menuPortal}
+          />
+          <SingleEntityFilter
+            label="Label"
+            value={filters.label}
+            display={entityName(labelOptions, filters.label)}
+            options={labelOptions}
+            onChange={(id) => setSingle("label", id)}
+            container={menuPortal}
+          />
+          <SingleEntityFilter
+            label="Director"
+            value={filters.director}
+            display={entityName(directorOptions, filters.director)}
+            options={directorOptions}
+            onChange={(id) => setSingle("director", id)}
+            container={menuPortal}
+          />
+          <SingleEntityFilter
+            label="Series"
+            value={filters.series}
+            display={entityName(seriesOptions, filters.series)}
+            options={seriesOptions}
+            onChange={(id) => setSingle("series", id)}
+            container={menuPortal}
+          />
+          <FeaturesCountFilter value={filters.features_cnt} onChange={setFeaturesCnt} container={menuPortal} />
+          {filtersActive || sort !== DEFAULT_VIDEO_SORT ? (
+            <button
+              type="button"
+              className={cn(filterTriggerClass(true), "border-destructive/40 text-destructive hover:bg-destructive/10")}
+              onClick={() =>
+                updateSearch({
+                  sort: DEFAULT_VIDEO_SORT,
+                  filters: { ...DEFAULT_VIDEO_FILTERS },
+                })
+              }
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {videos.length === 0 ? (
@@ -305,6 +457,8 @@ export function VideoBrowse({
           ))}
         </ul>
       )}
+
+      <div ref={setMenuPortal} className="relative z-100" />
     </div>
   );
 }
@@ -314,16 +468,19 @@ function MultiEntityFilter({
   selected,
   options,
   onChange,
+  container,
 }: {
   label: string;
   selected: number[];
   options: NamedEntity[];
   onChange: (ids: number[]) => void;
+  container?: HTMLElement | null;
 }) {
   const active = selected.length > 0;
+  const [open, setOpen] = useState(false);
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger className={filterTriggerClass(active)}>
         <span className="truncate">
           {label}
@@ -331,7 +488,13 @@ function MultiEntityFilter({
         </span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0">
+      <DropdownMenuContent
+        align="start"
+        side="bottom"
+        sideOffset={4}
+        container={container}
+        className="z-100 min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0"
+      >
         <DropdownMenuGroup>
           <DropdownMenuLabel className="px-2 pt-2">{label} (OR)</DropdownMenuLabel>
           <ScrollArea className="h-auto ">
@@ -365,12 +528,14 @@ function SingleEntityFilter({
   display,
   options,
   onChange,
+  container,
 }: {
   label: string;
   value: number | undefined;
   display: string | undefined;
   options: NamedEntity[];
   onChange: (id: number | undefined) => void;
+  container?: HTMLElement | null;
 }) {
   const active = value != null;
 
@@ -380,7 +545,11 @@ function SingleEntityFilter({
         <span className="max-w-36 truncate">{active && display ? display : label}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0">
+      <DropdownMenuContent
+        align="start"
+        container={container}
+        className="z-100 min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0"
+      >
         <ScrollArea className="h-auto ">
           <div className="p-1 max-h-125">
             <DropdownMenuItem onClick={() => onChange(undefined)} className="relative pl-8">
@@ -407,9 +576,11 @@ function SingleEntityFilter({
 function FeaturesCountFilter({
   value,
   onChange,
+  container,
 }: {
   value: FeaturesCountRange | undefined;
   onChange: (range: FeaturesCountRange | undefined) => void;
+  container?: HTMLElement | null;
 }) {
   const active = value != null;
   const minId = useId();
@@ -451,7 +622,11 @@ function FeaturesCountFilter({
     });
   }
 
-  function stopMenuKeys(e: KeyboardEvent) {
+  function stopInputMenuKeys(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      return;
+    }
+
     e.stopPropagation();
   }
 
@@ -461,11 +636,15 @@ function FeaturesCountFilter({
         <span className="truncate">{featuresCntLabel(value)}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-56 p-3" onKeyDown={stopMenuKeys}>
+      <DropdownMenuContent
+        align="start"
+        container={container}
+        className="z-100 w-(--anchor-width) min-w-0 max-sm:min-w-0 p-3 sm:min-w-56"
+      >
         <DropdownMenuGroup>
           <DropdownMenuLabel className="px-0 pt-0">Featured actresses</DropdownMenuLabel>
         </DropdownMenuGroup>
-        <div className="mt-2 flex flex-col gap-2" onKeyDown={stopMenuKeys} onKeyUp={stopMenuKeys}>
+        <div className="mt-2 flex flex-col gap-2">
           <div className="flex items-center gap-2">
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <Label htmlFor={minId} className="text-xs text-muted-foreground">
@@ -480,8 +659,8 @@ function FeaturesCountFilter({
                 className="h-8"
                 value={minText}
                 onChange={(e) => setMinText(e.target.value)}
-                onKeyDown={stopMenuKeys}
-                onKeyUp={stopMenuKeys}
+                onKeyDown={stopInputMenuKeys}
+                onKeyUp={stopInputMenuKeys}
                 onBlur={() => commit(minText, maxText, openEnded)}
               />
             </div>
@@ -500,8 +679,8 @@ function FeaturesCountFilter({
                 disabled={openEnded}
                 value={maxText}
                 onChange={(e) => setMaxText(e.target.value)}
-                onKeyDown={stopMenuKeys}
-                onKeyUp={stopMenuKeys}
+                onKeyDown={stopInputMenuKeys}
+                onKeyUp={stopInputMenuKeys}
                 onBlur={() => {
                   if (!openEnded) commit(minText, maxText, false);
                 }}
@@ -519,7 +698,7 @@ function FeaturesCountFilter({
                 setOpenEnded(next);
                 commit(minText || "0", maxText, next);
               }}
-              onKeyDown={stopMenuKeys}
+              onKeyDown={stopInputMenuKeys}
             />
             <Label htmlFor={openId} className="font-normal text-muted-foreground">
               Or more (open max)
