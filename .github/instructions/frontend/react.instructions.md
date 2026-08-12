@@ -34,6 +34,12 @@ applyTo: "**/*.jsx, **/*.tsx"
 - Prefer function declarations over arrow functions for component definitions.
 - Adhere to TypeScript and TailwindCSS instructions throughout the project.
 - Use a top-level type-only import (`import type { ... } from '...'`) instead of inline type specifiers.
+- No inline comments except for some detailed policies, description, magic numbers or steps or requirements specifically.
+- Do not modify/touch/delete/move/replace installed ShadCN components in frontend/src/components/ui directly without explicit prompts.
+- Double-check and use the latest support for dependencies.
+- Always put two separate newlines around if blocks, one before the if statement (unless the if statement is the first line in block scope) and one after the block (unless the block is at the end of the block scope).
+- Do not modify any file under folder frontend/src/components/ui directly.
+- Insert newlines between React or native HTML elements on the same level
 
 # State
 

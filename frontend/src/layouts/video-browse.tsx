@@ -9,7 +9,6 @@ import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogT
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -17,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -35,6 +35,7 @@ import {
 } from "@/libs/discover-videos";
 import type { NamedEntity, Video } from "@/mocks/videos";
 import { cn } from "@/libs/utils";
+import { Button } from "@/components/ui/button";
 
 interface VideoBrowseProps {
   title?: string;
@@ -478,9 +479,40 @@ function MultiEntityFilter({
 }) {
   const active = selected.length > 0;
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState<number[]>(selected);
+
+  const draftSet = new Set(draft);
+  const draftItems = options.filter((item) => draftSet.has(item.id));
+  const available = options.filter((item) => !draftSet.has(item.id));
+  const normalized = query.trim().toLowerCase();
+  const filtered = normalized ? available.filter((item) => item.name.toLowerCase().includes(normalized)) : available;
+
+  function commitAndClose() {
+    onChange(draft);
+    setQuery("");
+    setOpen(false);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setDraft(selected);
+      setOpen(true);
+    } else {
+      commitAndClose();
+    }
+  }
+
+  function stopInputMenuKeys(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      return;
+    }
+
+    e.stopPropagation();
+  }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger className={filterTriggerClass(active)}>
         <span className="truncate">
           {label}
@@ -493,30 +525,93 @@ function MultiEntityFilter({
         side="bottom"
         sideOffset={4}
         container={container}
-        className="z-100 min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0"
+        className="z-100 min-w-64 w-(--anchor-width) max-sm:min-w-0 p-0"
       >
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 pt-2">{label} (OR)</DropdownMenuLabel>
-          <ScrollArea className="h-auto ">
-            <div className="p-1 max-h-125">
-              {options.length === 0 ? (
-                <p className="px-2 py-1.5 text-sm text-muted-foreground">No options</p>
-              ) : (
-                options.map((item) => (
-                  <DropdownMenuCheckboxItem
-                    key={item.id}
-                    checked={selected.includes(item.id)}
-                    onCheckedChange={(checked) => {
-                      onChange(checked ? [...selected, item.id] : selected.filter((id) => id !== item.id));
+        <div className="flex flex-col gap-2 border-b border-border p-2">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="px-0 py-0">{label} (OR)</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={stopInputMenuKeys}
+            onKeyUp={stopInputMenuKeys}
+            placeholder={`Search ${label.toLowerCase()}…`}
+            className="h-8"
+            aria-label={`Search ${label}`}
+          />
+        </div>
+
+        {/** This key ensures the ScrollArea resets when the filtered list or
+         * query changes, especially when the list is changed during a query
+         * search.
+         */}
+        <ScrollArea key={filtered.length + query} className="">
+          <div className="p-1 max-h-[min(50vh,20rem)]">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                {available.length === 0 ? "No more options" : "No matches"}
+              </p>
+            ) : (
+              filtered.map((item) => (
+                <DropdownMenuItem
+                  key={item.id}
+                  closeOnClick={false}
+                  onClick={() => setDraft((prev) => [...prev, item.id])}
+                >
+                  {item.name}
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+        <DropdownMenuSeparator />
+
+        <ScrollArea key={draftItems.length} className="">
+          <div className="flex min-h-8 max-h-[min(20vh,12rem)] flex-wrap gap-1.5 p-2">
+            {draftItems.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No selections</p>
+            ) : (
+              draftItems.map((item) => (
+                <Badge key={item.id} variant="secondary" className="gap-1 pr-1">
+                  <span className="max-w-28 truncate">{item.name}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="rounded-full p-0.5 cursor-pointer"
+                    aria-label={`Remove ${item.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDraft((prev) => prev.filter((id) => id !== item.id));
                     }}
                   >
-                    {item.name}
-                  </DropdownMenuCheckboxItem>
-                ))
-              )}
-            </div>
-          </ScrollArea>
-        </DropdownMenuGroup>
+                    <X className="size-3" />
+                  </Button>
+                </Badge>
+              ))
+            )}
+          </div>
+        </ScrollArea>
+        <div className="flex gap-2 border-t border-border p-2">
+          <Button
+            type="button"
+            variant="destructive"
+            className={cn("flex-1 cursor-pointer")}
+            onClick={() => setDraft([])}
+            disabled={draft.length === 0}
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            className={cn("flex-1 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer")}
+            onClick={commitAndClose}
+            disabled={draft.length === 0 && selected.length === 0}
+          >
+            Apply
+            {draft.length > 0 && ` (${draft.length})`}
+          </Button>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -538,9 +633,40 @@ function SingleEntityFilter({
   container?: HTMLElement | null;
 }) {
   const active = value != null;
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [draft, setDraft] = useState<number | undefined>(value);
+
+  const draftItem = draft != null ? options.find((item) => item.id === draft) : undefined;
+  const available = options.filter((item) => item.id !== draft);
+  const normalized = query.trim().toLowerCase();
+  const filtered = normalized ? available.filter((item) => item.name.toLowerCase().includes(normalized)) : available;
+
+  function commitAndClose() {
+    onChange(draft);
+    setQuery("");
+    setOpen(false);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setDraft(value);
+      setOpen(true);
+    } else {
+      commitAndClose();
+    }
+  }
+
+  function stopInputMenuKeys(e: KeyboardEvent) {
+    if (e.key === "Escape") {
+      return;
+    }
+
+    e.stopPropagation();
+  }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger className={filterTriggerClass(active)}>
         <span className="max-w-36 truncate">{active && display ? display : label}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
@@ -548,26 +674,78 @@ function SingleEntityFilter({
       <DropdownMenuContent
         align="start"
         container={container}
-        className="z-100 min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0"
+        className="z-100 min-w-64 w-(--anchor-width) max-sm:min-w-0 p-0"
       >
-        <ScrollArea className="h-auto ">
-          <div className="p-1 max-h-125">
-            <DropdownMenuItem onClick={() => onChange(undefined)} className="relative pl-8">
-              <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
-                {value == null ? <Check className="size-4" /> : null}
-              </span>
-              Any
-            </DropdownMenuItem>
-            {options.map((item) => (
-              <DropdownMenuItem key={item.id} onClick={() => onChange(item.id)} className="relative pl-8">
-                <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
-                  {value === item.id ? <Check className="size-4" /> : null}
-                </span>
-                {item.name}
-              </DropdownMenuItem>
-            ))}
+        <div className="flex flex-col gap-2 border-b border-border p-2">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="px-0 py-0">{label}</DropdownMenuLabel>
+          </DropdownMenuGroup>
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={stopInputMenuKeys}
+            onKeyUp={stopInputMenuKeys}
+            placeholder={`Search ${label.toLowerCase()}…`}
+            className="h-8"
+            aria-label={`Search ${label}`}
+          />
+        </div>
+        <ScrollArea key={filtered.length + query} className="max-h-[min(50vh,20rem)]">
+          <div className="p-1">
+            {filtered.length === 0 ? (
+              <p className="px-2 py-1.5 text-sm text-muted-foreground">
+                {available.length === 0 ? "No more options" : "No matches"}
+              </p>
+            ) : (
+              filtered.map((item) => (
+                <DropdownMenuItem key={item.id} closeOnClick={false} onClick={() => setDraft(item.id)}>
+                  {item.name}
+                </DropdownMenuItem>
+              ))
+            )}
           </div>
         </ScrollArea>
+        <DropdownMenuSeparator />
+        <div className="flex min-h-8 flex-wrap gap-1.5 p-2">
+          {draftItem == null ? (
+            <p className="text-xs text-muted-foreground">No selection</p>
+          ) : (
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="max-w-36 truncate">{draftItem.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                className="rounded-full p-0.5 cursor-pointer"
+                aria-label={`Remove ${draftItem.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDraft(undefined);
+                }}
+              >
+                <X className="size-3" />
+              </Button>
+            </Badge>
+          )}
+        </div>
+        <div className="flex gap-2 border-t border-border p-2">
+          <Button
+            type="button"
+            variant="destructive"
+            className="flex-1 cursor-pointer"
+            onClick={() => setDraft(undefined)}
+            disabled={draft == null}
+          >
+            Clear
+          </Button>
+          <Button
+            type="button"
+            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
+            onClick={commitAndClose}
+            disabled={draft == null && value == null}
+          >
+            Apply
+          </Button>
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );
