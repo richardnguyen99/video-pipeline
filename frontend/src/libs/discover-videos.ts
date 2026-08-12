@@ -33,6 +33,8 @@ export const videoDiscoverFiltersSchema = z.object({
 });
 export type VideoDiscoverFilters = z.infer<typeof videoDiscoverFiltersSchema>;
 
+export const VIDEO_DISCOVER_PAGE_SIZE = 16;
+
 export const DEFAULT_VIDEO_SORT: VideoSort = "trending-week";
 
 export const DEFAULT_VIDEO_FILTERS: VideoDiscoverFilters = {
@@ -195,6 +197,7 @@ export const videoDiscoverSearchSchema = z
 /** URL query type for `/videos` (validated / normalized). */
 export type VideoDiscoverSearchParams = {
   sort?: VideoSort;
+  page?: number;
   actress?: number[];
   genre?: number[];
   maker?: number;
@@ -332,6 +335,21 @@ export function softParseVideoDiscoverSearch(search: unknown): {
     }
   }
 
+  if (input.page != null && input.page !== "") {
+    const result = unsignedIntIdSchema.safeParse(input.page);
+
+    if (result.success && result.data >= 1) {
+      if (result.data > 1) {
+        data.page = result.data;
+      }
+    } else {
+      issues.push({
+        path: "page",
+        message: expectedGotMessage("an integer >= 1", input.page),
+      });
+    }
+  }
+
   return { data, issues };
 }
 
@@ -413,6 +431,7 @@ export function stringifyFeaturesCnt(range: FeaturesCountRange): string {
 
 export function buildVideoDiscoverSearch(input: {
   sort?: VideoSort;
+  page?: number;
   filters?: VideoDiscoverFilters;
 }): VideoDiscoverSearchParams {
   const filters = input.filters ?? DEFAULT_VIDEO_FILTERS;
@@ -420,6 +439,9 @@ export function buildVideoDiscoverSearch(input: {
 
   const sort = input.sort ?? DEFAULT_VIDEO_SORT;
   if (sort !== DEFAULT_VIDEO_SORT) search.sort = sort;
+
+  const page = input.page ?? 1;
+  if (page > 1) search.page = page;
 
   if (filters.actresses.length > 0) search.actress = filters.actresses;
   if (filters.genres.length > 0) search.genre = filters.genres;
@@ -538,6 +560,9 @@ export function sortDiscoverVideos(videos: Video[], sort: VideoSort): Video[] {
 export type VideoDiscoverResult = {
   videos: Video[];
   total: number;
+  page: number;
+  totalPages: number;
+  pageSize: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
 };
@@ -545,19 +570,29 @@ export type VideoDiscoverResult = {
 export async function getDiscoverVideos(
   options: {
     sort?: VideoSort;
+    page?: number;
     filters?: VideoDiscoverFilters;
     videos?: Video[];
+    pageSize?: number;
   } = {},
 ): Promise<VideoDiscoverResult> {
   const sort = options.sort ?? DEFAULT_VIDEO_SORT;
   const filters = options.filters ?? DEFAULT_VIDEO_FILTERS;
+  const pageSize = options.pageSize ?? VIDEO_DISCOVER_PAGE_SIZE;
   const source = options.videos ?? mockVideos;
   const filtered = filterDiscoverVideos(source, filters);
   const sorted = sortDiscoverVideos(filtered, sort);
+  const total = sorted.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, options.page ?? 1), totalPages);
+  const start = (page - 1) * pageSize;
 
   return {
-    videos: sorted,
-    total: sorted.length,
+    videos: sorted.slice(start, start + pageSize),
+    total,
+    page,
+    totalPages,
+    pageSize,
     sort,
     filters,
   };

@@ -25,6 +25,7 @@ export const Route = createFileRoute("/videos/")({
   },
   loaderDeps: ({ search }) => ({
     sort: search.sort,
+    page: search.page,
     actress: search.actress,
     genre: search.genre,
     maker: search.maker,
@@ -47,12 +48,15 @@ export const Route = createFileRoute("/videos/")({
       features_cnt: parseFeaturesCnt(data.features_cnt),
     };
     const sort = data.sort ?? DEFAULT_VIDEO_SORT;
+    const pageNum = data.page ?? 1;
 
-    const page = await getDiscoverVideos({ sort, filters });
+    const page = await getDiscoverVideos({ sort, filters, page: pageNum });
 
     return {
       videos: page.videos,
       total: page.total,
+      page: page.page,
+      totalPages: page.totalPages,
       sort: page.sort,
       filters: page.filters,
       searchIssues: issues,
@@ -75,6 +79,8 @@ function VideosDiscoverPage() {
       description="Discover titles across the catalog."
       videos={data.videos}
       total={data.total}
+      page={data.page}
+      totalPages={data.totalPages}
       sort={data.sort}
       filters={data.filters}
       searchIssues={data.searchIssues}

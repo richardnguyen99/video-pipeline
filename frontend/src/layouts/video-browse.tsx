@@ -1,7 +1,7 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
-import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronRight, ListFilter, X } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, ListFilter, X } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -17,6 +17,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem } from "@/components/ui/pagination";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,12 +31,14 @@ import type {
 import {
   DEFAULT_VIDEO_FILTERS,
   DEFAULT_VIDEO_SORT,
+  VIDEO_DISCOVER_PAGE_SIZE,
   VIDEO_SORT_OPTIONS,
   buildVideoDiscoverSearch,
   hasActiveDiscoverFilters,
 } from "@/libs/discover-videos";
+import { buttonVariants } from "@/libs/shadcn_variants";
 import type { NamedEntity, Video } from "@/mocks/videos";
-import { cn } from "@/libs/utils";
+import { captureScrollPosition, cn, restoreScrollPosition } from "@/libs/utils";
 import { Button } from "@/components/ui/button";
 
 interface VideoBrowseProps {
@@ -42,6 +46,8 @@ interface VideoBrowseProps {
   description?: string;
   videos: Video[];
   total: number;
+  page: number;
+  totalPages: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
   actressOptions: NamedEntity[];
@@ -85,6 +91,8 @@ export function VideoBrowse({
   description,
   videos,
   total,
+  page,
+  totalPages,
   sort,
   filters,
   actressOptions,
@@ -110,6 +118,10 @@ export function VideoBrowse({
     setAlertOpen(false);
   }, [issueKey]);
 
+  useLayoutEffect(() => {
+    restoreScrollPosition();
+  }, [videos, sort, filters, page]);
+
   function openFiltersDialog() {
     setDraftFilters(filters);
     setFiltersOpen(true);
@@ -128,12 +140,18 @@ export function VideoBrowse({
     filters.features_cnt != null,
   ].filter(Boolean).length;
 
-  function updateSearch(next: { sort?: VideoSort; filters?: VideoDiscoverFilters }) {
+  function updateSearch(next: { sort?: VideoSort; filters?: VideoDiscoverFilters; page?: number }) {
+    const nextSort = next.sort ?? sort;
+    const nextFilters = next.filters ?? filters;
+    const filtersChanged = next.filters != null || (next.sort != null && next.sort !== sort);
+    const nextPage = filtersChanged ? 1 : (next.page ?? page);
+
     void navigate({
       to: "/videos",
       search: buildVideoDiscoverSearch({
-        sort: next.sort ?? sort,
-        filters: next.filters ?? filters,
+        sort: nextSort,
+        filters: nextFilters,
+        page: nextPage,
       }),
       replace: true,
       resetScroll: false,
@@ -447,17 +465,125 @@ export function VideoBrowse({
         </div>
       </div>
 
-      {videos.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No videos match these filters.</p>
-      ) : (
-        <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {videos.map((video) => (
-            <li key={video.video_id} className="min-w-0">
-              <CategoryVideoCard video={video} variant="grid" />
+      {total === 0 ? <p className="text-sm text-muted-foreground">No videos match these filters.</p> : null}
+
+      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: VIDEO_DISCOVER_PAGE_SIZE }, (_, index) => {
+          const video: Video | undefined = index < videos.length ? videos[index] : undefined;
+
+          return (
+            <li key={video?.video_id ?? `empty-${index}`} className="min-w-0">
+              {video ? (
+                <CategoryVideoCard video={video} variant="grid" />
+              ) : (
+                <div className="aspect-video w-full rounded-2xl border border-transparent bg-transparent" aria-hidden />
+              )}
             </li>
-          ))}
-        </ul>
-      )}
+          );
+        })}
+      </ul>
+
+      {totalPages > 1 ? (
+        <Pagination className="mt-10">
+          <PaginationContent>
+            <PaginationItem>
+              {page > 1 ? (
+                <Link
+                  to="/videos"
+                  search={buildVideoDiscoverSearch({
+                    sort,
+                    filters,
+                    page: page - 1,
+                  })}
+                  resetScroll={false}
+                  onClick={() => captureScrollPosition()}
+                  aria-label="Go to previous page"
+                  className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pr-2.5")}
+                >
+                  <ChevronLeft className="size-4" />
+                  <span className="hidden sm:block">Previous</span>
+                </Link>
+              ) : (
+                <span
+                  aria-disabled
+                  aria-label="Go to previous page"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "default" }),
+                    "pointer-events-none gap-1 px-2.5 opacity-50 sm:pr-2.5",
+                  )}
+                >
+                  <ChevronLeft className="size-4" />
+                  <span className="hidden sm:block">Previous</span>
+                </span>
+              )}
+            </PaginationItem>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
+              .map((p, i, pageNumbers) => {
+                const showEllipsis = i > 0 && p - pageNumbers[i - 1] > 1;
+
+                return (
+                  <PaginationItem key={p}>
+                    {showEllipsis ? <PaginationEllipsis /> : null}
+                    <Link
+                      to="/videos"
+                      search={buildVideoDiscoverSearch({
+                        sort,
+                        filters,
+                        page: p,
+                      })}
+                      resetScroll={false}
+                      onClick={() => captureScrollPosition()}
+                      aria-label={`Go to page ${p}`}
+                      aria-current={p === page ? "page" : undefined}
+                      className={cn(
+                        buttonVariants({
+                          variant: p === page ? "default" : "outline",
+                          size: "icon",
+                        }),
+                      )}
+                    >
+                      {p}
+                    </Link>
+                  </PaginationItem>
+                );
+              })}
+
+            <PaginationItem>
+              {page < totalPages ? (
+                <Link
+                  to="/videos"
+                  search={buildVideoDiscoverSearch({
+                    sort,
+                    filters,
+                    page: page + 1,
+                  })}
+                  resetScroll={false}
+                  onClick={() => captureScrollPosition()}
+                  aria-label="Go to next page"
+                  className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pl-2.5")}
+                >
+                  <span className="hidden sm:block">Next</span>
+                  <ChevronRight className="size-4" />
+                </Link>
+              ) : (
+                <span
+                  aria-disabled
+                  aria-label="Go to next page"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "default" }),
+                    "pointer-events-none gap-1 px-2.5 opacity-50 sm:pl-2.5",
+                  )}
+                >
+                  <span className="hidden sm:block">Next</span>
+                  <ChevronRight className="size-4" />
+                </span>
+              )}
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      ) : null}
 
       <div ref={setMenuPortal} className="relative z-100" />
     </div>
