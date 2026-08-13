@@ -16,13 +16,25 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship
 
-from app.models.associations import t_video_actress
+from app.models.associations import (
+    t_video_actress,
+    t_video_director,
+    t_video_genre,
+    t_video_label,
+    t_video_maker,
+    t_video_series,
+)
 from app.models.base import IdTimestampMixin
 
 if TYPE_CHECKING:
     from app.models.actress import Actress
     from app.models.comments import Comment
+    from app.models.director import Director
+    from app.models.genre import Genre
+    from app.models.label import Label
+    from app.models.maker import Maker
     from app.models.playlist import PlaylistVideo
+    from app.models.series import Series
     from app.models.video_like import VideoLike
 
 
@@ -110,6 +122,21 @@ class Video(IdTimestampMixin, table=True):
     actresses: list["Actress"] = Relationship(
         back_populates="videos",
         sa_relationship_kwargs={"secondary": t_video_actress},
+    )
+    genres: list["Genre"] = Relationship(
+        sa_relationship_kwargs={"secondary": t_video_genre},
+    )
+    series: list["Series"] = Relationship(
+        sa_relationship_kwargs={"secondary": t_video_series},
+    )
+    makers: list["Maker"] = Relationship(
+        sa_relationship_kwargs={"secondary": t_video_maker},
+    )
+    labels: list["Label"] = Relationship(
+        sa_relationship_kwargs={"secondary": t_video_label},
+    )
+    directors: list["Director"] = Relationship(
+        sa_relationship_kwargs={"secondary": t_video_director},
     )
 
     def __repr__(self) -> str:

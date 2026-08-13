@@ -3,13 +3,17 @@
 from app.dependencies.database import SessionDep, get_session
 from app.dependencies.repositories import (
     ActressRepositoryDep,
+    VideoRepositoryDep,
     get_actress_repository,
+    get_video_repository,
 )
 from app.dependencies.services import (
     ActressServiceDep,
     HealthServiceDep,
+    VideoServiceDep,
     get_actress_service,
     get_health_service,
+    get_video_service,
 )
 from app.dependencies.settings import SettingsDep, get_settings
 
@@ -19,9 +23,13 @@ __all__ = [
     "HealthServiceDep",
     "SessionDep",
     "SettingsDep",
+    "VideoRepositoryDep",
+    "VideoServiceDep",
     "get_actress_repository",
     "get_actress_service",
     "get_health_service",
     "get_session",
     "get_settings",
+    "get_video_repository",
+    "get_video_service",
 ]
