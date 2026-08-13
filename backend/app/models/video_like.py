@@ -150,13 +150,16 @@ class VideoLike(SQLModel, table=True):
             True if a row was deleted, False if there was nothing to
             remove.
         """
+
         like = await VideoLike.get_by_user_and_video(
             session,
             user_id,
             video_id,
         )
+
         if like is None:
             return False
+
         await session.delete(like)
         await session.commit()
 

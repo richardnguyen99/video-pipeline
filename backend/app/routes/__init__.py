@@ -1,9 +1,5 @@
-"""Routes package — aggregates all routers."""
+"""Routes package — aggregates versioned API routers."""
 
-from fastapi import APIRouter
+from app.routes.api.v1 import api_v1_router
 
-from app.routes.health import router as health_router
-
-router = APIRouter()
-
-router.include_router(health_router, tags=["health"])
+__all__ = ["api_v1_router"]
