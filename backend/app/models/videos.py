@@ -5,8 +5,6 @@ from app.models.actress import (
     Actress,
     ActressAka,
     ActressImage,
-    ActressScrape,
-    ActressScrapeErrorPage,
 )
 from app.models.associations import (
     t_video_actress,
@@ -22,26 +20,19 @@ from app.models.label import Label, LabelAka
 from app.models.maker import Maker, MakerAka
 from app.models.series import Series, SeriesAka
 from app.models.video import (
-    NonDmmVideoPrefix,
     Video,
     VideoAka,
     VideoAlias,
-    VideoAliasBlacklist,
-    VideoCacheAlias,
     VideoImageUrl,
-    VideoLastScrapeTimestamp,
     VideoM3u8,
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
-    VideoScrape,
 )
 
 __all__ = [
     "Actress",
     "ActressAka",
     "ActressImage",
-    "ActressScrape",
-    "ActressScrapeErrorPage",
     "Director",
     "DirectorAka",
     "Genre",
@@ -50,20 +41,15 @@ __all__ = [
     "LabelAka",
     "Maker",
     "MakerAka",
-    "NonDmmVideoPrefix",
     "Series",
     "SeriesAka",
     "Video",
     "VideoAka",
     "VideoAlias",
-    "VideoAliasBlacklist",
-    "VideoCacheAlias",
     "VideoImageUrl",
-    "VideoLastScrapeTimestamp",
     "VideoM3u8",
     "VideoSampleImageUrl",
     "VideoSampleMovieUrl",
-    "VideoScrape",
     "t_video_actress",
     "t_video_director",
     "t_video_genre",

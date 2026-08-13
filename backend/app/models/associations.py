@@ -6,6 +6,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    PrimaryKeyConstraint,
     Table,
     text,
 )
@@ -47,6 +48,11 @@ t_video_actress = Table(
         ["public.video.id"],
         ondelete="CASCADE",
         name="video_actress_video_id_fkey",
+    ),
+    PrimaryKeyConstraint(
+        "video_id",
+        "fk_id",
+        name="video_actress_pkey",
     ),
     Index(
         "video_actress_fk_id_idx",

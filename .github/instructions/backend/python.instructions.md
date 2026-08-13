@@ -45,7 +45,8 @@ applyTo: "**/*.py"
 - Always add a trailing comma after the last argument in a function call.
 - Always add a trailing comma after the last argument in an object instantiation.
 - Add an empty line after docstrings in functions and classes
-- Add an empty line before return statements in functions
+- Add an empty line before return statements in functions, except for one-liner functions.
+- Add empty lines around `if`, `for`, and `while` blocks to improve code readability, except when the block is either the first or last statement in a function.
 
 # FAST API
 

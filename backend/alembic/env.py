@@ -74,6 +74,7 @@ def do_run_migrations(connection) -> None:
 async def run_migrations_online() -> None:
     """Run migrations in online mode using an async engine."""
     connectable = create_async_engine(get_url())
+    print(f"Running migrations online with URL: {get_url()}")
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.credentials import UserCredential
     from app.models.playlist import Playlist, PlaylistShare
     from app.models.refresh_token import RefreshToken
+    from app.models.user_actress_subscribe import UserActressSubscribe
     from app.models.video_like import VideoLike
 
 
@@ -74,6 +75,9 @@ class User(SQLModel, table=True):
     playlists: list["Playlist"] = Relationship(back_populates="owner")
     playlist_shares_received: list["PlaylistShare"] = Relationship(
         back_populates="shared_with_user"
+    )
+    actress_subscriptions: list["UserActressSubscribe"] = Relationship(
+        back_populates="user",
     )
 
     def __repr__(self) -> str:

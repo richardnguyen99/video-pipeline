@@ -1,10 +1,9 @@
 """Actress-related SQLModel models."""
 
 import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
-    Boolean,
     Column,
     DateTime,
     ForeignKeyConstraint,
@@ -17,6 +16,12 @@ from sqlalchemy import (
     text,
 )
 from sqlmodel import Field, Relationship, SQLModel
+
+from app.models.associations import t_video_actress
+
+if TYPE_CHECKING:
+    from app.models.user_actress_subscribe import UserActressSubscribe
+    from app.models.video import Video
 
 
 class Actress(SQLModel, table=True):
@@ -190,128 +195,18 @@ class Actress(SQLModel, table=True):
         sa_relationship_kwargs={"uselist": False},
     )
     actress_image: list["ActressImage"] = Relationship(back_populates="fk")
+    videos: list["Video"] = Relationship(
+        back_populates="actresses",
+        sa_relationship_kwargs={"secondary": t_video_actress},
+    )
+    subscribers: list["UserActressSubscribe"] = Relationship(
+        back_populates="actress",
+    )
 
     def __repr__(self) -> str:
         """Return a string representation."""
+
         return f"Actress(id={self.id!r}, name={self.name!r})"
-
-
-class ActressScrape(SQLModel, table=True):
-    """Represents a raw actress scrape record."""
-
-    __tablename__ = "actress_scrape"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="actress_scrape_pkey"),
-        UniqueConstraint(
-            "actress_page", "index_on_page", name="ux_actress_page_index"
-        ),
-        {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column("id", Integer, primary_key=True, autoincrement=True)
-    )
-    name: str = Field(sa_column=Column("name", String(255), nullable=False))
-    actress_page: int = Field(
-        sa_column=Column("actress_page", Integer, nullable=False)
-    )
-    index_on_page: int = Field(
-        sa_column=Column("index_on_page", Integer, nullable=False)
-    )
-    stored: bool = Field(
-        sa_column=Column(
-            "stored", Boolean, nullable=False, server_default=text("false")
-        )
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    dmm_id: Optional[str] = Field(
-        default=None,
-        sa_column=Column(
-            "dmm_id",
-            String(255),
-        ),
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"ActressScrape(id={self.id!r}, name={self.name!r})"
-
-
-class ActressScrapeErrorPage(SQLModel, table=True):
-    """Represents an actress scrape error page record."""
-
-    __tablename__ = "actress_scrape_error_page"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="actress_scrape_error_page_pkey"),
-        UniqueConstraint(
-            "actress_id",
-            "page_num",
-            name="ux_actress_id_page_num",
-        ),
-        {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column("id", Integer, primary_key=True, autoincrement=True)
-    )
-    actress_id: int = Field(
-        sa_column=Column(
-            "actress_id",
-            Integer,
-            nullable=False,
-        ),
-    )
-    page_num: int = Field(
-        sa_column=Column(
-            "page_num",
-            Integer,
-            nullable=False,
-        ),
-    )
-    error_code: str = Field(
-        sa_column=Column(
-            "error_code",
-            String(255),
-            nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"ActressScrapeErrorPage(id={self.id!r})"
 
 
 class ActressAka(SQLModel, table=True):

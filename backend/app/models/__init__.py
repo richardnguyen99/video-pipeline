@@ -18,8 +18,6 @@ from app.models.actress import (
     Actress,
     ActressAka,
     ActressImage,
-    ActressScrape,
-    ActressScrapeErrorPage,
 )
 from app.models.comments import Comment
 from app.models.credentials import UserCredential
@@ -36,18 +34,14 @@ from app.models.playlist import (
 from app.models.refresh_token import RefreshToken
 from app.models.series import Series, SeriesAka
 from app.models.user import User
+from app.models.user_actress_subscribe import UserActressSubscribe
 from app.models.video import (
-    NonDmmVideoPrefix,
     Video,
     VideoAka,
     VideoAlias,
-    VideoAliasBlacklist,
-    VideoCacheAlias,
     VideoImageUrl,
-    VideoLastScrapeTimestamp,
     VideoM3u8,
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
-    VideoScrape,
 )
 from app.models.video_like import VideoLike

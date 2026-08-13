@@ -64,7 +64,7 @@ class VideoLike(SQLModel, table=True):
         },
     )
 
-    user: User = Relationship(back_populates="video_likes")
+    user: User = Relationship(back_populates="likes")
     video: Video = Relationship(back_populates="likes")
 
     def __repr__(self) -> str:
@@ -134,7 +134,9 @@ class VideoLike(SQLModel, table=True):
             .offset(offset)
         )
 
-        return list((await session.exec(statement)).all())
+        result = await session.exec(statement)
+
+        return list(result.all())
 
     @staticmethod
     async def unlike(

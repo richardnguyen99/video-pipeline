@@ -17,65 +17,13 @@ from sqlalchemy import (
 )
 from sqlmodel import Field, Relationship, SQLModel
 
+from app.models.associations import t_video_actress
+
 if TYPE_CHECKING:
+    from app.models.actress import Actress
     from app.models.comments import Comment
     from app.models.playlist import PlaylistVideo
     from app.models.video_like import VideoLike
-
-
-class NonDmmVideoPrefix(SQLModel, table=True):
-    """Represents a non-DMM video ID prefix."""
-
-    __tablename__ = "non_dmm_video_prefix"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="non_dmm_video_prefix_pkey"),
-        UniqueConstraint("prefix", name="non_dmm_video_prefix_prefix_key"),
-        {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
-    prefix: str = Field(
-        sa_column=Column(
-            "prefix",
-            String(20),
-            nullable=False,
-        ),
-    )
-    scraped_at: datetime.datetime = Field(
-        sa_column=Column(
-            "scraped_at",
-            DateTime,
-            nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"NonDmmVideoPrefix(id={self.id!r}, prefix={self.prefix!r})"
 
 
 class Video(SQLModel, table=True):
@@ -183,6 +131,10 @@ class Video(SQLModel, table=True):
     playlist_entries: list["PlaylistVideo"] = Relationship(
         back_populates="video",
     )
+    actresses: list["Actress"] = Relationship(
+        back_populates="videos",
+        sa_relationship_kwargs={"secondary": t_video_actress},
+    )
 
     def __repr__(self) -> str:
         """Return a string representation."""
@@ -256,239 +208,6 @@ class VideoAlias(SQLModel, table=True):
         """Return a string representation."""
 
         return f"VideoAlias(id={self.id!r}, prefix={self.prefix!r})"
-
-
-class VideoAliasBlacklist(SQLModel, table=True):
-    """Represents a blacklisted video alias prefix."""
-
-    __tablename__ = "video_alias_blacklist"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="video_alias_blacklist_pkey"),
-        UniqueConstraint("prefix", name="uq_video_alias_blacklist_prefix"),
-        {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
-    prefix: str = Field(
-        sa_column=Column(
-            "prefix",
-            String(255),
-            nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"VideoAliasBlacklist(id={self.id!r}, prefix={self.prefix!r})"
-
-
-class VideoCacheAlias(SQLModel, table=True):
-    """Represents a cached video alias count for a prefix."""
-
-    __tablename__ = "video_cache_alias"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="video_cache_alias_pkey"),
-        UniqueConstraint("prefix", name="uq_video_cache_alias_prefix"),
-        {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
-    prefix: str = Field(
-        sa_column=Column(
-            "prefix",
-            String(50),
-            nullable=False,
-        ),
-    )
-    count: int = Field(
-        sa_column=Column(
-            "count",
-            Integer,
-            nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"VideoCacheAlias(id={self.id!r}, prefix={self.prefix!r})"
-
-
-class VideoLastScrapeTimestamp(SQLModel, table=True):
-    """Represents the last scrape timestamp for a video."""
-
-    __tablename__ = "video_last_scrape_timestamp"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="video_last_scrape_timestamp_pkey"),
-        UniqueConstraint(
-            "video_id",
-            name="uq_video_last_scrape_timestamp_video_id",
-        ),
-        {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
-    last_scraped_at: datetime.datetime = Field(
-        sa_column=Column(
-            "last_scraped_at",
-            DateTime,
-            nullable=False,
-        ),
-    )
-    video_id: str = Field(
-        sa_column=Column(
-            "video_id",
-            String(255),
-            nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"VideoLastScrapeTimestamp(id={self.id!r})"
-
-
-class VideoScrape(SQLModel, table=True):
-    """Represents a video scrape record."""
-
-    __tablename__ = "video_scrape"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="video_scrape_pkey"),
-        {"schema": "public"},
-    )
-
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
-    video_id: str = Field(
-        sa_column=Column(
-            "video_id",
-            String(255),
-            nullable=False,
-        ),
-    )
-    scraped_at: datetime.datetime = Field(
-        sa_column=Column(
-            "scraped_at",
-            DateTime,
-            nullable=False,
-        ),
-    )
-    stored: int = Field(
-        sa_column=Column(
-            "stored",
-            Integer,
-            nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    actress_id: Optional[int] = Field(
-        default=None,
-        sa_column=Column("actress_id", Integer),
-    )
-    duration: Optional[str] = Field(
-        default=None,
-        sa_column=Column(
-            "duration",
-            String(20),
-        ),
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"VideoScrape(id={self.id!r}, video_id={self.video_id!r})"
 
 
 class VideoAka(SQLModel, table=True):
