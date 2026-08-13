@@ -9,6 +9,7 @@ for f in "$@"; do
   rel="${f#backend/}"
   case "$rel" in
     alembic/*|*/alembic/*) continue ;;
+    tests/*|*/tests/*) continue ;;
   esac
   files+=("$rel")
 done

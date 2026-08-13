@@ -84,3 +84,15 @@ applyTo: "**/*.py"
 - Use `sqlmodel.ext.asyncio.session.AsyncSession` to type-hint the session parameter in model methods that interact with the database.
 - Use `async` to declare asynchronous methods that work with async sessions and `await` to call asynchronous methods within those methods.
 - Add cascade delete to relationships where appropriate.
+
+# Testing
+
+- Use `pytest` as the testing framework for writing and executing unit tests.
+- Use `pytest-asyncio` to support testing of asynchronous code and coroutines.
+
+## Unit Testing
+
+- Enable test on commit using `pre-commit` hooks to ensure that tests are run before code is committed.
+- Use mock data and fixtures to isolate unit tests and avoid dependencies on external systems.
+- Test each file in the `backend/app/services` folder, except the module init file.
+- Each return should be tested in separate cases.

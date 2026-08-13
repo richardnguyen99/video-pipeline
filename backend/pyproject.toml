@@ -34,5 +34,19 @@ ignore_missing_imports = true
 exclude = ["(^|/)\\.venv/", "(^|/)venv/", "(^|/)alembic/", "(^|/)__pycache__/"]
 
 [[tool.mypy.overrides]]
-module = ["sqlalchemy.*"]
+module = ["alembic.*", "celery.*", "sqlalchemy.*"]
 ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+strict_markers = true
+addopts = ["-q", "--tb=short"]
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = ["unit: pure unit tests with mocks/fixtures"]

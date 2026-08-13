@@ -13,11 +13,11 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    text,
 )
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models.associations import t_video_actress
+from app.models.base import IdTimestampMixin
 
 if TYPE_CHECKING:
     from app.models.actress import Actress
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from app.models.video_like import VideoLike
 
 
-class Video(SQLModel, table=True):
+class Video(IdTimestampMixin, table=True):
     """Represents a video entity."""
 
     __table_args__ = (
@@ -36,35 +36,11 @@ class Video(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     video_id: str = Field(
         sa_column=Column(
             "video_id",
             String(255),
             nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
         ),
     )
     title: Optional[str] = Field(
@@ -142,7 +118,7 @@ class Video(SQLModel, table=True):
         return f"Video(id={self.id!r}, video_id={self.video_id!r})"
 
 
-class VideoAlias(SQLModel, table=True):
+class VideoAlias(IdTimestampMixin, table=True):
     """Represents an alias (search/replace pattern) for a video prefix."""
 
     __tablename__ = "video_alias"
@@ -158,14 +134,6 @@ class VideoAlias(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     prefix: str = Field(
         sa_column=Column(
             "prefix",
@@ -187,22 +155,6 @@ class VideoAlias(SQLModel, table=True):
             nullable=False,
         ),
     )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
 
     def __repr__(self) -> str:
         """Return a string representation."""
@@ -210,7 +162,7 @@ class VideoAlias(SQLModel, table=True):
         return f"VideoAlias(id={self.id!r}, prefix={self.prefix!r})"
 
 
-class VideoAka(SQLModel, table=True):
+class VideoAka(IdTimestampMixin, table=True):
     """Represents an alternative name (aka) for a video."""
 
     __tablename__ = "video_aka"
@@ -226,14 +178,6 @@ class VideoAka(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     fk_id: int = Field(
         sa_column=Column(
             "fk_id",
@@ -262,22 +206,6 @@ class VideoAka(SQLModel, table=True):
             nullable=False,
         ),
     )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
 
     fk: "Video" = Relationship(back_populates="video_aka")
 
@@ -287,7 +215,7 @@ class VideoAka(SQLModel, table=True):
         return f"VideoAka(id={self.id!r}, fk_id={self.fk_id!r})"
 
 
-class VideoImageUrl(SQLModel, table=True):
+class VideoImageUrl(IdTimestampMixin, table=True):
     """Represents an image URL associated with a video."""
 
     __tablename__ = "video_image_url"
@@ -304,35 +232,11 @@ class VideoImageUrl(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     url: str = Field(
         sa_column=Column(
             "url",
             Text,
             nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
         ),
     )
     fk_id: int = Field(
@@ -358,7 +262,7 @@ class VideoImageUrl(SQLModel, table=True):
         return f"VideoImageUrl(id={self.id!r}, fk_id={self.fk_id!r})"
 
 
-class VideoM3u8(SQLModel, table=True):
+class VideoM3u8(IdTimestampMixin, table=True):
     """Represents an M3U8 stream URL associated with a video."""
 
     __tablename__ = "video_m3u8"
@@ -379,14 +283,6 @@ class VideoM3u8(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     fk_id: int = Field(
         sa_column=Column(
             "fk_id",
@@ -401,22 +297,6 @@ class VideoM3u8(SQLModel, table=True):
             nullable=False,
         ),
     )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
 
     fk: "Video" = Relationship(back_populates="video_m3u8")
 
@@ -426,7 +306,7 @@ class VideoM3u8(SQLModel, table=True):
         return f"VideoM3u8(id={self.id!r}, fk_id={self.fk_id!r})"
 
 
-class VideoSampleImageUrl(SQLModel, table=True):
+class VideoSampleImageUrl(IdTimestampMixin, table=True):
     """Represents a sample image URL associated with a video."""
 
     __tablename__ = "video_sample_image_url"
@@ -445,35 +325,11 @@ class VideoSampleImageUrl(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     url: str = Field(
         sa_column=Column(
             "url",
             Text,
             nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
         ),
     )
     fk_id: int = Field(
@@ -499,7 +355,7 @@ class VideoSampleImageUrl(SQLModel, table=True):
         return f"VideoSampleImageUrl(id={self.id!r}, fk_id={self.fk_id!r})"
 
 
-class VideoSampleMovieUrl(SQLModel, table=True):
+class VideoSampleMovieUrl(IdTimestampMixin, table=True):
     """Represents a sample movie URL associated with a video."""
 
     __tablename__ = "video_sample_movie_url"
@@ -520,35 +376,11 @@ class VideoSampleMovieUrl(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     url: str = Field(
         sa_column=Column(
             "url",
             Text,
             nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
         ),
     )
     fk_id: int = Field(

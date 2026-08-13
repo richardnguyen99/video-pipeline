@@ -13,18 +13,18 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
-    text,
 )
-from sqlmodel import Field, Relationship, SQLModel
+from sqlmodel import Field, Relationship
 
 from app.models.associations import t_video_actress
+from app.models.base import IdTimestampMixin
 
 if TYPE_CHECKING:
     from app.models.user_actress_subscribe import UserActressSubscribe
     from app.models.video import Video
 
 
-class Actress(SQLModel, table=True):
+class Actress(IdTimestampMixin, table=True):
     """Represents an actress entity."""
 
     __table_args__ = (
@@ -39,35 +39,11 @@ class Actress(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     name: str = Field(
         sa_column=Column(
             "name",
             String(255),
             nullable=False,
-        ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        ),
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
         ),
     )
     url: Optional[str] = Field(
@@ -209,7 +185,7 @@ class Actress(SQLModel, table=True):
         return f"Actress(id={self.id!r}, name={self.name!r})"
 
 
-class ActressAka(SQLModel, table=True):
+class ActressAka(IdTimestampMixin, table=True):
     """Represents an alternative name (aka) for an actress."""
 
     __tablename__ = "actress_aka"
@@ -225,14 +201,6 @@ class ActressAka(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        )
-    )
     name: str = Field(
         sa_column=Column(
             "name",
@@ -254,22 +222,6 @@ class ActressAka(SQLModel, table=True):
             nullable=False,
         ),
     )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
     fk_id: int = Field(
         sa_column=Column(
             "fk_id",
@@ -286,7 +238,7 @@ class ActressAka(SQLModel, table=True):
         return f"ActressAka(id={self.id!r}, fk_id={self.fk_id!r})"
 
 
-class ActressImage(SQLModel, table=True):
+class ActressImage(IdTimestampMixin, table=True):
     """Represents an image associated with an actress."""
 
     __tablename__ = "actress_image"
@@ -307,14 +259,6 @@ class ActressImage(SQLModel, table=True):
         {"schema": "public"},
     )
 
-    id: int = Field(
-        sa_column=Column(
-            "id",
-            Integer,
-            primary_key=True,
-            autoincrement=True,
-        ),
-    )
     url: str = Field(
         sa_column=Column(
             "url",
@@ -328,22 +272,6 @@ class ActressImage(SQLModel, table=True):
             Integer,
             nullable=False,
         ),
-    )
-    created_at: datetime.datetime = Field(
-        sa_column=Column(
-            "created_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
-    )
-    updated_at: datetime.datetime = Field(
-        sa_column=Column(
-            "updated_at",
-            DateTime,
-            nullable=False,
-            server_default=text("now()"),
-        )
     )
     fk_id: int = Field(
         sa_column=Column(

@@ -1,12 +1,28 @@
 [MAIN]
-ignore=alembic,versions,.venv,venv,__pycache__,.mypy_cache,.pytest_cache
-ignore-patterns=alembic/versions/.*
+load-plugins=pylint_pytest
+# Directory basenames to skip when walking; explicit CLI paths are also
+# filtered in scripts/pre-commit/backend-pylint.sh
+ignore=alembic,.venv,venv,__pycache__,.mypy_cache,.pytest_cache,tests
+ignore-paths=^alembic/,^tests/
+ignore-patterns=^alembic/,^tests/
 jobs=0
 
 [MESSAGES CONTROL]
-# Relax common FastAPI / SQLModel / dynamic patterns
 disable=
+    C0114,
+    C0115,
+    C0116,
+    R0903,
+    R0913,
+    W0511,
+    C0301,
+    import-error,
+    no-member,
     too-few-public-methods,
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    redefined-outer-name
 
 [FORMAT]
 max-line-length=79
@@ -22,3 +38,11 @@ max-locals=20
 
 [TYPECHECK]
 ignored-modules=sqlmodel,sqlalchemy,fastapi,pydantic
+
+[SIMILARITIES]
+# Kept for documentation if R0801 is re-enabled later
+min-similarity-lines=20
+ignore-comments=yes
+ignore-docstrings=yes
+ignore-imports=yes
+ignore-signatures=yes

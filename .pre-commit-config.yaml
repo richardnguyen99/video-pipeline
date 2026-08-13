@@ -1,6 +1,6 @@
 # Monorepo pre-commit configuration
-# - Frontend: ESLint + Prettier + production build on staged frontend files
-# - Backend: no lint/format/build hooks
+# - Frontend: ESLint + Prettier + production build
+# - Backend: Black + Pylint + Mypy + production build
 # - Commit message: conventional commits for the whole monorepo
 #
 # Hook implementations live in scripts/pre-commit/
@@ -38,7 +38,7 @@ repos:
         language: system
         entry: bash scripts/pre-commit/backend-black.sh
         files: ^backend/.*\.py$
-        exclude: ^backend/alembic
+        exclude: ^backend/alembic/
         pass_filenames: true
 
       - id: backend-pylint
@@ -46,7 +46,7 @@ repos:
         language: system
         entry: bash scripts/pre-commit/backend-pylint.sh
         files: ^backend/.*\.py$
-        exclude: ^backend/alembic
+        exclude: ^backend/alembic/
         pass_filenames: true
 
       - id: backend-mypy
@@ -54,7 +54,7 @@ repos:
         language: system
         entry: bash scripts/pre-commit/backend-mypy.sh
         files: ^backend/.*\.py$
-        exclude: ^backend/alembic
+        exclude: ^backend/alembic/
         pass_filenames: true
 
       - id: backend-build
@@ -64,6 +64,15 @@ repos:
         files: ^backend/
         pass_filenames: false
 
+
+      - id: backend-pytest
+        name: backend unit tests
+        language: system
+        entry: bash scripts/pre-commit/backend-pytest.sh
+        files: ^backend/
+        pass_filenames: false
+
+      # ── Commit message (all packages) ─────────────────────
       - id: commitlint
         name: commitlint
         language: system
