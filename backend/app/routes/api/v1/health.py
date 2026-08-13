@@ -1,18 +1,11 @@
 """Health check endpoint."""
 
 from fastapi import APIRouter, status
-from pydantic import BaseModel
 
-from app.config import settings
+from app.dependencies import HealthServiceDep
+from app.schemas.health import HealthResponse
 
 router = APIRouter()
-
-
-class HealthResponse(BaseModel):
-    """Response schema for the health check endpoint."""
-
-    status: str
-    version: str
 
 
 @router.get(
@@ -21,7 +14,7 @@ class HealthResponse(BaseModel):
     status_code=status.HTTP_200_OK,
     summary="Health check",
 )
-async def health_check() -> HealthResponse:
+async def health_check(service: HealthServiceDep) -> HealthResponse:
     """Return the current health status of the service."""
 
-    return HealthResponse(status="ok", version=settings.app_version)
+    return service.get_health()

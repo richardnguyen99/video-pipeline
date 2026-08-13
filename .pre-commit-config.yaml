@@ -1,6 +1,6 @@
 # Monorepo pre-commit configuration
 # - Frontend: ESLint + Prettier + production build
-# - Backend: Black + Pylint + Mypy + production build
+# - Backend: Black + Pylint + Mypy + production build + version bump
 # - Commit message: conventional commits for the whole monorepo
 #
 # Hook implementations live in scripts/pre-commit/
@@ -70,6 +70,23 @@ repos:
         language: system
         entry: bash scripts/pre-commit/backend-pytest.sh
         files: ^backend/
+        pass_filenames: false
+
+
+      - id: backend-version-bump-patch
+        name: backend version bump (patch after successful commit)
+        language: system
+        entry: bash scripts/pre-commit/backend-version-bump-patch.sh
+        stages: [post-commit]
+        always_run: true
+        pass_filenames: false
+
+      - id: backend-version-bump-minor
+        name: backend version bump (minor on merge to main)
+        language: system
+        entry: bash scripts/pre-commit/backend-version-bump-minor.sh
+        stages: [post-merge]
+        always_run: true
         pass_filenames: false
 
       # ── Commit message (all packages) ─────────────────────
