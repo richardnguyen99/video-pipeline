@@ -13,4 +13,3 @@ sqlacodegen>=4.0.0
 mypy>=1.10.0
 pytest>=9.0.0
 pytest-asyncio>=1.4.0
-pylint-pytest>=1.1.0

@@ -1,10 +1,47 @@
 [MAIN]
-load-plugins=pylint_pytest
-# Directory basenames to skip when walking; explicit CLI paths are also
-# filtered in scripts/pre-commit/backend-pylint.sh
-ignore=alembic,.venv,venv,__pycache__,.mypy_cache,.pytest_cache,tests
-ignore-paths=^alembic/,^tests/
-ignore-patterns=^alembic/,^tests/
+# Basename-only skips (directory / file names, not full paths).
+ignore=
+    alembic,
+    .venv,
+    venv,
+    .env,
+    __pycache__,
+    .mypy_cache,
+    .pytest_cache,
+    .git,
+    .tox,
+    .eggs,
+    dist,
+    build,
+    node_modules,
+    tests
+# Path regexes; match relative or absolute paths (VS Code passes absolute).
+# Prefer unescaped "." for ignore-paths: pylint normalizes patterns via
+# pathlib and escaped "\." often fails to match (see pylint#7094).
+ignore-paths=
+    ^alembic/,
+    ^tests/,
+    .venv,
+    .*/.venv/,
+    .*/.venv$,
+    ^venv/,
+    .*/venv/,
+    .*/site-packages/,
+    .*/__pycache__/,
+    .*/.mypy_cache/,
+    .*/.pytest_cache/,
+    .*/.tox/,
+    .*/.git/
+ignore-patterns=
+    ^alembic$,
+    ^tests$,
+    ^\.venv$,
+    ^venv$,
+    ^__pycache__$,
+    ^\.mypy_cache$,
+    ^\.pytest_cache$,
+    ^\.git$,
+    ^\.tox$
 jobs=0
 
 [MESSAGES CONTROL]
@@ -40,7 +77,6 @@ max-locals=20
 ignored-modules=sqlmodel,sqlalchemy,fastapi,pydantic
 
 [SIMILARITIES]
-# Kept for documentation if R0801 is re-enabled later
 min-similarity-lines=20
 ignore-comments=yes
 ignore-docstrings=yes

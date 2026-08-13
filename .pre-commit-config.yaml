@@ -74,7 +74,7 @@ repos:
 
 
       - id: backend-version-bump-patch
-        name: backend version bump (patch after successful commit)
+        name: backend version patch bump
         language: system
         entry: bash scripts/pre-commit/backend-version-bump-patch.sh
         stages: [post-commit]

@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import app.models  # pylint: disable=unused-import
 from app.config import settings
 from app.database import create_db_and_tables
 from app.routes import api_v1_router
@@ -22,7 +23,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 
-app = FastAPI(
+fastapi_app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     debug=settings.debug,
@@ -33,7 +34,7 @@ app = FastAPI(
     openapi_url="/api/v1/openapi.json",
 )
 
-app.include_router(api_v1_router)
+fastapi_app.include_router(api_v1_router)
 
 
 def _error_body(
@@ -50,7 +51,7 @@ def _error_body(
     }
 
 
-@app.exception_handler(StarletteHTTPException)
+@fastapi_app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(
     _request: Request,
     exc: StarletteHTTPException,
@@ -63,7 +64,7 @@ async def http_exception_handler(
     )
 
 
-@app.exception_handler(RequestValidationError)
+@fastapi_app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     _request: Request,
     exc: RequestValidationError,
@@ -79,7 +80,7 @@ async def validation_exception_handler(
     )
 
 
-@app.exception_handler(Exception)
+@fastapi_app.exception_handler(Exception)
 async def unhandled_exception_handler(
     _request: Request,
     exc: Exception,
@@ -97,7 +98,7 @@ async def unhandled_exception_handler(
     )
 
 
-@app.api_route(
+@fastapi_app.api_route(
     "/{full_path:path}",
     methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
     include_in_schema=False,

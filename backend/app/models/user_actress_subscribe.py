@@ -60,8 +60,8 @@ class UserActressSubscribe(SQLModel, table=True):
         },
     )
 
-    user: "User" = Relationship(back_populates="actress_subscriptions")
-    actress: "Actress" = Relationship(back_populates="subscribers")
+    user: User = Relationship(back_populates="actress_subscriptions")
+    actress: Actress = Relationship(back_populates="subscribers")
 
     def __repr__(self) -> str:
         """Return a debug-friendly representation."""
