@@ -47,6 +47,13 @@ applyTo: "**/*.py"
 - Add an empty line after docstrings in functions and classes
 - Add an empty line before return statements in functions, except for one-liner functions.
 - Add empty lines around `if`, `for`, and `while` blocks to improve code readability, except when the block is either the first or last statement in a function.
+- HTTP status codes must not be used with explicit number code. Either they are used from libraries or the app components define them as enum.
+- Unused parameters that are required for the function's signature must have prefix \_ to avoid linting errors/warnings.
+- Do not disable/suppress/ignore a test/linting/format error, unless prompts specify so.
+- Invalid input yields a 400 HTTP status error code.
+- Missing authentication / authorization information yields a 401 HTTP status error code.
+- Requests with not-supported Origin and Referer headers yields a 403 HTTP status error code.
+- Invalid / Not Found URLs yields a 404 HTTP status error code.
 
 # FAST API
 

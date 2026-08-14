@@ -1,7 +1,13 @@
 """Video application service."""
 
+from fastapi import HTTPException, status
+
 from app.repositories.video import VideoRepository
-from app.schemas.video import VideoListResponse, VideoResponse
+from app.schemas.video import (
+    VideoDetailResponse,
+    VideoListResponse,
+    VideoResponse,
+)
 
 
 class VideoService:
@@ -49,3 +55,26 @@ class VideoService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def get_video(self, video_id: int) -> VideoDetailResponse:
+        """Return a single video by primary key with full relations.
+
+        Args:
+            video_id: ``Video.id`` primary key.
+
+        Returns:
+            A ``VideoDetailResponse`` including actress aka and images.
+
+        Raises:
+            HTTPException: When no video exists for ``video_id``.
+        """
+
+        row = await self._repository.get_by_id(video_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        return VideoDetailResponse.model_validate(row)

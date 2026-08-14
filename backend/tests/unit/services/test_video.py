@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException, status
 
 from app.repositories.video import VideoRepository
 from app.services.video import VideoService
@@ -20,6 +21,8 @@ class FakeVideoRepository:
     count_result: int = 0
     list_calls: list[dict[str, int]] = field(default_factory=list)
     count_calls: int = 0
+    get_result: Any | None = None
+    get_calls: list[int] = field(default_factory=list)
 
     async def list_videos(
         self,
@@ -39,6 +42,13 @@ class FakeVideoRepository:
         self.count_calls += 1
 
         return self.count_result
+
+    async def get_by_id(self, video_id: int) -> Any | None:
+        """Return the configured detail row and record the call."""
+
+        self.get_calls.append(video_id)
+
+        return self.get_result
 
 
 @pytest.fixture
@@ -216,3 +226,88 @@ async def test_list_videos_preserves_requested_pagination(
     assert result.offset == 10
     assert result.total == 50
     assert repository.list_calls == [{"limit": 5, "offset": 10}]
+
+
+@pytest.mark.asyncio
+async def test_get_video_returns_detail_with_actress_relations(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Detail payload includes actress aka and images."""
+
+    repository.get_result = SimpleNamespace(
+        id=7,
+        video_id="SSIS-007",
+        title="Detail Title",
+        cid=None,
+        duration=90,
+        release_date=None,
+        jancode=None,
+        maker_product=None,
+        floor_code=None,
+        created_at=None,
+        updated_at=None,
+        actresses=[
+            SimpleNamespace(
+                id=1,
+                name="Aoi Sora",
+                ruby=None,
+                image_url="https://example.com/a.jpg",
+                dmm_id="dmm-1",
+                actress_aka=SimpleNamespace(
+                    id=10,
+                    name="蒼井そら",
+                    translated_name="Aoi Sora",
+                ),
+                actress_image=[
+                    SimpleNamespace(
+                        id=20,
+                        url="https://example.com/avatar.jpg",
+                        attribute=2,
+                    ),
+                ],
+            ),
+        ],
+        genres=[
+            SimpleNamespace(id=2, name="Drama", ruby=None, dmm_id="g-1"),
+        ],
+        series=[],
+        makers=[],
+        labels=[],
+        directors=[],
+        video_image_url=[
+            SimpleNamespace(
+                id=10,
+                url="https://example.com/cover.jpg",
+                type="cover",
+            ),
+        ],
+        video_sample_image_url=[],
+        video_sample_movie_url=[],
+    )
+
+    result = await service.get_video(video_id=7)
+
+    assert result.id == 7
+    assert result.video_id == "SSIS-007"
+    assert result.actresses[0].actress_aka is not None
+    assert result.actresses[0].actress_aka.translated_name == "Aoi Sora"
+    assert result.actresses[0].actress_image[0].attribute == "avatar"
+    assert result.genres[0].name == "Drama"
+    assert repository.get_calls == [7]
+
+
+@pytest.mark.asyncio
+async def test_get_video_raises_not_found_when_missing(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Missing primary key yields HTTP 404."""
+
+    repository.get_result = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_video(video_id=999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    assert repository.get_calls == [999]

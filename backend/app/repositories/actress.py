@@ -1,18 +1,11 @@
 """Actress data-access repository."""
 
-from typing import Any, cast
-
-from sqlalchemy.orm import QueryableAttribute, selectinload
+from sqlalchemy.orm import selectinload
 from sqlmodel import col, func, select
 
-from app.models.actress import Actress
+from app.models.actress import Actress, ActressAka, ActressImage
 from app.repositories.base import BaseRepository
-
-
-def _relationship_attr(attribute: Any) -> QueryableAttribute[Any]:
-    """Narrow a SQLModel relationship to a ``QueryableAttribute`` for mypy."""
-
-    return cast(QueryableAttribute[Any], attribute)
+from app.utils import _col, _relationship_attr
 
 
 class ActressRepository(BaseRepository):
@@ -26,6 +19,9 @@ class ActressRepository(BaseRepository):
     ) -> list[Actress]:
         """Return a page of actresses with aka and images loaded.
 
+        ``selectinload`` avoids cartesian products; ``load_only`` limits
+        columns to those exposed by the public schemas.
+
         Args:
             limit: Maximum rows to return.
             offset: Number of rows to skip.
@@ -38,8 +34,20 @@ class ActressRepository(BaseRepository):
         statement = (
             select(Actress)
             .options(
-                selectinload(_relationship_attr(Actress.actress_aka)),
-                selectinload(_relationship_attr(Actress.actress_image)),
+                selectinload(
+                    _relationship_attr(Actress.actress_aka),
+                ).load_only(
+                    _col(ActressAka.id),
+                    _col(ActressAka.name),
+                    _col(ActressAka.translated_name),
+                ),
+                selectinload(
+                    _relationship_attr(Actress.actress_image),
+                ).load_only(
+                    _col(ActressImage.id),
+                    _col(ActressImage.url),
+                    _col(ActressImage.attribute),
+                ),
             )
             .order_by(col(Actress.id))
             .offset(offset)

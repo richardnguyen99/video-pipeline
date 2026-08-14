@@ -5,6 +5,8 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.actress import ActressAkaResponse, ActressImageResponse
+
 
 class VideoCatalogEntityResponse(BaseModel):
     """Lightweight catalog entity linked to a video."""
@@ -26,6 +28,20 @@ class VideoActressSummaryResponse(BaseModel):
     name: str
     ruby: Optional[str] = None
     image_url: Optional[str] = None
+
+
+class VideoActressDetailResponse(BaseModel):
+    """Actress embedded on a video detail payload."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    ruby: Optional[str] = None
+    image_url: Optional[str] = None
+    dmm_id: Optional[str] = None
+    actress_aka: Optional[ActressAkaResponse] = None
+    actress_image: list[ActressImageResponse] = Field(default_factory=list)
 
 
 class VideoImageUrlResponse(BaseModel):
@@ -59,7 +75,7 @@ class VideoSampleMovieUrlResponse(BaseModel):
 
 
 class VideoResponse(BaseModel):
-    """Public video representation with related entities."""
+    """Public video representation for list endpoints."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -75,6 +91,37 @@ class VideoResponse(BaseModel):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     actresses: list[VideoActressSummaryResponse] = Field(default_factory=list)
+    genres: list[VideoCatalogEntityResponse] = Field(default_factory=list)
+    series: list[VideoCatalogEntityResponse] = Field(default_factory=list)
+    makers: list[VideoCatalogEntityResponse] = Field(default_factory=list)
+    labels: list[VideoCatalogEntityResponse] = Field(default_factory=list)
+    directors: list[VideoCatalogEntityResponse] = Field(default_factory=list)
+    video_image_url: list[VideoImageUrlResponse] = Field(default_factory=list)
+    video_sample_image_url: list[VideoSampleImageUrlResponse] = Field(
+        default_factory=list,
+    )
+    video_sample_movie_url: list[VideoSampleMovieUrlResponse] = Field(
+        default_factory=list,
+    )
+
+
+class VideoDetailResponse(BaseModel):
+    """Full video payload including detailed actress relations."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    video_id: str
+    title: Optional[str] = None
+    cid: Optional[str] = None
+    duration: Optional[int] = None
+    release_date: Optional[datetime] = None
+    jancode: Optional[str] = None
+    maker_product: Optional[str] = None
+    floor_code: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    actresses: list[VideoActressDetailResponse] = Field(default_factory=list)
     genres: list[VideoCatalogEntityResponse] = Field(default_factory=list)
     series: list[VideoCatalogEntityResponse] = Field(default_factory=list)
     makers: list[VideoCatalogEntityResponse] = Field(default_factory=list)
