@@ -1,9 +1,14 @@
 """Video collection and detail endpoints."""
 
+# pylint: disable=too-many-positional-arguments
+
+from typing import Optional
+
 from fastapi import APIRouter, Path, Query, status
 
 from app.dependencies import VideoServiceDep
 from app.schemas.video import VideoDetailResponse, VideoListResponse
+from app.schemas.video_filters import VideoSort
 
 router = APIRouter()
 
@@ -18,10 +23,40 @@ async def list_videos(
     service: VideoServiceDep,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    page: Optional[int] = Query(default=None, ge=1),
+    sort: Optional[VideoSort] = Query(default=None),
+    actress: Optional[list[int]] = Query(
+        default=None,
+        description="Repeated actress ids: ?actress=1&actress=2 (OR).",
+    ),
+    genre: Optional[list[int]] = Query(
+        default=None,
+        description="Repeated genre ids: ?genre=1&genre=2 (OR).",
+    ),
+    maker: Optional[int] = Query(default=None, ge=1),
+    label: Optional[int] = Query(default=None, ge=1),
+    director: Optional[int] = Query(default=None, ge=1),
+    series: Optional[int] = Query(default=None, ge=1),
+    features_cnt: Optional[str] = Query(
+        default=None,
+        description='Actress count range: "2", "3,", or "1,3".',
+    ),
 ) -> VideoListResponse:
-    """Return a paginated list of videos with related entities."""
+    """Return a paginated, filtered list of videos."""
 
-    return await service.list_videos(limit=limit, offset=offset)
+    return await service.list_videos(
+        limit=limit,
+        offset=offset,
+        page=page,
+        sort=sort,
+        actress=actress,
+        genre=genre,
+        maker=maker,
+        label=label,
+        director=director,
+        series=series,
+        features_cnt=features_cnt,
+    )
 
 
 @router.get(
