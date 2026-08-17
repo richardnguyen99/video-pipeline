@@ -1,0 +1,53 @@
+# Local MinIO object storage (S3-compatible), separate from the API process.
+#
+# Start:
+#   docker compose -f docker-compose.minio.yml up -d
+#
+# Console:  http://localhost:9001  (minioadmin / minioadmin)
+# S3 API:   http://localhost:9000
+#
+# Default bucket ``video-samples`` is created by the init service and left
+# world-readable for local development of sample_gen image URLs.
+
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: video-pipeline-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: video-pipeline-minio-init
+    depends_on:
+      - minio
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        echo "Waiting for MinIO..."
+        i=0
+        until mc alias set local http://minio:9000 minioadmin minioadmin 2>/dev/null; do
+          i=$$((i+1))
+          if [ "$$i" -gt 30 ]; then
+            echo "MinIO did not become ready in time"
+            exit 1
+          fi
+          sleep 1
+        done
+        mc mb --ignore-existing local/video-samples
+        mc anonymous set download local/video-samples
+        echo "Bucket video-samples is ready"
+    restart: "no"
+
+volumes:
+  minio_data:
