@@ -424,3 +424,29 @@ class VideoRepository(BaseRepository):
             video_id: VideoEngagementCounts(**values)
             for video_id, values in totals.items()
         }
+
+    async def list_comments_for_video(
+        self,
+        video_id: int,
+    ) -> list[Comment]:
+        """Return non-deleted comments for a video with authors loaded.
+
+        Args:
+            video_id: ``Video.id`` primary key.
+
+        Returns:
+            Comments ordered by creation time ascending.
+        """
+
+        statement = (
+            select(Comment)
+            .where(
+                col(Comment.video_id) == video_id,
+                col(Comment.is_deleted).is_(False),
+            )
+            .options(selectinload(_relationship_attr(Comment.user)))
+            .order_by(col(Comment.created_at).asc())
+        )
+        result = await self.session.exec(statement)
+
+        return list(result.all())

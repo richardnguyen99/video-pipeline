@@ -9,6 +9,7 @@ cross-schema foreign key.
 
 import datetime
 import uuid
+from typing import Optional
 
 from sqlalchemy.sql.functions import now
 from sqlmodel import Field, Relationship, SQLModel, col, select
@@ -44,6 +45,11 @@ class Comment(SQLModel, table=True):
         index=True,
     )
     video_id: int = Field(foreign_key="public.video.id", index=True)
+    parent_id: Optional[uuid.UUID] = Field(
+        default=None,
+        foreign_key="app_user_schema.comment.id",
+        index=True,
+    )
 
     content: str = Field(sa_type=AutoString, nullable=False)
 

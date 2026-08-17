@@ -9,6 +9,8 @@ from fastapi import HTTPException, status
 from app.models.video import Video
 from app.repositories.video import VideoRepository
 from app.schemas.video import (
+    CommentUserResponse,
+    VideoCommentResponse,
     VideoDetailResponse,
     VideoEngagementCounts,
     VideoListResponse,
@@ -112,14 +114,109 @@ class VideoService:
             comments=counts.comments,
         )
 
+    @staticmethod
+    def _map_comment_user(user: object) -> CommentUserResponse:
+        """Map an ORM user to the comment author payload."""
+
+        return CommentUserResponse(
+            id=str(getattr(user, "id")),
+            username=str(getattr(user, "username")),
+            display_name=getattr(user, "display_name", None),
+            avatar_url=getattr(user, "avatar_url", None),
+        )
+
+    def _map_comment_node(
+        self,
+        comment: object,
+        *,
+        replies: list[VideoCommentResponse] | None = None,
+    ) -> VideoCommentResponse:
+        """Map one ORM comment to the frontend ``VideoComment`` shape."""
+
+        parent_id = getattr(comment, "parent_id", None)
+
+        return VideoCommentResponse(
+            id=str(getattr(comment, "id")),
+            video_id=int(getattr(comment, "video_id")),
+            user=self._map_comment_user(getattr(comment, "user")),
+            content=str(getattr(comment, "content")),
+            is_edited=bool(getattr(comment, "is_edited", False)),
+            is_deleted=bool(getattr(comment, "is_deleted", False)),
+            created_at=getattr(comment, "created_at"),
+            updated_at=getattr(comment, "updated_at"),
+            parent_id=str(parent_id) if parent_id is not None else None,
+            likes=0,
+            dislikes=0,
+            viewer_vote=None,
+            replies=list(replies or []),
+        )
+
+    def _build_comment_tree(
+        self,
+        comments: list[object],
+    ) -> list[VideoCommentResponse]:
+        """Nest replies under parents; top-level nodes have no parent."""
+
+        nodes: dict[str, VideoCommentResponse] = {}
+        children: dict[str | None, list[str]] = {}
+
+        for comment in comments:
+            node = self._map_comment_node(comment)
+            nodes[node.id] = node
+            parent_key = node.parent_id
+            children.setdefault(parent_key, []).append(node.id)
+
+        def attach(comment_id: str) -> VideoCommentResponse:
+            node = nodes[comment_id]
+            reply_ids = children.get(comment_id, [])
+            node.replies = [attach(reply_id) for reply_id in reply_ids]
+
+            return node
+
+        roots = children.get(None, [])
+
+        return [attach(root_id) for root_id in roots]
+
     async def _to_video_detail_response(
         self,
-        row: object,
+        row: Video,
+        *,
+        counts: VideoEngagementCounts,
+        comments: list[object],
     ) -> VideoDetailResponse:
-        """Validate a detail row and rewrite local media URLs."""
+        """Validate a detail row, rewrite media URLs, attach engagement."""
 
-        video = VideoDetailResponse.model_validate(row)
-        data = await self._rewrite_media_urls(video.model_dump())
+        # Avoid model_validate(row) so relationship attrs named like
+        # engagement fields are never read.
+        base = VideoDetailResponse.model_validate(
+            {
+                "id": row.id,
+                "video_id": row.video_id,
+                "title": row.title,
+                "cid": row.cid,
+                "duration": row.duration,
+                "release_date": row.release_date,
+                "jancode": row.jancode,
+                "maker_product": row.maker_product,
+                "floor_code": row.floor_code,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+                "actresses": row.actresses,
+                "genres": row.genres,
+                "series": row.series,
+                "makers": row.makers,
+                "labels": row.labels,
+                "directors": row.directors,
+                "video_image_url": row.video_image_url,
+                "video_sample_image_url": row.video_sample_image_url,
+                "video_sample_movie_url": row.video_sample_movie_url,
+                "views": counts.views,
+                "likes": counts.likes,
+                "dislikes": counts.dislikes,
+                "comments": self._build_comment_tree(comments),
+            },
+        )
+        data = await self._rewrite_media_urls(base.model_dump())
 
         return VideoDetailResponse.model_validate(data)
 
@@ -245,4 +342,14 @@ class VideoService:
                 detail="Video not found",
             )
 
-        return await self._to_video_detail_response(row)
+        engagement = await self._repository.count_engagement_for_videos(
+            [row.id],
+        )
+        counts = engagement.get(row.id, VideoEngagementCounts())
+        comments = await self._repository.list_comments_for_video(row.id)
+
+        return await self._to_video_detail_response(
+            row,
+            counts=counts,
+            comments=list(comments),
+        )

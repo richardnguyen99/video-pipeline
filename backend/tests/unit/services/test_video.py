@@ -11,6 +11,7 @@ import pytest
 from fastapi import HTTPException, status
 
 from app.repositories.video import VideoRepository
+from app.schemas.video import VideoEngagementCounts
 from app.schemas.video_filters import (
     VideoListFilters,
     VideoSort,
@@ -74,9 +75,12 @@ class FakeVideoRepository:
     ) -> dict[int, Any]:
         """Return empty engagement totals for each id."""
 
-        from app.schemas.video import VideoEngagementCounts
-
         return {video_id: VideoEngagementCounts() for video_id in video_ids}
+
+    async def list_comments_for_video(self, video_id: int) -> list[Any]:
+        """Return no comments by default."""
+
+        return []
 
 
 @dataclass

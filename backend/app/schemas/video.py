@@ -105,6 +105,37 @@ class VideoResponse(BaseModel):
     comments: int = Field(default=0, ge=0)
 
 
+class CommentUserResponse(BaseModel):
+    """Author summary embedded on a comment."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    username: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class VideoCommentResponse(BaseModel):
+    """Comment node aligned with the frontend ``VideoComment`` shape."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    video_id: int
+    user: CommentUserResponse
+    content: str
+    is_edited: bool = False
+    is_deleted: bool = False
+    created_at: datetime
+    updated_at: datetime
+    parent_id: Optional[str] = None
+    likes: int = Field(default=0, ge=0)
+    dislikes: int = Field(default=0, ge=0)
+    viewer_vote: Optional[str] = None
+    replies: list["VideoCommentResponse"] = Field(default_factory=list)
+
+
 class VideoDetailResponse(BaseModel):
     """Full video payload including detailed actress relations."""
 
@@ -134,6 +165,10 @@ class VideoDetailResponse(BaseModel):
     video_sample_movie_url: list[VideoSampleMovieUrlResponse] = Field(
         default_factory=list,
     )
+    views: int = Field(default=0, ge=0)
+    likes: int = Field(default=0, ge=0)
+    dislikes: int = Field(default=0, ge=0)
+    comments: list[VideoCommentResponse] = Field(default_factory=list)
 
 
 class VideoListResponse(BaseModel):
@@ -143,3 +178,6 @@ class VideoListResponse(BaseModel):
     total: int = Field(ge=0)
     limit: int = Field(ge=1)
     offset: int = Field(ge=0)
+
+
+VideoCommentResponse.model_rebuild()
