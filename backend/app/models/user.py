@@ -15,7 +15,8 @@ if TYPE_CHECKING:
     from app.models.playlist import Playlist, PlaylistShare
     from app.models.refresh_token import RefreshToken
     from app.models.user_actress_subscribe import UserActressSubscribe
-    from app.models.video_like import VideoLike
+    from app.models.video_reaction import VideoReaction
+    from app.models.video_view import VideoView
 
 
 class User(SQLModel, table=True):
@@ -71,7 +72,10 @@ class User(SQLModel, table=True):
     )
     refresh_tokens: list["RefreshToken"] = Relationship(back_populates="user")
     comments: list["Comment"] = Relationship(back_populates="user")
-    likes: list["VideoLike"] = Relationship(back_populates="user")
+    video_reactions: list["VideoReaction"] = Relationship(
+        back_populates="user",
+    )
+    views: list["VideoView"] = Relationship(back_populates="user")
     playlists: list["Playlist"] = Relationship(back_populates="owner")
     playlist_shares_received: list["PlaylistShare"] = Relationship(
         back_populates="shared_with_user"

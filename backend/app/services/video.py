@@ -6,9 +6,11 @@ from typing import Any, Optional
 
 from fastapi import HTTPException, status
 
+from app.models.video import Video
 from app.repositories.video import VideoRepository
 from app.schemas.video import (
     VideoDetailResponse,
+    VideoEngagementCounts,
     VideoListResponse,
     VideoResponse,
 )
@@ -81,13 +83,34 @@ class VideoService:
 
         return payload
 
-    async def _to_video_response(self, row: object) -> VideoResponse:
-        """Validate a row and rewrite local media URLs."""
+    def _to_video_response(
+        self,
+        row: Video,
+        counts: VideoEngagementCounts,
+    ) -> VideoResponse:
+        """Map a list row to ``VideoResponse`` with engagement counts.
 
-        video = VideoResponse.model_validate(row)
-        data = await self._rewrite_media_urls(video.model_dump())
+        Builds scalars explicitly so Pydantic does not read ORM
+        relationship attributes named ``views`` / ``comments``.
+        """
 
-        return VideoResponse.model_validate(data)
+        return VideoResponse(
+            id=row.id,
+            video_id=row.video_id,
+            title=row.title,
+            cid=row.cid,
+            duration=row.duration,
+            release_date=row.release_date,
+            jancode=row.jancode,
+            maker_product=row.maker_product,
+            floor_code=row.floor_code,
+            created_at=row.created_at,
+            updated_at=row.updated_at,
+            views=counts.views,
+            likes=counts.likes,
+            dislikes=counts.dislikes,
+            comments=counts.comments,
+        )
 
     async def _to_video_detail_response(
         self,
@@ -120,9 +143,8 @@ class VideoService:
         Multi-value filters use OR semantics within each id list
         (``?actress=1&actress=2`` matches videos featuring either).
 
-        Local media URLs (``sample_gen`` stills, review clips, etc.) are
-        rewritten to the object-storage public base. Missing objects are
-        uploaded from disk when the API host can read the path.
+        Nested relations are omitted; use ``GET /videos/{id}`` for full
+        payloads including media and catalog links.
 
         Args:
             limit: Page size (clamped to at least 1).
@@ -179,7 +201,17 @@ class VideoService:
             offset=safe_offset,
         )
         total = await self._repository.count_videos(filters=filters)
-        items = [await self._to_video_response(row) for row in rows]
+        engagement = await self._repository.count_engagement_for_videos(
+            [row.id for row in rows],
+        )
+        empty_counts = VideoEngagementCounts()
+        items = [
+            self._to_video_response(
+                row,
+                engagement.get(row.id, empty_counts),
+            )
+            for row in rows
+        ]
 
         return VideoListResponse(
             items=items,

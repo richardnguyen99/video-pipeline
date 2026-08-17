@@ -68,6 +68,16 @@ class FakeVideoRepository:
 
         return self.get_result
 
+    async def count_engagement_for_videos(
+        self,
+        video_ids: list[int],
+    ) -> dict[int, Any]:
+        """Return empty engagement totals for each id."""
+
+        from app.schemas.video import VideoEngagementCounts
+
+        return {video_id: VideoEngagementCounts() for video_id in video_ids}
+
 
 @dataclass
 class FakeStorage:
@@ -239,6 +249,10 @@ async def test_list_videos_maps_core_fields(
     assert result.items[0].video_id == "SSIS-001"
     assert result.items[0].title == "Sample Title"
     assert result.items[0].duration == 120
+    assert result.items[0].views == 0
+    assert result.items[0].likes == 0
+    assert result.items[0].dislikes == 0
+    assert result.items[0].comments == 0
 
 
 @pytest.mark.asyncio
@@ -305,11 +319,11 @@ async def test_list_videos_clamps_non_positive_limit(
 
 
 @pytest.mark.asyncio
-async def test_list_videos_includes_m2m_and_media_relations(
+async def test_list_videos_omits_nested_relations(
     service: VideoService,
     repository: FakeVideoRepository,
 ) -> None:
-    """Many-to-many catalog links and one-to-many media URLs are included."""
+    """List items expose core fields only (no nested relation keys)."""
 
     row = SimpleNamespace(
         id=1,
@@ -323,60 +337,22 @@ async def test_list_videos_includes_m2m_and_media_relations(
         floor_code=None,
         created_at=None,
         updated_at=None,
-        actresses=[
-            SimpleNamespace(
-                id=1,
-                name="Aoi Sora",
-                ruby=None,
-                image_url="https://example.com/a.jpg",
-            ),
-        ],
-        genres=[
-            SimpleNamespace(id=2, name="Drama", ruby=None, dmm_id="g-1"),
-        ],
-        series=[
-            SimpleNamespace(id=3, name="Series A", ruby=None, dmm_id="s-1"),
-        ],
-        makers=[
-            SimpleNamespace(id=4, name="Maker A", ruby=None, dmm_id="m-1"),
-        ],
-        labels=[
-            SimpleNamespace(id=5, name="Label A", ruby=None, dmm_id="l-1"),
-        ],
-        directors=[
-            SimpleNamespace(id=6, name="Director A", ruby=None, dmm_id="d-1"),
-        ],
-        video_image_url=[
-            SimpleNamespace(
-                id=10,
-                url="https://example.com/cover.jpg",
-                type="cover",
-            ),
-        ],
-        video_sample_image_url=[
-            SimpleNamespace(
-                id=11,
-                url="https://example.com/s1.jpg",
-                type="sample",
-            ),
-        ],
-        video_sample_movie_url=[
-            SimpleNamespace(
-                id=12,
-                url="https://example.com/s.mp4",
-                type="mp4",
-            ),
-        ],
+        actresses=[{"id": 1, "name": "ignored"}],
+        genres=[{"id": 2, "name": "ignored"}],
     )
     repository.list_result = [row]
     repository.count_result = 1
 
     result = await service.list_videos()
     item = result.items[0]
+    payload = item.model_dump()
 
-    assert item.actresses[0].name == "Aoi Sora"
-    assert item.genres[0].name == "Drama"
-    assert item.video_image_url[0].url == "https://example.com/cover.jpg"
+    assert item.video_id == "SSIS-001"
+    assert "actresses" not in payload
+    assert "genres" not in payload
+    assert "video_image_url" not in payload
+    assert "video_sample_image_url" not in payload
+    assert "video_sample_movie_url" not in payload
 
 
 @pytest.mark.asyncio

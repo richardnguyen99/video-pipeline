@@ -35,7 +35,8 @@ if TYPE_CHECKING:
     from app.models.maker import Maker
     from app.models.playlist import PlaylistVideo
     from app.models.series import Series
-    from app.models.video_like import VideoLike
+    from app.models.video_reaction import VideoReaction
+    from app.models.video_view import VideoView
 
 
 class Video(IdTimestampMixin, table=True):
@@ -115,7 +116,8 @@ class Video(IdTimestampMixin, table=True):
         back_populates="fk",
     )
     comments: list["Comment"] = Relationship(back_populates="video")
-    likes: list["VideoLike"] = Relationship(back_populates="video")
+    reactions: list["VideoReaction"] = Relationship(back_populates="video")
+    views: list["VideoView"] = Relationship(back_populates="video")
     playlist_entries: list["PlaylistVideo"] = Relationship(
         back_populates="video",
     )

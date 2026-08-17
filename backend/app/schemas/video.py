@@ -74,8 +74,17 @@ class VideoSampleMovieUrlResponse(BaseModel):
     type: Optional[str] = None
 
 
+class VideoEngagementCounts(BaseModel):
+    """Aggregate engagement totals for one video."""
+
+    views: int = Field(default=0, ge=0)
+    likes: int = Field(default=0, ge=0)
+    dislikes: int = Field(default=0, ge=0)
+    comments: int = Field(default=0, ge=0)
+
+
 class VideoResponse(BaseModel):
-    """Public video representation for list endpoints."""
+    """Public video representation for list endpoints (no nested relations)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -90,19 +99,10 @@ class VideoResponse(BaseModel):
     floor_code: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
-    actresses: list[VideoActressSummaryResponse] = Field(default_factory=list)
-    genres: list[VideoCatalogEntityResponse] = Field(default_factory=list)
-    series: list[VideoCatalogEntityResponse] = Field(default_factory=list)
-    makers: list[VideoCatalogEntityResponse] = Field(default_factory=list)
-    labels: list[VideoCatalogEntityResponse] = Field(default_factory=list)
-    directors: list[VideoCatalogEntityResponse] = Field(default_factory=list)
-    video_image_url: list[VideoImageUrlResponse] = Field(default_factory=list)
-    video_sample_image_url: list[VideoSampleImageUrlResponse] = Field(
-        default_factory=list,
-    )
-    video_sample_movie_url: list[VideoSampleMovieUrlResponse] = Field(
-        default_factory=list,
-    )
+    views: int = Field(default=0, ge=0)
+    likes: int = Field(default=0, ge=0)
+    dislikes: int = Field(default=0, ge=0)
+    comments: int = Field(default=0, ge=0)
 
 
 class VideoDetailResponse(BaseModel):

@@ -16,6 +16,7 @@ from app.models.associations import (
     t_video_maker,
     t_video_series,
 )
+from app.models.comments import Comment
 from app.models.director import Director
 from app.models.genre import Genre
 from app.models.label import Label
@@ -27,8 +28,10 @@ from app.models.video import (
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
 )
-from app.models.video_like import VideoLike
+from app.models.video_reaction import VideoReaction
+from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
+from app.schemas.video import VideoEngagementCounts
 from app.schemas.video_filters import (
     FeaturesCountRange,
     VideoListFilters,
@@ -50,17 +53,6 @@ def _media_load(relationship: Any, *columns: Any) -> Any:
 
     return selectinload(_relationship_attr(relationship)).load_only(
         *(_col(column) for column in columns),
-    )
-
-
-def _list_actress_load() -> Any:
-    """List endpoints: slim actress rows, no aka/images."""
-
-    return selectinload(_relationship_attr(Video.actresses)).load_only(
-        _col(Actress.id),
-        _col(Actress.name),
-        _col(Actress.ruby),
-        _col(Actress.image_url),
     )
 
 
@@ -87,63 +79,6 @@ def _detail_actress_load() -> Any:
         ),
     )
 
-
-_LIST_OPTIONS: tuple[Any, ...] = (
-    _list_actress_load(),
-    _catalog_load(
-        Video.genres,
-        Genre.id,
-        Genre.name,
-        Genre.ruby,
-        Genre.dmm_id,
-    ),
-    _catalog_load(
-        Video.series,
-        Series.id,
-        Series.name,
-        Series.ruby,
-        Series.dmm_id,
-    ),
-    _catalog_load(
-        Video.makers,
-        Maker.id,
-        Maker.name,
-        Maker.ruby,
-        Maker.dmm_id,
-    ),
-    _catalog_load(
-        Video.labels,
-        Label.id,
-        Label.name,
-        Label.ruby,
-        Label.dmm_id,
-    ),
-    _catalog_load(
-        Video.directors,
-        Director.id,
-        Director.name,
-        Director.ruby,
-        Director.dmm_id,
-    ),
-    _media_load(
-        Video.video_image_url,
-        VideoImageUrl.id,
-        VideoImageUrl.url,
-        VideoImageUrl.type,
-    ),
-    _media_load(
-        Video.video_sample_image_url,
-        VideoSampleImageUrl.id,
-        VideoSampleImageUrl.url,
-        VideoSampleImageUrl.type,
-    ),
-    _media_load(
-        Video.video_sample_movie_url,
-        VideoSampleMovieUrl.id,
-        VideoSampleMovieUrl.url,
-        VideoSampleMovieUrl.type,
-    ),
-)
 
 _DETAIL_OPTIONS: tuple[Any, ...] = (
     _detail_actress_load(),
@@ -242,12 +177,15 @@ def _actress_count_subquery() -> Any:
 
 
 def _like_count_subquery() -> Any:
-    """Correlated like count for a video."""
+    """Correlated like count for a video (``is_like is True``)."""
 
     return (
         sa_select(func.count())
-        .select_from(VideoLike)
-        .where(col(VideoLike.video_id) == Video.id)
+        .select_from(VideoReaction)
+        .where(
+            col(VideoReaction.video_id) == Video.id,
+            col(VideoReaction.is_like).is_(True),
+        )
         .correlate(Video)
         .scalar_subquery()
     )
@@ -348,7 +286,7 @@ class VideoRepository(BaseRepository):
         limit: int = 20,
         offset: int = 0,
     ) -> list[Video]:
-        """Return a page of videos with filters, sort, and relations.
+        """Return a page of videos with filters and sort (no relations).
 
         Args:
             filters: Optional discover filters and sort.
@@ -356,11 +294,12 @@ class VideoRepository(BaseRepository):
             offset: Number of rows to skip.
 
         Returns:
-            Matching ``Video`` instances with list relations populated.
+            Matching ``Video`` instances without nested collections.
         """
 
         resolved = filters or VideoListFilters()
-        statement = select(Video).options(*_LIST_OPTIONS)
+        # List endpoint returns core columns only (no relation loads).
+        statement = select(Video)
         statement = _apply_filters(statement, resolved)
         statement = _apply_sort(statement, resolved.sort)
         statement = statement.offset(offset).limit(limit)
@@ -401,3 +340,87 @@ class VideoRepository(BaseRepository):
         result = await self.session.exec(statement)
 
         return result.first()
+
+    async def count_engagement_for_videos(
+        self,
+        video_ids: list[int],
+    ) -> dict[int, VideoEngagementCounts]:
+        """Return views/likes/dislikes/comments counts for many videos.
+
+        Runs four grouped ``COUNT`` queries. Missing ids default to zero
+        counts (no seed data required).
+
+        Args:
+            video_ids: Primary keys to aggregate.
+
+        Returns:
+            Mapping of video id → engagement totals.
+        """
+
+        if not video_ids:
+            return {}
+
+        unique_ids = list(dict.fromkeys(video_ids))
+        totals: dict[int, dict[str, int]] = {
+            video_id: {
+                "views": 0,
+                "likes": 0,
+                "dislikes": 0,
+                "comments": 0,
+            }
+            for video_id in unique_ids
+        }
+
+        view_statement = (
+            select(col(VideoView.video_id), func.count())
+            .where(col(VideoView.video_id).in_(unique_ids))
+            .group_by(col(VideoView.video_id))
+        )
+        view_result = await self.session.exec(view_statement)
+
+        for video_id, total in view_result.all():
+            totals[int(video_id)]["views"] = int(total)
+
+        like_statement = (
+            select(col(VideoReaction.video_id), func.count())
+            .where(
+                col(VideoReaction.video_id).in_(unique_ids),
+                col(VideoReaction.is_like).is_(True),
+            )
+            .group_by(col(VideoReaction.video_id))
+        )
+        like_result = await self.session.exec(like_statement)
+
+        for video_id, total in like_result.all():
+            totals[int(video_id)]["likes"] = int(total)
+
+        dislike_statement = (
+            select(col(VideoReaction.video_id), func.count())
+            .where(
+                col(VideoReaction.video_id).in_(unique_ids),
+                col(VideoReaction.is_like).is_(False),
+            )
+            .group_by(col(VideoReaction.video_id))
+        )
+        dislike_result = await self.session.exec(dislike_statement)
+
+        for video_id, total in dislike_result.all():
+            totals[int(video_id)]["dislikes"] = int(total)
+
+        comment_statement = (
+            select(col(Comment.video_id), func.count())
+            .where(
+                col(Comment.video_id).in_(unique_ids),
+                col(Comment.is_deleted).is_(False),
+            )
+            .group_by(col(Comment.video_id))
+        )
+        comment_result = await self.session.exec(comment_statement)
+
+        for video_id, total in comment_result.all():
+            totals[int(video_id)]["comments"] = int(total)
+
+        return {
+            video_id: VideoEngagementCounts(**values)
+            for video_id, values in totals.items()
+        }
