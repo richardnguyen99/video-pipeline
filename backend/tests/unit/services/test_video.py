@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Optional, cast
 
@@ -16,6 +17,7 @@ from app.schemas.video_filters import (
     parse_features_cnt,
 )
 from app.services.video import VideoService
+from app.storage.client import ObjectStorageClient
 
 
 @dataclass
@@ -67,6 +69,65 @@ class FakeVideoRepository:
         return self.get_result
 
 
+@dataclass
+class FakeStorage:
+    """Minimal storage stand-in for URL rewriting tests."""
+
+    public_base: str = "http://localhost:9000/video-samples"
+    ensured: list[str] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Initialize mutable call log."""
+
+        if self.ensured is None:
+            self.ensured = []
+
+    def public_url(self, object_key: str) -> str:
+        """Build a public URL."""
+
+        return f"{self.public_base.rstrip('/')}/{object_key.lstrip('/')}"
+
+    def object_key_from_local_path(self, local_path: str) -> str:
+        """Mirror production key derivation for local HLS media paths."""
+
+        path = Path(local_path)
+        parts = path.parts
+
+        if "hls" in parts:
+            idx = parts.index("hls")
+
+            if idx + 1 < len(parts):
+                return "/".join(parts[idx + 1 :])
+
+        if "samples" in parts:
+            idx = parts.index("samples")
+            start = max(0, idx - 1)
+
+            return "/".join(parts[start:])
+
+        return path.name
+
+    async def ensure_local_media_public_url(self, local_path: str) -> str:
+        """Record ensure calls and return the public URL."""
+
+        self.ensured.append(local_path)
+        key = self.object_key_from_local_path(local_path)
+
+        return self.public_url(key)
+
+    async def ensure_sample_gen_public_url(self, local_path: str) -> str:
+        """Alias matching the storage client helper."""
+
+        return await self.ensure_local_media_public_url(local_path)
+
+
+@pytest.fixture
+def storage() -> FakeStorage:
+    """Fresh fake object storage per test."""
+
+    return FakeStorage()
+
+
 @pytest.fixture
 def repository() -> FakeVideoRepository:
     """Fresh fake repository per test."""
@@ -75,10 +136,16 @@ def repository() -> FakeVideoRepository:
 
 
 @pytest.fixture
-def service(repository: FakeVideoRepository) -> VideoService:
-    """``VideoService`` wired to the fake repository."""
+def service(
+    repository: FakeVideoRepository,
+    storage: FakeStorage,
+) -> VideoService:
+    """``VideoService`` wired to fakes."""
 
-    return VideoService(repository=cast(VideoRepository, repository))
+    return VideoService(
+        repository=cast(VideoRepository, repository),
+        storage=cast(ObjectStorageClient, storage),
+    )
 
 
 def test_parse_features_cnt_exact() -> None:
@@ -213,7 +280,7 @@ async def test_list_videos_forwards_filters(
 
 
 @pytest.mark.asyncio
-async def test_list_videos_invalid_features_cnt_raises_400(
+async def test_list_videos_invalid_features_cnt_raises_401(
     service: VideoService,
 ) -> None:
     """Invalid ``features_cnt`` yields HTTP 400."""
@@ -392,3 +459,99 @@ async def test_get_video_raises_not_found_when_missing(
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
     assert repository.get_calls == [999]
+
+
+@pytest.mark.asyncio
+async def test_get_video_rewrites_sample_gen_urls(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Local sample_gen paths become MinIO public URLs."""
+
+    local = (
+        "/run/media/youknowwho/Jav/hls/"
+        "2f5df3b9-c0bc-5119-a060-01cb867863fd/samples/sample_01.jpg"
+    )
+    repository.get_result = SimpleNamespace(
+        id=7,
+        video_id="SSIS-007",
+        title="Detail Title",
+        cid=None,
+        duration=90,
+        release_date=None,
+        jancode=None,
+        maker_product=None,
+        floor_code=None,
+        created_at=None,
+        updated_at=None,
+        actresses=[],
+        genres=[],
+        series=[],
+        makers=[],
+        labels=[],
+        directors=[],
+        video_image_url=[],
+        video_sample_image_url=[
+            SimpleNamespace(id=1, url=local, type="sample_gen"),
+            SimpleNamespace(
+                id=2,
+                url="https://cdn.example.com/remote.jpg",
+                type="sample",
+            ),
+        ],
+        video_sample_movie_url=[],
+    )
+
+    result = await service.get_video(video_id=7)
+
+    assert result.video_sample_image_url[0].url == (
+        "http://localhost:9000/video-samples/"
+        "2f5df3b9-c0bc-5119-a060-01cb867863fd/samples/sample_01.jpg"
+    )
+    assert result.video_sample_image_url[1].url == (
+        "https://cdn.example.com/remote.jpg"
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_video_rewrites_sample_movie_urls(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Local review clip paths become MinIO public URLs."""
+
+    local = (
+        "/run/media/youknowwho/Jav/hls/"
+        "2f5df3b9-c0bc-5119-a060-01cb867863fd/review.mp4"
+    )
+    repository.get_result = SimpleNamespace(
+        id=7,
+        video_id="SSIS-007",
+        title="Detail Title",
+        cid=None,
+        duration=90,
+        release_date=None,
+        jancode=None,
+        maker_product=None,
+        floor_code=None,
+        created_at=None,
+        updated_at=None,
+        actresses=[],
+        genres=[],
+        series=[],
+        makers=[],
+        labels=[],
+        directors=[],
+        video_image_url=[],
+        video_sample_image_url=[],
+        video_sample_movie_url=[
+            SimpleNamespace(id=1, url=local, type="size_720_480"),
+        ],
+    )
+
+    result = await service.get_video(video_id=7)
+
+    assert result.video_sample_movie_url[0].url == (
+        "http://localhost:9000/video-samples/"
+        "2f5df3b9-c0bc-5119-a060-01cb867863fd/review.mp4"
+    )

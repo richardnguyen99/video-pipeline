@@ -9,6 +9,7 @@ from app.dependencies.repositories import (
     VideoRepositoryDep,
 )
 from app.dependencies.settings import SettingsDep
+from app.dependencies.storage import ObjectStorageDep
 from app.services.actress import ActressService
 from app.services.health import HealthService
 from app.services.video import VideoService
@@ -30,10 +31,11 @@ def get_actress_service(
 
 def get_video_service(
     repository: VideoRepositoryDep,
+    storage: ObjectStorageDep,
 ) -> VideoService:
     """Build a request-scoped ``VideoService``."""
 
-    return VideoService(repository=repository)
+    return VideoService(repository=repository, storage=storage)
 
 
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]

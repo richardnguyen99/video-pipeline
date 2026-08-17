@@ -2,7 +2,7 @@
 
 # pylint: disable=too-many-locals
 
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException, status
 
@@ -17,19 +17,88 @@ from app.schemas.video_filters import (
     VideoSort,
     parse_features_cnt,
 )
+from app.storage.client import ObjectStorageClient
 
 
 class VideoService:
     """Business operations for video resources."""
 
-    def __init__(self, repository: VideoRepository) -> None:
+    def __init__(
+        self,
+        repository: VideoRepository,
+        storage: ObjectStorageClient,
+    ) -> None:
         """Create a video service.
 
         Args:
             repository: Video data-access collaborator.
+            storage: Object storage used to resolve local media URLs.
         """
 
         self._repository = repository
+        self._storage = storage
+
+    @staticmethod
+    def _is_remote_url(url: str) -> bool:
+        """Return True when ``url`` is already an http(s) link."""
+
+        return url.startswith("http://") or url.startswith("https://")
+
+    async def _resolve_local_media_url(self, url: str) -> str:
+        """Map a local disk path to a public MinIO object URL.
+
+        Uploads the file into the bucket on first access when it is missing.
+        Applies to ``sample_gen`` stills and local review clips
+        (``video_sample_movie_url``).
+        """
+
+        if self._is_remote_url(url):
+            return url
+
+        try:
+            return await self._storage.ensure_local_media_public_url(url)
+        except FileNotFoundError:
+            key = self._storage.object_key_from_local_path(url)
+
+            return self._storage.public_url(key)
+
+    async def _rewrite_media_urls(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Rewrite local paths in sample image/movie lists."""
+
+        for field in ("video_sample_image_url", "video_sample_movie_url"):
+            items = payload.get(field) or []
+
+            for item in items:
+                raw_url = item.get("url")
+
+                if not raw_url:
+                    continue
+
+                item["url"] = await self._resolve_local_media_url(raw_url)
+
+        return payload
+
+    async def _to_video_response(self, row: object) -> VideoResponse:
+        """Validate a row and rewrite local media URLs."""
+
+        video = VideoResponse.model_validate(row)
+        data = await self._rewrite_media_urls(video.model_dump())
+
+        return VideoResponse.model_validate(data)
+
+    async def _to_video_detail_response(
+        self,
+        row: object,
+    ) -> VideoDetailResponse:
+        """Validate a detail row and rewrite local media URLs."""
+
+        video = VideoDetailResponse.model_validate(row)
+        data = await self._rewrite_media_urls(video.model_dump())
+
+        return VideoDetailResponse.model_validate(data)
 
     async def list_videos(
         self,
@@ -50,6 +119,10 @@ class VideoService:
 
         Multi-value filters use OR semantics within each id list
         (``?actress=1&actress=2`` matches videos featuring either).
+
+        Local media URLs (``sample_gen`` stills, review clips, etc.) are
+        rewritten to the object-storage public base. Missing objects are
+        uploaded from disk when the API host can read the path.
 
         Args:
             limit: Page size (clamped to at least 1).
@@ -106,7 +179,7 @@ class VideoService:
             offset=safe_offset,
         )
         total = await self._repository.count_videos(filters=filters)
-        items = [VideoResponse.model_validate(row) for row in rows]
+        items = [await self._to_video_response(row) for row in rows]
 
         return VideoListResponse(
             items=items,
@@ -117,6 +190,10 @@ class VideoService:
 
     async def get_video(self, video_id: int) -> VideoDetailResponse:
         """Return a single video by primary key with full relations.
+
+        Local media URLs are rewritten to object-storage public URLs.
+        Objects missing from the bucket are uploaded from local disk when
+        available.
 
         Args:
             video_id: ``Video.id`` primary key.
@@ -136,4 +213,4 @@ class VideoService:
                 detail="Video not found",
             )
 
-        return VideoDetailResponse.model_validate(row)
+        return await self._to_video_detail_response(row)
