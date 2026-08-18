@@ -77,10 +77,15 @@ class FakeVideoRepository:
 
         return {video_id: VideoEngagementCounts() for video_id in video_ids}
 
-    async def list_comments_for_video(self, video_id: int) -> list[Any]:
+    async def list_comments_for_video(self, _video_id: int) -> list[Any]:
         """Return no comments by default."""
 
         return []
+
+    async def get_master_m3u8_url(self, _video_id: int) -> str | None:
+        """Return no master playlist by default."""
+
+        return None
 
 
 @dataclass

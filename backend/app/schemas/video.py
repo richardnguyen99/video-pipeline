@@ -74,6 +74,15 @@ class VideoSampleMovieUrlResponse(BaseModel):
     type: Optional[str] = None
 
 
+class VideoM3u8Response(BaseModel):
+    """HLS playlist URL associated with a video."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    m3u8_url: str
+
+
 class VideoEngagementCounts(BaseModel):
     """Aggregate engagement totals for one video."""
 
@@ -165,6 +174,7 @@ class VideoDetailResponse(BaseModel):
     video_sample_movie_url: list[VideoSampleMovieUrlResponse] = Field(
         default_factory=list,
     )
+    m3u8_url: Optional[str] = None
     views: int = Field(default=0, ge=0)
     likes: int = Field(default=0, ge=0)
     dislikes: int = Field(default=0, ge=0)

@@ -25,6 +25,7 @@ from app.models.series import Series
 from app.models.video import (
     Video,
     VideoImageUrl,
+    VideoM3u8,
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
 )
@@ -450,3 +451,35 @@ class VideoRepository(BaseRepository):
         result = await self.session.exec(statement)
 
         return list(result.all())
+
+    async def get_master_m3u8_url(self, video_id: int) -> Optional[str]:
+        """Return the master HLS playlist path for a video, if any.
+
+        Prefers an ``index.m3u8`` entry when several rows exist; otherwise
+        the earliest ``VideoM3u8`` row by primary key.
+
+        Args:
+            video_id: ``Video.id`` primary key (``video_m3u8.fk_id``).
+
+        Returns:
+            Local or remote master playlist URL, or ``None``.
+        """
+
+        statement = (
+            select(VideoM3u8)
+            .where(col(VideoM3u8.fk_id) == video_id)
+            .order_by(col(VideoM3u8.id).asc())
+        )
+        result = await self.session.exec(statement)
+        rows = list(result.all())
+
+        if not rows:
+            return None
+
+        for row in rows:
+            url = (row.m3u8_url or "").rstrip("/")
+
+            if url.endswith("index.m3u8"):
+                return row.m3u8_url
+
+        return rows[0].m3u8_url

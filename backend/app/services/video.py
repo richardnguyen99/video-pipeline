@@ -5,6 +5,8 @@
 from typing import Any, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy import exc as sqlalchemy_exc
+from sqlalchemy import inspect as sa_inspect
 
 from app.models.video import Video
 from app.repositories.video import VideoRepository
@@ -177,12 +179,50 @@ class VideoService:
 
         return [attach(root_id) for root_id in roots]
 
+    async def _resolve_master_m3u8_url(
+        self,
+        raw_url: Optional[str],
+    ) -> Optional[str]:
+        """Resolve a master playlist path to a client-facing URL.
+
+        Local disk paths are rewritten via object storage; http(s) URLs
+        are returned unchanged.
+        """
+
+        if not raw_url:
+            return None
+
+        return await self._resolve_local_media_url(raw_url)
+
+    @staticmethod
+    def _loaded_collection(row: object, name: str) -> list[object]:
+        """Return a relationship collection only if already eager-loaded.
+
+        Accessing an unloaded async relationship raises ``MissingGreenlet``.
+        Plain test doubles (e.g. ``SimpleNamespace``) are read via getattr.
+        """
+
+        try:
+            state = sa_inspect(row)
+        except sqlalchemy_exc.NoInspectionAvailable:
+            value = getattr(row, name, None)
+
+            return list(value or [])
+
+        if state is None or name in state.unloaded:
+            return []
+
+        value = getattr(row, name)
+
+        return list(value or [])
+
     async def _to_video_detail_response(
         self,
         row: Video,
         *,
         counts: VideoEngagementCounts,
         comments: list[object],
+        m3u8_url: Optional[str],
     ) -> VideoDetailResponse:
         """Validate a detail row, rewrite media URLs, attach engagement."""
 
@@ -207,9 +247,19 @@ class VideoService:
                 "makers": row.makers,
                 "labels": row.labels,
                 "directors": row.directors,
-                "video_image_url": row.video_image_url,
-                "video_sample_image_url": row.video_sample_image_url,
-                "video_sample_movie_url": row.video_sample_movie_url,
+                "video_image_url": self._loaded_collection(
+                    row,
+                    "video_image_url",
+                ),
+                "video_sample_image_url": self._loaded_collection(
+                    row,
+                    "video_sample_image_url",
+                ),
+                "video_sample_movie_url": self._loaded_collection(
+                    row,
+                    "video_sample_movie_url",
+                ),
+                "m3u8_url": None,
                 "views": counts.views,
                 "likes": counts.likes,
                 "dislikes": counts.dislikes,
@@ -217,6 +267,7 @@ class VideoService:
             },
         )
         data = await self._rewrite_media_urls(base.model_dump())
+        data["m3u8_url"] = await self._resolve_master_m3u8_url(m3u8_url)
 
         return VideoDetailResponse.model_validate(data)
 
@@ -347,9 +398,11 @@ class VideoService:
         )
         counts = engagement.get(row.id, VideoEngagementCounts())
         comments = await self._repository.list_comments_for_video(row.id)
+        master_m3u8 = await self._repository.get_master_m3u8_url(row.id)
 
         return await self._to_video_detail_response(
             row,
             counts=counts,
             comments=list(comments),
+            m3u8_url=master_m3u8,
         )
