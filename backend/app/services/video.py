@@ -50,29 +50,25 @@ class VideoService:
 
         return url.startswith("http://") or url.startswith("https://")
 
-    async def _resolve_local_media_url(self, url: str) -> str:
-        """Map a local disk path to a public MinIO object URL.
+    def _resolve_local_media_url(self, url: str) -> str:
+        """Map a local disk path to a public object-storage URL.
 
-        Uploads the file into the bucket on first access when it is missing.
-        Applies to ``sample_gen`` stills and local review clips
-        (``video_sample_movie_url``).
+        Assumes objects already exist in the bucket (offline migrate).
+        No existence check or upload on the request path.
         """
 
         if self._is_remote_url(url):
             return url
 
-        try:
-            return await self._storage.ensure_local_media_public_url(url)
-        except FileNotFoundError:
-            key = self._storage.object_key_from_local_path(url)
+        key = self._storage.object_key_from_local_path(url)
 
-            return self._storage.public_url(key)
+        return self._storage.public_url(key)
 
-    async def _rewrite_media_urls(
+    def _rewrite_media_urls(
         self,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
-        """Rewrite local paths in sample image/movie lists."""
+        """Rewrite local sample media paths to public object-storage URLs."""
 
         for field in ("video_sample_image_url", "video_sample_movie_url"):
             items = payload.get(field) or []
@@ -83,7 +79,7 @@ class VideoService:
                 if not raw_url:
                     continue
 
-                item["url"] = await self._resolve_local_media_url(raw_url)
+                item["url"] = self._resolve_local_media_url(raw_url)
 
         return payload
 
@@ -179,16 +175,16 @@ class VideoService:
 
         return [attach(root_id) for root_id in roots]
 
-    async def _resolve_master_m3u8_url(
+    def _resolve_master_m3u8_url(
         self,
         raw_url: Optional[str],
     ) -> Optional[str]:
-        """Resolve a master playlist path to a client-facing URL.
+        """Map a stored master playlist path to the public object-storage URL.
 
-        For local packages, uploads the full HLS tree (master + quality
-        playlists + ``.ts`` segments) so relative URLs in the master
-        resolve under the same public prefix. Remote http(s) URLs are
-        returned unchanged.
+        Assumes the HLS package already exists in object storage (offline
+        migrate). Local disk paths are rewritten to the configured public
+        base; http(s) URLs are returned unchanged. No upload or existence
+        check is performed on the request path.
         """
 
         if not raw_url:
@@ -197,12 +193,9 @@ class VideoService:
         if self._is_remote_url(raw_url):
             return raw_url
 
-        try:
-            return await self._storage.ensure_hls_tree_public_url(raw_url)
-        except FileNotFoundError:
-            key = self._storage.object_key_from_local_path(raw_url)
+        key = self._storage.object_key_from_local_path(raw_url)
 
-            return self._storage.public_url(key)
+        return self._storage.public_url(key)
 
     @staticmethod
     def _loaded_collection(row: object, name: str) -> list[object]:
@@ -276,8 +269,8 @@ class VideoService:
                 "comments": self._build_comment_tree(comments),
             },
         )
-        data = await self._rewrite_media_urls(base.model_dump())
-        data["m3u8_url"] = await self._resolve_master_m3u8_url(m3u8_url)
+        data = self._rewrite_media_urls(base.model_dump())
+        data["m3u8_url"] = self._resolve_master_m3u8_url(m3u8_url)
 
         return VideoDetailResponse.model_validate(data)
 
@@ -382,8 +375,8 @@ class VideoService:
         """Return a single video by primary key with full relations.
 
         Local media URLs are rewritten to object-storage public URLs.
-        Objects missing from the bucket are uploaded from local disk when
-        available.
+        ``m3u8_url`` is rewritten to the public object-storage base when
+        stored as a local path (objects are assumed already migrated).
 
         Args:
             video_id: ``Video.id`` primary key.
