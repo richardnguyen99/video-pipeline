@@ -1,13 +1,20 @@
-# Local MinIO object storage (S3-compatible), separate from the API process.
+# Local MinIO object storage (S3-compatible), data on external drive.
 #
-# Start:
-#   docker compose -f docker-compose.minio.yml up -d
+# 1. Copy env template and set paths (do not commit real paths):
+#      cp .env.minio.example .env.minio
+#      # edit MINIO_DATA_DIR / HLS_SOURCE_DIR
+#
+# 2. Start MinIO (compose reads `.env` or pass `--env-file`):
+#      docker compose --env-file .env.minio -f docker-compose.minio.yml up -d
+#
+# 3. Migrate existing HLS tree into the bucket (one-time / incremental):
+#      ./scripts/migrate-hls-to-minio.sh
 #
 # Console:  http://localhost:9001  (minioadmin / minioadmin)
 # S3 API:   http://localhost:9000
 #
-# Default bucket ``video-samples`` is created by the init service and left
-# world-readable for local development of sample_gen image URLs.
+# MinIO data lives under MINIO_DATA_DIR on the external drive — not in a
+# Docker named volume on the internal disk.
 
 services:
   minio:
@@ -18,10 +25,11 @@ services:
       - "9000:9000"
       - "9001:9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
-      - minio_data:/data
+      # Bind-mount only — no named volume on the PC disk.
+      - ${MINIO_DATA_DIR}:/data
     restart: unless-stopped
 
   minio-init:
@@ -29,6 +37,9 @@ services:
     container_name: video-pipeline-minio-init
     depends_on:
       - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     entrypoint:
       - /bin/sh
       - -c
@@ -36,7 +47,8 @@ services:
         set -e
         echo "Waiting for MinIO..."
         i=0
-        until mc alias set local http://minio:9000 minioadmin minioadmin 2>/dev/null; do
+        until mc alias set local http://minio:9000 \
+          "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" 2>/dev/null; do
           i=$$((i+1))
           if [ "$$i" -gt 30 ]; then
             echo "MinIO did not become ready in time"
@@ -48,6 +60,3 @@ services:
         mc anonymous set download local/video-samples
         echo "Bucket video-samples is ready"
     restart: "no"
-
-volumes:
-  minio_data:

@@ -5,8 +5,8 @@
 from typing import Any, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import exc as sqlalchemy_exc
 from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.exc import NoInspectionAvailable
 
 from app.models.video import Video
 from app.repositories.video import VideoRepository
@@ -185,14 +185,24 @@ class VideoService:
     ) -> Optional[str]:
         """Resolve a master playlist path to a client-facing URL.
 
-        Local disk paths are rewritten via object storage; http(s) URLs
-        are returned unchanged.
+        For local packages, uploads the full HLS tree (master + quality
+        playlists + ``.ts`` segments) so relative URLs in the master
+        resolve under the same public prefix. Remote http(s) URLs are
+        returned unchanged.
         """
 
         if not raw_url:
             return None
 
-        return await self._resolve_local_media_url(raw_url)
+        if self._is_remote_url(raw_url):
+            return raw_url
+
+        try:
+            return await self._storage.ensure_hls_tree_public_url(raw_url)
+        except FileNotFoundError:
+            key = self._storage.object_key_from_local_path(raw_url)
+
+            return self._storage.public_url(key)
 
     @staticmethod
     def _loaded_collection(row: object, name: str) -> list[object]:
@@ -204,7 +214,7 @@ class VideoService:
 
         try:
             state = sa_inspect(row)
-        except sqlalchemy_exc.NoInspectionAvailable:
+        except NoInspectionAvailable:
             value = getattr(row, name, None)
 
             return list(value or [])

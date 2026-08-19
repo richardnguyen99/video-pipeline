@@ -11,7 +11,6 @@ import pytest
 from fastapi import HTTPException, status
 
 from app.repositories.video import VideoRepository
-from app.schemas.video import VideoEngagementCounts
 from app.schemas.video_filters import (
     VideoListFilters,
     VideoSort,
@@ -75,14 +74,16 @@ class FakeVideoRepository:
     ) -> dict[int, Any]:
         """Return empty engagement totals for each id."""
 
+        from app.schemas.video import VideoEngagementCounts
+
         return {video_id: VideoEngagementCounts() for video_id in video_ids}
 
-    async def list_comments_for_video(self, _video_id: int) -> list[Any]:
+    async def list_comments_for_video(self, video_id: int) -> list[Any]:
         """Return no comments by default."""
 
         return []
 
-    async def get_master_m3u8_url(self, _video_id: int) -> str | None:
+    async def get_master_m3u8_url(self, video_id: int) -> str | None:
         """Return no master playlist by default."""
 
         return None
@@ -133,6 +134,11 @@ class FakeStorage:
         key = self.object_key_from_local_path(local_path)
 
         return self.public_url(key)
+
+    async def ensure_hls_tree_public_url(self, master_local_path: str) -> str:
+        """Treat master playlist like a single-object ensure in tests."""
+
+        return await self.ensure_local_media_public_url(master_local_path)
 
     async def ensure_sample_gen_public_url(self, local_path: str) -> str:
         """Alias matching the storage client helper."""

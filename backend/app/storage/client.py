@@ -162,6 +162,8 @@ class ObjectStorageClient:
             ".gif": "image/gif",
             ".mp4": "video/mp4",
             ".webm": "video/webm",
+            ".m3u8": "application/vnd.apple.mpegurl",
+            ".ts": "video/mp2t",
         }
 
         return mapping.get(suffix, "application/octet-stream")
@@ -251,6 +253,58 @@ class ObjectStorageClient:
             return "/".join(parts[start:])
 
         return path.name
+
+    async def ensure_hls_tree_public_url(self, master_local_path: str) -> str:
+        """Ensure a full HLS package is in the bucket; return master public URL.
+
+        The master playlist (``index.m3u8``) references relative quality
+        playlists and ``.ts`` segments. Those must share the same object-key
+        prefix so the player can resolve:
+
+            {public_base}/{uuid}/index.m3u8
+            {public_base}/{uuid}/720p/playlist.m3u8
+            {public_base}/{uuid}/720p/seg_0.ts
+
+        Uploads the entire package directory when the master object is missing.
+
+        Args:
+            master_local_path: Absolute path to the master ``index.m3u8``.
+
+        Returns:
+            Public URL of the master playlist.
+
+        Raises:
+            FileNotFoundError: When the master file is not readable.
+        """
+
+        master = Path(master_local_path)
+
+        if not master.is_file():
+            raise FileNotFoundError(
+                f"HLS master playlist not found: {master_local_path}",
+            )
+
+        package_dir = master.parent
+        master_key = self.object_key_from_local_path(str(master))
+
+        if await self.object_exists(master_key):
+            return self.public_url(master_key)
+
+        # Upload every file under the uuid package directory.
+        for file_path in package_dir.rglob("*"):
+            if not file_path.is_file():
+                continue
+
+            relative = file_path.relative_to(package_dir).as_posix()
+            object_key = f"{package_dir.name}/{relative}"
+
+            await self.upload_file(
+                object_key=object_key,
+                file_path=file_path,
+                content_type=self._guess_content_type(file_path),
+            )
+
+        return self.public_url(master_key)
 
     async def ensure_sample_gen_public_url(self, local_path: str) -> str:
         """Backward-compatible alias for ``ensure_local_media_public_url``."""
