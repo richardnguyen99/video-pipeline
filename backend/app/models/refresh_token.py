@@ -41,14 +41,14 @@ class RefreshToken(SQLModel, table=True):
     """
 
     __tablename__ = "refresh_token"
-    __table_args__ = {"schema": "app_user_schema"}
+    __table_args__ = {"schema": "public"}
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
     )
     user_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         index=True,
     )
 
@@ -67,7 +67,7 @@ class RefreshToken(SQLModel, table=True):
 
     replaced_by_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="app_user_schema.refresh_token.id",
+        foreign_key="public.refresh_token.id",
     )
 
     user_agent: Optional[str] = Field(

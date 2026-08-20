@@ -4,7 +4,7 @@ One row per user per video. ``is_like`` is a boolean for fast filtering:
 ``True`` = like, ``False`` = dislike. A user cannot hold both reactions
 because ``(user_id, video_id)`` is unique.
 
-Lives in ``app_user_schema``. Counts are computed with ``COUNT(*)``
+Lives in ``public``. Counts are computed with ``COUNT(*)``
 filtered by ``is_like``, not denormalized on ``Video``.
 """
 
@@ -41,12 +41,12 @@ class VideoReaction(SQLModel, table=True):
             "video_id",
             name="uq_video_reaction_user_video",
         ),
-        {"schema": "app_user_schema"},
+        {"schema": "public"},
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         index=True,
     )
     video_id: int = Field(foreign_key="public.video.id", index=True)

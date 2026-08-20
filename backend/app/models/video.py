@@ -147,50 +147,6 @@ class Video(IdTimestampMixin, table=True):
         return f"Video(id={self.id!r}, video_id={self.video_id!r})"
 
 
-class VideoAlias(IdTimestampMixin, table=True):
-    """Represents an alias (search/replace pattern) for a video prefix."""
-
-    __tablename__ = "video_alias"
-    __table_args__ = (
-        PrimaryKeyConstraint("id", name="video_alias_pkey"),
-        UniqueConstraint(
-            "prefix",
-            "search_pattern",
-            "replace_pattern",
-            name="uix_search_replace_pattern",
-        ),
-        Index("video_alias_prefix_idx", "prefix"),
-        {"schema": "public"},
-    )
-
-    prefix: str = Field(
-        sa_column=Column(
-            "prefix",
-            String(50),
-            nullable=False,
-        ),
-    )
-    search_pattern: str = Field(
-        sa_column=Column(
-            "search_pattern",
-            String(255),
-            nullable=False,
-        ),
-    )
-    replace_pattern: str = Field(
-        sa_column=Column(
-            "replace_pattern",
-            String(255),
-            nullable=False,
-        ),
-    )
-
-    def __repr__(self) -> str:
-        """Return a string representation."""
-
-        return f"VideoAlias(id={self.id!r}, prefix={self.prefix!r})"
-
-
 class VideoAka(IdTimestampMixin, table=True):
     """Represents an alternative name (aka) for a video."""
 

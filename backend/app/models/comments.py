@@ -1,6 +1,6 @@
 """User comment model for videos.
 
-Comments are owned by ``app_user`` (created in ``app_user_schema``)
+Comments are owned by ``app_user`` (created in ``public``)
 but reference a row in the read-only ``public.video`` table via a
 cross-schema foreign key.
 """
@@ -37,17 +37,17 @@ class Comment(SQLModel, table=True):
     """
 
     __tablename__ = "comment"
-    __table_args__ = {"schema": "app_user_schema"}
+    __table_args__ = {"schema": "public"}
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         index=True,
     )
     video_id: int = Field(foreign_key="public.video.id", index=True)
     parent_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="app_user_schema.comment.id",
+        foreign_key="public.comment.id",
         index=True,
     )
 

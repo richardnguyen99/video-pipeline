@@ -218,3 +218,6 @@ __marimo__/
 
 # MinIO envs
 .env.minio
+.env.export
+.env.postgres
+.env.import

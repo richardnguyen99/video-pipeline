@@ -1,7 +1,7 @@
 """User-to-actress subscription association.
 
 A ``UserActressSubscribe`` row means a user is subscribed to an actress.
-Lives in ``app_user_schema``; ``actress_id`` is a cross-schema FK into
+Lives in ``public``; ``actress_id`` is a cross-schema FK into
 ``public.actress``.
 """
 
@@ -41,12 +41,12 @@ class UserActressSubscribe(SQLModel, table=True):
             "actress_id",
             name="uq_user_actress_subscribe_user_actress",
         ),
-        {"schema": "app_user_schema"},
+        {"schema": "public", "extend_existing": True},
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         index=True,
     )
     actress_id: int = Field(

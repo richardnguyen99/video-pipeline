@@ -1,6 +1,6 @@
 """Playlist models: ownership, video membership, and sharing.
 
-Three tables, all owned by ``app_user`` in ``app_user_schema``:
+Three tables, all owned by ``app_user`` in ``public``:
 
 * ``Playlist`` — a named, ownable, renamable collection with a
   public/private visibility flag.
@@ -50,11 +50,11 @@ class Playlist(SQLModel, table=True):
     """A named collection of videos owned by a single user."""
 
     __tablename__ = "playlist"
-    __table_args__ = {"schema": "app_user_schema"}
+    __table_args__ = {"schema": "public"}
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     owner_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         index=True,
     )
     name: str = Field(max_length=255, sa_type=AutoString)
@@ -65,7 +65,8 @@ class Playlist(SQLModel, table=True):
             SAEnum(
                 PlaylistVisibility,
                 name="playlist_visibility",
-                schema="app_user_schema",
+                # Unqualified → public schema (Postgres default)
+                native_enum=True,
             ),
             nullable=False,
         ),
@@ -224,12 +225,12 @@ class PlaylistVideo(SQLModel, table=True):
             "video_id",
             name="uq_playlist_video_playlist_video",
         ),
-        {"schema": "app_user_schema"},
+        {"schema": "public"},
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     playlist_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.playlist.id",
+        foreign_key="public.playlist.id",
         index=True,
     )
     video_id: int = Field(foreign_key="public.video.id", index=True)
@@ -365,16 +366,16 @@ class PlaylistShare(SQLModel, table=True):
             "shared_with_user_id",
             name="uq_playlist_share_playlist_user",
         ),
-        {"schema": "app_user_schema"},
+        {"schema": "public"},
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     playlist_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.playlist.id",
+        foreign_key="public.playlist.id",
         index=True,
     )
     shared_with_user_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         index=True,
     )
     can_edit: bool = Field(default=False)

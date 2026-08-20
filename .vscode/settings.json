@@ -32,5 +32,10 @@
     }
   },
   "isort.args": ["--profile", "black"],
-  "pylint.args": ["--rcfile=${workspaceFolder}/backend/.pylintrc"]
+  "pylint.args": ["--rcfile=${workspaceFolder}/backend/.pylintrc"],
+
+  "[csv]": {
+    "editor.defaultFormatter": "mechatroner.rainbow-csv",
+    "editor.wordWrap": "off"
+  }
 }

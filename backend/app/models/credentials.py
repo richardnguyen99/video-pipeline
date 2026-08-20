@@ -32,14 +32,14 @@ class UserCredential(SQLModel, table=True):
     """
 
     __tablename__ = "user_credential"
-    __table_args__ = {"schema": "app_user_schema"}
+    __table_args__ = {"schema": "public"}
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
     )
     user_id: uuid.UUID = Field(
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         unique=True,
         index=True,
     )

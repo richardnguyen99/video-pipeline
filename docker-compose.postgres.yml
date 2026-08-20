@@ -1,0 +1,36 @@
+# Isolated Postgres for this project (not shared with other local DBs).
+#
+#   cp .env.postgres.example .env.postgres
+#   docker compose --env-file .env.postgres -f docker-compose.postgres.yml up -d
+#
+# Postgres 18+ stores data under /var/lib/postgresql/<major>/docker (not
+# directly in .../data). Mount the parent directory only.
+#
+# Data defaults to a Docker named volume. For an external drive, set
+# POSTGRES_DATA_DIR in `.env.postgres` (must support Unix permissions).
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: video-pipeline-postgres
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-video_pipeline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-video_pipeline}
+      POSTGRES_DB: ${POSTGRES_DB:-video_pipeline}
+    volumes:
+      - postgres18_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-video_pipeline} -d ${POSTGRES_DB:-video_pipeline}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  postgres18_data:

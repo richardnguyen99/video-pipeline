@@ -22,7 +22,6 @@ from app.models.series import Series, SeriesAka
 from app.models.video import (
     Video,
     VideoAka,
-    VideoAlias,
     VideoImageUrl,
     VideoM3u8,
     VideoSampleImageUrl,
@@ -45,7 +44,6 @@ __all__ = [
     "SeriesAka",
     "Video",
     "VideoAka",
-    "VideoAlias",
     "VideoImageUrl",
     "VideoM3u8",
     "VideoSampleImageUrl",

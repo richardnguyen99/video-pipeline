@@ -34,7 +34,7 @@ class User(SQLModel, table=True):
     """
 
     __tablename__ = "user"
-    __table_args__ = {"schema": "app_user_schema"}
+    __table_args__ = {"schema": "public"}
 
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,

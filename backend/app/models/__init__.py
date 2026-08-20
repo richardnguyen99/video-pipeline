@@ -38,7 +38,6 @@ from app.models.user_actress_subscribe import UserActressSubscribe
 from app.models.video import (
     Video,
     VideoAka,
-    VideoAlias,
     VideoImageUrl,
     VideoM3u8,
     VideoSampleImageUrl,

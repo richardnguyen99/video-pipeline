@@ -1,6 +1,6 @@
 """Video view model.
 
-Records individual view events. Lives in ``app_user_schema``. ``user_id``
+Records individual view events. Lives in ``public``. ``user_id``
 is optional so anonymous views can be stored. Counts use ``COUNT(*)``.
 """
 
@@ -22,12 +22,12 @@ class VideoView(SQLModel, table=True):
     """A single view event for a video."""
 
     __tablename__ = "video_view"
-    __table_args__ = ({"schema": "app_user_schema"},)
+    __table_args__ = ({"schema": "public"},)
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="app_user_schema.user.id",
+        foreign_key="public.user.id",
         index=True,
     )
     video_id: int = Field(foreign_key="public.video.id", index=True)
