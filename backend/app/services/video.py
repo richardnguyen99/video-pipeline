@@ -2,7 +2,7 @@
 
 # pylint: disable=too-many-locals
 
-from typing import Any, Optional
+from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import inspect as sa_inspect
@@ -23,7 +23,6 @@ from app.schemas.video_filters import (
     VideoSort,
     parse_features_cnt,
 )
-from app.storage.client import ObjectStorageClient
 
 
 class VideoService:
@@ -32,56 +31,14 @@ class VideoService:
     def __init__(
         self,
         repository: VideoRepository,
-        storage: ObjectStorageClient,
     ) -> None:
         """Create a video service.
 
         Args:
             repository: Video data-access collaborator.
-            storage: Object storage used to resolve local media URLs.
         """
 
         self._repository = repository
-        self._storage = storage
-
-    @staticmethod
-    def _is_remote_url(url: str) -> bool:
-        """Return True when ``url`` is already an http(s) link."""
-
-        return url.startswith("http://") or url.startswith("https://")
-
-    def _resolve_local_media_url(self, url: str) -> str:
-        """Map a local disk path to a public object-storage URL.
-
-        Assumes objects already exist in the bucket (offline migrate).
-        No existence check or upload on the request path.
-        """
-
-        if self._is_remote_url(url):
-            return url
-
-        key = self._storage.object_key_from_local_path(url)
-
-        return self._storage.public_url(key)
-
-    def _rewrite_media_urls(
-        self,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Rewrite local sample media paths to public object-storage URLs."""
-
-        for field in ("video_sample_image_url", "video_sample_movie_url"):
-            items = payload.get(field) or []
-
-            for item in items:
-                raw_url = item.get("url")
-
-                if not raw_url:
-                    continue
-
-                item["url"] = self._resolve_local_media_url(raw_url)
-
-        return payload
 
     def _to_video_response(
         self,
@@ -175,28 +132,6 @@ class VideoService:
 
         return [attach(root_id) for root_id in roots]
 
-    def _resolve_master_m3u8_url(
-        self,
-        raw_url: Optional[str],
-    ) -> Optional[str]:
-        """Map a stored master playlist path to the public object-storage URL.
-
-        Assumes the HLS package already exists in object storage (offline
-        migrate). Local disk paths are rewritten to the configured public
-        base; http(s) URLs are returned unchanged. No upload or existence
-        check is performed on the request path.
-        """
-
-        if not raw_url:
-            return None
-
-        if self._is_remote_url(raw_url):
-            return raw_url
-
-        key = self._storage.object_key_from_local_path(raw_url)
-
-        return self._storage.public_url(key)
-
     @staticmethod
     def _loaded_collection(row: object, name: str) -> list[object]:
         """Return a relationship collection only if already eager-loaded.
@@ -227,7 +162,7 @@ class VideoService:
         comments: list[object],
         m3u8_url: Optional[str],
     ) -> VideoDetailResponse:
-        """Validate a detail row, rewrite media URLs, attach engagement."""
+        """Validate a detail row and attach engagement fields."""
 
         # Avoid model_validate(row) so relationship attrs named like
         # engagement fields are never read.
@@ -262,17 +197,15 @@ class VideoService:
                     row,
                     "video_sample_movie_url",
                 ),
-                "m3u8_url": None,
+                "m3u8_url": m3u8_url,
                 "views": counts.views,
                 "likes": counts.likes,
                 "dislikes": counts.dislikes,
                 "comments": self._build_comment_tree(comments),
             },
         )
-        data = self._rewrite_media_urls(base.model_dump())
-        data["m3u8_url"] = self._resolve_master_m3u8_url(m3u8_url)
 
-        return VideoDetailResponse.model_validate(data)
+        return base
 
     async def list_videos(
         self,
@@ -374,9 +307,7 @@ class VideoService:
     async def get_video(self, video_id: int) -> VideoDetailResponse:
         """Return a single video by primary key with full relations.
 
-        Local media URLs are rewritten to object-storage public URLs.
-        ``m3u8_url`` is rewritten to the public object-storage base when
-        stored as a local path (objects are assumed already migrated).
+        Media and ``m3u8_url`` values are returned as stored in the database.
 
         Args:
             video_id: ``Video.id`` primary key.
