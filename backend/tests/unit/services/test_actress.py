@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException, status
 
 from app.repositories.actress import ActressRepository
 from app.services.actress import ActressService
@@ -58,6 +59,15 @@ class FakeActressRepository:
         self.count_calls += 1
 
         return self.count_result
+
+    async def get_by_id(self, actress_id: int) -> Any | None:
+        """Return configured detail row when id matches."""
+
+        for row in self.list_result:
+            if getattr(row, "id", None) == actress_id:
+                return row
+
+        return None
 
     async def count_engagement_for_actresses(
         self,
@@ -394,3 +404,71 @@ async def test_list_actresses_engagement_defaults_when_repo_omits_id(
     assert result.items[0].video_cnt == 0
     assert result.items[0].sub_cnt == 0
     assert result.items[0].view_cnt == 0
+
+
+@pytest.mark.asyncio
+async def test_get_actress_returns_list_shape(
+    service: ActressService,
+    repository: FakeActressRepository,
+) -> None:
+    """Detail payload matches list item fields including engagement."""
+
+    repository.list_result = [
+        SimpleNamespace(
+            id=42,
+            name="Yui Hatano",
+            ruby="はたのゆい",
+            image_url=None,
+            dmm_id="26225",
+            bust=88,
+            cup="E",
+            waist=59,
+            hip=None,
+            height=163,
+            birthday="1988-05-24",
+            created_at=None,
+            updated_at=None,
+            actress_aka=SimpleNamespace(
+                id=3,
+                name="波多野結衣",
+                translated_name="Yui Hatano",
+            ),
+            actress_image=[
+                SimpleNamespace(
+                    id=1,
+                    url="https://example.com/a.jpg",
+                    attribute=2,
+                ),
+            ],
+        ),
+    ]
+    repository.engagement_result = {
+        42: {"video_cnt": 10, "sub_cnt": 2, "view_cnt": 500},
+    }
+
+    result = await service.get_actress(42)
+
+    assert result.id == 42
+    assert result.name == "Yui Hatano"
+    assert result.ruby == "はたのゆい"
+    assert result.dmm_id == "26225"
+    assert result.birthday == "1988-05-24"
+    assert result.aka is not None
+    assert result.aka.translated_name == "Yui Hatano"
+    assert len(result.image) == 1
+    assert result.image[0].attribute == "avatar"
+    assert result.video_cnt == 10
+    assert result.sub_cnt == 2
+    assert result.view_cnt == 500
+
+
+@pytest.mark.asyncio
+async def test_get_actress_raises_not_found(
+    service: ActressService,
+) -> None:
+    """Missing actress id yields HTTP 404."""
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_actress(999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

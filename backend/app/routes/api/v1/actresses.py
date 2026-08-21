@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Query, status
 
 from app.dependencies import ActressServiceDep
-from app.schemas.actress import ActressListResponse
+from app.schemas.actress import ActressListResponse, ActressResponse
 from app.schemas.actress_filters import ActressSort
 
 router = APIRouter()
@@ -74,3 +74,18 @@ async def list_actresses(
         directors=directors,
         sort=sort,
     )
+
+
+@router.get(
+    "/actresses/{actress_id}",
+    response_model=ActressResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get actress by id",
+)
+async def get_actress(
+    actress_id: int,
+    service: ActressServiceDep,
+) -> ActressResponse:
+    """Return one actress using the same payload as list items."""
+
+    return await service.get_actress(actress_id)

@@ -316,6 +316,40 @@ class ActressRepository(BaseRepository):
 
         return int(total)
 
+    async def get_by_id(self, actress_id: int) -> Optional[Actress]:
+        """Return one actress with aka and images, or ``None``.
+
+        Args:
+            actress_id: Primary key.
+
+        Returns:
+            The ``Actress`` row when found.
+        """
+
+        statement = (
+            select(Actress)
+            .where(col(Actress.id) == actress_id)
+            .options(
+                selectinload(
+                    _relationship_attr(Actress.actress_aka),
+                ).load_only(
+                    _col(ActressAka.id),
+                    _col(ActressAka.name),
+                    _col(ActressAka.translated_name),
+                ),
+                selectinload(
+                    _relationship_attr(Actress.actress_image),
+                ).load_only(
+                    _col(ActressImage.id),
+                    _col(ActressImage.url),
+                    _col(ActressImage.attribute),
+                ),
+            )
+        )
+        result = await self.session.exec(statement)
+
+        return result.first()
+
     async def count_engagement_for_actresses(
         self,
         actress_ids: list[int],

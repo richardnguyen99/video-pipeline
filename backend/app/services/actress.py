@@ -24,6 +24,23 @@ class ActressService:
 
         self._repository = repository
 
+    def _to_actress_response(
+        self,
+        row: object,
+        counts: dict[str, int],
+    ) -> ActressResponse:
+        """Map an ORM row and engagement totals into the public shape."""
+
+        item = ActressResponse.model_validate(row)
+
+        return item.model_copy(
+            update={
+                "video_cnt": counts.get("video_cnt", 0),
+                "sub_cnt": counts.get("sub_cnt", 0),
+                "view_cnt": counts.get("view_cnt", 0),
+            },
+        )
+
     async def list_actresses(
         self,
         *,
@@ -114,16 +131,7 @@ class ActressService:
                 row.id,
                 {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 0},
             )
-            item = ActressResponse.model_validate(row)
-            items.append(
-                item.model_copy(
-                    update={
-                        "video_cnt": counts["video_cnt"],
-                        "sub_cnt": counts["sub_cnt"],
-                        "view_cnt": counts["view_cnt"],
-                    },
-                ),
-            )
+            items.append(self._to_actress_response(row, counts))
 
         return ActressListResponse(
             items=items,
@@ -131,3 +139,34 @@ class ActressService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def get_actress(self, actress_id: int) -> ActressResponse:
+        """Return one actress in the same shape as list items.
+
+        Args:
+            actress_id: Primary key.
+
+        Returns:
+            Public ``ActressResponse`` including engagement counts.
+
+        Raises:
+            HTTPException: 404 when the actress does not exist.
+        """
+
+        row = await self._repository.get_by_id(actress_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Actress not found",
+            )
+
+        engagement = await self._repository.count_engagement_for_actresses(
+            [row.id],
+        )
+        counts = engagement.get(
+            row.id,
+            {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 0},
+        )
+
+        return self._to_actress_response(row, counts)
