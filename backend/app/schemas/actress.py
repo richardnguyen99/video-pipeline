@@ -1,15 +1,16 @@
 """Actress response schemas."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal, Optional, cast
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-ActressImageAttributeLabel = Literal["fallback", "thumbnail", "avatar"]
+ActressImageAttributeLabel = Literal["thumbnail", "default", "avatar"]
 
+# DB integer codes → size labels (smallest → largest).
 _IMAGE_ATTRIBUTE_LABELS: dict[int, ActressImageAttributeLabel] = {
-    0: "fallback",
-    1: "thumbnail",
+    0: "thumbnail",
+    1: "default",
     2: "avatar",
 }
 _IMAGE_ATTRIBUTE_LABEL_SET: frozenset[str] = frozenset(
@@ -18,12 +19,11 @@ _IMAGE_ATTRIBUTE_LABEL_SET: frozenset[str] = frozenset(
 
 
 class ActressAkaResponse(BaseModel):
-    """Alternative name for an actress."""
+    """Alternative (translated) name for an actress."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    name: str
     translated_name: str
 
 
@@ -39,7 +39,7 @@ class ActressImageResponse(BaseModel):
     @field_validator("attribute", mode="before")
     @classmethod
     def map_attribute_code(cls, value: Any) -> ActressImageAttributeLabel:
-        """Map numeric DB attribute codes to readable labels."""
+        """Map numeric DB attribute codes to size labels."""
 
         if isinstance(value, str) and value in _IMAGE_ATTRIBUTE_LABEL_SET:
             return cast(ActressImageAttributeLabel, value)
@@ -50,18 +50,20 @@ class ActressImageResponse(BaseModel):
             if label is not None:
                 return label
 
-        return "fallback"
+        return "thumbnail"
 
 
 class ActressResponse(BaseModel):
-    """Public actress representation including aka and images."""
+    """Public actress representation for list/detail payloads."""
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(
+        from_attributes=True,
+        populate_by_name=True,
+    )
 
     id: int
     name: str
     ruby: Optional[str] = None
-    image_url: Optional[str] = None
     dmm_id: Optional[str] = None
     bust: Optional[int] = None
     cup: Optional[str] = None
@@ -69,10 +71,33 @@ class ActressResponse(BaseModel):
     hip: Optional[int] = None
     height: Optional[int] = None
     birthday: Optional[str] = None
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    actress_aka: Optional[ActressAkaResponse] = None
-    actress_image: list[ActressImageResponse] = Field(default_factory=list)
+    aka: Optional[ActressAkaResponse] = Field(
+        default=None,
+        validation_alias="actress_aka",
+    )
+    image: list[ActressImageResponse] = Field(
+        default_factory=list,
+        validation_alias="actress_image",
+    )
+
+    @field_validator("birthday", mode="before")
+    @classmethod
+    def format_birthday(cls, value: Any) -> Optional[str]:
+        """Normalize birthday to ``YYYY-MM-DD`` string."""
+
+        if value is None or value == "":
+            return None
+
+        if isinstance(value, datetime):
+            return value.date().isoformat()
+
+        if isinstance(value, date):
+            return value.isoformat()
+
+        if isinstance(value, str):
+            return value[:10]
+
+        return str(value)
 
 
 class ActressListResponse(BaseModel):

@@ -112,8 +112,8 @@ async def test_list_actresses_maps_repository_rows(
     assert result.items[0].id == 1
     assert result.items[0].name == "Aoi Tsukasa"
     assert result.items[0].ruby == "あおい つかさ"
-    assert result.items[0].actress_aka is None
-    assert result.items[0].actress_image == []
+    assert result.items[0].aka is None
+    assert result.items[0].image == []
 
 
 @pytest.mark.asyncio
@@ -158,16 +158,15 @@ async def test_list_actresses_includes_aka_and_images(
 
     result = await service.list_actresses()
 
-    assert result.items[0].actress_aka is not None
-    assert result.items[0].actress_aka.translated_name == "Aoi Sora"
-    assert "name_type" not in result.items[0].actress_aka.model_fields
-    assert "fk_id" not in result.items[0].actress_aka.model_fields
-    assert len(result.items[0].actress_image) == 1
-    assert (
-        result.items[0].actress_image[0].url == "https://example.com/img.jpg"
-    )
-    assert result.items[0].actress_image[0].attribute == "thumbnail"
-    assert "fk_id" not in result.items[0].actress_image[0].model_fields
+    assert result.items[0].aka is not None
+    assert result.items[0].aka.translated_name == "Aoi Sora"
+    assert "name" not in result.items[0].aka.model_fields
+    assert "name_type" not in result.items[0].aka.model_fields
+    assert "fk_id" not in result.items[0].aka.model_fields
+    assert len(result.items[0].image) == 1
+    assert result.items[0].image[0].url == "https://example.com/img.jpg"
+    assert result.items[0].image[0].attribute == "default"
+    assert "fk_id" not in result.items[0].image[0].model_fields
 
 
 @pytest.mark.asyncio
@@ -254,5 +253,5 @@ async def test_list_actresses_maps_image_attribute_codes(
 
     result = await service.list_actresses()
 
-    labels = [img.attribute for img in result.items[0].actress_image]
-    assert labels == ["fallback", "thumbnail", "avatar", "fallback"]
+    labels = [img.attribute for img in result.items[0].image]
+    assert labels == ["thumbnail", "default", "avatar", "thumbnail"]
