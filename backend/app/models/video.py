@@ -43,10 +43,10 @@ class Video(IdTimestampMixin, table=True):
     """Represents a video entity."""
 
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="video_pkey"),
-        UniqueConstraint("video_id", name="uq_video_video_id"),
-        Index("video_video_id_idx", "video_id"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("video_id"),
+        Index(None, "video_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     video_id: str = Field(
@@ -156,11 +156,10 @@ class VideoAka(IdTimestampMixin, table=True):
             ["fk_id"],
             ["public.video.id"],
             ondelete="CASCADE",
-            name="video_aka_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="video_aka_pkey"),
-        Index("video_aka_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     fk_id: int = Field(
@@ -209,12 +208,11 @@ class VideoImageUrl(IdTimestampMixin, table=True):
             ["fk_id"],
             ["public.video.id"],
             ondelete="CASCADE",
-            name="video_image_url_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="video_image_url_pkey"),
-        UniqueConstraint("fk_id", "url", name="uq_video_image_url_fk_id_url"),
-        Index("video_image_url_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("fk_id", "url"),
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     url: str = Field(
@@ -256,16 +254,14 @@ class VideoM3u8(IdTimestampMixin, table=True):
             columns=["fk_id"],
             refcolumns=["public.video.id"],
             ondelete="CASCADE",
-            name="video_m3u8_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="video_m3u8_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "m3u8_url",
-            name="uq_video_m3u8_fk_id_m3u8_url",
         ),
-        Index("video_m3u8_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     fk_id: int = Field(
@@ -300,14 +296,11 @@ class VideoSampleImageUrl(IdTimestampMixin, table=True):
             columns=["fk_id"],
             refcolumns=["public.video.id"],
             ondelete="CASCADE",
-            name="video_sample_image_url_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="video_sample_image_url_pkey"),
-        UniqueConstraint(
-            "fk_id", "url", name="uq_video_sample_image_url_fk_id_url"
-        ),
-        Index("video_sample_image_url_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("fk_id", "url"),
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     url: str = Field(
@@ -349,16 +342,14 @@ class VideoSampleMovieUrl(IdTimestampMixin, table=True):
             ["fk_id"],
             ["public.video.id"],
             ondelete="CASCADE",
-            name="video_sample_movie_url_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="video_sample_movie_url_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "url",
-            name="uq_video_sample_movie_url_fk_id_url",
         ),
-        Index("video_sample_movie_url_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     url: str = Field(

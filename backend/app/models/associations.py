@@ -41,28 +41,26 @@ t_video_actress = Table(
         ["fk_id"],
         ["public.actress.id"],
         ondelete="CASCADE",
-        name="video_actress_fk_id_fkey",
     ),
     ForeignKeyConstraint(
         ["video_id"],
         ["public.video.id"],
         ondelete="CASCADE",
-        name="video_actress_video_id_fkey",
     ),
     PrimaryKeyConstraint(
         "video_id",
         "fk_id",
-        name="video_actress_pkey",
     ),
     Index(
-        "video_actress_fk_id_idx",
+        None,
         "fk_id",
     ),
     Index(
-        "video_actress_video_id_idx",
+        None,
         "video_id",
     ),
     schema="public",
+    extend_existing=True,
 )
 
 
@@ -95,17 +93,16 @@ t_video_director = Table(
         ["fk_id"],
         ["public.director.id"],
         ondelete="CASCADE",
-        name="video_director_fk_id_fkey",
     ),
     ForeignKeyConstraint(
         ["video_id"],
         ["public.video.id"],
         ondelete="CASCADE",
-        name="video_director_video_id_fkey",
     ),
-    Index("video_director_fk_id_idx", "fk_id"),
-    Index("video_director_video_id_idx", "video_id"),
+    Index(None, "fk_id"),
+    Index(None, "video_id"),
     schema="public",
+    extend_existing=True,
 )
 
 
@@ -138,17 +135,16 @@ t_video_genre = Table(
         ["fk_id"],
         ["public.genre.id"],
         ondelete="CASCADE",
-        name="video_genre_fk_id_fkey",
     ),
     ForeignKeyConstraint(
         ["video_id"],
         ["public.video.id"],
         ondelete="CASCADE",
-        name="video_genre_video_id_fkey",
     ),
-    Index("video_genre_fk_id_idx", "fk_id"),
-    Index("video_genre_video_id_idx", "video_id"),
+    Index(None, "fk_id"),
+    Index(None, "video_id"),
     schema="public",
+    extend_existing=True,
 )
 
 
@@ -181,17 +177,16 @@ t_video_label = Table(
         ["fk_id"],
         ["public.label.id"],
         ondelete="CASCADE",
-        name="video_label_fk_id_fkey",
     ),
     ForeignKeyConstraint(
         ["video_id"],
         ["public.video.id"],
         ondelete="CASCADE",
-        name="video_label_video_id_fkey",
     ),
-    Index("video_label_fk_id_idx", "fk_id"),
-    Index("video_label_video_id_idx", "video_id"),
+    Index(None, "fk_id"),
+    Index(None, "video_id"),
     schema="public",
+    extend_existing=True,
 )
 
 
@@ -224,17 +219,16 @@ t_video_maker = Table(
         ["fk_id"],
         ["public.maker.id"],
         ondelete="CASCADE",
-        name="video_maker_fk_id_fkey",
     ),
     ForeignKeyConstraint(
         ["video_id"],
         ["public.video.id"],
         ondelete="CASCADE",
-        name="video_maker_video_id_fkey",
     ),
-    Index("video_maker_fk_id_idx", "fk_id"),
-    Index("video_maker_video_id_idx", "video_id"),
+    Index(None, "fk_id"),
+    Index(None, "video_id"),
     schema="public",
+    extend_existing=True,
 )
 
 
@@ -267,15 +261,14 @@ t_video_series = Table(
         ["fk_id"],
         ["public.series.id"],
         ondelete="CASCADE",
-        name="video_series_fk_id_fkey",
     ),
     ForeignKeyConstraint(
         ["video_id"],
         ["public.video.id"],
         ondelete="CASCADE",
-        name="video_series_video_id_fkey",
     ),
-    Index("video_series_fk_id_idx", "fk_id"),
-    Index("video_series_video_id_idx", "video_id"),
+    Index(None, "fk_id"),
+    Index(None, "video_id"),
     schema="public",
+    extend_existing=True,
 )

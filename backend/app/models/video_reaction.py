@@ -39,9 +39,8 @@ class VideoReaction(SQLModel, table=True):
         UniqueConstraint(
             "user_id",
             "video_id",
-            name="uq_video_reaction_user_video",
         ),
-        {"schema": "public"},
+        {"schema": "public", "extend_existing": True},
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

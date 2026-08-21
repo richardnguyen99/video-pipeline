@@ -15,9 +15,9 @@ class Maker(DmmCatalogMixin, table=True):
     """Represents a maker entity."""
 
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="maker_pkey"),
-        UniqueConstraint("dmm_id", name="maker_dmm_id_key"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("dmm_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     maker_aka: list["MakerAka"] = Relationship(back_populates="fk")
@@ -37,16 +37,14 @@ class MakerAka(AkaMixin, table=True):
             columns=["fk_id"],
             refcolumns=["public.maker.id"],
             ondelete="CASCADE",
-            name="maker_aka_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="maker_aka_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "language",
-            name="uq_maker_aka_fk_id_language",
         ),
-        Index("maker_aka_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     fk: "Maker" = Relationship(back_populates="maker_aka")

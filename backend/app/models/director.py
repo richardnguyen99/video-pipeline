@@ -15,9 +15,9 @@ class Director(DmmCatalogMixin, table=True):
     """Represents a director entity."""
 
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="director_pkey"),
-        UniqueConstraint("dmm_id", name="director_dmm_id_key"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("dmm_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     director_aka: list["DirectorAka"] = Relationship(back_populates="fk")
@@ -37,16 +37,14 @@ class DirectorAka(AkaMixin, table=True):
             columns=["fk_id"],
             refcolumns=["public.director.id"],
             ondelete="CASCADE",
-            name="director_aka_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="director_aka_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "language",
-            name="uq_director_aka_fk_id_language",
         ),
-        Index("director_aka_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     fk: "Director" = Relationship(back_populates="director_aka")

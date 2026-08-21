@@ -15,9 +15,9 @@ class Series(DmmCatalogMixin, table=True):
     """Represents a series entity."""
 
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="series_pkey"),
-        UniqueConstraint("dmm_id", name="series_dmm_id_key"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("dmm_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     series_aka: list["SeriesAka"] = Relationship(back_populates="fk")
@@ -37,16 +37,14 @@ class SeriesAka(AkaMixin, table=True):
             columns=["fk_id"],
             refcolumns=["public.series.id"],
             ondelete="CASCADE",
-            name="series_aka_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="series_aka_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "language",
-            name="uq_series_aka_fk_id_language",
         ),
-        Index("series_aka_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     fk: "Series" = Relationship(back_populates="series_aka")

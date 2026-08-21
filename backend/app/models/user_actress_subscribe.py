@@ -39,7 +39,6 @@ class UserActressSubscribe(SQLModel, table=True):
         UniqueConstraint(
             "user_id",
             "actress_id",
-            name="uq_user_actress_subscribe_user_actress",
         ),
         {"schema": "public", "extend_existing": True},
     )

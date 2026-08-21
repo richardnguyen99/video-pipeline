@@ -15,9 +15,9 @@ class Label(DmmCatalogMixin, table=True):
     """Represents a label entity."""
 
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="label_pkey"),
-        UniqueConstraint("dmm_id", name="label_dmm_id_key"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("dmm_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     label_aka: list["LabelAka"] = Relationship(back_populates="fk")
@@ -37,16 +37,14 @@ class LabelAka(AkaMixin, table=True):
             columns=["fk_id"],
             refcolumns=["public.label.id"],
             ondelete="CASCADE",
-            name="label_aka_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="label_aka_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "language",
-            name="uq_label_aka_fk_id_language",
         ),
-        Index("label_aka_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     fk: "Label" = Relationship(back_populates="label_aka")

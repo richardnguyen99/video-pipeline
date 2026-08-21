@@ -50,7 +50,7 @@ class Playlist(SQLModel, table=True):
     """A named collection of videos owned by a single user."""
 
     __tablename__ = "playlist"
-    __table_args__ = {"schema": "public"}
+    __table_args__ = {"schema": "public", "extend_existing": True}
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     owner_id: uuid.UUID = Field(
@@ -223,9 +223,8 @@ class PlaylistVideo(SQLModel, table=True):
         UniqueConstraint(
             "playlist_id",
             "video_id",
-            name="uq_playlist_video_playlist_video",
         ),
-        {"schema": "public"},
+        {"schema": "public", "extend_existing": True},
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
@@ -364,9 +363,8 @@ class PlaylistShare(SQLModel, table=True):
         UniqueConstraint(
             "playlist_id",
             "shared_with_user_id",
-            name="uq_playlist_share_playlist_user",
         ),
-        {"schema": "public"},
+        {"schema": "public", "extend_existing": True},
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)

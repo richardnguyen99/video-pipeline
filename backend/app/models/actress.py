@@ -28,10 +28,10 @@ class Actress(IdTimestampMixin, table=True):
     """Represents an actress entity."""
 
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="actress_pkey"),
-        UniqueConstraint("dmm_id", name="uq_actress_dmm_id"),
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("dmm_id"),
         Index(
-            "actress_dmm_name_gin_idx",
+            None,
             "name",
             postgresql_ops={"name": "gin_trgm_ops"},
             postgresql_using="gin",
@@ -198,10 +198,9 @@ class ActressAka(IdTimestampMixin, table=True):
             ["fk_id"],
             ["public.actress.id"],
             ondelete="CASCADE",
-            name="actress_aka_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="actress_aka_pkey"),
-        UniqueConstraint("fk_id", name="uq_actress_aka_fk_id"),
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("fk_id"),
         {"schema": "public", "extend_existing": True},
     )
 
@@ -251,15 +250,13 @@ class ActressImage(IdTimestampMixin, table=True):
             ["fk_id"],
             ["public.actress.id"],
             ondelete="CASCADE",
-            name="actress_image_actress_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="actress_image_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "attribute",
-            name="uq_actress_image_fk_id_attribute",
         ),
-        Index("actress_image_fk_id_idx", "fk_id"),
+        Index(None, "fk_id"),
         {"schema": "public", "extend_existing": True},
     )
 
@@ -305,6 +302,7 @@ class ActressBanner(IdTimestampMixin, table=True):
         ),
         PrimaryKeyConstraint("id"),
         UniqueConstraint("fk_id"),
+        Index(None, "fk_id"),
         {"schema": "public", "extend_existing": True},
     )
 
@@ -319,7 +317,6 @@ class ActressBanner(IdTimestampMixin, table=True):
         sa_column=Column(
             "fk_id",
             Integer,
-            index=True,
             nullable=False,
         ),
     )

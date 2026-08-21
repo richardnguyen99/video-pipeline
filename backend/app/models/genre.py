@@ -15,9 +15,9 @@ class Genre(DmmCatalogMixin, table=True):
     """Represents a genre entity."""
 
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="genre_pkey"),
-        UniqueConstraint("dmm_id", name="genre_dmm_id_key"),
-        {"schema": "public"},
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("dmm_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     genre_aka: list["GenreAka"] = Relationship(back_populates="fk")
@@ -37,16 +37,14 @@ class GenreAka(AkaMixin, table=True):
             columns=["fk_id"],
             refcolumns=["public.genre.id"],
             ondelete="CASCADE",
-            name="genre_aka_fk_id_fkey",
         ),
-        PrimaryKeyConstraint("id", name="genre_aka_pkey"),
+        PrimaryKeyConstraint("id"),
         UniqueConstraint(
             "fk_id",
             "language",
-            name="uq_genre_aka_fk_id_language",
         ),
-        Index("genre_aka_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        Index(None, "fk_id"),
+        {"schema": "public", "extend_existing": True},
     )
 
     fk: "Genre" = Relationship(back_populates="genre_aka")
