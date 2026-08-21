@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.actress_filters import ActressListFilters
+from app.schemas.actress_filters import ActressListFilters, ActressSort
 
 
 def test_actress_filters_accepts_empty() -> None:
@@ -46,3 +46,14 @@ def test_actress_filters_normalizes_multi_value_fields() -> None:
     assert filters.cups == ["O", "E"]
     assert filters.genres == [10, 146]
     assert filters.labels == [2, 3]
+
+
+def test_actress_sort_enum_values() -> None:
+    """Sort codes match the public API contract."""
+
+    assert ActressSort.CUP == 1
+    assert ActressSort.VIEW_CNT == 9
+
+    filters = ActressListFilters(sort=ActressSort.VIDEO_CNT)
+
+    assert filters.sort == ActressSort.VIDEO_CNT

@@ -1,8 +1,23 @@
 """Actress list query filters."""
 
+from enum import IntEnum
 from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
+
+
+class ActressSort(IntEnum):
+    """Single descending sort key for actress discovery."""
+
+    CUP = 1
+    BUST = 2
+    WAIST = 3
+    HIP = 4
+    HEIGHT = 5
+    AGE = 6
+    VIDEO_CNT = 7
+    SUB_CNT = 8
+    VIEW_CNT = 9
 
 
 class ActressListFilters(BaseModel):
@@ -28,6 +43,7 @@ class ActressListFilters(BaseModel):
     series: list[int] = Field(default_factory=list)
     labels: list[int] = Field(default_factory=list)
     directors: list[int] = Field(default_factory=list)
+    sort: Optional[ActressSort] = None
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "ActressListFilters":

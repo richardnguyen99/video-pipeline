@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, status
 
 from app.dependencies import ActressServiceDep
 from app.schemas.actress import ActressListResponse
+from app.schemas.actress_filters import ActressSort
 
 router = APIRouter()
 
@@ -38,6 +39,13 @@ async def list_actresses(
     series: Optional[list[int]] = Query(default=None),
     labels: Optional[list[int]] = Query(default=None, alias="label"),
     directors: Optional[list[int]] = Query(default=None, alias="director"),
+    sort: Optional[ActressSort] = Query(
+        default=None,
+        description=(
+            "Descending sort: 1=cup 2=bust 3=waist 4=hip 5=height "
+            "6=age 7=video_cnt 8=sub_cnt 9=view_cnt"
+        ),
+    ),
 ) -> ActressListResponse:
     """Return a paginated, filterable list of actresses.
 
@@ -64,4 +72,5 @@ async def list_actresses(
         series=series,
         labels=labels,
         directors=directors,
+        sort=sort,
     )

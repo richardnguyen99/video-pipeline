@@ -1,8 +1,8 @@
 """Actress data-access repository."""
 
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
-from sqlalchemy import exists, func
+from sqlalchemy import Date, cast, exists, func
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -19,12 +19,27 @@ from app.models.associations import (
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
-from app.schemas.actress_filters import ActressListFilters
+from app.schemas.actress_filters import ActressListFilters, ActressSort
 from app.utils import _col, _relationship_attr
 
 
 class ActressRepository(BaseRepository):
     """Read operations for ``Actress`` rows."""
+
+    @staticmethod
+    def _birthday_as_date() -> Any:
+        """Cast stored birthday text to a SQL date for age math."""
+
+        return cast(col(Actress.birthday), Date)
+
+    @classmethod
+    def _age_expr(cls) -> Any:
+        """Years between birthday and current date."""
+
+        return func.date_part(
+            "year",
+            func.age(func.current_date(), cls._birthday_as_date()),
+        )
 
     @staticmethod
     def _apply_filters(
@@ -70,14 +85,10 @@ class ActressRepository(BaseRepository):
         )
 
         if filters.age_min is not None or filters.age_max is not None:
-            age_expr = func.date_part(
-                "year",
-                func.age(func.current_date(), col(Actress.birthday)),
-            )
             statement = statement.where(col(Actress.birthday).is_not(None))
             statement = ActressRepository._apply_range(
                 statement,
-                age_expr,
+                ActressRepository._age_expr(),
                 filters.age_min,
                 filters.age_max,
             )
@@ -158,6 +169,92 @@ class ActressRepository(BaseRepository):
             ),
         )
 
+    _measurement_sort_columns: ClassVar[dict[ActressSort, Any] | None] = None
+    _aggregate_sort_exprs: ClassVar[dict[ActressSort, Any] | None] = None
+
+    @classmethod
+    def _get_measurement_sort_columns(cls) -> dict[ActressSort, Any]:
+        """Return measurement sort columns (built once per process)."""
+
+        if cls._measurement_sort_columns is None:
+            cls._measurement_sort_columns = {
+                ActressSort.CUP: col(Actress.cup),
+                ActressSort.BUST: col(Actress.bust),
+                ActressSort.WAIST: col(Actress.waist),
+                ActressSort.HIP: col(Actress.hip),
+                ActressSort.HEIGHT: col(Actress.height),
+            }
+
+        return cls._measurement_sort_columns
+
+    @classmethod
+    def _get_aggregate_sort_exprs(cls) -> dict[ActressSort, Any]:
+        """Return aggregate sort subqueries (built once per process)."""
+
+        if cls._aggregate_sort_exprs is None:
+            cls._aggregate_sort_exprs = {
+                ActressSort.VIDEO_CNT: (
+                    sa_select(func.count())
+                    .where(t_video_actress.c.fk_id == Actress.id)
+                    .correlate(Actress)
+                    .scalar_subquery()
+                ),
+                ActressSort.SUB_CNT: (
+                    sa_select(func.count())
+                    .select_from(UserActressSubscribe)
+                    .where(col(UserActressSubscribe.actress_id) == Actress.id)
+                    .correlate(Actress)
+                    .scalar_subquery()
+                ),
+                ActressSort.VIEW_CNT: (
+                    sa_select(func.count())
+                    .select_from(t_video_actress)
+                    .join(
+                        VideoView,
+                        col(VideoView.video_id) == t_video_actress.c.video_id,
+                    )
+                    .where(t_video_actress.c.fk_id == Actress.id)
+                    .correlate(Actress)
+                    .scalar_subquery()
+                ),
+            }
+
+        return cls._aggregate_sort_exprs
+
+    @classmethod
+    def _order_clauses(cls, sort: Optional[ActressSort]) -> tuple[Any, ...]:
+        """Build ORDER BY clauses: primary sort DESC NULLS LAST, then id.
+
+        Missing measurement/age values sort last. Aggregate sorts use
+        correlated subqueries for video / subscription / view totals.
+        """
+
+        tie_break = col(Actress.id).asc()
+
+        if sort is None:
+            return (tie_break,)
+
+        measurement_columns: dict[ActressSort, Any] = (
+            cls._get_measurement_sort_columns()
+        )
+        primary = measurement_columns.get(sort)
+
+        if primary is not None:
+            return (primary.desc().nulls_last(), tie_break)
+
+        if sort == ActressSort.AGE:
+            return (cls._age_expr().desc().nulls_last(), tie_break)
+
+        aggregate_expr: dict[ActressSort, Any] = (
+            cls._get_aggregate_sort_exprs()
+        )
+        primary = aggregate_expr.get(sort)
+
+        if primary is not None:
+            return (primary.desc(), tie_break)
+
+        return (tie_break,)
+
     async def list_actresses(
         self,
         *,
@@ -194,11 +291,13 @@ class ActressRepository(BaseRepository):
                     _col(ActressImage.attribute),
                 ),
             )
-            .order_by(col(Actress.id))
             .offset(offset)
             .limit(limit)
         )
         statement = self._apply_filters(statement, filters)
+        statement = statement.order_by(
+            *self._order_clauses(filters.sort if filters else None),
+        )
         result = await self.session.exec(statement)
 
         return list(result.all())

@@ -48,7 +48,11 @@ class FakeActressRepository:
 
         return list(self.list_result)
 
-    async def count_actresses(self, *, filters: Any = None) -> int:
+    async def count_actresses(
+        self,
+        *,
+        filters: Any = None,  # pylint: disable=unused-argument
+    ) -> int:
         """Return the configured total and record the call."""
 
         self.count_calls += 1

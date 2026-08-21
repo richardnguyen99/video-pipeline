@@ -9,7 +9,7 @@ from pydantic import ValidationError
 
 from app.repositories.actress import ActressRepository
 from app.schemas.actress import ActressListResponse, ActressResponse
-from app.schemas.actress_filters import ActressListFilters
+from app.schemas.actress_filters import ActressListFilters, ActressSort
 
 
 class ActressService:
@@ -45,6 +45,7 @@ class ActressService:
         series: Optional[list[int]] = None,
         labels: Optional[list[int]] = None,
         directors: Optional[list[int]] = None,
+        sort: Optional[ActressSort] = None,
     ) -> ActressListResponse:
         """Return a paginated actress list with filters and engagement counts.
 
@@ -88,6 +89,7 @@ class ActressService:
                 series=list(series or []),
                 labels=list(labels or []),
                 directors=list(directors or []),
+                sort=sort,
             )
         except ValidationError as exc:
             raise HTTPException(
