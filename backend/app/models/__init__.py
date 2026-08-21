@@ -17,6 +17,7 @@ from app.models import associations  # noqa: F401 — registers junction tables
 from app.models.actress import (
     Actress,
     ActressAka,
+    ActressBanner,
     ActressImage,
 )
 from app.models.comments import Comment

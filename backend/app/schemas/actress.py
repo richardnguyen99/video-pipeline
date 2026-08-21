@@ -27,6 +27,15 @@ class ActressAkaResponse(BaseModel):
     translated_name: str
 
 
+class ActressBannerResponse(BaseModel):
+    """Banner image for an actress profile."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+
+
 class ActressImageResponse(BaseModel):
     """Image associated with an actress."""
 
@@ -83,6 +92,10 @@ class ActressResponse(BaseModel):
     image: list[ActressImageResponse] = Field(
         default_factory=list,
         validation_alias="actress_image",
+    )
+    banner: Optional[ActressBannerResponse] = Field(
+        default=None,
+        validation_alias="actress_banner",
     )
 
     @field_validator("birthday", mode="before")

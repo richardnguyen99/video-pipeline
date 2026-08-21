@@ -7,7 +7,12 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
-from app.models.actress import Actress, ActressAka, ActressImage
+from app.models.actress import (
+    Actress,
+    ActressAka,
+    ActressBanner,
+    ActressImage,
+)
 from app.models.associations import (
     t_video_actress,
     t_video_director,
@@ -345,6 +350,12 @@ class ActressRepository(BaseRepository):
                     _col(ActressImage.id),
                     _col(ActressImage.url),
                     _col(ActressImage.attribute),
+                ),
+                selectinload(
+                    _relationship_attr(Actress.actress_banner),
+                ).load_only(
+                    _col(ActressBanner.id),
+                    _col(ActressBanner.url),
                 ),
             )
         )

@@ -36,7 +36,7 @@ class Actress(IdTimestampMixin, table=True):
             postgresql_ops={"name": "gin_trgm_ops"},
             postgresql_using="gin",
         ),
-        {"schema": "public"},
+        {"schema": "public", "extend_existing": True},
     )
 
     name: str = Field(
@@ -171,6 +171,10 @@ class Actress(IdTimestampMixin, table=True):
         sa_relationship_kwargs={"uselist": False},
     )
     actress_image: list["ActressImage"] = Relationship(back_populates="fk")
+    actress_banner: Optional["ActressBanner"] = Relationship(
+        back_populates="fk",
+        sa_relationship_kwargs={"uselist": False},
+    )
     videos: list["Video"] = Relationship(
         back_populates="actresses",
         sa_relationship_kwargs={"secondary": t_video_actress},
@@ -198,7 +202,7 @@ class ActressAka(IdTimestampMixin, table=True):
         ),
         PrimaryKeyConstraint("id", name="actress_aka_pkey"),
         UniqueConstraint("fk_id", name="uq_actress_aka_fk_id"),
-        {"schema": "public"},
+        {"schema": "public", "extend_existing": True},
     )
 
     name: str = Field(
@@ -256,7 +260,7 @@ class ActressImage(IdTimestampMixin, table=True):
             name="uq_actress_image_fk_id_attribute",
         ),
         Index("actress_image_fk_id_idx", "fk_id"),
-        {"schema": "public"},
+        {"schema": "public", "extend_existing": True},
     )
 
     url: str = Field(
@@ -287,3 +291,42 @@ class ActressImage(IdTimestampMixin, table=True):
         """Return a string representation."""
 
         return f"ActressImage(id={self.id!r}, fk_id={self.fk_id!r})"
+
+
+class ActressBanner(IdTimestampMixin, table=True):
+    """Banner image for an actress profile page."""
+
+    __tablename__ = "actress_banner"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["fk_id"],
+            ["public.actress.id"],
+            ondelete="CASCADE",
+        ),
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("fk_id"),
+        {"schema": "public", "extend_existing": True},
+    )
+
+    url: str = Field(
+        sa_column=Column(
+            "url",
+            Text,
+            nullable=False,
+        ),
+    )
+    fk_id: int = Field(
+        sa_column=Column(
+            "fk_id",
+            Integer,
+            index=True,
+            nullable=False,
+        ),
+    )
+
+    fk: "Actress" = Relationship(back_populates="actress_banner")
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return f"ActressBanner(id={self.id!r}, fk_id={self.fk_id!r})"
