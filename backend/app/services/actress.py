@@ -22,7 +22,7 @@ class ActressService:
         limit: int = 20,
         offset: int = 0,
     ) -> ActressListResponse:
-        """List actresses with simple offset pagination.
+        """Return a paginated actress list with engagement counts.
 
         Args:
             limit: Page size (clamped to at least 1).
@@ -40,8 +40,27 @@ class ActressService:
             offset=safe_offset,
         )
         total = await self._repository.count_actresses()
+        engagement = await self._repository.count_engagement_for_actresses(
+            [row.id for row in rows],
+        )
 
-        items = [ActressResponse.model_validate(row) for row in rows]
+        items: list[ActressResponse] = []
+
+        for row in rows:
+            counts = engagement.get(
+                row.id,
+                {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 0},
+            )
+            item = ActressResponse.model_validate(row)
+            items.append(
+                item.model_copy(
+                    update={
+                        "video_cnt": counts["video_cnt"],
+                        "sub_cnt": counts["sub_cnt"],
+                        "view_cnt": counts["view_cnt"],
+                    },
+                ),
+            )
 
         return ActressListResponse(
             items=items,

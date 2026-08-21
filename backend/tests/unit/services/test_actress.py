@@ -24,6 +24,10 @@ class FakeActressRepository:
     count_result: int = 0
     list_calls: list[dict[str, int]] = field(default_factory=list)
     count_calls: int = 0
+    engagement_result: dict[int, dict[str, int]] = field(
+        default_factory=dict,
+    )
+    engagement_calls: list[list[int]] = field(default_factory=list)
 
     async def list_actresses(
         self,
@@ -43,6 +47,28 @@ class FakeActressRepository:
         self.count_calls += 1
 
         return self.count_result
+
+    async def count_engagement_for_actresses(
+        self,
+        actress_ids: list[int],
+    ) -> dict[int, dict[str, int]]:
+        """Return configured engagement counts (zeros when missing)."""
+
+        self.engagement_calls.append(list(actress_ids))
+
+        return {
+            actress_id: dict(
+                self.engagement_result.get(
+                    actress_id,
+                    {
+                        "video_cnt": 0,
+                        "sub_cnt": 0,
+                        "view_cnt": 0,
+                    },
+                ),
+            )
+            for actress_id in actress_ids
+        }
 
 
 @pytest.fixture
@@ -114,6 +140,9 @@ async def test_list_actresses_maps_repository_rows(
     assert result.items[0].ruby == "あおい つかさ"
     assert result.items[0].aka is None
     assert result.items[0].image == []
+    assert result.items[0].video_cnt == 0
+    assert result.items[0].sub_cnt == 0
+    assert result.items[0].view_cnt == 0
 
 
 @pytest.mark.asyncio
@@ -255,3 +284,99 @@ async def test_list_actresses_maps_image_attribute_codes(
 
     labels = [img.attribute for img in result.items[0].image]
     assert labels == ["thumbnail", "default", "avatar", "thumbnail"]
+
+
+@pytest.mark.asyncio
+async def test_list_actresses_attaches_engagement_counts(
+    service: ActressService,
+    repository: FakeActressRepository,
+) -> None:
+    """Non-zero repository engagement totals are attached to each item."""
+
+    repository.list_result = [
+        SimpleNamespace(
+            id=1,
+            name="A",
+            ruby=None,
+            image_url=None,
+            dmm_id=None,
+            bust=None,
+            cup=None,
+            waist=None,
+            hip=None,
+            height=None,
+            birthday=None,
+            created_at=None,
+            updated_at=None,
+            actress_aka=None,
+            actress_image=[],
+        ),
+        SimpleNamespace(
+            id=2,
+            name="B",
+            ruby=None,
+            image_url=None,
+            dmm_id=None,
+            bust=None,
+            cup=None,
+            waist=None,
+            hip=None,
+            height=None,
+            birthday=None,
+            created_at=None,
+            updated_at=None,
+            actress_aka=None,
+            actress_image=[],
+        ),
+    ]
+    repository.count_result = 2
+    repository.engagement_result = {
+        1: {"video_cnt": 12, "sub_cnt": 4, "view_cnt": 900},
+        2: {"video_cnt": 1, "sub_cnt": 0, "view_cnt": 15},
+    }
+
+    result = await service.list_actresses()
+
+    assert repository.engagement_calls == [[1, 2]]
+    assert result.items[0].video_cnt == 12
+    assert result.items[0].sub_cnt == 4
+    assert result.items[0].view_cnt == 900
+    assert result.items[1].video_cnt == 1
+    assert result.items[1].sub_cnt == 0
+    assert result.items[1].view_cnt == 15
+
+
+@pytest.mark.asyncio
+async def test_list_actresses_engagement_defaults_when_repo_omits_id(
+    service: ActressService,
+    repository: FakeActressRepository,
+) -> None:
+    """Missing engagement entry for an id becomes zeros on the response."""
+
+    repository.list_result = [
+        SimpleNamespace(
+            id=9,
+            name="Solo",
+            ruby=None,
+            image_url=None,
+            dmm_id=None,
+            bust=None,
+            cup=None,
+            waist=None,
+            hip=None,
+            height=None,
+            birthday=None,
+            created_at=None,
+            updated_at=None,
+            actress_aka=None,
+            actress_image=[],
+        ),
+    ]
+    repository.count_result = 1
+    repository.engagement_result = {}
+
+    result = await service.list_actresses()
+
+    assert result.items[0].video_cnt == 0
+    assert result.items[0].sub_cnt == 0
+    assert result.items[0].view_cnt == 0

@@ -71,6 +71,9 @@ class ActressResponse(BaseModel):
     hip: Optional[int] = None
     height: Optional[int] = None
     birthday: Optional[str] = None
+    video_cnt: int = Field(default=0, ge=0)
+    sub_cnt: int = Field(default=0, ge=0)
+    view_cnt: int = Field(default=0, ge=0)
     aka: Optional[ActressAkaResponse] = Field(
         default=None,
         validation_alias="actress_aka",
