@@ -1,38 +1,179 @@
 """Actress data-access repository."""
 
+from typing import Any, Optional
+
+from sqlalchemy import exists, func
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
-from sqlmodel import col, func, select
+from sqlmodel import col, select
 
 from app.models.actress import Actress, ActressAka, ActressImage
-from app.models.associations import t_video_actress
+from app.models.associations import (
+    t_video_actress,
+    t_video_director,
+    t_video_genre,
+    t_video_label,
+    t_video_maker,
+    t_video_series,
+)
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
+from app.schemas.actress_filters import ActressListFilters
 from app.utils import _col, _relationship_attr
 
 
 class ActressRepository(BaseRepository):
     """Read operations for ``Actress`` rows."""
 
+    @staticmethod
+    def _apply_filters(
+        statement: Any,
+        filters: Optional[ActressListFilters],
+    ) -> Any:
+        """Apply AND-combined filters; multi-value fields use OR."""
+
+        if filters is None:
+            return statement
+
+        if filters.cups:
+            cups = [cup.strip().upper() for cup in filters.cups if cup.strip()]
+
+            if cups:
+                statement = statement.where(
+                    func.upper(col(Actress.cup)).in_(cups),
+                )
+
+        statement = ActressRepository._apply_range(
+            statement,
+            col(Actress.bust),
+            filters.bust_min,
+            filters.bust_max,
+        )
+        statement = ActressRepository._apply_range(
+            statement,
+            col(Actress.waist),
+            filters.waist_min,
+            filters.waist_max,
+        )
+        statement = ActressRepository._apply_range(
+            statement,
+            col(Actress.hip),
+            filters.hip_min,
+            filters.hip_max,
+        )
+        statement = ActressRepository._apply_range(
+            statement,
+            col(Actress.height),
+            filters.height_min,
+            filters.height_max,
+        )
+
+        if filters.age_min is not None or filters.age_max is not None:
+            age_expr = func.date_part(
+                "year",
+                func.age(func.current_date(), col(Actress.birthday)),
+            )
+            statement = statement.where(col(Actress.birthday).is_not(None))
+            statement = ActressRepository._apply_range(
+                statement,
+                age_expr,
+                filters.age_min,
+                filters.age_max,
+            )
+
+        if filters.genres:
+            statement = statement.where(
+                ActressRepository._exists_video_link(
+                    t_video_genre,
+                    filters.genres,
+                ),
+            )
+
+        if filters.makers:
+            statement = statement.where(
+                ActressRepository._exists_video_link(
+                    t_video_maker,
+                    filters.makers,
+                ),
+            )
+
+        if filters.series:
+            statement = statement.where(
+                ActressRepository._exists_video_link(
+                    t_video_series,
+                    filters.series,
+                ),
+            )
+
+        if filters.labels:
+            statement = statement.where(
+                ActressRepository._exists_video_link(
+                    t_video_label,
+                    filters.labels,
+                ),
+            )
+
+        if filters.directors:
+            statement = statement.where(
+                ActressRepository._exists_video_link(
+                    t_video_director,
+                    filters.directors,
+                ),
+            )
+
+        return statement
+
+    @staticmethod
+    def _apply_range(
+        statement: Any,
+        column: Any,
+        minimum: Optional[int],
+        maximum: Optional[int],
+    ) -> Any:
+        """Restrict ``column`` to an inclusive numeric range."""
+
+        if minimum is not None:
+            statement = statement.where(column >= minimum)
+
+        if maximum is not None:
+            statement = statement.where(column <= maximum)
+
+        return statement
+
+    @staticmethod
+    def _exists_video_link(table: Any, fk_ids: list[int]) -> Any:
+        """Actress features a video linked to any of the given catalog ids."""
+
+        return exists(
+            sa_select(1)
+            .select_from(t_video_actress)
+            .join(
+                table,
+                table.c.video_id == t_video_actress.c.video_id,
+            )
+            .where(
+                t_video_actress.c.fk_id == Actress.id,
+                table.c.fk_id.in_(fk_ids),
+            ),
+        )
+
     async def list_actresses(
         self,
         *,
+        filters: Optional[ActressListFilters] = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[Actress]:
         """Return a page of actresses with aka and images loaded.
 
-        ``selectinload`` avoids cartesian products; ``load_only`` limits
-        columns to those exposed by the public schemas.
-
         Args:
+            filters: Optional discovery filters (AND across fields).
             limit: Maximum rows to return.
             offset: Number of rows to skip.
 
         Returns:
-            Matching ``Actress`` instances with ``actress_aka`` and
-            ``actress_image`` populated.
+            Matching ``Actress`` instances with relations populated.
         """
 
         statement = (
@@ -57,14 +198,20 @@ class ActressRepository(BaseRepository):
             .offset(offset)
             .limit(limit)
         )
+        statement = self._apply_filters(statement, filters)
         result = await self.session.exec(statement)
 
         return list(result.all())
 
-    async def count_actresses(self) -> int:
-        """Return the total number of actress rows."""
+    async def count_actresses(
+        self,
+        *,
+        filters: Optional[ActressListFilters] = None,
+    ) -> int:
+        """Return the total number of actress rows matching ``filters``."""
 
         statement = select(func.count()).select_from(Actress)
+        statement = self._apply_filters(statement, filters)
         result = await self.session.exec(statement)
         total = result.one()
 

@@ -22,7 +22,7 @@ class FakeActressRepository:
 
     list_result: list[Any] = field(default_factory=list)
     count_result: int = 0
-    list_calls: list[dict[str, int]] = field(default_factory=list)
+    list_calls: list[dict[str, Any]] = field(default_factory=list)
     count_calls: int = 0
     engagement_result: dict[int, dict[str, int]] = field(
         default_factory=dict,
@@ -32,16 +32,23 @@ class FakeActressRepository:
     async def list_actresses(
         self,
         *,
+        filters: Any = None,
         limit: int = 20,
         offset: int = 0,
     ) -> list[Any]:
         """Return configured list rows and record the call."""
 
-        self.list_calls.append({"limit": limit, "offset": offset})
+        self.list_calls.append(
+            {
+                "filters": filters,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
 
         return list(self.list_result)
 
-    async def count_actresses(self) -> int:
+    async def count_actresses(self, *, filters: Any = None) -> int:
         """Return the configured total and record the call."""
 
         self.count_calls += 1
@@ -100,7 +107,8 @@ async def test_list_actresses_returns_empty_items(
     assert result.total == 0
     assert result.limit == 20
     assert result.offset == 0
-    assert repository.list_calls == [{"limit": 20, "offset": 0}]
+    assert repository.list_calls[0]["limit"] == 20
+    assert repository.list_calls[0]["offset"] == 0
     assert repository.count_calls == 1
 
 
@@ -207,7 +215,8 @@ async def test_list_actresses_clamps_non_positive_limit(
 
     await service.list_actresses(limit=0, offset=-5)
 
-    assert repository.list_calls == [{"limit": 1, "offset": 0}]
+    assert repository.list_calls[0]["limit"] == 1
+    assert repository.list_calls[0]["offset"] == 0
 
 
 @pytest.mark.asyncio
@@ -224,7 +233,8 @@ async def test_list_actresses_preserves_requested_pagination(
     assert result.limit == 5
     assert result.offset == 15
     assert result.total == 100
-    assert repository.list_calls == [{"limit": 5, "offset": 15}]
+    assert repository.list_calls[0]["limit"] == 5
+    assert repository.list_calls[0]["offset"] == 15
 
 
 @pytest.mark.asyncio
