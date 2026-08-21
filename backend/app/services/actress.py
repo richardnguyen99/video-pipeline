@@ -38,6 +38,8 @@ class ActressService:
                 "video_cnt": counts.get("video_cnt", 0),
                 "sub_cnt": counts.get("sub_cnt", 0),
                 "view_cnt": counts.get("view_cnt", 0),
+                "like_cnt": counts.get("like_cnt", 0),
+                "comment_cnt": counts.get("comment_cnt", 0),
             },
         )
 
@@ -129,7 +131,13 @@ class ActressService:
         for row in rows:
             counts = engagement.get(
                 row.id,
-                {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 0},
+                {
+                    "video_cnt": 0,
+                    "sub_cnt": 0,
+                    "view_cnt": 0,
+                    "like_cnt": 0,
+                    "comment_cnt": 0,
+                },
             )
             items.append(self._to_actress_response(row, counts))
 
@@ -166,7 +174,13 @@ class ActressService:
         )
         counts = engagement.get(
             row.id,
-            {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 0},
+            {
+                "video_cnt": 0,
+                "sub_cnt": 0,
+                "view_cnt": 0,
+                "like_cnt": 0,
+                "comment_cnt": 0,
+            },
         )
 
         return self._to_actress_response(row, counts)

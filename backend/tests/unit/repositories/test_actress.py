@@ -57,6 +57,8 @@ async def test_count_engagement_defaults_missing_ids_to_zero(
         side_effect=[
             _result_with_rows([]),  # video_cnt
             _result_with_rows([]),  # view_cnt
+            _result_with_rows([]),  # like_cnt
+            _result_with_rows([]),  # comment_cnt
         ],
     )
     session.exec = AsyncMock(return_value=_result_with_rows([]))
@@ -64,10 +66,22 @@ async def test_count_engagement_defaults_missing_ids_to_zero(
     result = await repository.count_engagement_for_actresses([1, 2])
 
     assert result == {
-        1: {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 0},
-        2: {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 0},
+        1: {
+            "video_cnt": 0,
+            "sub_cnt": 0,
+            "view_cnt": 0,
+            "like_cnt": 0,
+            "comment_cnt": 0,
+        },
+        2: {
+            "video_cnt": 0,
+            "sub_cnt": 0,
+            "view_cnt": 0,
+            "like_cnt": 0,
+            "comment_cnt": 0,
+        },
     }
-    assert session.execute.await_count == 2
+    assert session.execute.await_count == 4
     assert session.exec.await_count == 1
 
 
@@ -83,18 +97,37 @@ async def test_count_engagement_maps_video_sub_and_view_totals(
         side_effect=[
             _result_with_rows([(1, 12), (2, 3)]),
             _result_with_rows([(1, 100), (3, 7)]),
+            _result_with_rows([(1, 40), (2, 2)]),
+            _result_with_rows([(1, 9)]),
         ],
     )
-    # exec: subscription counts
     session.exec = AsyncMock(
         return_value=_result_with_rows([(1, 5), (2, 1)]),
     )
 
     result = await repository.count_engagement_for_actresses([1, 2, 3])
 
-    assert result[1] == {"video_cnt": 12, "sub_cnt": 5, "view_cnt": 100}
-    assert result[2] == {"video_cnt": 3, "sub_cnt": 1, "view_cnt": 0}
-    assert result[3] == {"video_cnt": 0, "sub_cnt": 0, "view_cnt": 7}
+    assert result[1] == {
+        "video_cnt": 12,
+        "sub_cnt": 5,
+        "view_cnt": 100,
+        "like_cnt": 40,
+        "comment_cnt": 9,
+    }
+    assert result[2] == {
+        "video_cnt": 3,
+        "sub_cnt": 1,
+        "view_cnt": 0,
+        "like_cnt": 2,
+        "comment_cnt": 0,
+    }
+    assert result[3] == {
+        "video_cnt": 0,
+        "sub_cnt": 0,
+        "view_cnt": 7,
+        "like_cnt": 0,
+        "comment_cnt": 0,
+    }
 
 
 @pytest.mark.asyncio

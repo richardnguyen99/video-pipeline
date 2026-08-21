@@ -74,6 +74,8 @@ class ActressResponse(BaseModel):
     video_cnt: int = Field(default=0, ge=0)
     sub_cnt: int = Field(default=0, ge=0)
     view_cnt: int = Field(default=0, ge=0)
+    like_cnt: int = Field(default=0, ge=0)
+    comment_cnt: int = Field(default=0, ge=0)
     aka: Optional[ActressAkaResponse] = Field(
         default=None,
         validation_alias="actress_aka",

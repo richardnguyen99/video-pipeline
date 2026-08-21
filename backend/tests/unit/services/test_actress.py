@@ -85,6 +85,8 @@ class FakeActressRepository:
                         "video_cnt": 0,
                         "sub_cnt": 0,
                         "view_cnt": 0,
+                        "like_cnt": 0,
+                        "comment_cnt": 0,
                     },
                 ),
             )
@@ -443,7 +445,13 @@ async def test_get_actress_returns_list_shape(
         ),
     ]
     repository.engagement_result = {
-        42: {"video_cnt": 10, "sub_cnt": 2, "view_cnt": 500},
+        42: {
+            "video_cnt": 10,
+            "sub_cnt": 2,
+            "view_cnt": 500,
+            "like_cnt": 33,
+            "comment_cnt": 8,
+        },
     }
 
     result = await service.get_actress(42)
@@ -460,6 +468,8 @@ async def test_get_actress_returns_list_shape(
     assert result.video_cnt == 10
     assert result.sub_cnt == 2
     assert result.view_cnt == 500
+    assert result.like_cnt == 33
+    assert result.comment_cnt == 8
 
 
 @pytest.mark.asyncio

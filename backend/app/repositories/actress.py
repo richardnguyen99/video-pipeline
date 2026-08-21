@@ -16,7 +16,9 @@ from app.models.associations import (
     t_video_maker,
     t_video_series,
 )
+from app.models.comments import Comment
 from app.models.user_actress_subscribe import UserActressSubscribe
+from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
 from app.schemas.actress_filters import ActressListFilters, ActressSort
@@ -359,6 +361,8 @@ class ActressRepository(BaseRepository):
         * ``video_cnt`` — rows in ``video_actress`` for the actress
         * ``sub_cnt`` — rows in ``user_actress_subscribe``
         * ``view_cnt`` — ``video_view`` events on videos featuring the actress
+        * ``like_cnt`` — likes on those videos (``video_reaction.is_like``)
+        * ``comment_cnt`` — non-deleted comments on those videos
 
         Missing ids default to zeros.
 
@@ -374,6 +378,8 @@ class ActressRepository(BaseRepository):
                 "video_cnt": 0,
                 "sub_cnt": 0,
                 "view_cnt": 0,
+                "like_cnt": 0,
+                "comment_cnt": 0,
             }
             for actress_id in actress_ids
         }
@@ -424,5 +430,47 @@ class ActressRepository(BaseRepository):
 
         for actress_id, cnt in view_result.all():
             totals[int(actress_id)]["view_cnt"] = int(cnt)
+
+        like_stmt = (
+            sa_select(
+                t_video_actress.c.fk_id,
+                func.count().label("cnt"),
+            )
+            .select_from(t_video_actress)
+            .join(
+                VideoReaction,
+                col(VideoReaction.video_id) == t_video_actress.c.video_id,
+            )
+            .where(
+                t_video_actress.c.fk_id.in_(actress_ids),
+                col(VideoReaction.is_like).is_(True),
+            )
+            .group_by(t_video_actress.c.fk_id)
+        )
+        like_result = await self.session.execute(like_stmt)
+
+        for actress_id, cnt in like_result.all():
+            totals[int(actress_id)]["like_cnt"] = int(cnt)
+
+        comment_stmt = (
+            sa_select(
+                t_video_actress.c.fk_id,
+                func.count().label("cnt"),
+            )
+            .select_from(t_video_actress)
+            .join(
+                Comment,
+                col(Comment.video_id) == t_video_actress.c.video_id,
+            )
+            .where(
+                t_video_actress.c.fk_id.in_(actress_ids),
+                col(Comment.is_deleted).is_(False),
+            )
+            .group_by(t_video_actress.c.fk_id)
+        )
+        comment_result = await self.session.execute(comment_stmt)
+
+        for actress_id, cnt in comment_result.all():
+            totals[int(actress_id)]["comment_cnt"] = int(cnt)
 
         return totals
