@@ -221,3 +221,4 @@ __marimo__/
 .env.export
 .env.postgres
 .env.import
+.env.redis
