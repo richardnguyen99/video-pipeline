@@ -1,18 +1,25 @@
 """FastAPI application entry point."""
 
-from collections.abc import AsyncGenerator
+import logging
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any, Union
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from redis_fastapi import FastAPIRedis
+from redis_fastapi.config import CACHE_STATUS_HEADER
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.responses import Response
 
 import app.models  # pylint: disable=unused-import
-from app.config import settings
+from app.config import AppEnvironment, settings
 from app.database import create_db_and_tables
 from app.routes import api_v1_router
+
+RequestResponseEndpoint = Callable[[Request], Awaitable[Response]]
+PUBLIC_CACHE_STATUS_HEADER = "x-cache"
 
 
 @asynccontextmanager
@@ -35,6 +42,59 @@ fastapi_app = FastAPI(
 )
 
 fastapi_app.include_router(api_v1_router)
+
+FastAPIRedis(fastapi_app).lifespan().caching().rate_limiting()
+
+
+def _configure_cache_logging() -> None:
+    """Surface cache HIT/MISS logs under development or debug."""
+
+    if settings.app_env != AppEnvironment.DEVELOPMENT and not settings.debug:
+        return
+
+    logger = logging.getLogger("app.redis.cache")
+    logger.setLevel(logging.INFO)
+
+    if not logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(
+            logging.Formatter("%(levelname)s:     %(name)s - %(message)s"),
+        )
+        logger.addHandler(handler)
+        logger.propagate = False
+
+
+_configure_cache_logging()
+
+
+@fastapi_app.middleware("http")
+async def redis_cache_status_logger(
+    request: Request,
+    call_next: RequestResponseEndpoint,
+) -> Response:
+    """Expose cache status as ``x-cache``; log HIT/MISS in development."""
+
+    response = await call_next(request)
+    cache_status = response.headers.get(CACHE_STATUS_HEADER)
+
+    if cache_status is None:
+        cache_status = "MISS"
+
+    if CACHE_STATUS_HEADER in response.headers:
+        del response.headers[CACHE_STATUS_HEADER]
+
+    response.headers[PUBLIC_CACHE_STATUS_HEADER] = cache_status
+
+    if settings.app_env == AppEnvironment.DEVELOPMENT or settings.debug:
+        logging.getLogger("app.redis.cache").info(
+            "cache %s %s %s",
+            cache_status,
+            request.method,
+            request.url.path,
+        )
+
+    return response
 
 
 def _error_body(

@@ -8,10 +8,14 @@
     "~/.claude/rules": false
   },
   "cSpell.words": [
+    "appendfsync",
+    "appendonly",
     "checkfirst",
     "commitlint",
     "docstrings",
     "dotenv",
+    "everysec",
+    "healthcheck",
     "jancode",
     "ondelete",
     "onupdate",
