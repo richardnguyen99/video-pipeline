@@ -2,10 +2,16 @@
 
 # pylint: disable=too-many-positional-arguments
 
-from typing import Optional
+from typing import List, Optional
 
-from fastapi import APIRouter, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
+from redis_fastapi import cache, rate_limit
 
+from app.cache.policy import (
+    BURST_RATE,
+    CACHE_TTL_SECONDS,
+    SUSTAIN_RATE,
+)
 from app.dependencies import VideoServiceDep
 from app.schemas.video import VideoDetailResponse, VideoListResponse
 from app.schemas.video_filters import VideoSort
@@ -18,6 +24,26 @@ router = APIRouter()
     response_model=VideoListResponse,
     status_code=status.HTTP_200_OK,
     summary="List videos",
+    dependencies=[
+        Depends(
+            cache(
+                ttl=CACHE_TTL_SECONDS,
+                eviction_group="video_list",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="video_list:burst",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="video_list:sustain",
+            ),
+        ),
+    ],
 )
 async def list_videos(
     service: VideoServiceDep,
@@ -25,11 +51,11 @@ async def list_videos(
     offset: int = Query(default=0, ge=0),
     page: Optional[int] = Query(default=None, ge=1),
     sort: Optional[VideoSort] = Query(default=None),
-    actress: Optional[list[int]] = Query(
+    actress: Optional[List[int]] = Query(
         default=None,
         description="Repeated actress ids: ?actress=1&actress=2 (OR).",
     ),
-    genre: Optional[list[int]] = Query(
+    genre: Optional[List[int]] = Query(
         default=None,
         description="Repeated genre ids: ?genre=1&genre=2 (OR).",
     ),
@@ -69,6 +95,26 @@ async def list_videos(
             "description": "Video not found",
         },
     },
+    dependencies=[
+        Depends(
+            cache(
+                ttl=CACHE_TTL_SECONDS,
+                eviction_group="video_detail",
+            )
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="video_detail:burst",
+            )
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="video_detail:sustain",
+            )
+        ),
+    ],
 )
 async def get_video(
     service: VideoServiceDep,

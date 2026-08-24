@@ -51,6 +51,11 @@ class Settings(BaseSettings):
         "postgresql://user:password@localhost:5432/video_pipeline"
     )
 
+    # Redis configuration
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_password: str = "something-secret"
+
     # Object storage (MinIO locally, S3/CDN in production).
     object_storage_provider: ObjectStorageProvider = (
         ObjectStorageProvider.MINIO
