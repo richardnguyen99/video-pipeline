@@ -43,6 +43,10 @@ class ActressListFilters(BaseModel):
     series: list[int] = Field(default_factory=list)
     labels: list[int] = Field(default_factory=list)
     directors: list[int] = Field(default_factory=list)
+    q: Optional[str] = Field(
+        default=None,
+        description="Search name, ruby, and aka translated_name",
+    )
     sort: Optional[ActressSort] = None
 
     @model_validator(mode="after")

@@ -2,7 +2,7 @@
 
 from typing import Any, ClassVar, Optional
 
-from sqlalchemy import Date, cast, exists, func
+from sqlalchemy import Date, cast, exists, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -98,6 +98,26 @@ class ActressRepository(BaseRepository):
                 ActressRepository._age_expr(),
                 filters.age_min,
                 filters.age_max,
+            )
+
+        if filters.q is not None and filters.q.strip():
+            term = filters.q.strip()
+            pattern = f"%{term.lower()}%"
+            ruby_pattern = f"%{term}%"
+            aka_match = exists(
+                sa_select(1)
+                .select_from(ActressAka)
+                .where(
+                    col(ActressAka.fk_id) == col(Actress.id),
+                    func.lower(col(ActressAka.translated_name)).like(pattern),
+                ),
+            )
+            statement = statement.where(
+                or_(
+                    func.lower(col(Actress.name)).like(pattern),
+                    col(Actress.ruby).ilike(ruby_pattern),
+                    aka_match,
+                ),
             )
 
         if filters.genres:

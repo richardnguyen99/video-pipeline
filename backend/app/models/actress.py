@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.sql import func
 from sqlmodel import Field, Relationship
 
 from app.models.associations import t_video_actress
@@ -32,8 +33,14 @@ class Actress(IdTimestampMixin, table=True):
         UniqueConstraint("dmm_id"),
         Index(
             None,
-            "name",
-            postgresql_ops={"name": "gin_trgm_ops"},
+            "ruby",
+            postgresql_ops={"ruby": "gin_trgm_ops"},
+            postgresql_using="gin",
+        ),
+        Index(
+            None,
+            func.lower(Column("name")).label("name_lower"),
+            postgresql_ops={"name_lower": "gin_trgm_ops"},
             postgresql_using="gin",
         ),
         {"schema": "public", "extend_existing": True},
@@ -201,6 +208,14 @@ class ActressAka(IdTimestampMixin, table=True):
         ),
         PrimaryKeyConstraint("id"),
         UniqueConstraint("fk_id"),
+        Index(
+            None,
+            func.lower(Column("translated_name")).label(
+                "translated_name_lower"
+            ),
+            postgresql_ops={"translated_name_lower": "gin_trgm_ops"},
+            postgresql_using="gin",
+        ),
         {"schema": "public", "extend_existing": True},
     )
 

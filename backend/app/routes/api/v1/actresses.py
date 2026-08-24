@@ -1,6 +1,6 @@
 """Actress collection endpoints."""
 
-# pylint: disable=too-many-positional-arguments
+# pylint: disable=too-many-positional-arguments, too-many-locals
 
 from typing import List, Optional
 
@@ -26,10 +26,7 @@ router = APIRouter()
     summary="List actresses",
     dependencies=[
         Depends(
-            cache(
-                ttl=CACHE_TTL_SECONDS,
-                eviction_group="actress_list",
-            ),
+            cache(ttl=CACHE_TTL_SECONDS, eviction_group="actress_list"),
         ),
         Depends(
             rate_limit(
@@ -65,6 +62,10 @@ async def list_actresses(
     series: Optional[List[int]] = Query(default=None),
     labels: Optional[List[int]] = Query(default=None, alias="label"),
     directors: Optional[List[int]] = Query(default=None, alias="director"),
+    q: Optional[str] = Query(
+        default=None,
+        description="Search actress name, ruby, and aka translated_name",
+    ),
     sort: Optional[ActressSort] = Query(
         default=None,
         description=(
@@ -98,6 +99,7 @@ async def list_actresses(
         series=series,
         labels=labels,
         directors=directors,
+        q=q,
         sort=sort,
     )
 
@@ -109,10 +111,7 @@ async def list_actresses(
     summary="Get actress by id",
     dependencies=[
         Depends(
-            cache(
-                ttl=CACHE_TTL_SECONDS,
-                eviction_group="actress_detail",
-            ),
+            cache(ttl=CACHE_TTL_SECONDS, eviction_group="actress_detail"),
         ),
         Depends(
             rate_limit(

@@ -6,6 +6,8 @@ from typing import Optional
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.exc import NoInspectionAvailable
 
 from app.repositories.actress import ActressRepository
 from app.schemas.actress import ActressListResponse, ActressResponse
@@ -24,6 +26,27 @@ class ActressService:
 
         self._repository = repository
 
+    @staticmethod
+    def _relationship_or_none(row: object, name: str) -> object:
+        """Return a relationship value only when already loaded.
+
+        Avoids async MissingGreenlet when list queries omit optional
+        relations such as ``actress_banner``.
+        """
+
+        try:
+            state = sa_inspect(row)
+        except NoInspectionAvailable, TypeError, AttributeError:
+            return getattr(row, name, None)
+
+        if state is None:
+            return getattr(row, name, None)
+
+        if name in state.unloaded:
+            return None
+
+        return getattr(row, name)
+
     def _to_actress_response(
         self,
         row: object,
@@ -31,7 +54,29 @@ class ActressService:
     ) -> ActressResponse:
         """Map an ORM row and engagement totals into the public shape."""
 
-        item = ActressResponse.model_validate(row)
+        item = ActressResponse.model_validate(
+            {
+                "id": getattr(row, "id"),
+                "name": getattr(row, "name"),
+                "ruby": getattr(row, "ruby", None),
+                "dmm_id": getattr(row, "dmm_id", None),
+                "bust": getattr(row, "bust", None),
+                "cup": getattr(row, "cup", None),
+                "waist": getattr(row, "waist", None),
+                "hip": getattr(row, "hip", None),
+                "height": getattr(row, "height", None),
+                "birthday": getattr(row, "birthday", None),
+                "actress_aka": self._relationship_or_none(row, "actress_aka"),
+                "actress_image": self._relationship_or_none(
+                    row, "actress_image"
+                )
+                or [],
+                "actress_banner": self._relationship_or_none(
+                    row,
+                    "actress_banner",
+                ),
+            },
+        )
 
         return item.model_copy(
             update={
@@ -64,6 +109,7 @@ class ActressService:
         series: Optional[list[int]] = None,
         labels: Optional[list[int]] = None,
         directors: Optional[list[int]] = None,
+        q: Optional[str] = None,
         sort: Optional[ActressSort] = None,
     ) -> ActressListResponse:
         """Return a paginated actress list with filters and engagement counts.
@@ -79,6 +125,7 @@ class ActressService:
             age_min / age_max: Age range derived from birthday.
             genres / makers / series / labels / directors: Catalog OR filters
                 via featured videos.
+            q: Free-text search on name, ruby, and aka translated_name.
 
         Returns:
             An ``ActressListResponse`` with items and totals.
@@ -108,6 +155,7 @@ class ActressService:
                 series=list(series or []),
                 labels=list(labels or []),
                 directors=list(directors or []),
+                q=q,
                 sort=sort,
             )
         except ValidationError as exc:
