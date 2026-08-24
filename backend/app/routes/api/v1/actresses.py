@@ -69,8 +69,9 @@ async def list_actresses(
     sort: Optional[ActressSort] = Query(
         default=None,
         description=(
-            "Descending sort: 1=cup 2=bust 3=waist 4=hip 5=height "
-            "6=age 7=video_cnt 8=sub_cnt 9=view_cnt"
+            "Sort: 1=cup 2=bust 3=waist 4=hip 5=height "
+            "6=age 7=video_cnt 8=sub_cnt 9=view_cnt 10=id 11=rank "
+            "(rank = relevance when q is set)"
         ),
     ),
 ) -> ActressListResponse:

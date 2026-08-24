@@ -7,7 +7,12 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class ActressSort(IntEnum):
-    """Single descending sort key for actress discovery."""
+    """Sort key for actress discovery.
+
+    Measurement and engagement values sort descending (nulls last where
+    applicable). ``ID`` is ascending. ``RANK`` is relevance descending
+    (requires ``q``; falls back to id when ``q`` is empty).
+    """
 
     CUP = 1
     BUST = 2
@@ -18,6 +23,8 @@ class ActressSort(IntEnum):
     VIDEO_CNT = 7
     SUB_CNT = 8
     VIEW_CNT = 9
+    ID = 10
+    RANK = 11
 
 
 class ActressListFilters(BaseModel):
@@ -45,7 +52,10 @@ class ActressListFilters(BaseModel):
     directors: list[int] = Field(default_factory=list)
     q: Optional[str] = Field(
         default=None,
-        description="Search name, ruby, and aka translated_name",
+        description=(
+            "Space-separated terms; each must match name, ruby, "
+            "or aka translated_name (AND across terms)"
+        ),
     )
     sort: Optional[ActressSort] = None
 

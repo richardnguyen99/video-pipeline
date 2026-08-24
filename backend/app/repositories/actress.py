@@ -1,5 +1,7 @@
 """Actress data-access repository."""
 
+# pylint: disable=too-many-return-statements
+
 from typing import Any, ClassVar, Optional
 
 from sqlalchemy import Date, cast, exists, func, or_
@@ -49,6 +51,90 @@ class ActressRepository(BaseRepository):
         )
 
     @staticmethod
+    def _search_terms(raw: str) -> list[str]:
+        """Split a search string into non-empty space-separated terms."""
+
+        return [part for part in raw.strip().split() if part]
+
+    @staticmethod
+    def _term_match_predicate(term: str) -> Any:
+        """Match one term against name, ruby, or aka translated_name."""
+
+        pattern = f"%{term.lower()}%"
+        ruby_pattern = f"%{term}%"
+        aka_match = exists(
+            sa_select(1)
+            .select_from(ActressAka)
+            .where(
+                col(ActressAka.fk_id) == col(Actress.id),
+                func.lower(col(ActressAka.translated_name)).like(pattern),
+            ),
+        )
+
+        return or_(
+            func.lower(col(Actress.name)).like(pattern),
+            col(Actress.ruby).ilike(ruby_pattern),
+            aka_match,
+        )
+
+    @staticmethod
+    def _term_relevance(term: str) -> Any:
+        """Trigram similarity score for one term across searchable fields."""
+
+        lowered = term.lower()
+        name_sim = func.similarity(
+            func.lower(
+                col(Actress.name),
+            ),
+            lowered,
+        )
+        ruby_sim = func.similarity(
+            func.lower(
+                func.coalesce(col(Actress.ruby), ""),
+            ),
+            lowered,
+        )
+        aka_sim = (
+            sa_select(
+                func.max(
+                    func.similarity(
+                        func.lower(
+                            col(ActressAka.translated_name),
+                        ),
+                        lowered,
+                    ),
+                ),
+            )
+            .where(
+                col(ActressAka.fk_id) == col(Actress.id),
+            )
+            .correlate(Actress)
+            .scalar_subquery()
+        )
+
+        return func.greatest(
+            name_sim,
+            ruby_sim,
+            func.coalesce(aka_sim, 0.0),
+        )
+
+    @classmethod
+    def _relevance_expr(cls, raw_query: str) -> Any:
+        """Sum per-term relevance scores for multi-term ``q``."""
+
+        terms = cls._search_terms(raw_query)
+
+        if not terms:
+            return col(Actress.id) * 0
+
+        score = cls._term_relevance(terms[0])
+
+        for term in terms[1:]:
+            score = score + cls._term_relevance(term)
+
+        return score
+
+    @staticmethod
     def _apply_filters(
         statement: Any,
         filters: Optional[ActressListFilters],
@@ -63,7 +149,9 @@ class ActressRepository(BaseRepository):
 
             if cups:
                 statement = statement.where(
-                    func.upper(col(Actress.cup)).in_(cups),
+                    func.upper(col(Actress.cup)).in_(
+                        cups,
+                    ),
                 )
 
         statement = ActressRepository._apply_range(
@@ -92,7 +180,9 @@ class ActressRepository(BaseRepository):
         )
 
         if filters.age_min is not None or filters.age_max is not None:
-            statement = statement.where(col(Actress.birthday).is_not(None))
+            statement = statement.where(
+                col(Actress.birthday).is_not(None),
+            )
             statement = ActressRepository._apply_range(
                 statement,
                 ActressRepository._age_expr(),
@@ -101,24 +191,10 @@ class ActressRepository(BaseRepository):
             )
 
         if filters.q is not None and filters.q.strip():
-            term = filters.q.strip()
-            pattern = f"%{term.lower()}%"
-            ruby_pattern = f"%{term}%"
-            aka_match = exists(
-                sa_select(1)
-                .select_from(ActressAka)
-                .where(
-                    col(ActressAka.fk_id) == col(Actress.id),
-                    func.lower(col(ActressAka.translated_name)).like(pattern),
-                ),
-            )
-            statement = statement.where(
-                or_(
-                    func.lower(col(Actress.name)).like(pattern),
-                    col(Actress.ruby).ilike(ruby_pattern),
-                    aka_match,
-                ),
-            )
+            for term in ActressRepository._search_terms(filters.q):
+                statement = statement.where(
+                    ActressRepository._term_match_predicate(term),
+                )
 
         if filters.genres:
             statement = statement.where(
@@ -229,7 +305,9 @@ class ActressRepository(BaseRepository):
                 ActressSort.SUB_CNT: (
                     sa_select(func.count())
                     .select_from(UserActressSubscribe)
-                    .where(col(UserActressSubscribe.actress_id) == Actress.id)
+                    .where(
+                        col(UserActressSubscribe.actress_id) == Actress.id,
+                    )
                     .correlate(Actress)
                     .scalar_subquery()
                 ),
@@ -249,16 +327,30 @@ class ActressRepository(BaseRepository):
         return cls._aggregate_sort_exprs
 
     @classmethod
-    def _order_clauses(cls, sort: Optional[ActressSort]) -> tuple[Any, ...]:
-        """Build ORDER BY clauses: primary sort DESC NULLS LAST, then id.
+    def _order_clauses(
+        cls,
+        sort: Optional[ActressSort],
+        *,
+        q: Optional[str] = None,
+    ) -> tuple[Any, ...]:
+        """Build ORDER BY clauses: primary sort, then id ascending.
 
         Missing measurement/age values sort last. Aggregate sorts use
-        correlated subqueries for video / subscription / view totals.
+        correlated subqueries. ``RANK`` uses pg_trgm similarity on ``q``.
         """
 
         tie_break = col(Actress.id).asc()
 
-        if sort is None:
+        if sort is None or sort == ActressSort.ID:
+            return (tie_break,)
+
+        if sort == ActressSort.RANK:
+            if q is not None and q.strip():
+                return (
+                    cls._relevance_expr(q).desc(),
+                    tie_break,
+                )
+
             return (tie_break,)
 
         measurement_columns: dict[ActressSort, Any] = (
@@ -323,7 +415,10 @@ class ActressRepository(BaseRepository):
         )
         statement = self._apply_filters(statement, filters)
         statement = statement.order_by(
-            *self._order_clauses(filters.sort if filters else None),
+            *self._order_clauses(
+                filters.sort if filters else None,
+                q=filters.q if filters else None,
+            ),
         )
         result = await self.session.exec(statement)
 
@@ -436,8 +531,12 @@ class ActressRepository(BaseRepository):
                 col(UserActressSubscribe.actress_id),
                 func.count().label("cnt"),
             )
-            .where(col(UserActressSubscribe.actress_id).in_(actress_ids))
-            .group_by(col(UserActressSubscribe.actress_id))
+            .where(
+                col(UserActressSubscribe.actress_id).in_(actress_ids),
+            )
+            .group_by(
+                col(UserActressSubscribe.actress_id),
+            )
         )
         sub_result = await self.session.exec(sub_stmt)
 
