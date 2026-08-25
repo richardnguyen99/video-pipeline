@@ -15,6 +15,8 @@ class VideoSort(StrEnum):
     LATEST = "latest"
     VIEWS = "views"
     LIKES = "likes"
+    ID = "id"
+    RANK = "rank"
 
 
 class FeaturesCountRange(BaseModel):
@@ -57,6 +59,17 @@ class VideoListFilters(BaseModel):
     director: Optional[int] = None
     series: Optional[int] = None
     features_cnt: Optional[FeaturesCountRange] = None
+    q: Optional[str] = Field(
+        default=None,
+        description=(
+            "Plus- or space-separated terms; each must match video code/title/aka "
+            "or related genre/maker/label/series/director (AND across terms)"
+        ),
+    )
+    locale: str = Field(
+        default="en-us",
+        description="Aka language for catalog fuzzy match (e.g. en-us)",
+    )
     sort: VideoSort = VideoSort.TRENDING_WEEK
 
 

@@ -221,6 +221,8 @@ class VideoService:
         director: Optional[int] = None,
         series: Optional[int] = None,
         features_cnt: Optional[str] = None,
+        q: Optional[str] = None,
+        locale: Optional[str] = None,
     ) -> VideoListResponse:
         """List videos with discover filters and pagination.
 
@@ -242,6 +244,8 @@ class VideoService:
             director: Single director id.
             series: Single series id.
             features_cnt: Raw range string (``2``, ``3,``, ``1,3``).
+            q: Plus-/space-separated search terms (video + catalog).
+            locale: Aka language for catalog match (default ``en-us``).
 
         Returns:
             A ``VideoListResponse`` with items and totals.
@@ -270,6 +274,8 @@ class VideoService:
             director=director,
             series=series,
             features_cnt=features_range,
+            q=q,
+            locale=(locale or "en-us").strip() or "en-us",
             sort=sort or VideoSort.TRENDING_WEEK,
         )
 
@@ -279,12 +285,11 @@ class VideoService:
         else:
             safe_offset = max(0, offset)
 
-        rows = await self._repository.list_videos(
+        rows, total = await self._repository.list_and_count_videos(
             filters=filters,
             limit=safe_limit,
             offset=safe_offset,
         )
-        total = await self._repository.count_videos(filters=filters)
         engagement = await self._repository.count_engagement_for_videos(
             [row.id for row in rows],
         )

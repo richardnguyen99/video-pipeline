@@ -1,11 +1,13 @@
 """Label-related SQLModel models."""
 
 from sqlalchemy import (
+    Column,
     ForeignKeyConstraint,
     Index,
     PrimaryKeyConstraint,
     UniqueConstraint,
 )
+from sqlalchemy.sql import func
 from sqlmodel import Relationship
 
 from app.models.base import AkaMixin, DmmCatalogMixin
@@ -17,6 +19,18 @@ class Label(DmmCatalogMixin, table=True):
     __table_args__ = (
         PrimaryKeyConstraint("id"),
         UniqueConstraint("dmm_id"),
+        Index(
+            None,
+            func.lower(Column("name")).label("name_lower"),
+            postgresql_ops={"name_lower": "gin_trgm_ops"},
+            postgresql_using="gin",
+        ),
+        Index(
+            None,
+            "ruby",
+            postgresql_ops={"ruby": "gin_trgm_ops"},
+            postgresql_using="gin",
+        ),
         {"schema": "public", "extend_existing": True},
     )
 
@@ -42,6 +56,14 @@ class LabelAka(AkaMixin, table=True):
         UniqueConstraint(
             "fk_id",
             "language",
+        ),
+        Index(
+            None,
+            func.lower(Column("translated_name")).label(
+                "translated_name_lower"
+            ),
+            postgresql_ops={"translated_name_lower": "gin_trgm_ops"},
+            postgresql_using="gin",
         ),
         Index(None, "fk_id"),
         {"schema": "public", "extend_existing": True},

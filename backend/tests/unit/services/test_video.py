@@ -60,6 +60,24 @@ class FakeVideoRepository:
 
         return self.count_result
 
+    async def list_and_count_videos(
+        self,
+        *,
+        filters: Optional[VideoListFilters] = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Any], int]:
+        """Return configured rows and total with a single recorded list call."""
+
+        rows = await self.list_videos(
+            filters=filters,
+            limit=limit,
+            offset=offset,
+        )
+        total = await self.count_videos(filters=filters)
+
+        return rows, total
+
     async def get_by_id(self, video_id: int) -> Any | None:
         """Return the configured detail row and record the call."""
 
@@ -75,12 +93,18 @@ class FakeVideoRepository:
 
         return {video_id: VideoEngagementCounts() for video_id in video_ids}
 
-    async def list_comments_for_video(self, _video_id: int) -> list[Any]:
+    async def list_comments_for_video(
+        self,
+        video_id: int,  # pylint: disable=unused-argument
+    ) -> list[Any]:
         """Return no comments by default."""
 
         return []
 
-    async def get_master_m3u8_url(self, _video_id: int) -> str | None:
+    async def get_master_m3u8_url(
+        self,
+        video_id: int,  # pylint: disable=unused-argument
+    ) -> str | None:
         """Return no master playlist by default."""
 
         return None

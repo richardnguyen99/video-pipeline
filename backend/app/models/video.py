@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.sql import func
 from sqlmodel import Field, Relationship
 
 from app.models.associations import (
@@ -46,6 +47,18 @@ class Video(IdTimestampMixin, table=True):
         PrimaryKeyConstraint("id"),
         UniqueConstraint("video_id"),
         Index(None, "video_id"),
+        Index(
+            None,
+            func.lower(Column("video_id")).label("video_id_lower"),
+            postgresql_ops={"video_id_lower": "gin_trgm_ops"},
+            postgresql_using="gin",
+        ),
+        Index(
+            None,
+            func.lower(Column("title")).label("title_lower"),
+            postgresql_ops={"title_lower": "gin_trgm_ops"},
+            postgresql_using="gin",
+        ),
         {"schema": "public", "extend_existing": True},
     )
 
@@ -159,6 +172,14 @@ class VideoAka(IdTimestampMixin, table=True):
         ),
         PrimaryKeyConstraint("id"),
         Index(None, "fk_id"),
+        Index(
+            None,
+            func.lower(Column("translated_name")).label(
+                "translated_name_lower"
+            ),
+            postgresql_ops={"translated_name_lower": "gin_trgm_ops"},
+            postgresql_using="gin",
+        ),
         {"schema": "public", "extend_existing": True},
     )
 

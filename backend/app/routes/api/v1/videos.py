@@ -67,6 +67,18 @@ async def list_videos(
         default=None,
         description='Actress count range: "2", "3,", or "1,3".',
     ),
+    q: Optional[str] = Query(
+        default=None,
+        description=(
+            "Plus- or space-separated terms matching video code/title/aka "
+            "or genre/maker/label/series/director (AND across terms). "
+            "Example: MIRD+squirt"
+        ),
+    ),
+    locale: Optional[str] = Query(
+        default="en-us",
+        description="Catalog aka language (e.g. en-us, ja, zh)",
+    ),
 ) -> VideoListResponse:
     """Return a paginated, filtered list of videos."""
 
@@ -82,6 +94,8 @@ async def list_videos(
         director=director,
         series=series,
         features_cnt=features_cnt,
+        q=q,
+        locale=locale,
     )
 
 

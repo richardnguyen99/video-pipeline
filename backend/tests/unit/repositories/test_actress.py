@@ -141,6 +141,8 @@ async def test_count_engagement_coerces_row_types(
         side_effect=[
             _result_with_rows([(10, 4)]),
             _result_with_rows([(10, 9)]),
+            _result_with_rows([(10, 3)]),
+            _result_with_rows([(10, 1)]),
         ],
     )
     session.exec = AsyncMock(return_value=_result_with_rows([(10, 2)]))
@@ -150,3 +152,5 @@ async def test_count_engagement_coerces_row_types(
     assert result[10]["video_cnt"] == 4
     assert result[10]["sub_cnt"] == 2
     assert result[10]["view_cnt"] == 9
+    assert result[10]["like_cnt"] == 3
+    assert result[10]["comment_cnt"] == 1

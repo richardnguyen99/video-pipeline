@@ -1,8 +1,11 @@
 """Video data-access repository."""
 
-from typing import Any, Optional
+# pylint: disable=too-many-locals,too-many-positional-arguments
 
-from sqlalchemy import exists, func
+import asyncio
+from typing import Any, Optional, Type
+
+from sqlalchemy import and_, exists, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import load_only, selectinload
 from sqlmodel import col, select
@@ -16,14 +19,16 @@ from app.models.associations import (
     t_video_maker,
     t_video_series,
 )
+from app.models.base import AkaMixin, DmmCatalogMixin
 from app.models.comments import Comment
-from app.models.director import Director
-from app.models.genre import Genre
-from app.models.label import Label
-from app.models.maker import Maker
-from app.models.series import Series
+from app.models.director import Director, DirectorAka
+from app.models.genre import Genre, GenreAka
+from app.models.label import Label, LabelAka
+from app.models.maker import Maker, MakerAka
+from app.models.series import Series, SeriesAka
 from app.models.video import (
     Video,
+    VideoAka,
     VideoImageUrl,
     VideoM3u8,
     VideoSampleImageUrl,
@@ -192,6 +197,124 @@ def _like_count_subquery() -> Any:
     )
 
 
+def _search_terms(raw: str) -> list[str]:
+    """Split ``q`` on ``+`` and whitespace into non-empty terms."""
+
+    parts: list[str] = []
+
+    for chunk in raw.replace("+", " ").split():
+        if chunk:
+            parts.append(chunk)
+
+    return parts
+
+
+def _term_video_predicate(term: str):
+    """Match one term on video_id, title, or video aka (index-friendly)."""
+
+    pattern = f"%{term}%"
+
+    aka_match = exists(
+        sa_select(1)
+        .select_from(VideoAka)
+        .where(
+            col(VideoAka.fk_id) == col(Video.id),
+            col(VideoAka.translated_name).ilike(pattern),
+        ),
+    )
+
+    return or_(
+        col(Video.video_id).ilike(pattern),
+        col(Video.title).ilike(pattern),
+        aka_match,
+    )
+
+
+def _catalog_ids_predicate(
+    link_table: Any,
+    entity_ids: list[int],
+) -> Any:
+    """Video is linked to any of the pre-resolved catalog ids."""
+
+    if not entity_ids:
+        return None
+
+    return exists(
+        sa_select(1)
+        .select_from(link_table)
+        .where(
+            link_table.c.video_id == col(Video.id),
+            link_table.c.fk_id.in_(entity_ids),
+        ),
+    )
+
+
+def _apply_search_with_catalog_ids(
+    statement: Any,
+    filters: VideoListFilters,
+    catalog_by_term: list[dict[str, list[int]]],
+) -> Any:
+    """AND each term: video fields OR pre-resolved catalog id links.
+
+    Catalog ids are resolved in one batch query per entity type so the
+    main list query avoids nested correlated EXISTS on name/aka tables.
+    """
+
+    if filters.q is None or not filters.q.strip():
+        return statement
+
+    terms = _search_terms(filters.q)
+
+    for term, catalog_ids in zip(terms, catalog_by_term, strict=True):
+        predicates: list[Any] = [_term_video_predicate(term)]
+
+        for link_table, key in (
+            (t_video_genre, "genre"),
+            (t_video_maker, "maker"),
+            (t_video_label, "label"),
+            (t_video_series, "series"),
+            (t_video_director, "director"),
+        ):
+            pred = _catalog_ids_predicate(link_table, catalog_ids.get(key, []))
+
+            if pred is not None:
+                predicates.append(pred)
+
+        statement = statement.where(or_(*predicates))
+
+    return statement
+
+
+def _term_video_relevance(term: str) -> Any:
+    """Trigram similarity on video fields only (cheap rank key)."""
+
+    lowered = term.lower()
+
+    return func.greatest(
+        func.similarity(func.lower(col(Video.video_id)), lowered),
+        func.similarity(
+            func.lower(func.coalesce(col(Video.title), "")),
+            lowered,
+        ),
+    )
+
+
+def _video_relevance_expr(raw_query: str) -> Any:
+    """Sum per-term video-field relevance for multi-term ``q``."""
+
+    terms = _search_terms(raw_query)
+
+    if not terms:
+        return col(Video.id) * 0
+
+    score = _term_video_relevance(terms[0])
+
+    for term in terms[1:]:
+        score = score + _term_video_relevance(term)
+
+    return score
+
+
 def _apply_filters(statement: Any, filters: VideoListFilters) -> Any:
     """Attach WHERE clauses for discover filters (OR within multi-id lists)."""
 
@@ -251,7 +374,11 @@ def _apply_features_cnt(
     )
 
 
-def _apply_sort(statement: Any, sort: VideoSort) -> Any:
+def _apply_sort(
+    statement: Any,
+    sort: VideoSort,
+    filters: Optional[VideoListFilters] = None,
+) -> Any:
     """Apply ORDER BY matching frontend discover sort keys.
 
     ``views`` has no dedicated column yet; it falls back to engagement
@@ -263,6 +390,17 @@ def _apply_sort(statement: Any, sort: VideoSort) -> Any:
     video_pk = col(Video.id).desc()
 
     if sort == VideoSort.LATEST:
+        return statement.order_by(release, video_pk)
+
+    if sort == VideoSort.ID:
+        return statement.order_by(col(Video.id).asc())
+
+    if sort == VideoSort.RANK:
+        if filters is not None and filters.q and filters.q.strip():
+            score = _video_relevance_expr(filters.q)
+
+            return statement.order_by(score.desc(), col(Video.id).asc())
+
         return statement.order_by(release, video_pk)
 
     if sort in {
@@ -279,6 +417,166 @@ def _apply_sort(statement: Any, sort: VideoSort) -> Any:
 
 class VideoRepository(BaseRepository):
     """Read operations for ``Video`` rows."""
+
+    async def _resolve_one_catalog(
+        self,
+        key: str,
+        entity: Type[DmmCatalogMixin],
+        aka_model: Type[AkaMixin],
+        terms: list[str],
+        locale_key: str,
+    ) -> tuple[str, list[list[int]]]:
+        """Resolve catalog ids for all terms in one joined query."""
+
+        patterns = [f"%{term}%" for term in terms]
+        name_preds = [col(entity.name).ilike(p) for p in patterns]
+        ruby_preds = [col(entity.ruby).ilike(p) for p in patterns]
+        aka_preds = [col(aka_model.translated_name).ilike(p) for p in patterns]
+
+        statement = (
+            select(
+                entity.id,
+                entity.name,
+                entity.ruby,
+                aka_model.translated_name,
+            )
+            .select_from(entity)
+            .outerjoin(
+                aka_model,
+                and_(
+                    col(aka_model.fk_id) == col(entity.id),
+                    col(aka_model.language) == locale_key,
+                ),
+            )
+            .where(
+                or_(
+                    *name_preds,
+                    *ruby_preds,
+                    *aka_preds,
+                ),
+            )
+        )
+        rows = (await self.session.exec(statement)).all()
+
+        per_term: list[list[int]] = [[] for _ in terms]
+        seen: list[set[int]] = [set() for _ in terms]
+
+        for row in rows:
+            entity_id = int(row[0])
+            name = (row[1] or "").lower()
+            ruby = (row[2] or "").lower()
+            translated = (row[3] or "").lower()
+
+            for term_index, term in enumerate(terms):
+                needle = term.lower()
+
+                if (
+                    needle in name or needle in ruby or needle in translated
+                ) and entity_id not in seen[term_index]:
+                    seen[term_index].add(entity_id)
+                    per_term[term_index].append(entity_id)
+
+        return key, per_term
+
+    async def _resolve_catalog_ids_for_terms(
+        self,
+        terms: list[str],
+        locale: str,
+    ) -> list[dict[str, list[int]]]:
+        """Resolve matching catalog primary keys per search term.
+
+        Runs one joined query per catalog type in parallel.
+        """
+
+        if not terms:
+            return []
+
+        locale_key = locale.strip().lower() or "en-us"
+        catalog_specs: list[
+            tuple[str, Type[DmmCatalogMixin], Type[AkaMixin]]
+        ] = [
+            ("genre", Genre, GenreAka),
+            ("maker", Maker, MakerAka),
+            ("label", Label, LabelAka),
+            ("series", Series, SeriesAka),
+            ("director", Director, DirectorAka),
+        ]
+
+        resolved = await asyncio.gather(
+            *[
+                self._resolve_one_catalog(
+                    key,
+                    entity,
+                    aka_model,
+                    terms,
+                    locale_key,
+                )
+                for key, entity, aka_model in catalog_specs
+            ],
+        )
+
+        result: list[dict[str, list[int]]] = [
+            {
+                "genre": [],
+                "maker": [],
+                "label": [],
+                "series": [],
+                "director": [],
+            }
+            for _ in terms
+        ]
+
+        for key, per_term in resolved:
+            for term_index, ids in enumerate(per_term):
+                result[term_index][key] = ids
+
+        return result
+
+    async def list_and_count_videos(
+        self,
+        *,
+        filters: Optional[VideoListFilters] = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Video], int]:
+        """Return a page of videos and total count with shared search work."""
+
+        resolved = filters or VideoListFilters()
+        catalog_by_term: list[dict[str, list[int]]] | None = None
+
+        if resolved.q and resolved.q.strip():
+            terms = _search_terms(resolved.q)
+            catalog_by_term = await self._resolve_catalog_ids_for_terms(
+                terms,
+                resolved.locale,
+            )
+
+        def _with_search(stmt: Any) -> Any:
+            stmt = _apply_filters(stmt, resolved)
+
+            if catalog_by_term is not None:
+                stmt = _apply_search_with_catalog_ids(
+                    stmt,
+                    resolved,
+                    catalog_by_term,
+                )
+
+            return stmt
+
+        count_statement = _with_search(
+            select(func.count()).select_from(Video),
+        )
+        total = int((await self.session.exec(count_statement)).one())
+
+        page_statement = _apply_sort(
+            _with_search(select(Video)),
+            resolved.sort,
+            resolved,
+        )
+        page_statement = page_statement.offset(offset).limit(limit)
+        rows = list((await self.session.exec(page_statement)).all())
+
+        return rows, total
 
     async def list_videos(
         self,
@@ -299,10 +597,22 @@ class VideoRepository(BaseRepository):
         """
 
         resolved = filters or VideoListFilters()
-        # List endpoint returns core columns only (no relation loads).
         statement = select(Video)
         statement = _apply_filters(statement, resolved)
-        statement = _apply_sort(statement, resolved.sort)
+
+        if resolved.q and resolved.q.strip():
+            terms = _search_terms(resolved.q)
+            catalog_by_term = await self._resolve_catalog_ids_for_terms(
+                terms,
+                resolved.locale,
+            )
+            statement = _apply_search_with_catalog_ids(
+                statement,
+                resolved,
+                catalog_by_term,
+            )
+
+        statement = _apply_sort(statement, resolved.sort, resolved)
         statement = statement.offset(offset).limit(limit)
         result = await self.session.exec(statement)
 
@@ -318,6 +628,19 @@ class VideoRepository(BaseRepository):
         resolved = filters or VideoListFilters()
         statement = select(func.count()).select_from(Video)
         statement = _apply_filters(statement, resolved)
+
+        if resolved.q and resolved.q.strip():
+            terms = _search_terms(resolved.q)
+            catalog_by_term = await self._resolve_catalog_ids_for_terms(
+                terms,
+                resolved.locale,
+            )
+            statement = _apply_search_with_catalog_ids(
+                statement,
+                resolved,
+                catalog_by_term,
+            )
+
         result = await self.session.exec(statement)
         total = result.one()
 
