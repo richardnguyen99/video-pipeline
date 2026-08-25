@@ -62,7 +62,7 @@ class VideoListFilters(BaseModel):
     q: Optional[str] = Field(
         default=None,
         description=(
-            "Plus- or space-separated terms; each must match video code/title/aka "
+            "Plus- or space-separated terms; each must match video code/title/aka/actress "
             "or related genre/maker/label/series/director (AND across terms)"
         ),
     )

@@ -70,8 +70,8 @@ async def list_videos(
     q: Optional[str] = Query(
         default=None,
         description=(
-            "Plus- or space-separated terms matching video code/title/aka "
-            "or genre/maker/label/series/director (AND across terms). "
+            "Plus- or space-separated terms matching video code/title/aka/actress "
+            "or actress/genre/maker/label/series/director (AND across terms). "
             "Example: MIRD+squirt"
         ),
     ),

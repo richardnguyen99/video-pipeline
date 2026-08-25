@@ -265,17 +265,25 @@ def _apply_search_with_catalog_ids(
 
     terms = _search_terms(filters.q)
 
-    for term, catalog_ids in zip(terms, catalog_by_term, strict=True):
+    for term, catalog_ids in zip(
+        terms,
+        catalog_by_term,
+        strict=True,
+    ):
         predicates: list[Any] = [_term_video_predicate(term)]
 
         for link_table, key in (
+            (t_video_actress, "actress"),
             (t_video_genre, "genre"),
             (t_video_maker, "maker"),
             (t_video_label, "label"),
             (t_video_series, "series"),
             (t_video_director, "director"),
         ):
-            pred = _catalog_ids_predicate(link_table, catalog_ids.get(key, []))
+            pred = _catalog_ids_predicate(
+                link_table,
+                catalog_ids.get(key, []),
+            )
 
             if pred is not None:
                 predicates.append(pred)
@@ -291,9 +299,14 @@ def _term_video_relevance(term: str) -> Any:
     lowered = term.lower()
 
     return func.greatest(
-        func.similarity(func.lower(col(Video.video_id)), lowered),
         func.similarity(
-            func.lower(func.coalesce(col(Video.title), "")),
+            func.lower(col(Video.video_id)),
+            lowered,
+        ),
+        func.similarity(
+            func.lower(
+                func.coalesce(col(Video.title), ""),
+            ),
             lowered,
         ),
     )
@@ -399,7 +412,10 @@ def _apply_sort(
         if filters is not None and filters.q and filters.q.strip():
             score = _video_relevance_expr(filters.q)
 
-            return statement.order_by(score.desc(), col(Video.id).asc())
+            return statement.order_by(
+                score.desc(),
+                col(Video.id).asc(),
+            )
 
         return statement.order_by(release, video_pk)
 
@@ -434,17 +450,20 @@ class VideoRepository(BaseRepository):
         aka_preds = [col(aka_model.translated_name).ilike(p) for p in patterns]
 
         statement = (
-            select(
-                entity.id,
-                entity.name,
-                entity.ruby,
-                aka_model.translated_name,
+            sa_select(
+                col(entity.id),
+                col(entity.name),
+                col(entity.ruby),
+                col(aka_model.translated_name),
             )
             .select_from(entity)
             .outerjoin(
                 aka_model,
                 and_(
-                    col(aka_model.fk_id) == col(entity.id),
+                    col(aka_model.fk_id)
+                    == col(
+                        entity.id,
+                    ),
                     col(aka_model.language) == locale_key,
                 ),
             )
@@ -456,7 +475,7 @@ class VideoRepository(BaseRepository):
                 ),
             )
         )
-        rows = (await self.session.exec(statement)).all()
+        rows = (await self.session.execute(statement)).all()
 
         per_term: list[list[int]] = [[] for _ in terms]
         seen: list[set[int]] = [set() for _ in terms]
@@ -478,14 +497,76 @@ class VideoRepository(BaseRepository):
 
         return key, per_term
 
+    async def _resolve_actress_ids_for_terms(
+        self,
+        terms: list[str],
+    ) -> list[list[int]]:
+        """Resolve actress ids matching name, ruby, or aka translated_name."""
+
+        patterns = [f"%{term}%" for term in terms]
+        name_preds = [col(Actress.name).ilike(p) for p in patterns]
+        ruby_preds = [col(Actress.ruby).ilike(p) for p in patterns]
+        aka_preds = [
+            col(ActressAka.translated_name).ilike(p) for p in patterns
+        ]
+        aka_name_preds = [col(ActressAka.name).ilike(p) for p in patterns]
+
+        statement = (
+            sa_select(
+                col(Actress.id),
+                col(Actress.name),
+                col(Actress.ruby),
+                col(ActressAka.name),
+                col(ActressAka.translated_name),
+            )
+            .select_from(Actress)
+            .outerjoin(
+                ActressAka,
+                col(ActressAka.fk_id) == col(Actress.id),
+            )
+            .where(
+                or_(
+                    *name_preds,
+                    *ruby_preds,
+                    *aka_preds,
+                    *aka_name_preds,
+                ),
+            )
+        )
+        rows = (await self.session.execute(statement)).all()
+
+        per_term: list[list[int]] = [[] for _ in terms]
+        seen: list[set[int]] = [set() for _ in terms]
+
+        for row in rows:
+            actress_id = int(row[0])
+            haystacks = [
+                (row[1] or "").lower(),
+                (row[2] or "").lower(),
+                (row[3] or "").lower(),
+                (row[4] or "").lower(),
+            ]
+
+            for term_index, term in enumerate(terms):
+                needle = term.lower()
+
+                if (
+                    any(needle in h for h in haystacks)
+                    and actress_id not in seen[term_index]
+                ):
+                    seen[term_index].add(actress_id)
+                    per_term[term_index].append(actress_id)
+
+        return per_term
+
     async def _resolve_catalog_ids_for_terms(
         self,
         terms: list[str],
         locale: str,
     ) -> list[dict[str, list[int]]]:
-        """Resolve matching catalog primary keys per search term.
+        """Resolve matching catalog/actress primary keys per search term.
 
-        Runs one joined query per catalog type in parallel.
+        Runs one joined query per catalog type (and actresses) in parallel.
         """
 
         if not terms:
@@ -502,7 +583,7 @@ class VideoRepository(BaseRepository):
             ("director", Director, DirectorAka),
         ]
 
-        resolved = await asyncio.gather(
+        catalog_task = asyncio.gather(
             *[
                 self._resolve_one_catalog(
                     key,
@@ -514,9 +595,15 @@ class VideoRepository(BaseRepository):
                 for key, entity, aka_model in catalog_specs
             ],
         )
+        actress_task = self._resolve_actress_ids_for_terms(terms)
+        resolved, actress_per_term = await asyncio.gather(
+            catalog_task,
+            actress_task,
+        )
 
         result: list[dict[str, list[int]]] = [
             {
+                "actress": [],
                 "genre": [],
                 "maker": [],
                 "label": [],
@@ -529,6 +616,9 @@ class VideoRepository(BaseRepository):
         for key, per_term in resolved:
             for term_index, ids in enumerate(per_term):
                 result[term_index][key] = ids
+
+        for term_index, ids in enumerate(actress_per_term):
+            result[term_index]["actress"] = ids
 
         return result
 
