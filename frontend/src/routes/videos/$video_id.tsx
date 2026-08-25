@@ -1,108 +1,86 @@
-import React from "react";
-import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useQueryErrorResetBoundary, useSuspenseQuery } from "@tanstack/react-query";
+import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
-import { VideoInfo } from "@/layouts/video_single_page/video-info";
-import { VideoReviewImages } from "@/layouts/video_single_page/video-review-images";
-import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
-import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
 import { VideoComments } from "@/components/video/comment";
 import { VideoPlayer, DEMO_HLS_SRC } from "@/components/video/player";
+import { VideoInfo } from "@/layouts/video_single_page/video-info";
+import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
+import { VideoReviewImages } from "@/layouts/video_single_page/video-review-images";
+import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
+import { ApiError } from "@/libs/api-client";
 import { getMockComments } from "@/mocks/comments";
-import type { Video } from "@/mocks/videos";
-import { getMockRelatedVideos, getMockVideoById } from "@/mocks/videos";
+import { getMockRelatedVideos } from "@/mocks/videos";
+import { videoDetailQueryOptions } from "@/queries/videos";
 
 export const Route = createFileRoute("/videos/$video_id")({
   component: VideoPage,
   errorComponent: VideoError,
   notFoundComponent: VideoNotFound,
-  loader: async ({ params }) => {
-    const { video_id } = params;
-    const videoPromise = Promise.resolve(getMockVideoById(video_id));
-    const related = getMockRelatedVideos(video_id, 12);
+  loader: async ({ context, params }) => {
+    const videoId = params.video_id;
+
+    try {
+      await context.queryClient.ensureQueryData(videoDetailQueryOptions(videoId));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        throw notFound();
+      }
+
+      throw error;
+    }
 
     return {
-      videoPromise,
-      related,
+      videoId,
+      related: getMockRelatedVideos(String(videoId), 12),
     };
   },
 });
 
 function VideoPage() {
-  const { videoPromise, related } = Route.useLoaderData();
+  const { videoId, related } = Route.useLoaderData();
+  const { data: video } = useSuspenseQuery(videoDetailQueryOptions(videoId));
 
-  return (
-    <React.Suspense fallback={<VideoPending />}>
-      <VideoContent videoPromise={videoPromise} related={related} />
-    </React.Suspense>
-  );
-}
-
-function VideoContent({ videoPromise, related }: { videoPromise: Promise<Video | undefined>; related: Video[] }) {
-  const video = React.use(videoPromise);
-
-  if (!video) {
-    throw notFound();
-  }
+  const comments = getMockComments(String(videoId));
+  const streamSrc =
+    "m3u8_url" in video && typeof video.m3u8_url === "string" && video.m3u8_url ? video.m3u8_url : DEMO_HLS_SRC;
 
   return (
     <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <div className="min-w-0 flex-1">
-          <div className="relative mb-6">
-            <VideoPlayer src={DEMO_HLS_SRC} title={video.title} poster={video.image_urls?.[0]} />
-          </div>
-
-          <VideoReviewImages video={video} />
-
-          <VideoMetadata video={video} views={124800} />
-
+          <VideoPlayer src={streamSrc} />
+          <VideoMetadata video={video} />
           <VideoInfo video={video} />
-
-          <VideoComments comments={getMockComments(video.video_id)} videoId={video.video_id} />
+          <VideoReviewImages video={video} />
+          <VideoComments comments={comments} videoId={videoId} />
         </div>
-
         <VideoSidebar videos={related} />
       </div>
     </div>
   );
 }
 
-function VideoPending() {
-  return (
-    <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
-      <div className="flex flex-col gap-6 lg:flex-row lg:gap-8">
-        <div className="min-w-0 flex-1 animate-pulse space-y-6">
-          <div className="aspect-video rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
-          <div className="h-8 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
-          <div className="h-5 w-1/3 rounded bg-zinc-200 dark:bg-zinc-800" />
-        </div>
-        <div className="hidden w-90 shrink-0 animate-pulse space-y-4 lg:block">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="flex gap-3">
-              <div className="aspect-video w-[42%] rounded-lg bg-zinc-200 dark:bg-zinc-800" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-3/4 rounded bg-zinc-200 dark:bg-zinc-800" />
-                <div className="h-3 w-1/2 rounded bg-zinc-200 dark:bg-zinc-800" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+function VideoError({ error }: { error: Error; reset: () => void }) {
+  const router = useRouter();
+  const queryErrorResetBoundary = useQueryErrorResetBoundary();
 
-function VideoError({ error, reset }: { error: Error; reset: () => void }) {
+  useEffect(() => {
+    queryErrorResetBoundary.reset();
+  }, [queryErrorResetBoundary]);
+
   return (
-    <div className="mx-auto w-full px-6 py-6 text-center sm:px-10 lg:px-16">
-      <h2 className="mb-4 text-2xl font-semibold text-red-500">Error Loading Video</h2>
-      <p className="mb-6 text-muted-foreground">{error.message}</p>
+    <div className="mx-auto w-full px-6 py-10 sm:px-10 lg:px-16">
+      <h1 className="text-xl font-semibold">Failed to load video</h1>
+      <p className="mt-2 text-muted-foreground">{error.message}</p>
       <button
         type="button"
-        onClick={reset}
-        className="rounded-xl bg-primary px-8 py-3 text-primary-foreground hover:bg-primary/90"
+        className="mt-4 rounded-md border px-3 py-1.5 text-sm"
+        onClick={() => {
+          router.invalidate();
+        }}
       >
-        Try Again
+        Retry
       </button>
     </div>
   );
@@ -110,9 +88,9 @@ function VideoError({ error, reset }: { error: Error; reset: () => void }) {
 
 function VideoNotFound() {
   return (
-    <div className="mx-auto w-full px-6 py-20 text-center sm:px-10 lg:px-16">
-      <h2 className="mb-4 text-3xl font-semibold">Video Not Found</h2>
-      <p className="text-muted-foreground">The video you&apos;re looking for doesn&apos;t exist or has been removed.</p>
+    <div className="mx-auto w-full px-6 py-10 sm:px-10 lg:px-16">
+      <h1 className="text-xl font-semibold">Video not found</h1>
+      <p className="mt-2 text-muted-foreground">The requested video does not exist.</p>
     </div>
   );
 }

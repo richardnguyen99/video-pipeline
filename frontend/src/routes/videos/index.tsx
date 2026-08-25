@@ -1,3 +1,4 @@
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { VideoBrowse } from "@/layouts/video-browse";
@@ -10,11 +11,56 @@ import {
   getAvailableDiscoverLabels,
   getAvailableDiscoverMakers,
   getAvailableDiscoverSeries,
-  getDiscoverVideos,
   parseFeaturesCnt,
   softParseVideoDiscoverSearch,
 } from "@/libs/discover-videos";
 import { parseSearch } from "@/libs/search-params";
+import { videoListQueryOptions } from "@/queries/videos";
+import type { VideoListQueryParams } from "@/queries/videos";
+
+function buildVideoListParams(locationSearchStr: string): {
+  queryParams: VideoListQueryParams;
+  searchIssues: ReturnType<typeof softParseVideoDiscoverSearch>["issues"];
+} {
+  const rawSearch = parseSearch(locationSearchStr);
+  const { data, issues } = softParseVideoDiscoverSearch(rawSearch);
+
+  const filters: VideoDiscoverFilters = {
+    actresses: data.actress ?? [],
+    genres: data.genre ?? [],
+    maker: data.maker,
+    label: data.label,
+    director: data.director,
+    series: data.series,
+    features_cnt: parseFeaturesCnt(data.features_cnt),
+  };
+
+  const q =
+    typeof rawSearch.q === "string"
+      ? rawSearch.q
+      : Array.isArray(rawSearch.q)
+        ? String(rawSearch.q[0] ?? "")
+        : undefined;
+
+  const locale = typeof rawSearch.locale === "string" ? rawSearch.locale : undefined;
+
+  return {
+    queryParams: {
+      sort: data.sort ?? DEFAULT_VIDEO_SORT,
+      page: data.page ?? 1,
+      actress: filters.actresses,
+      genre: filters.genres,
+      maker: filters.maker,
+      label: filters.label,
+      director: filters.director,
+      series: filters.series,
+      features_cnt: filters.features_cnt,
+      q: q || undefined,
+      locale,
+    },
+    searchIssues: issues,
+  };
+}
 
 export const Route = createFileRoute("/videos/")({
   component: VideosDiscoverPage,
@@ -34,44 +80,35 @@ export const Route = createFileRoute("/videos/")({
     series: search.series,
     features_cnt: search.features_cnt,
   }),
-  loader: async ({ location }) => {
-    const rawSearch = parseSearch(location.searchStr);
-    const { data, issues } = softParseVideoDiscoverSearch(rawSearch);
+  loader: ({ context, location }) => {
+    const { queryParams, searchIssues } = buildVideoListParams(location.searchStr);
 
-    const filters: VideoDiscoverFilters = {
-      actresses: data.actress ?? [],
-      genres: data.genre ?? [],
-      maker: data.maker,
-      label: data.label,
-      director: data.director,
-      series: data.series,
-      features_cnt: parseFeaturesCnt(data.features_cnt),
-    };
-    const sort = data.sort ?? DEFAULT_VIDEO_SORT;
-    const pageNum = data.page ?? 1;
-
-    const page = await getDiscoverVideos({ sort, filters, page: pageNum });
-
-    return {
-      videos: page.videos,
-      total: page.total,
-      page: page.page,
-      totalPages: page.totalPages,
-      sort: page.sort,
-      filters: page.filters,
-      searchIssues: issues,
+    return context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)).then(() => ({
+      queryParams,
+      searchIssues,
       actressOptions: getAvailableDiscoverActresses(),
       genreOptions: getAvailableDiscoverGenres(),
       makerOptions: getAvailableDiscoverMakers(),
       labelOptions: getAvailableDiscoverLabels(),
       directorOptions: getAvailableDiscoverDirectors(),
       seriesOptions: getAvailableDiscoverSeries(),
-    };
+    }));
   },
 });
 
 function VideosDiscoverPage() {
-  const data = Route.useLoaderData();
+  const {
+    queryParams,
+    searchIssues,
+    actressOptions,
+    genreOptions,
+    makerOptions,
+    labelOptions,
+    directorOptions,
+    seriesOptions,
+  } = Route.useLoaderData();
+
+  const { data } = useSuspenseQuery(videoListQueryOptions(queryParams));
 
   return (
     <VideoBrowse
@@ -83,13 +120,13 @@ function VideosDiscoverPage() {
       totalPages={data.totalPages}
       sort={data.sort}
       filters={data.filters}
-      searchIssues={data.searchIssues}
-      actressOptions={data.actressOptions}
-      genreOptions={data.genreOptions}
-      makerOptions={data.makerOptions}
-      labelOptions={data.labelOptions}
-      directorOptions={data.directorOptions}
-      seriesOptions={data.seriesOptions}
+      searchIssues={searchIssues}
+      actressOptions={actressOptions}
+      genreOptions={genreOptions}
+      makerOptions={makerOptions}
+      labelOptions={labelOptions}
+      directorOptions={directorOptions}
+      seriesOptions={seriesOptions}
     />
   );
 }
