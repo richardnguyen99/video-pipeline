@@ -93,7 +93,7 @@ class VideoEngagementCounts(BaseModel):
 
 
 class VideoResponse(BaseModel):
-    """Public video representation for list endpoints (no nested relations)."""
+    """Public video representation for list endpoints."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -112,6 +112,9 @@ class VideoResponse(BaseModel):
     likes: int = Field(default=0, ge=0)
     dislikes: int = Field(default=0, ge=0)
     comments: int = Field(default=0, ge=0)
+    video_image_url: list[VideoImageUrlResponse] = Field(
+        default_factory=list,
+    )
 
 
 class CommentUserResponse(BaseModel):

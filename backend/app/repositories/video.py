@@ -265,11 +265,7 @@ def _apply_search_with_catalog_ids(
 
     terms = _search_terms(filters.q)
 
-    for term, catalog_ids in zip(
-        terms,
-        catalog_by_term,
-        strict=True,
-    ):
+    for term, catalog_ids in zip(terms, catalog_by_term, strict=True):
         predicates: list[Any] = [_term_video_predicate(term)]
 
         for link_table, key in (
@@ -280,10 +276,7 @@ def _apply_search_with_catalog_ids(
             (t_video_series, "series"),
             (t_video_director, "director"),
         ):
-            pred = _catalog_ids_predicate(
-                link_table,
-                catalog_ids.get(key, []),
-            )
+            pred = _catalog_ids_predicate(link_table, catalog_ids.get(key, []))
 
             if pred is not None:
                 predicates.append(pred)
@@ -299,14 +292,9 @@ def _term_video_relevance(term: str) -> Any:
     lowered = term.lower()
 
     return func.greatest(
+        func.similarity(func.lower(col(Video.video_id)), lowered),
         func.similarity(
-            func.lower(col(Video.video_id)),
-            lowered,
-        ),
-        func.similarity(
-            func.lower(
-                func.coalesce(col(Video.title), ""),
-            ),
+            func.lower(func.coalesce(col(Video.title), "")),
             lowered,
         ),
     )
@@ -412,10 +400,7 @@ def _apply_sort(
         if filters is not None and filters.q and filters.q.strip():
             score = _video_relevance_expr(filters.q)
 
-            return statement.order_by(
-                score.desc(),
-                col(Video.id).asc(),
-            )
+            return statement.order_by(score.desc(), col(Video.id).asc())
 
         return statement.order_by(release, video_pk)
 
@@ -460,10 +445,7 @@ class VideoRepository(BaseRepository):
             .outerjoin(
                 aka_model,
                 and_(
-                    col(aka_model.fk_id)
-                    == col(
-                        entity.id,
-                    ),
+                    col(aka_model.fk_id) == col(entity.id),
                     col(aka_model.language) == locale_key,
                 ),
             )
@@ -663,6 +645,14 @@ class VideoRepository(BaseRepository):
             resolved.sort,
             resolved,
         )
+        page_statement = page_statement.options(
+            _media_load(
+                Video.video_image_url,
+                VideoImageUrl.id,
+                VideoImageUrl.url,
+                VideoImageUrl.type,
+            ),
+        )
         page_statement = page_statement.offset(offset).limit(limit)
         rows = list((await self.session.exec(page_statement)).all())
 
@@ -703,6 +693,14 @@ class VideoRepository(BaseRepository):
             )
 
         statement = _apply_sort(statement, resolved.sort, resolved)
+        statement = statement.options(
+            _media_load(
+                Video.video_image_url,
+                VideoImageUrl.id,
+                VideoImageUrl.url,
+                VideoImageUrl.type,
+            ),
+        )
         statement = statement.offset(offset).limit(limit)
         result = await self.session.exec(statement)
 

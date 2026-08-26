@@ -2,6 +2,7 @@
 line-length = 79
 target-version = ["py314"]
 include = '\.pyi?$'
+skip-string-normalization = true
 # Note: exclude is ignored when paths are passed explicitly on the CLI;
 # scripts/pre-commit/backend-black.sh also filters alembic/
 extend-exclude = '''

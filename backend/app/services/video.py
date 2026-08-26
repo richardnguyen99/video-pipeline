@@ -15,6 +15,7 @@ from app.schemas.video import (
     VideoCommentResponse,
     VideoDetailResponse,
     VideoEngagementCounts,
+    VideoImageUrlResponse,
     VideoListResponse,
     VideoResponse,
 )
@@ -51,6 +52,8 @@ class VideoService:
         relationship attributes named ``views`` / ``comments``.
         """
 
+        image_urls = self._loaded_collection(row, "video_image_url")
+
         return VideoResponse(
             id=row.id,
             video_id=row.video_id,
@@ -67,6 +70,14 @@ class VideoService:
             likes=counts.likes,
             dislikes=counts.dislikes,
             comments=counts.comments,
+            video_image_url=[
+                VideoImageUrlResponse(
+                    id=int(getattr(item, "id")),
+                    url=str(getattr(item, "url")),
+                    type=getattr(item, "type", None),
+                )
+                for item in image_urls
+            ],
         )
 
     @staticmethod

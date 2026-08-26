@@ -293,7 +293,7 @@ async def test_list_videos_omits_nested_relations(
     service: VideoService,
     repository: FakeVideoRepository,
 ) -> None:
-    """List items expose core fields only (no nested relation keys)."""
+    """List items omit catalog relations; thumbnail images are allowed."""
 
     row = SimpleNamespace(
         id=1,
@@ -309,6 +309,7 @@ async def test_list_videos_omits_nested_relations(
         updated_at=None,
         actresses=[{"id": 1, "name": "ignored"}],
         genres=[{"id": 2, "name": "ignored"}],
+        video_image_url=[],
     )
     repository.list_result = [row]
     repository.count_result = 1
@@ -320,9 +321,14 @@ async def test_list_videos_omits_nested_relations(
     assert item.video_id == "SSIS-001"
     assert "actresses" not in payload
     assert "genres" not in payload
-    assert "video_image_url" not in payload
+    assert "makers" not in payload
+    assert "labels" not in payload
+    assert "directors" not in payload
+    assert "series" not in payload
     assert "video_sample_image_url" not in payload
     assert "video_sample_movie_url" not in payload
+    assert "video_image_url" in payload
+    assert payload["video_image_url"] == []
 
 
 @pytest.mark.asyncio
