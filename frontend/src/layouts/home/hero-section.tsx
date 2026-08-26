@@ -122,8 +122,8 @@ export default function HeroSection() {
 
                 <h1 className="mt-4 text-pretty text-5xl font-semibold tracking-tight sm:text-7xl">
                   <Link
-                    to="/videos/$video_id"
-                    params={{ video_id: video.video_id }}
+                    to="/videos/$id"
+                    params={{ id: String(video.id) }}
                     className="hover:text-primary transition-colors"
                   >
                     {video.cid}
@@ -157,7 +157,7 @@ export default function HeroSection() {
                     size="lg"
                     className="gap-2"
                     nativeButton={false}
-                    render={<Link to="/videos/$video_id" params={{ video_id: video.video_id }} />}
+                    render={<Link to="/videos/$id" params={{ id: String(video.id) }} />}
                   >
                     <Play className="size-4 fill-current" />
                     Play Now

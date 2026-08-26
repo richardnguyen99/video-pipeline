@@ -38,6 +38,7 @@ export interface Video {
   image_urls?: string[];
   video_image_url?: VideoImageUrl[];
   sample_image_url?: VideoVideoSampleImageUrlUrl[];
+  video_sample_image_url?: VideoVideoSampleImageUrlUrl[];
   sample_movie_url?: VideoSampleMovieUrl[];
   m3u8_urls?: string[];
   views?: number;

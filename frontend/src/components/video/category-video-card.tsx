@@ -9,11 +9,25 @@ const REVIEW_MAX_SECONDS = 30;
 const HOVER_DELAY_MS = 550;
 
 function getThumbnail(video: Video): string {
-  return video.image_urls?.[0] ?? video.video_image_url?.[0]?.url ?? "https://placehold.co/1280x720";
+  const images = video.video_image_url ?? [];
+  const largeImages = images.filter((item) => typeof item.type === "string" && item.type.toLowerCase() === "large");
+  const candidates =
+    largeImages.length > 0 ? [...largeImages].sort((a, b) => a.id - b.id) : [...images].sort((a, b) => a.id - b.id);
+  const preferred = candidates.at(0);
+
+  if (preferred !== undefined && preferred.url !== "") {
+    return preferred.url;
+  }
+
+  if (video.image_urls?.[0]) {
+    return video.image_urls[0];
+  }
+
+  return "https://placehold.co/1280x720?text=No+Thumbnail";
 }
 
 function getCode(video: Video): string {
-  return video.cid ?? video.video_id;
+  return video.video_id;
 }
 
 function getSampleMovieUrl(video: Video): string | undefined {
@@ -85,8 +99,8 @@ export function CategoryVideoCard({ video, className, variant = "carousel" }: Ca
 
   return (
     <Link
-      to="/videos/$video_id"
-      params={{ video_id: video.video_id }}
+      to="/videos/$id"
+      params={{ id: String(video.id) }}
       className={cn(
         "group relative block overflow-hidden rounded-2xl border border-border bg-card",
         "shadow-[0_0_0_1px_oklch(0.5_0.14_350/12%),0_8px_24px_-12px_oklch(0_0_0/45%)]",

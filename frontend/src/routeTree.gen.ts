@@ -17,7 +17,7 @@ import { Route as VideosRouteRouteImport } from './routes/videos/route'
 import { Route as ActressesIndexRouteImport } from './routes/actresses/index'
 import { Route as ActressesActressIdRouteImport } from './routes/actresses/$actressId'
 import { Route as VideosIndexRouteImport } from './routes/videos/index'
-import { Route as VideosVideo_idRouteImport } from './routes/videos/$video_id'
+import { Route as VideosIdRouteImport } from './routes/videos/$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -59,9 +59,9 @@ const VideosIndexRoute = VideosIndexRouteImport.update({
   path: '/',
   getParentRoute: () => VideosRouteRoute,
 } as any)
-const VideosVideo_idRoute = VideosVideo_idRouteImport.update({
-  id: '/$video_id',
-  path: '/$video_id',
+const VideosIdRoute = VideosIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
   getParentRoute: () => VideosRouteRoute,
 } as any)
 
@@ -72,7 +72,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
-  '/videos/$video_id': typeof VideosVideo_idRoute
+  '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
   '/videos/': typeof VideosIndexRoute
 }
@@ -82,7 +82,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
-  '/videos/$video_id': typeof VideosVideo_idRoute
+  '/videos/$id': typeof VideosIdRoute
   '/actresses': typeof ActressesIndexRoute
   '/videos': typeof VideosIndexRoute
 }
@@ -94,7 +94,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/sign-in': typeof SignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
-  '/videos/$video_id': typeof VideosVideo_idRoute
+  '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
   '/videos/': typeof VideosIndexRoute
 }
@@ -107,7 +107,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
-    | '/videos/$video_id'
+    | '/videos/$id'
     | '/actresses/'
     | '/videos/'
   fileRoutesByTo: FileRoutesByTo
@@ -117,7 +117,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
-    | '/videos/$video_id'
+    | '/videos/$id'
     | '/actresses'
     | '/videos'
   id:
@@ -128,7 +128,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
-    | '/videos/$video_id'
+    | '/videos/$id'
     | '/actresses/'
     | '/videos/'
   fileRoutesById: FileRoutesById
@@ -201,23 +201,23 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VideosIndexRouteImport
       parentRoute: typeof VideosRouteRoute
     }
-    '/videos/$video_id': {
-      id: '/videos/$video_id'
-      path: '/$video_id'
-      fullPath: '/videos/$video_id'
-      preLoaderRoute: typeof VideosVideo_idRouteImport
+    '/videos/$id': {
+      id: '/videos/$id'
+      path: '/$id'
+      fullPath: '/videos/$id'
+      preLoaderRoute: typeof VideosIdRouteImport
       parentRoute: typeof VideosRouteRoute
     }
   }
 }
 
 interface VideosRouteRouteChildren {
-  VideosVideo_idRoute: typeof VideosVideo_idRoute
+  VideosIdRoute: typeof VideosIdRoute
   VideosIndexRoute: typeof VideosIndexRoute
 }
 
 const VideosRouteRouteChildren: VideosRouteRouteChildren = {
-  VideosVideo_idRoute: VideosVideo_idRoute,
+  VideosIdRoute: VideosIdRoute,
   VideosIndexRoute: VideosIndexRoute,
 }
 

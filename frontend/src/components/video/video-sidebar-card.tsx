@@ -43,6 +43,7 @@ export function VideoSidebarCard({
   uploader,
   badge,
 }: VideoSidebarCardProps) {
+  // Cover/thumbnail from video_image_url; hover preview from sample_image_url only
   const poster = video.image_urls?.[0] ?? video.video_image_url?.[0]?.url;
   const thumbnails = video.sample_image_url?.map((s) => s.url) ?? [];
 
@@ -84,8 +85,8 @@ export function VideoSidebarCard({
   return (
     <article className="group relative">
       <Link
-        to="/videos/$video_id"
-        params={{ video_id: video.video_id }}
+        to="/videos/$id"
+        params={{ id: String(video.id) }}
         className={cn(
           "flex gap-3 rounded-xl p-2 outline-none transition-colors",
           "hover:bg-muted/80 focus-visible:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring/50",

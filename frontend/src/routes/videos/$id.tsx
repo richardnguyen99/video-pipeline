@@ -13,12 +13,12 @@ import { getMockComments } from "@/mocks/comments";
 import { getMockRelatedVideos } from "@/mocks/videos";
 import { videoDetailQueryOptions } from "@/queries/videos";
 
-export const Route = createFileRoute("/videos/$video_id")({
+export const Route = createFileRoute("/videos/$id")({
   component: VideoPage,
   errorComponent: VideoError,
   notFoundComponent: VideoNotFound,
   loader: async ({ context, params }) => {
-    const videoId = params.video_id;
+    const videoId = params.id;
 
     try {
       await context.queryClient.ensureQueryData(videoDetailQueryOptions(videoId));
@@ -53,7 +53,7 @@ function VideoPage() {
           <VideoMetadata video={video} />
           <VideoInfo video={video} />
           <VideoReviewImages video={video} />
-          <VideoComments comments={comments} videoId={videoId} />
+          <VideoComments comments={comments} />
         </div>
         <VideoSidebar videos={related} />
       </div>
