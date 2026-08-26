@@ -86,6 +86,18 @@ function featuresCntLabel(range: FeaturesCountRange | undefined): string {
   return `${range.min}–${range.max}`;
 }
 
+function buildPageNumbers(page: number, totalPages: number): number[] {
+  const pages = new Set<number>([1, totalPages]);
+
+  for (let p = page - 2; p <= page + 2; p++) {
+    if (p >= 1 && p <= totalPages) {
+      pages.add(p);
+    }
+  }
+
+  return [...pages].sort((a, b) => a - b);
+}
+
 export function VideoBrowse({
   title = "Videos",
   description,
@@ -518,14 +530,18 @@ export function VideoBrowse({
               )}
             </PaginationItem>
 
-            {Array.from({ length: totalPages }, (_, i) => i + 1)
-              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2)
-              .map((p, i, pageNumbers) => {
-                const showEllipsis = i > 0 && p - pageNumbers[i - 1] > 1;
+            {buildPageNumbers(page, totalPages).map((p, i, pageNumbers) => {
+              const prev = i > 0 ? pageNumbers.at(i - 1) : undefined;
+              const showEllipsis = prev !== undefined && p - prev > 1;
 
-                return (
-                  <PaginationItem key={p}>
-                    {showEllipsis ? <PaginationEllipsis /> : null}
+              return (
+                <span key={p} className="contents">
+                  {showEllipsis ? (
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  ) : null}
+                  <PaginationItem>
                     <Link
                       to="/videos"
                       search={buildVideoDiscoverSearch({
@@ -542,13 +558,15 @@ export function VideoBrowse({
                           variant: p === page ? "default" : "outline",
                           size: "icon",
                         }),
+                        "h-9 min-w-9 w-auto px-2.5",
                       )}
                     >
                       {p}
                     </Link>
                   </PaginationItem>
-                );
-              })}
+                </span>
+              );
+            })}
 
             <PaginationItem>
               {page < totalPages ? (
