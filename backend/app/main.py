@@ -7,6 +7,7 @@ from typing import Any, Union
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis_fastapi import FastAPIRedis
 from redis_fastapi.config import CACHE_STATUS_HEADER
@@ -95,6 +96,16 @@ async def redis_cache_status_logger(
         )
 
     return response
+
+
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[PUBLIC_CACHE_STATUS_HEADER],
+)
 
 
 def _error_body(

@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     app_env: AppEnvironment = AppEnvironment.DEVELOPMENT
     debug: bool = False
 
+    # Comma-separated browser origins allowed to call the API (CORS).
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # Default matches .env.example; overridden by DATABASE_URL in the environment.
     database_url: str = (
         "postgresql://user:password@localhost:5432/video_pipeline"
@@ -75,6 +78,16 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """Parse ``cors_origins`` into a list of origin URLs."""
+
+        return [
+            origin.strip()
+            for origin in self.cors_origins.split(",")
+            if origin.strip()
+        ]
 
     @field_validator("object_storage_endpoint", mode="before")
     @classmethod
