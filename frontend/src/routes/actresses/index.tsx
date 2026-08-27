@@ -4,7 +4,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { ActressesGrid, ActressesShell } from "@/layouts/actresses/actresses-index";
 import { ActressesGridSkeleton, ActressesIndexSkeleton } from "@/layouts/actresses/actresses-index-skeleton";
 import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchParams } from "@/libs/actresses";
-import { DEFAULT_ACTRESS_SORT, getActressPage } from "@/libs/actresses";
+import { DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
+import { actressListQueryOptions } from "@/queries/actresses";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SORT_VALUES: ActressSort[] = [
@@ -126,7 +127,7 @@ export const Route = createFileRoute("/actresses/")({
   },
 
   loaderDeps: ({ search }) => search,
-  loader: async ({ deps }) => {
+  loader: async ({ context, deps }) => {
     const filters: ActressFilters = {
       labels: deps.labels ?? [],
       genres: deps.genres ?? [],
@@ -147,7 +148,7 @@ export const Route = createFileRoute("/actresses/")({
     const sort = deps.sort ?? DEFAULT_ACTRESS_SORT;
     const page = deps.page ?? 1;
 
-    const pagePromise = getActressPage(page, { sort, filters });
+    const pagePromise = context.queryClient.ensureQueryData(actressListQueryOptions({ page, sort, filters }));
 
     return {
       sort,

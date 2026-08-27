@@ -27,7 +27,7 @@ export function ActressCard({ actress, className }: ActressCardProps) {
       <div className="flex flex-col items-center gap-3 xs:flex-row xs:items-stretch xs:gap-3">
         <span
           className={cn(
-            "size-[min(7.5rem,36vw)] shrink-0 overflow-hidden rounded-full border border-border bg-muted xs:size-[120px]",
+            "size-[min(7.5rem,36vw)] shrink-0 overflow-hidden rounded-full border border-border bg-muted xs:size-30",
           )}
         >
           {actress.image_url ? (
@@ -38,6 +38,7 @@ export function ActressCard({ actress, className }: ActressCardProps) {
               height={120}
               loading="lazy"
               className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+              referrerPolicy="no-referrer"
             />
           ) : (
             <span className="flex size-full items-center justify-center text-xl font-semibold text-muted-foreground">

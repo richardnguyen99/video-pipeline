@@ -371,27 +371,14 @@ export async function getActressPage(
     videos?: Video[];
   } = {},
 ): Promise<ActressPageResult> {
-  const pageSize = options.pageSize ?? ACTRESSES_PAGE_SIZE;
-  const sort = options.sort ?? DEFAULT_ACTRESS_SORT;
-  const filters = options.filters ?? DEFAULT_ACTRESS_FILTERS;
-  const videos = options.videos ?? mockVideos;
+  const { fetchActressPage } = await import("@/queries/actresses");
 
-  const filtered = filterActresses(getActressSummaries(videos), filters);
-  const sorted = sortActresses(filtered, sort);
-  const total = sorted.length;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const safePage = Math.min(Math.max(1, page), totalPages);
-  const start = (safePage - 1) * pageSize;
-
-  return {
-    items: sorted.slice(start, start + pageSize),
-    page: safePage,
-    pageSize,
-    total,
-    totalPages,
-    sort,
-    filters,
-  };
+  return fetchActressPage({
+    page,
+    pageSize: options.pageSize,
+    sort: options.sort,
+    filters: options.filters,
+  });
 }
 
 export const ACTRESS_SORT_OPTIONS: {
