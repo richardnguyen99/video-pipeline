@@ -3,11 +3,13 @@
 import { tanstackConfig } from "@tanstack/eslint-config";
 import reactPlugin from "eslint-plugin-react";
 import reactRefresh from "eslint-plugin-react-refresh";
+import reactHooks from "eslint-plugin-react-hooks";
 import globals from "globals";
 
 /** @type {import('eslint').Linter.Config[]} */
 export default [
   ...tanstackConfig,
+  reactHooks.configs.flat.recommended,
   {
     plugins: {
       "react-refresh": reactRefresh,
@@ -48,6 +50,7 @@ export default [
       "postcss.config.js",
       "cypress.config.js",
       "src/routeTree.gen.ts",
+      "src/components/ui/*.tsx",
     ],
   },
 ];

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ArrowLeft, PlusIcon, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -68,17 +68,23 @@ interface ReportDialogProps {
   onBack: () => void;
 }
 
-export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack }: ReportDialogProps) {
-  const [rows, setRows] = useState<MetadataRow[]>([{ field: "title", action: "modify", newValue: "", oldValue: "" }]);
+function createDefaultRows(): MetadataRow[] {
+  return [{ field: "title", action: "modify", newValue: "", oldValue: "" }];
+}
 
-  useEffect(() => {
-    if (!open) {
-      setRows([{ field: "title", action: "modify", newValue: "", oldValue: "" }]);
+export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack }: ReportDialogProps) {
+  const [rows, setRows] = useState<MetadataRow[]>(createDefaultRows);
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      setRows(createDefaultRows());
     }
-  }, [open]);
+
+    onOpenChange(nextOpen);
+  }
 
   function handleAddRow() {
-    setRows((prev) => [...prev, { field: "title", action: "modify", newValue: "", oldValue: "" }]);
+    setRows((prev) => [...prev, ...createDefaultRows()]);
   }
 
   function updateRow(index: number, patch: Partial<MetadataRow>) {
@@ -106,7 +112,7 @@ export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack 
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden">
         <DialogHeader className="flex-row items-center gap-2">
           {step === 2 && (
@@ -270,7 +276,7 @@ export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack 
                 <Button variant="outline" size="sm" onClick={onBack}>
                   Back
                 </Button>
-                <Button size="sm" onClick={() => onOpenChange(false)}>
+                <Button size="sm" onClick={() => handleOpenChange(false)}>
                   Submit
                 </Button>
               </DialogFooter>

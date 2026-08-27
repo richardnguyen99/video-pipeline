@@ -55,19 +55,46 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
   } = useHlsPlayer({ src });
 
   const scheduleHideControls = useCallback(() => {
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+
     setShowControls(true);
+
     if (isPlaying) {
-      hideTimerRef.current = setTimeout(() => setShowControls(false), 2500);
+      hideTimerRef.current = setTimeout(() => {
+        setShowControls(false);
+        hideTimerRef.current = null;
+      }, 2500);
     }
   }, [isPlaying]);
 
+  // Auto-hide only while playing; paused always shows controls via controlsVisible.
   useEffect(() => {
-    scheduleHideControls();
+    if (!isPlaying) {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+
+      return;
+    }
+
+    hideTimerRef.current = setTimeout(() => {
+      setShowControls(false);
+      hideTimerRef.current = null;
+    }, 2500);
+
     return () => {
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
     };
-  }, [isPlaying, scheduleHideControls]);
+  }, [isPlaying]);
+
+  const controlsVisible = !isPlaying || showControls;
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -165,7 +192,7 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
       <div
         className={cn(
           "absolute inset-x-0 bottom-0 bg-linear-to-t from-background via-background/70 to-transparent px-3 pt-12 pb-3 transition-opacity duration-200",
-          showControls || !isPlaying ? "opacity-100" : "opacity-0",
+          controlsVisible ? "opacity-100" : "opacity-0",
         )}
       >
         <div

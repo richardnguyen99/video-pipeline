@@ -52,20 +52,39 @@ export function CategoryVideoCard({ video, className, variant = "carousel" }: Ca
   const likes = video.likes ?? 0;
   const comments = video.comments ?? 0;
 
-  useEffect(() => {
-    if (!isHovering || !sampleUrl) {
-      setIsReviewActive(false);
-      const el = videoRef.current;
-      if (el) {
-        el.pause();
-        el.currentTime = 0;
-      }
+  function pauseAndResetVideo(el: HTMLVideoElement | null) {
+    if (!el) {
       return;
     }
 
+    el.pause();
+    el.currentTime = 0;
+  }
+
+  function handleMouseEnter() {
+    setIsHovering(true);
+  }
+
+  function handleMouseLeave() {
+    setIsHovering(false);
+    setIsReviewActive(false);
+    pauseAndResetVideo(videoRef.current);
+  }
+
+  useEffect(() => {
+    if (!isHovering || !sampleUrl) {
+      return;
+    }
+
+    const videoEl = videoRef.current;
+
     const delayId = window.setTimeout(() => {
       const el = videoRef.current;
-      if (!el) return;
+
+      if (!el) {
+        return;
+      }
+
       el.currentTime = 0;
       void el
         .play()
@@ -75,27 +94,32 @@ export function CategoryVideoCard({ video, className, variant = "carousel" }: Ca
 
     return () => {
       window.clearTimeout(delayId);
-      setIsReviewActive(false);
-      const el = videoRef.current;
-      if (el) {
-        el.pause();
-        el.currentTime = 0;
-      }
+      pauseAndResetVideo(videoEl);
     };
   }, [isHovering, sampleUrl]);
 
   useEffect(() => {
-    if (!isReviewActive) return;
-    const el = videoRef.current;
-    if (!el) return;
+    if (!isReviewActive) {
+      return;
+    }
+
+    const videoEl = videoRef.current;
+
+    if (!videoEl) {
+      return;
+    }
 
     const stopId = window.setTimeout(() => {
-      el.pause();
+      videoEl.pause();
       setIsReviewActive(false);
     }, REVIEW_MAX_SECONDS * 1000);
 
-    return () => window.clearTimeout(stopId);
+    return () => {
+      window.clearTimeout(stopId);
+    };
   }, [isReviewActive]);
+
+  const showReview = isReviewActive && isHovering;
 
   return (
     <Link
@@ -109,8 +133,8 @@ export function CategoryVideoCard({ video, className, variant = "carousel" }: Ca
         variant === "grid" && "w-full",
         className,
       )}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-muted">
         <img
@@ -119,7 +143,7 @@ export function CategoryVideoCard({ video, className, variant = "carousel" }: Ca
           loading="lazy"
           className={cn(
             "absolute inset-0 size-full object-cover transition-opacity duration-300",
-            isReviewActive ? "opacity-0" : "opacity-100",
+            showReview ? "opacity-0" : "opacity-100",
           )}
         />
         {sampleUrl ? (
@@ -133,7 +157,7 @@ export function CategoryVideoCard({ video, className, variant = "carousel" }: Ca
             crossOrigin="anonymous"
             className={cn(
               "absolute inset-0 size-full object-cover transition-opacity duration-300",
-              isReviewActive ? "opacity-100" : "opacity-0",
+              showReview ? "opacity-100" : "opacity-0",
             )}
           />
         ) : null}

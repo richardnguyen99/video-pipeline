@@ -53,7 +53,7 @@ function VideoPage() {
           <VideoMetadata video={video} />
           <VideoInfo video={video} />
           <VideoReviewImages video={video} />
-          <VideoComments comments={comments} />
+          <VideoComments comments={comments} videoId={String(videoId)} />
         </div>
         <VideoSidebar videos={related} />
       </div>

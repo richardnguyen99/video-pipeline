@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -27,17 +27,24 @@ interface ActressReportDialogProps {
 export function ActressReportDialog({ open, onOpenChange }: ActressReportDialogProps) {
   const [reason, setReason] = useState<ActressReportReason | null>(null);
 
-  useEffect(() => {
-    if (!open) setReason(null);
-  }, [open]);
+  function handleOpenChange(nextOpen: boolean) {
+    if (!nextOpen) {
+      setReason(null);
+    }
+
+    onOpenChange(nextOpen);
+  }
 
   function handleConfirm() {
-    if (!reason) return;
-    onOpenChange(false);
+    if (!reason) {
+      return;
+    }
+
+    handleOpenChange(false);
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="left-4 right-4 flex w-auto max-w-none translate-x-0 max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:left-1/2 sm:right-auto sm:w-full sm:max-w-md sm:-translate-x-1/2">
         <DialogHeader className="flex flex-row items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
           <DialogTitle className="line-clamp-1 text-sm sm:text-base md:text-lg">

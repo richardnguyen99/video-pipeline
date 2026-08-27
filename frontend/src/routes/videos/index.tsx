@@ -5,7 +5,6 @@ import { VideoBrowse } from "@/layouts/video-browse";
 import type { VideoDiscoverFilters } from "@/libs/discover-videos";
 import {
   DEFAULT_VIDEO_SORT,
-  getAvailableDiscoverActresses,
   getAvailableDiscoverDirectors,
   getAvailableDiscoverGenres,
   getAvailableDiscoverLabels,
@@ -15,6 +14,7 @@ import {
   softParseVideoDiscoverSearch,
 } from "@/libs/discover-videos";
 import { parseSearch } from "@/libs/search-params";
+import { actressFilterInfiniteOptions } from "@/queries/actresses";
 import { videoListQueryOptions } from "@/queries/videos";
 import type { VideoListQueryParams } from "@/queries/videos";
 
@@ -80,33 +80,29 @@ export const Route = createFileRoute("/videos/")({
     series: search.series,
     features_cnt: search.features_cnt,
   }),
-  loader: ({ context, location }) => {
+  loader: async ({ context, location }) => {
     const { queryParams, searchIssues } = buildVideoListParams(location.searchStr);
 
-    return context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)).then(() => ({
+    await Promise.all([
+      context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)),
+      context.queryClient.ensureInfiniteQueryData(actressFilterInfiniteOptions()),
+    ]);
+
+    return {
       queryParams,
       searchIssues,
-      actressOptions: getAvailableDiscoverActresses(),
       genreOptions: getAvailableDiscoverGenres(),
       makerOptions: getAvailableDiscoverMakers(),
       labelOptions: getAvailableDiscoverLabels(),
       directorOptions: getAvailableDiscoverDirectors(),
       seriesOptions: getAvailableDiscoverSeries(),
-    }));
+    };
   },
 });
 
 function VideosDiscoverPage() {
-  const {
-    queryParams,
-    searchIssues,
-    actressOptions,
-    genreOptions,
-    makerOptions,
-    labelOptions,
-    directorOptions,
-    seriesOptions,
-  } = Route.useLoaderData();
+  const { queryParams, searchIssues, genreOptions, makerOptions, labelOptions, directorOptions, seriesOptions } =
+    Route.useLoaderData();
 
   const { data } = useSuspenseQuery(videoListQueryOptions(queryParams));
 
@@ -121,7 +117,6 @@ function VideosDiscoverPage() {
       sort={data.sort}
       filters={data.filters}
       searchIssues={searchIssues}
-      actressOptions={actressOptions}
       genreOptions={genreOptions}
       makerOptions={makerOptions}
       labelOptions={labelOptions}

@@ -34,6 +34,29 @@ const BADGE_LABEL: Record<VideoCardBadge, string> = {
 const PREVIEW_MAX_MS = 30_000;
 const PREVIEW_FRAME_MS = 1000;
 
+const NEW_RELEASE_WINDOW_MS = 1000 * 60 * 60 * 24 * 60;
+
+/** Fixed at module load so render stays pure (no Date.now during render). */
+const MODULE_NOW_MS = Date.now();
+
+function autoBadgeFromReleaseDate(releaseDate: string | null | undefined): VideoCardBadge | undefined {
+  if (releaseDate == null || releaseDate === "") {
+    return undefined;
+  }
+
+  const releasedMs = Date.parse(releaseDate);
+
+  if (!Number.isFinite(releasedMs)) {
+    return undefined;
+  }
+
+  if (MODULE_NOW_MS - releasedMs < NEW_RELEASE_WINDOW_MS) {
+    return "new";
+  }
+
+  return undefined;
+}
+
 export function VideoSidebarCard({
   video,
   views = 12_400,
@@ -53,14 +76,12 @@ export function VideoSidebarCard({
 
   useEffect(() => {
     if (!isHovering || thumbnails.length < 2) {
-      setFrameIndex(0);
-      startedAt.current = null;
       return;
     }
 
-    startedAt.current = Date.now();
     const id = window.setInterval(() => {
       const elapsed = Date.now() - (startedAt.current ?? Date.now());
+
       if (elapsed >= PREVIEW_MAX_MS) {
         setFrameIndex(0);
         startedAt.current = Date.now();
@@ -72,15 +93,23 @@ export function VideoSidebarCard({
     return () => window.clearInterval(id);
   }, [isHovering, thumbnails.length]);
 
+  function handleMouseEnter() {
+    setIsHovering(true);
+    setFrameIndex(0);
+    startedAt.current = Date.now();
+  }
+
+  function handleMouseLeave() {
+    setIsHovering(false);
+    setFrameIndex(0);
+    startedAt.current = null;
+  }
+
   const displaySrc = isHovering && thumbnails.length > 0 ? thumbnails[frameIndex % thumbnails.length] : poster;
 
   const resolvedUploader = uploader ?? video.maker_product ?? video.actresses?.[0]?.name ?? "Unknown";
   const resolvedUploadedAt = uploadedAt ?? video.release_date;
-  const resolvedBadge =
-    badge ??
-    (video.release_date && Date.now() - new Date(video.release_date).getTime() < 1000 * 60 * 60 * 24 * 60
-      ? "new"
-      : undefined);
+  const resolvedBadge = badge ?? autoBadgeFromReleaseDate(video.release_date);
 
   return (
     <article className="group relative">
@@ -91,8 +120,8 @@ export function VideoSidebarCard({
           "flex gap-3 rounded-xl p-2 outline-none transition-colors",
           "hover:bg-muted/80 focus-visible:bg-muted/80 focus-visible:ring-2 focus-visible:ring-ring/50",
         )}
-        onMouseEnter={() => setIsHovering(true)}
-        onMouseLeave={() => setIsHovering(false)}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
       >
         <div className="relative w-[42%] max-w-40 shrink-0 overflow-hidden rounded-lg">
           <div className="relative aspect-video w-full bg-muted">

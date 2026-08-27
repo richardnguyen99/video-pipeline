@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useState } from "react";
+import { useId, useLayoutEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, ListFilter, X } from "lucide-react";
@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRig
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ActressMultiFilter } from "@/components/video/actress-multi-filter";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
@@ -50,7 +51,6 @@ interface VideoBrowseProps {
   totalPages: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
-  actressOptions: NamedEntity[];
   genreOptions: NamedEntity[];
   makerOptions: NamedEntity[];
   labelOptions: NamedEntity[];
@@ -107,7 +107,6 @@ export function VideoBrowse({
   totalPages,
   sort,
   filters,
-  actressOptions,
   genreOptions,
   makerOptions,
   labelOptions,
@@ -117,18 +116,15 @@ export function VideoBrowse({
   className,
 }: VideoBrowseProps) {
   const navigate = useNavigate();
-  const [alertDismissed, setAlertDismissed] = useState(false);
-  const [alertOpen, setAlertOpen] = useState(false);
+  const [dismissedIssueKey, setDismissedIssueKey] = useState<string | null>(null);
+  const [alertOpenForKey, setAlertOpenForKey] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState(filters);
   const [menuPortal, setMenuPortal] = useState<HTMLDivElement | null>(null);
   const [dialogBody, setDialogBody] = useState<HTMLDivElement | null>(null);
   const issueKey = searchIssues.map((i) => `${i.path}:${i.message}`).join("|");
-
-  useEffect(() => {
-    setAlertDismissed(false);
-    setAlertOpen(false);
-  }, [issueKey]);
+  const alertDismissed = dismissedIssueKey === issueKey && issueKey !== "";
+  const alertOpen = alertOpenForKey === issueKey;
 
   useLayoutEffect(() => {
     restoreScrollPosition();
@@ -207,7 +203,11 @@ export function VideoBrowse({
               <AlertDescription>
                 Invalid query values were skipped so results still load. Expand for details.
               </AlertDescription>
-              <Collapsible open={alertOpen} onOpenChange={setAlertOpen} className="mt-2">
+              <Collapsible
+                open={alertOpen}
+                onOpenChange={(open) => setAlertOpenForKey(open ? issueKey : null)}
+                className="mt-2"
+              >
                 <CollapsibleTrigger className="inline-flex items-center gap-1 text-xs font-medium text-current/80 hover:text-current">
                   <ChevronRight className={cn("size-3.5 transition-transform", alertOpen && "rotate-90")} />
                   {alertOpen ? "Hide details" : "Show details"}
@@ -229,7 +229,7 @@ export function VideoBrowse({
               type="button"
               aria-label="Dismiss alert"
               className="shrink-0 rounded-md p-1 text-current/70 transition-colors hover:bg-black/5 hover:text-current dark:hover:bg-white/10"
-              onClick={() => setAlertDismissed(true)}
+              onClick={() => setDismissedIssueKey(issueKey)}
             >
               <X className="size-4" />
             </button>
@@ -332,12 +332,11 @@ export function VideoBrowse({
             <div className="relative">
               <div ref={setDialogBody} className="absolute top-0 left-0 z-100 h-0 w-0 overflow-visible" aria-hidden />
               <div className="flex max-h-[min(70vh,28rem)] flex-col gap-2 overflow-y-auto px-5 py-4">
-                <MultiEntityFilter
-                  label="Actress"
+                <ActressMultiFilter
                   selected={draftFilters.actresses}
-                  options={actressOptions}
                   onChange={(actresses) => setDraftFilters((prev) => ({ ...prev, actresses }))}
                   container={dialogBody}
+                  triggerClassName={filterTriggerClass}
                 />
                 <MultiEntityFilter
                   label="Genre"
@@ -413,12 +412,11 @@ export function VideoBrowse({
         </Dialog>
 
         <div className="hidden sm:contents">
-          <MultiEntityFilter
-            label="Actress"
+          <ActressMultiFilter
             selected={filters.actresses}
-            options={actressOptions}
             onChange={(actresses) => updateSearch({ filters: { ...filters, actresses } })}
             container={menuPortal}
+            triggerClassName={filterTriggerClass}
           />
           <MultiEntityFilter
             label="Genre"
@@ -914,12 +912,19 @@ function FeaturesCountFilter({
   const [maxText, setMaxText] = useState("");
   const [openEnded, setOpenEnded] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
+  function syncFieldsFromValue() {
     setMinText(value != null ? String(value.min) : "");
     setMaxText(value == null || value.max == null ? "" : String(value.max));
     setOpenEnded(value != null && value.max == null);
-  }, [open, value]);
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      syncFieldsFromValue();
+    }
+
+    setOpen(nextOpen);
+  }
 
   function commit(nextMin: string, nextMax: string, openMax: boolean) {
     const min = nextMin.trim() === "" ? NaN : Number(nextMin);
@@ -953,7 +958,7 @@ function FeaturesCountFilter({
   }
 
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger className={filterTriggerClass(active)}>
         <span className="truncate">{featuresCntLabel(value)}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />

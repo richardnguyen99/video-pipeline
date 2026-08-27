@@ -3,3 +3,4 @@ pnpm-lock.yaml
 yarn.lock
 .cta.json
 src/routeTree.gen.ts
+src/components/ui/*.tsx
