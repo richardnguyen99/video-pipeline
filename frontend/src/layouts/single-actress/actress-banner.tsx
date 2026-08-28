@@ -18,7 +18,10 @@ interface ActressBannerProps {
 }
 
 export function ActressBanner({ actress, className }: ActressBannerProps) {
-  const backgroundUrl = actress.image_url || BANNER_PLACEHOLDER;
+  const backgroundUrl =
+    (actress.banner?.url != null && actress.banner.url !== "" ? actress.banner.url : undefined) ??
+    actress.image_url ??
+    BANNER_PLACEHOLDER;
   const birthdayLabel = formatBirthdayLabel(actress.birthday);
   const measurements = formatMeasurements(actress);
   const hasProfileDetails = Boolean(birthdayLabel || measurements);
@@ -41,7 +44,7 @@ export function ActressBanner({ actress, className }: ActressBannerProps) {
         <img
           src={backgroundUrl}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover will-change-transform"
+          className="absolute inset-0 h-[120%] w-full object-cover will-change-transform"
           style={{ transform: `translate3d(0, ${parallaxY}px, 0)` }}
           referrerPolicy="no-referrer"
         />
@@ -98,16 +101,12 @@ export function ActressBanner({ actress, className }: ActressBannerProps) {
                   </Button>
 
                   {hasProfileDetails ? (
-                    <button
-                      type="button"
-                      onClick={() => setDetailsOpen((v) => !v)}
-                      className="inline-flex min-w-0 max-w-full items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-                    >
+                    <Button type="button" onClick={() => setDetailsOpen((v) => !v)} variant="ghost">
                       <span className="line-clamp-1">Profile details</span>
                       <ChevronDown
                         className={cn("size-3.5 shrink-0 transition-transform xs:size-4", detailsOpen && "rotate-180")}
                       />
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
 

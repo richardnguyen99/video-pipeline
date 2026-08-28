@@ -39,6 +39,11 @@ export const DEFAULT_ACTRESS_FILTERS: ActressFilters = {
 
 export const DEFAULT_ACTRESS_SORT: ActressSort = "trending-month";
 
+export interface ActressBannerRef {
+  id: number;
+  url: string;
+}
+
 export interface ActressSummary extends ActressRef {
   ruby?: string | null;
   birthday?: string | null;
@@ -58,6 +63,7 @@ export interface ActressSummary extends ActressRef {
   labels: NamedEntity[];
   genres: NamedEntity[];
   makers: NamedEntity[];
+  banner?: ActressBannerRef | null;
 }
 
 function engagementFromVideos(videos: Video[]): Map<

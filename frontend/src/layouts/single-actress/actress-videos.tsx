@@ -20,19 +20,18 @@ import { captureScrollPosition, cn, restoreScrollPosition } from "@/libs/utils";
 interface ActressVideosShellProps {
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
-  allVideos: Video[];
   children: React.ReactNode;
   className?: string;
 }
 
-export function ActressVideosShell({ sort, filters, allVideos, children, className }: ActressVideosShellProps) {
+export function ActressVideosShell({ sort, filters, children, className }: ActressVideosShellProps) {
   return (
     <section className={cn("mx-auto w-full px-6 py-10 sm:px-10 lg:px-16", className)}>
       <header className="mb-6">
         <h2 className="text-pretty text-2xl font-semibold tracking-tight sm:text-3xl">Featured videos</h2>
       </header>
 
-      <ActressVideosToolbar sort={sort} filters={filters} allVideos={allVideos} />
+      <ActressVideosToolbar sort={sort} filters={filters} />
 
       {children}
     </section>
@@ -48,14 +47,24 @@ interface ActressVideosGridProps {
   filters: ActressVideoFilters;
 }
 
+function buildPageNumbers(page: number, totalPages: number): number[] {
+  const pages = new Set<number>([1, totalPages]);
+
+  for (let p = page - 2; p <= page + 2; p++) {
+    if (p >= 1 && p <= totalPages) {
+      pages.add(p);
+    }
+  }
+
+  return [...pages].sort((a, b) => a - b);
+}
+
 export function ActressVideosGrid({ videos, total, page, totalPages, sort, filters }: ActressVideosGridProps) {
   const { actressId } = useParams({ from: "/actresses/$actressId" });
   const prevPage = page > 1 ? page - 1 : null;
   const nextPage = page < totalPages ? page + 1 : null;
 
-  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
-    (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 2,
-  );
+  const pageNumbers = buildPageNumbers(page, totalPages);
 
   function pageSearch(targetPage: number) {
     return buildActressVideoSearch({ page: targetPage, sort, filters });
@@ -86,7 +95,7 @@ export function ActressVideosGrid({ videos, total, page, totalPages, sort, filte
 
       {total > 0 ? (
         <Pagination className="mt-10">
-          <PaginationContent>
+          <PaginationContent className="flex-nowrap">
             <PaginationItem>
               {prevPage != null ? (
                 <Link
@@ -115,11 +124,21 @@ export function ActressVideosGrid({ videos, total, page, totalPages, sort, filte
               )}
             </PaginationItem>
 
-            {pageNumbers.map((p, i) => {
-              const showEllipsis = i > 0 && p - pageNumbers[i - 1] > 1;
-              return (
+            {pageNumbers.flatMap((p, i) => {
+              const prev = i > 0 ? pageNumbers.at(i - 1) : undefined;
+              const showEllipsis = prev !== undefined && p - prev > 1;
+              const nodes = [];
+
+              if (showEllipsis) {
+                nodes.push(
+                  <PaginationItem key={`ellipsis-${p}`}>
+                    <PaginationEllipsis />
+                  </PaginationItem>,
+                );
+              }
+
+              nodes.push(
                 <PaginationItem key={p}>
-                  {showEllipsis ? <PaginationEllipsis /> : null}
                   <Link
                     to="/actresses/$actressId"
                     params={{ actressId }}
@@ -131,14 +150,17 @@ export function ActressVideosGrid({ videos, total, page, totalPages, sort, filte
                     className={cn(
                       buttonVariants({
                         variant: p === page ? "default" : "outline",
-                        size: "icon",
+                        size: "default",
                       }),
+                      "h-9 min-w-9 justify-center px-2.5 tabular-nums",
                     )}
                   >
                     {p}
                   </Link>
-                </PaginationItem>
+                </PaginationItem>,
               );
+
+              return nodes;
             })}
 
             <PaginationItem>
@@ -182,7 +204,6 @@ export function ActressVideos({
   totalPages,
   sort,
   filters,
-  allVideos,
   className,
 }: {
   videos: Video[];
@@ -191,11 +212,10 @@ export function ActressVideos({
   totalPages: number;
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
-  allVideos: Video[];
   className?: string;
 }) {
   return (
-    <ActressVideosShell sort={sort} filters={filters} allVideos={allVideos} className={className}>
+    <ActressVideosShell sort={sort} filters={filters} className={className}>
       <p className="mb-6 flex h-5 items-center text-sm text-muted-foreground sm:text-base">
         {total} {total === 1 ? "video" : "videos"}
       </p>

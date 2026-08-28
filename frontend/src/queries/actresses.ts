@@ -153,6 +153,7 @@ export function mapActressListItemToSummary(item: ActressListItemApi): ActressSu
     labels: [],
     genres: [],
     makers: [],
+    banner: item.banner != null && item.banner.url !== "" ? { id: item.banner.id, url: item.banner.url } : null,
   };
 }
 
@@ -354,9 +355,22 @@ export async function fetchActressDetail(actressId: number) {
   return apiFetch<ActressListItemApi>(`/actresses/${actressId}`);
 }
 
+export async function fetchActressSummary(actressId: number): Promise<ActressSummary> {
+  const item = await fetchActressDetail(actressId);
+
+  return mapActressListItemToSummary(item);
+}
+
 export function actressDetailQueryOptions(actressId: number) {
   return queryOptions({
     queryKey: actressQueryKeys.detail(actressId),
     queryFn: () => fetchActressDetail(actressId),
+  });
+}
+
+export function actressSummaryQueryOptions(actressId: number) {
+  return queryOptions({
+    queryKey: [...actressQueryKeys.detail(actressId), "summary"] as const,
+    queryFn: () => fetchActressSummary(actressId),
   });
 }

@@ -3,8 +3,10 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { ActressDetail } from "@/layouts/single-actress/actress-detail";
 import { ActressVideosGridSkeleton } from "@/layouts/single-actress/actress-videos-skeleton";
 import type { ActressVideoFilters, ActressVideoSearchParams, ActressVideoSort } from "@/libs/actress-videos";
-import { DEFAULT_ACTRESS_VIDEO_SORT, getActressVideoPage } from "@/libs/actress-videos";
-import { getActressById, getVideosByActressId } from "@/libs/actresses";
+import { DEFAULT_ACTRESS_VIDEO_SORT, actressVideoListQueryParams } from "@/libs/actress-videos";
+import { ApiError } from "@/libs/api-client";
+import { actressSummaryQueryOptions } from "@/queries/actresses";
+import { videoListQueryOptions } from "@/queries/videos";
 
 const SORT_VALUES: ActressVideoSort[] = ["latest", "most-viewed", "most-liked", "most-comments", "title"];
 
@@ -61,12 +63,24 @@ export const Route = createFileRoute("/actresses/$actressId")({
     return result;
   },
   loaderDeps: ({ search }) => search,
-  loader: async ({ params, deps }) => {
+  loader: async ({ context, params, deps }) => {
     const id = Number.parseInt(params.actressId, 10);
-    if (Number.isNaN(id)) throw notFound();
 
-    const actress = await getActressById(id);
-    if (!actress) throw notFound();
+    if (Number.isNaN(id)) {
+      throw notFound();
+    }
+
+    let actress;
+
+    try {
+      actress = await context.queryClient.ensureQueryData(actressSummaryQueryOptions(id));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        throw notFound();
+      }
+
+      throw error;
+    }
 
     const filters: ActressVideoFilters = {
       labels: deps.labels ?? [],
@@ -76,20 +90,14 @@ export const Route = createFileRoute("/actresses/$actressId")({
     const sort = deps.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
     const page = deps.page ?? 1;
 
-    const allVideos = getVideosByActressId(id);
-
-    const pagePromise = getActressVideoPage(id, {
-      page,
-      sort,
-      filters,
-      allVideos,
-    });
+    const pagePromise = context.queryClient.ensureQueryData(
+      videoListQueryOptions(actressVideoListQueryParams(id, { page, sort, filters })),
+    );
 
     return {
       actress,
       sort,
       filters,
-      allVideos,
       pagePromise,
     };
   },
@@ -111,12 +119,6 @@ function ActressDetailPage() {
   const data = Route.useLoaderData();
 
   return (
-    <ActressDetail
-      actress={data.actress}
-      sort={data.sort}
-      filters={data.filters}
-      allVideos={data.allVideos}
-      pagePromise={data.pagePromise}
-    />
+    <ActressDetail actress={data.actress} sort={data.sort} filters={data.filters} pagePromise={data.pagePromise} />
   );
 }

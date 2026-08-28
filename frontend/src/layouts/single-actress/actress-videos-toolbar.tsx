@@ -18,17 +18,18 @@ import {
   ACTRESS_VIDEO_SORT_OPTIONS,
   DEFAULT_ACTRESS_VIDEO_FILTERS,
   buildActressVideoSearch,
-  getAvailableVideoGenres,
-  getAvailableVideoLabels,
-  getAvailableVideoMakers,
 } from "@/libs/actress-videos";
-import type { NamedEntity, Video } from "@/mocks/videos";
+import {
+  getAvailableDiscoverGenres,
+  getAvailableDiscoverLabels,
+  getAvailableDiscoverMakers,
+} from "@/libs/discover-videos";
+import type { NamedEntity } from "@/mocks/videos";
 import { captureScrollPosition, cn } from "@/libs/utils";
 
 interface ActressVideosToolbarProps {
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
-  allVideos: Video[];
 }
 
 function filterTriggerClass(active?: boolean) {
@@ -87,12 +88,12 @@ function EntityFilterDropdown({
   );
 }
 
-export function ActressVideosToolbar({ sort, filters, allVideos }: ActressVideosToolbarProps) {
+export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProps) {
   const navigate = useNavigate();
   const { actressId } = useParams({ from: "/actresses/$actressId" });
-  const labels = getAvailableVideoLabels(allVideos);
-  const genres = getAvailableVideoGenres(allVideos);
-  const makers = getAvailableVideoMakers(allVideos);
+  const labels = getAvailableDiscoverLabels();
+  const genres = getAvailableDiscoverGenres();
+  const makers = getAvailableDiscoverMakers();
 
   const [filtersOpen, setFiltersOpen] = useState(false);
 

@@ -1,3 +1,4 @@
+import type { VideoSort } from "@/libs/discover-videos";
 import type { NamedEntity, Video } from "@/mocks/videos";
 import { getVideosByActressId } from "@/libs/actresses";
 
@@ -137,6 +138,23 @@ export type ActressVideoPageResult = {
   allVideos: Video[];
 };
 
+export function actressVideoSortToApi(sort: ActressVideoSort): VideoSort {
+  switch (sort) {
+    case "latest":
+      return "latest";
+    case "most-viewed":
+      return "views";
+    case "most-liked":
+      return "likes";
+    case "most-comments":
+      return "likes";
+    case "title":
+      return "latest";
+    default:
+      return "latest";
+  }
+}
+
 export async function getActressVideoPage(
   actressId: number,
   options: {
@@ -146,25 +164,51 @@ export async function getActressVideoPage(
     allVideos?: Video[];
   } = {},
 ): Promise<ActressVideoPageResult> {
+  const { fetchVideoList } = await import("@/queries/videos");
   const sort = options.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
   const filters = options.filters ?? DEFAULT_ACTRESS_VIDEO_FILTERS;
-  const allVideos = options.allVideos ?? getVideosByActressId(actressId);
-  const filtered = filterActressVideos(allVideos, filters);
-  const sorted = sortActressVideos(filtered, sort);
+  const page = Math.max(1, options.page ?? 1);
 
-  const total = sorted.length;
-  const totalPages = Math.max(1, Math.ceil(total / ACTRESS_VIDEO_PAGE_SIZE));
-  const page = Math.min(Math.max(1, options.page ?? 1), totalPages);
-  const start = (page - 1) * ACTRESS_VIDEO_PAGE_SIZE;
-  const videos = sorted.slice(start, start + ACTRESS_VIDEO_PAGE_SIZE);
+  const result = await fetchVideoList({
+    page,
+    limit: ACTRESS_VIDEO_PAGE_SIZE,
+    sort: actressVideoSortToApi(sort),
+    actress: [actressId],
+    genre: filters.genres.length > 0 ? filters.genres : undefined,
+    maker: filters.makers.length > 0 ? filters.makers[0] : undefined,
+    label: filters.labels.length > 0 ? filters.labels[0] : undefined,
+  });
 
   return {
-    videos,
-    total,
-    page,
-    totalPages,
+    videos: result.videos,
+    total: result.total,
+    page: result.page,
+    totalPages: result.totalPages,
     sort,
     filters,
-    allVideos,
+    allVideos: options.allVideos ?? [],
+  };
+}
+
+export function actressVideoListQueryParams(
+  actressId: number,
+  options: {
+    page?: number;
+    sort?: ActressVideoSort;
+    filters?: ActressVideoFilters;
+  } = {},
+) {
+  const sort = options.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
+  const filters = options.filters ?? DEFAULT_ACTRESS_VIDEO_FILTERS;
+  const page = Math.max(1, options.page ?? 1);
+
+  return {
+    page,
+    limit: ACTRESS_VIDEO_PAGE_SIZE,
+    sort: actressVideoSortToApi(sort),
+    actress: [actressId],
+    genre: filters.genres.length > 0 ? filters.genres : undefined,
+    maker: filters.makers.length > 0 ? filters.makers[0] : undefined,
+    label: filters.labels.length > 0 ? filters.labels[0] : undefined,
   };
 }

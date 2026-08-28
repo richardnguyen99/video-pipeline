@@ -4,24 +4,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ActressBanner } from "@/layouts/single-actress/actress-banner";
 import { ActressVideosGrid, ActressVideosShell } from "@/layouts/single-actress/actress-videos";
 import { ActressVideosGridSkeleton } from "@/layouts/single-actress/actress-videos-skeleton";
-import type { ActressVideoFilters, ActressVideoPageResult, ActressVideoSort } from "@/libs/actress-videos";
+import type { ActressVideoFilters, ActressVideoSort } from "@/libs/actress-videos";
 import type { ActressSummary } from "@/libs/actresses";
-import type { Video } from "@/mocks/videos";
+import type { VideoListPage } from "@/queries/videos";
 
 interface ActressDetailProps {
   actress: ActressSummary;
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
-  allVideos: Video[];
-  pagePromise: Promise<ActressVideoPageResult>;
+  pagePromise: Promise<VideoListPage>;
 }
 
-export function ActressDetail({ actress, sort, filters, allVideos, pagePromise }: ActressDetailProps) {
+export function ActressDetail({ actress, sort, filters, pagePromise }: ActressDetailProps) {
   return (
     <div className="min-h-screen">
       <ActressBanner actress={actress} />
 
-      <ActressVideosShell sort={sort} filters={filters} allVideos={allVideos}>
+      <ActressVideosShell sort={sort} filters={filters}>
         <React.Suspense
           fallback={
             <>
@@ -32,14 +31,22 @@ export function ActressDetail({ actress, sort, filters, allVideos, pagePromise }
             </>
           }
         >
-          <ActressVideosDeferred pagePromise={pagePromise} />
+          <ActressVideosDeferred pagePromise={pagePromise} sort={sort} filters={filters} />
         </React.Suspense>
       </ActressVideosShell>
     </div>
   );
 }
 
-function ActressVideosDeferred({ pagePromise }: { pagePromise: Promise<ActressVideoPageResult> }) {
+function ActressVideosDeferred({
+  pagePromise,
+  sort,
+  filters,
+}: {
+  pagePromise: Promise<VideoListPage>;
+  sort: ActressVideoSort;
+  filters: ActressVideoFilters;
+}) {
   const data = React.use(pagePromise);
 
   return (
@@ -52,8 +59,8 @@ function ActressVideosDeferred({ pagePromise }: { pagePromise: Promise<ActressVi
         total={data.total}
         page={data.page}
         totalPages={data.totalPages}
-        sort={data.sort}
-        filters={data.filters}
+        sort={sort}
+        filters={filters}
       />
     </>
   );
