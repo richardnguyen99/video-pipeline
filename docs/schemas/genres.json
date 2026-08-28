@@ -1,0 +1,32 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "array",
+    "description": "List of genre items",
+    "items": {
+        "type": "object",
+        "required": [
+            "id",
+            "name",
+            "dmmId"
+        ],
+        "description": "Genre item in the list response",
+        "properties": {
+            "id": {
+                "type": "number",
+                "description": "The unique identifier for the genre"
+            },
+            "name": {
+                "type": "string",
+                "description": "Name of the genre depending on the `locale` query"
+            },
+            "ruby": {
+                "type": "string",
+                "description": "The ruby text of the genre"
+            },
+            "dmmId": {
+                "type": "string",
+                "description": "The DMM identifier for the genre"
+            }
+        }
+    }
+}
