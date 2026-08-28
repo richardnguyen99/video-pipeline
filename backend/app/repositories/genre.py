@@ -36,16 +36,20 @@ class GenreRepository(BaseRepository):
         return list(result.all())
 
     async def get_by_id(self, genre_id: int) -> Optional[Genre]:
-        """Return one genre by primary key, or ``None``.
+        """Return one genre by primary key with aka rows, or ``None``.
 
         Args:
             genre_id: Genre primary key.
 
         Returns:
-            Genre row, or ``None`` when missing.
+            Genre with ``genre_aka`` loaded, or ``None`` when missing.
         """
 
-        statement = select(Genre).where(col(Genre.id) == genre_id)
+        statement = (
+            select(Genre)
+            .where(col(Genre.id) == genre_id)
+            .options(selectinload(_relationship_attr(Genre.genre_aka)))
+        )
         result = await self.session.exec(statement)
 
         return result.first()

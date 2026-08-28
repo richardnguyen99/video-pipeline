@@ -11,7 +11,7 @@ from app.cache.policy import (
     SUSTAIN_RATE,
 )
 from app.dependencies import GenreServiceDep
-from app.schemas.genre import GenreResponse
+from app.schemas.genre import GenreDetailResponse, GenreResponse
 
 router = APIRouter()
 
@@ -53,3 +53,35 @@ async def list_genres(
     """Return all genres as a JSON array."""
 
     return await service.list_genres(locale=locale)
+
+
+@router.get(
+    "/genres/{genre_id}",
+    response_model=GenreDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get genre",
+    dependencies=[
+        Depends(
+            cache(ttl=CACHE_TTL_SECONDS, eviction_group="genre_detail"),
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="genre_detail:burst",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="genre_detail:sustain",
+            ),
+        ),
+    ],
+)
+async def get_genre(
+    genre_id: int,
+    service: GenreServiceDep,
+) -> GenreDetailResponse:
+    """Return one genre with native Japanese name and all akas."""
+
+    return await service.get_genre(genre_id)

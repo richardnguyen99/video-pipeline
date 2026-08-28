@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, cast
@@ -125,3 +126,70 @@ async def test_list_genres_locale_fallback_to_native_name() -> None:
 
     result = await service.list_genres(locale="fr")
     assert result[0].name == "汗だく"
+
+
+@pytest.mark.asyncio
+async def test_get_genre_returns_detail_with_akas() -> None:
+    """Detail payload keeps Japanese name and lists all akas."""
+
+    created = datetime.datetime(2026, 1, 1, 12, 0, 0)
+    updated = datetime.datetime(2026, 2, 1, 12, 0, 0)
+    row = _genre(
+        genre_id=6,
+        name="足コキ",
+        ruby="あしこき",
+        dmm_id="5048",
+        akas=[
+            SimpleNamespace(
+                id=10,
+                language="vi",
+                translated_name="Gót chân",
+                created_at=created,
+                updated_at=updated,
+            ),
+            SimpleNamespace(
+                id=11,
+                language="en-us",
+                translated_name="Footjob",
+                created_at=created,
+                updated_at=updated,
+            ),
+        ],
+    )
+    # Attach timestamps on genre itself
+    row.created_at = created
+    row.updated_at = updated
+
+    repo = FakeGenreRepository(list_result=[row])
+    service = GenreService(repository=cast(GenreRepository, repo))
+    result = await service.get_genre(6)
+
+    assert result.id == 6
+    assert result.name == "足コキ"
+    assert result.ruby == "あしこき"
+    assert result.dmm_id == "5048"
+    assert result.created_at == created
+    assert result.updated_at == updated
+    assert len(result.akas) == 2
+    assert result.akas[0].language == "en-us"
+    assert result.akas[0].name == "Footjob"
+    assert result.akas[1].language == "vi"
+    payload = result.model_dump(by_alias=True)
+    assert payload["dmmId"] == "5048"
+    assert payload["createdAt"] == created
+    assert payload["akas"][0]["name"] == "Footjob"
+
+
+@pytest.mark.asyncio
+async def test_get_genre_not_found() -> None:
+    """Missing genre yields HTTP 404."""
+
+    from fastapi import HTTPException, status
+
+    repo = FakeGenreRepository(list_result=[])
+    service = GenreService(repository=cast(GenreRepository, repo))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_genre(999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

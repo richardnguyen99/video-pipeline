@@ -2,9 +2,15 @@
 
 from typing import Optional
 
+from fastapi import HTTPException, status
+
 from app.models.genre import Genre, GenreAka
 from app.repositories.genre import GenreRepository
-from app.schemas.genre import GenreResponse
+from app.schemas.genre import (
+    GenreAkaResponse,
+    GenreDetailResponse,
+    GenreResponse,
+)
 
 
 class GenreService:
@@ -53,13 +59,38 @@ class GenreService:
         genre: Genre,
         locale_key: Optional[str],
     ) -> GenreResponse:
-        """Map an ORM genre to the public response shape."""
+        """Map an ORM genre to the list response shape."""
 
         return GenreResponse(
             id=genre.id,
             name=self._resolve_name(genre, locale_key),
             ruby=genre.ruby,
             dmm_id=genre.dmm_id,
+        )
+
+    def _to_detail_response(self, genre: Genre) -> GenreDetailResponse:
+        """Map an ORM genre to the detail response shape."""
+
+        akas: list[GenreAka] = list(getattr(genre, "genre_aka", None) or [])
+        aka_items = [
+            GenreAkaResponse(
+                id=aka.id,
+                name=aka.translated_name,
+                language=aka.language,
+                created_at=aka.created_at,
+                updated_at=aka.updated_at,
+            )
+            for aka in sorted(akas, key=lambda item: (item.language, item.id))
+        ]
+
+        return GenreDetailResponse(
+            id=genre.id,
+            name=genre.name,
+            ruby=genre.ruby,
+            dmm_id=genre.dmm_id,
+            created_at=genre.created_at,
+            updated_at=genre.updated_at,
+            akas=aka_items,
         )
 
     async def list_genres(
@@ -87,3 +118,26 @@ class GenreService:
         )
 
         return [self._to_response(row, locale_key) for row in rows]
+
+    async def get_genre(self, genre_id: int) -> GenreDetailResponse:
+        """Return one genre with all aka translations.
+
+        Args:
+            genre_id: Genre primary key.
+
+        Returns:
+            Detailed genre payload (native Japanese ``name`` + ``akas``).
+
+        Raises:
+            HTTPException: 404 when the genre does not exist.
+        """
+
+        row = await self._repository.get_by_id(genre_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Genre not found",
+            )
+
+        return self._to_detail_response(row)
