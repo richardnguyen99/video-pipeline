@@ -16,12 +16,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
 import type { ActressFilters, ActressSort } from "@/libs/actresses";
 import {
   ACTRESS_SORT_OPTIONS,
   DEFAULT_ACTRESS_FILTERS,
   buildActressesSearch,
-  getAvailableActressGenres,
   getAvailableActressLabels,
   getAvailableActressMakers,
   getAvailableCupSizes,
@@ -77,8 +77,8 @@ function EntityFilterDropdown({
       <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="px-2 pt-2">{label} (OR)</DropdownMenuLabel>
-          <ScrollArea className="h-auto">
-            <div className="max-h-75 px-2 py-1">
+          <ScrollArea className="h-auto max-h-125">
+            <div className="p-1">
               {items.map((item) => (
                 <DropdownMenuCheckboxItem
                   key={item.id}
@@ -99,7 +99,6 @@ function EntityFilterDropdown({
 export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const navigate = useNavigate();
   const labels = getAvailableActressLabels();
-  const genres = getAvailableActressGenres();
   const makers = getAvailableActressMakers();
   const cups = getAvailableCupSizes();
 
@@ -175,11 +174,10 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
         selected={filters.labels}
         onToggle={(id, checked) => toggleIdFilter("labels", id, checked)}
       />
-      <EntityFilterDropdown
-        label="Genre"
-        items={genres}
+      <GenreMultiFilter
         selected={filters.genres}
-        onToggle={(id, checked) => toggleIdFilter("genres", id, checked)}
+        onChange={(genres) => updateSearch({ filters: { ...filters, genres }, page: 1 })}
+        triggerClassName={filterTriggerClass}
       />
       <EntityFilterDropdown
         label="Maker"
@@ -248,11 +246,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
               className={cn("size-3.5 shrink-0 opacity-60 transition-transform", filtersOpen && "rotate-180")}
             />
           </button>
-          <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <CollapsibleContent>
-              <div className="grid grid-cols-1 gap-2 pt-1">{entityFilters}</div>
-            </CollapsibleContent>
-          </Collapsible>
+          {filtersOpen ? <div className="grid grid-cols-1 gap-2 pt-1">{entityFilters}</div> : null}
         </div>
 
         <div className="hidden sm:contents">{entityFilters}</div>
@@ -324,7 +318,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                     type="number"
                     inputMode="numeric"
                     placeholder="Min"
-                    className="h-8"
+                    className="h-8 text-xs placeholder:text-xs"
                     defaultValue={filters[minKey] ?? ""}
                     onBlur={(e) =>
                       updateSearch({
@@ -341,7 +335,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                     type="number"
                     inputMode="numeric"
                     placeholder="Max"
-                    className="h-8"
+                    className="h-8 text-xs placeholder:text-xs"
                     defaultValue={filters[maxKey] ?? ""}
                     onBlur={(e) =>
                       updateSearch({
@@ -366,7 +360,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                   min={18}
                   max={98}
                   placeholder="18"
-                  className="h-8"
+                  className="h-8 text-xs placeholder:text-xs"
                   defaultValue={filters.ageMin ?? ""}
                   onBlur={(e) => {
                     const n = parseOptionalInt(e.target.value);
@@ -386,7 +380,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
                   min={19}
                   max={99}
                   placeholder="99"
-                  className="h-8"
+                  className="h-8 text-xs placeholder:text-xs"
                   defaultValue={filters.ageMax ?? ""}
                   onBlur={(e) => {
                     const n = parseOptionalInt(e.target.value);

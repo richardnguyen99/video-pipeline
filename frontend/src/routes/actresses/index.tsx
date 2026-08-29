@@ -6,6 +6,7 @@ import { ActressesGridSkeleton, ActressesIndexSkeleton } from "@/layouts/actress
 import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchParams } from "@/libs/actresses";
 import { DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
 import { actressListQueryOptions } from "@/queries/actresses";
+import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SORT_VALUES: ActressSort[] = [
@@ -149,6 +150,8 @@ export const Route = createFileRoute("/actresses/")({
     const page = deps.page ?? 1;
 
     const pagePromise = context.queryClient.ensureQueryData(actressListQueryOptions({ page, sort, filters }));
+
+    await context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions());
 
     return {
       sort,
