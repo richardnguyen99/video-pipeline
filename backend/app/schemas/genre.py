@@ -21,6 +21,20 @@ class GenreResponse(BaseModel):
     dmm_id: str = Field(serialization_alias="dmmId")
 
 
+class GenreListResponse(BaseModel):
+    """Paginated genre list payload."""
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        serialize_by_alias=True,
+    )
+
+    items: list[GenreResponse]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    offset: int = Field(ge=0)
+
+
 class GenreAkaResponse(BaseModel):
     """Translated name entry for a genre detail response."""
 

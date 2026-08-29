@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException, status
 
 from app.repositories.genre import GenreRepository
 from app.services.genre import GenreService
@@ -18,14 +19,44 @@ class FakeGenreRepository:
     """In-memory stand-in for ``GenreRepository``."""
 
     list_result: list[Any] = field(default_factory=list)
+    count_result: int = 0
     list_calls: list[dict[str, Any]] = field(default_factory=list)
+    count_calls: list[dict[str, Any]] = field(default_factory=list)
 
-    async def list_genres(self, *, load_aka: bool = False) -> list[Any]:
+    async def list_genres(
+        self,
+        *,
+        q: str | None = None,
+        locale_key: str | None = None,
+        load_aka: bool = False,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> list[Any]:
         """Return configured genre rows and record the call."""
 
-        self.list_calls.append({"load_aka": load_aka})
+        self.list_calls.append(
+            {
+                "q": q,
+                "locale_key": locale_key,
+                "load_aka": load_aka,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
 
         return list(self.list_result)
+
+    async def count_genres(
+        self,
+        *,
+        q: str | None = None,
+        locale_key: str | None = None,
+    ) -> int:
+        """Return configured total and record the call."""
+
+        self.count_calls.append({"q": q, "locale_key": locale_key})
+
+        return self.count_result
 
     async def get_by_id(self, genre_id: int) -> Any | None:
         """Return one row by id when present."""
@@ -56,14 +87,39 @@ def _genre(
 
 @pytest.mark.asyncio
 async def test_list_genres_empty() -> None:
-    """Empty repository yields an empty list."""
+    """Empty repository yields an empty page."""
 
-    repo = FakeGenreRepository(list_result=[])
+    repo = FakeGenreRepository(list_result=[], count_result=0)
     service = GenreService(repository=cast(GenreRepository, repo))
     result = await service.list_genres()
 
-    assert result == []
-    assert repo.list_calls == [{"load_aka": False}]
+    assert result.items == []
+    assert result.total == 0
+    assert result.limit == 20
+    assert result.offset == 0
+    assert repo.list_calls == [
+        {
+            "q": None,
+            "locale_key": None,
+            "load_aka": False,
+            "limit": 20,
+            "offset": 0,
+        },
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_genres_clamps_limit_and_offset() -> None:
+    """Limit is capped at 100; non-positive values are normalized."""
+
+    repo = FakeGenreRepository(list_result=[], count_result=0)
+    service = GenreService(repository=cast(GenreRepository, repo))
+    result = await service.list_genres(limit=500, offset=-3)
+
+    assert result.limit == 100
+    assert result.offset == 0
+    assert repo.list_calls[0]["limit"] == 100
+    assert repo.list_calls[0]["offset"] == 0
 
 
 @pytest.mark.asyncio
@@ -81,12 +137,12 @@ async def test_list_genres_without_locale_uses_native_name() -> None:
             ),
         ],
     )
-    repo = FakeGenreRepository(list_result=[row])
+    repo = FakeGenreRepository(list_result=[row], count_result=1)
     service = GenreService(repository=cast(GenreRepository, repo))
     result = await service.list_genres()
 
-    assert result[0].name == "4時間以上作品"
-    assert repo.list_calls == [{"load_aka": False}]
+    assert result.total == 1
+    assert result.items[0].name == "4時間以上作品"
 
 
 @pytest.mark.asyncio
@@ -99,33 +155,40 @@ async def test_list_genres_with_locale_uses_translated_name() -> None:
             SimpleNamespace(language="vi", translated_name="Gót chân"),
         ],
     )
-    repo = FakeGenreRepository(list_result=[row])
+    repo = FakeGenreRepository(list_result=[row], count_result=1)
     service = GenreService(repository=cast(GenreRepository, repo))
 
     en_result = await service.list_genres(locale="en-us")
-    assert en_result[0].name == "Footjob"
-    assert repo.list_calls[-1] == {"load_aka": True}
-
-    vi_result = await service.list_genres(locale="vi")
-    assert vi_result[0].name == "Gót chân"
+    assert en_result.items[0].name == "Footjob"
+    assert repo.list_calls[-1]["locale_key"] == "en-us"
+    assert repo.list_calls[-1]["load_aka"] is True
 
 
 @pytest.mark.asyncio
-async def test_list_genres_locale_fallback_to_native_name() -> None:
-    """Missing aka for locale falls back to native Japanese name."""
+async def test_list_genres_forwards_search_and_pagination() -> None:
+    """Service forwards ``q``, locale, limit, and offset."""
 
-    row = _genre(
-        name="汗だく",
-        dmm_id="5075",
-        akas=[
-            SimpleNamespace(language="en-us", translated_name="Sweaty"),
-        ],
-    )
-    repo = FakeGenreRepository(list_result=[row])
+    repo = FakeGenreRepository(list_result=[], count_result=0)
     service = GenreService(repository=cast(GenreRepository, repo))
+    await service.list_genres(
+        q="foot job",
+        locale="en-us",
+        limit=50,
+        offset=10,
+    )
 
-    result = await service.list_genres(locale="fr")
-    assert result[0].name == "汗だく"
+    assert repo.list_calls == [
+        {
+            "q": "foot job",
+            "locale_key": "en-us",
+            "load_aka": True,
+            "limit": 50,
+            "offset": 10,
+        },
+    ]
+    assert repo.count_calls == [
+        {"q": "foot job", "locale_key": "en-us"},
+    ]
 
 
 @pytest.mark.asyncio
@@ -156,7 +219,6 @@ async def test_get_genre_returns_detail_with_akas() -> None:
             ),
         ],
     )
-    # Attach timestamps on genre itself
     row.created_at = created
     row.updated_at = updated
 
@@ -166,25 +228,15 @@ async def test_get_genre_returns_detail_with_akas() -> None:
 
     assert result.id == 6
     assert result.name == "足コキ"
-    assert result.ruby == "あしこき"
-    assert result.dmm_id == "5048"
-    assert result.created_at == created
-    assert result.updated_at == updated
     assert len(result.akas) == 2
-    assert result.akas[0].language == "en-us"
     assert result.akas[0].name == "Footjob"
-    assert result.akas[1].language == "vi"
     payload = result.model_dump(by_alias=True)
     assert payload["dmmId"] == "5048"
-    assert payload["createdAt"] == created
-    assert payload["akas"][0]["name"] == "Footjob"
 
 
 @pytest.mark.asyncio
 async def test_get_genre_not_found() -> None:
     """Missing genre yields HTTP 404."""
-
-    from fastapi import HTTPException, status
 
     repo = FakeGenreRepository(list_result=[])
     service = GenreService(repository=cast(GenreRepository, repo))

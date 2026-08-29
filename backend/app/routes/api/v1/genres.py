@@ -1,6 +1,6 @@
 """Genre collection endpoints."""
 
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, status
 from redis_fastapi import cache, rate_limit
@@ -11,14 +11,14 @@ from app.cache.policy import (
     SUSTAIN_RATE,
 )
 from app.dependencies import GenreServiceDep
-from app.schemas.genre import GenreDetailResponse, GenreResponse
+from app.schemas.genre import GenreDetailResponse, GenreListResponse
 
 router = APIRouter()
 
 
 @router.get(
     "/genres",
-    response_model=List[GenreResponse],
+    response_model=GenreListResponse,
     status_code=status.HTTP_200_OK,
     summary="List genres",
     dependencies=[
@@ -41,18 +41,33 @@ router = APIRouter()
 )
 async def list_genres(
     service: GenreServiceDep,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     locale: Optional[str] = Query(
         default=None,
         description=(
             "When set, ``name`` uses ``genre_aka.translated_name`` for this "
-            "language. When omitted, ``name`` is native Japanese "
-            "``genre.name``."
+            "language and aka search is scoped to it. When omitted, "
+            "``name`` is native Japanese ``genre.name``."
         ),
     ),
-) -> list[GenreResponse]:
-    """Return all genres as a JSON array."""
+    q: Optional[str] = Query(
+        default=None,
+        description=(
+            "Space-separated search terms (AND). Matches genre name, ruby, "
+            "and aka translated_name. With ``locale``, aka matches are "
+            "limited to that language."
+        ),
+    ),
+) -> GenreListResponse:
+    """Return a paginated list of genres."""
 
-    return await service.list_genres(locale=locale)
+    return await service.list_genres(
+        locale=locale,
+        q=q,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(

@@ -9,8 +9,11 @@ from app.repositories.genre import GenreRepository
 from app.schemas.genre import (
     GenreAkaResponse,
     GenreDetailResponse,
+    GenreListResponse,
     GenreResponse,
 )
+
+MAX_LIST_LIMIT = 100
 
 
 class GenreService:
@@ -24,6 +27,15 @@ class GenreService:
         """
 
         self._repository = repository
+
+    @staticmethod
+    def _normalize_locale(locale: Optional[str]) -> Optional[str]:
+        """Normalize locale query; empty becomes ``None``."""
+
+        if locale is None or locale.strip() == "":
+            return None
+
+        return locale.strip().lower()
 
     @staticmethod
     def _resolve_name(genre: Genre, locale_key: Optional[str]) -> str:
@@ -96,28 +108,47 @@ class GenreService:
     async def list_genres(
         self,
         locale: Optional[str] = None,
-    ) -> list[GenreResponse]:
-        """Return all genres with locale-aware names.
+        q: Optional[str] = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> GenreListResponse:
+        """Return a page of genres with optional search and locale names.
 
         Args:
             locale: When omitted, ``name`` is native ``genre.name``.
                 When set, ``name`` prefers matching
-                ``genre_aka.translated_name``.
+                ``genre_aka.translated_name`` and search aka matches are
+                scoped to that language.
+            q: Optional multi-term search over name, ruby, and aka.
+            limit: Page size (clamped to ``[1, 100]``).
+            offset: Rows to skip (clamped to at least 0).
 
         Returns:
-            Genre response items ordered by id.
+            Paginated ``GenreListResponse``.
         """
 
-        locale_key: Optional[str] = None
-
-        if locale is not None and locale.strip() != "":
-            locale_key = locale.strip().lower()
+        locale_key = self._normalize_locale(locale)
+        safe_limit = min(MAX_LIST_LIMIT, max(1, limit))
+        safe_offset = max(0, offset)
 
         rows = await self._repository.list_genres(
+            q=q,
+            locale_key=locale_key,
             load_aka=locale_key is not None,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+        total = await self._repository.count_genres(
+            q=q,
+            locale_key=locale_key,
         )
 
-        return [self._to_response(row, locale_key) for row in rows]
+        return GenreListResponse(
+            items=[self._to_response(row, locale_key) for row in rows],
+            total=total,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
 
     async def get_genre(self, genre_id: int) -> GenreDetailResponse:
         """Return one genre with all aka translations.
