@@ -19,11 +19,8 @@ import {
   DEFAULT_ACTRESS_VIDEO_FILTERS,
   buildActressVideoSearch,
 } from "@/libs/actress-videos";
-import {
-  getAvailableDiscoverGenres,
-  getAvailableDiscoverLabels,
-  getAvailableDiscoverMakers,
-} from "@/libs/discover-videos";
+import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { getAvailableDiscoverLabels, getAvailableDiscoverMakers } from "@/libs/discover-videos";
 import type { NamedEntity } from "@/mocks/videos";
 import { captureScrollPosition, cn } from "@/libs/utils";
 
@@ -92,7 +89,6 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
   const navigate = useNavigate();
   const { actressId } = useParams({ from: "/actresses/$actressId" });
   const labels = getAvailableDiscoverLabels();
-  const genres = getAvailableDiscoverGenres();
   const makers = getAvailableDiscoverMakers();
 
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -116,7 +112,7 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
     });
   }
 
-  function toggleIdFilter(key: "labels" | "genres" | "makers", id: number, checked: boolean) {
+  function toggleIdFilter(key: "labels" | "makers", id: number, checked: boolean) {
     const current = filters[key];
     const nextValues = checked ? [...current, id] : current.filter((v) => v !== id);
     updateSearch({
@@ -132,11 +128,10 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
         selected={filters.labels}
         onToggle={(id, checked) => toggleIdFilter("labels", id, checked)}
       />
-      <EntityFilterDropdown
-        label="Genre"
-        items={genres}
+      <GenreMultiFilter
         selected={filters.genres}
-        onToggle={(id, checked) => toggleIdFilter("genres", id, checked)}
+        onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
+        triggerClassName={filterTriggerClass}
       />
       <EntityFilterDropdown
         label="Maker"

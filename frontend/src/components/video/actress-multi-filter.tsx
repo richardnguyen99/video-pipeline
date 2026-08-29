@@ -111,8 +111,21 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
   }));
   const available = options.filter((item) => !draftSet.has(item.id));
 
+  function selectionChanged(next: number[]): boolean {
+    if (next.length !== selected.length) {
+      return true;
+    }
+
+    const prev = new Set(selected);
+
+    return next.some((id) => !prev.has(id));
+  }
+
   function commitAndClose() {
-    onChange(draft);
+    if (selectionChanged(draft)) {
+      onChange(draft);
+    }
+
     setQuery("");
     setDebouncedQuery("");
     setOpen(false);

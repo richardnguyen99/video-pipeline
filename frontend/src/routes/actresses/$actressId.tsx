@@ -6,6 +6,7 @@ import type { ActressVideoFilters, ActressVideoSearchParams, ActressVideoSort } 
 import { DEFAULT_ACTRESS_VIDEO_SORT, actressVideoListQueryParams } from "@/libs/actress-videos";
 import { ApiError } from "@/libs/api-client";
 import { actressSummaryQueryOptions } from "@/queries/actresses";
+import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { videoListQueryOptions } from "@/queries/videos";
 
 const SORT_VALUES: ActressVideoSort[] = ["latest", "most-viewed", "most-liked", "most-comments", "title"];
@@ -93,6 +94,8 @@ export const Route = createFileRoute("/actresses/$actressId")({
     const pagePromise = context.queryClient.ensureQueryData(
       videoListQueryOptions(actressVideoListQueryParams(id, { page, sort, filters })),
     );
+
+    await context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions());
 
     return {
       actress,
