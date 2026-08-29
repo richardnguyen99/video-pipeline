@@ -6,7 +6,6 @@ import type { VideoDiscoverFilters } from "@/libs/discover-videos";
 import {
   DEFAULT_VIDEO_SORT,
   getAvailableDiscoverDirectors,
-  getAvailableDiscoverGenres,
   getAvailableDiscoverLabels,
   getAvailableDiscoverMakers,
   getAvailableDiscoverSeries,
@@ -15,6 +14,7 @@ import {
 } from "@/libs/discover-videos";
 import { parseSearch } from "@/libs/search-params";
 import { actressFilterInfiniteOptions } from "@/queries/actresses";
+import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { videoListQueryOptions } from "@/queries/videos";
 import type { VideoListQueryParams } from "@/queries/videos";
 
@@ -86,12 +86,12 @@ export const Route = createFileRoute("/videos/")({
     await Promise.all([
       context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)),
       context.queryClient.ensureInfiniteQueryData(actressFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
     ]);
 
     return {
       queryParams,
       searchIssues,
-      genreOptions: getAvailableDiscoverGenres(),
       makerOptions: getAvailableDiscoverMakers(),
       labelOptions: getAvailableDiscoverLabels(),
       directorOptions: getAvailableDiscoverDirectors(),
@@ -101,7 +101,7 @@ export const Route = createFileRoute("/videos/")({
 });
 
 function VideosDiscoverPage() {
-  const { queryParams, searchIssues, genreOptions, makerOptions, labelOptions, directorOptions, seriesOptions } =
+  const { queryParams, searchIssues, makerOptions, labelOptions, directorOptions, seriesOptions } =
     Route.useLoaderData();
 
   const { data } = useSuspenseQuery(videoListQueryOptions(queryParams));
@@ -117,7 +117,6 @@ function VideosDiscoverPage() {
       sort={data.sort}
       filters={data.filters}
       searchIssues={searchIssues}
-      genreOptions={genreOptions}
       makerOptions={makerOptions}
       labelOptions={labelOptions}
       directorOptions={directorOptions}

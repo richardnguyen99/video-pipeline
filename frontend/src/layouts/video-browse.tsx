@@ -7,6 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ActressMultiFilter } from "@/components/video/actress-multi-filter";
+import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
@@ -51,7 +52,6 @@ interface VideoBrowseProps {
   totalPages: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
-  genreOptions: NamedEntity[];
   makerOptions: NamedEntity[];
   labelOptions: NamedEntity[];
   directorOptions: NamedEntity[];
@@ -107,7 +107,6 @@ export function VideoBrowse({
   totalPages,
   sort,
   filters,
-  genreOptions,
   makerOptions,
   labelOptions,
   directorOptions,
@@ -338,12 +337,11 @@ export function VideoBrowse({
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
-                <MultiEntityFilter
-                  label="Genre"
+                <GenreMultiFilter
                   selected={draftFilters.genres}
-                  options={genreOptions}
                   onChange={(genres) => setDraftFilters((prev) => ({ ...prev, genres }))}
                   container={dialogBody}
+                  triggerClassName={filterTriggerClass}
                 />
                 <SingleEntityFilter
                   label="Maker"
@@ -418,12 +416,11 @@ export function VideoBrowse({
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />
-          <MultiEntityFilter
-            label="Genre"
+          <GenreMultiFilter
             selected={filters.genres}
-            options={genreOptions}
             onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
             container={menuPortal}
+            triggerClassName={filterTriggerClass}
           />
           <SingleEntityFilter
             label="Maker"
