@@ -7,6 +7,7 @@ from fastapi import Depends
 from app.dependencies.database import SessionDep
 from app.repositories.actress import ActressRepository
 from app.repositories.genre import GenreRepository
+from app.repositories.series import SeriesRepository
 from app.repositories.video import VideoRepository
 
 
@@ -28,6 +29,12 @@ def get_genre_repository(session: SessionDep) -> GenreRepository:
     return GenreRepository(session=session)
 
 
+def get_series_repository(session: SessionDep) -> SeriesRepository:
+    """Build a request-scoped ``SeriesRepository``."""
+
+    return SeriesRepository(session=session)
+
+
 ActressRepositoryDep = Annotated[
     ActressRepository,
     Depends(get_actress_repository),
@@ -39,4 +46,8 @@ VideoRepositoryDep = Annotated[
 GenreRepositoryDep = Annotated[
     GenreRepository,
     Depends(get_genre_repository),
+]
+SeriesRepositoryDep = Annotated[
+    SeriesRepository,
+    Depends(get_series_repository),
 ]

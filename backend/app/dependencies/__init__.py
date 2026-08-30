@@ -11,19 +11,23 @@ from app.dependencies.redis import (
 from app.dependencies.repositories import (
     ActressRepositoryDep,
     GenreRepositoryDep,
+    SeriesRepositoryDep,
     VideoRepositoryDep,
     get_actress_repository,
     get_genre_repository,
+    get_series_repository,
     get_video_repository,
 )
 from app.dependencies.services import (
     ActressServiceDep,
     GenreServiceDep,
     HealthServiceDep,
+    SeriesServiceDep,
     VideoServiceDep,
     get_actress_service,
     get_genre_service,
     get_health_service,
+    get_series_service,
     get_video_service,
 )
 from app.dependencies.settings import SettingsDep, get_settings
@@ -34,6 +38,8 @@ __all__ = [
     "ActressServiceDep",
     "GenreRepositoryDep",
     "GenreServiceDep",
+    "SeriesRepositoryDep",
+    "SeriesServiceDep",
     "HealthServiceDep",
     "SessionDep",
     "SettingsDep",
@@ -43,6 +49,8 @@ __all__ = [
     "get_actress_service",
     "get_genre_repository",
     "get_genre_service",
+    "get_series_repository",
+    "get_series_service",
     "get_health_service",
     "get_session",
     "get_settings",

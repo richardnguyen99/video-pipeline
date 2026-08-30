@@ -42,6 +42,12 @@ fastapi_app = FastAPI(
     openapi_url="/api/v1/openapi.json",
 )
 
+
+@fastapi_app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+
 fastapi_app.include_router(api_v1_router)
 
 FastAPIRedis(fastapi_app).lifespan().caching().rate_limiting()
