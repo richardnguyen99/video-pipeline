@@ -1,0 +1,79 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+        "id",
+        "name",
+        "dmmId",
+        "createdAt",
+        "updatedAt",
+        "akas"
+    ],
+    "properties": {
+        "id": {
+            "type": "number",
+            "description": "The unique identifier for the series."
+        },
+        "name": {
+            "type": "string",
+            "description": "The original Japanese name of the series."
+        },
+        "ruby": {
+            "type": "string",
+            "description": "The ruby reading of the series name."
+        },
+        "dmmId": {
+            "type": "string",
+            "description": "The DMM identifier for the series."
+        },
+        "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the series was last updated."
+        },
+        "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The date and time when the series was created."
+        },
+        "akas": {
+            "type": "array",
+            "description": "List of translated names of the series in different languages.",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "language",
+                    "updatedAt",
+                    "createdAt"
+                ],
+                "description": "An alternative name for the series in a specific language.",
+                "properties": {
+                    "id": {
+                        "type": "number",
+                        "description": "The unique identifier for the alternative name entry."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The translated name of the series in the specified language (`series_aka.translated_name` in database)."
+                    },
+                    "language": {
+                        "type": "string",
+                        "description": "The language code for the translated name."
+                    },
+                    "updatedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "The date and time when the alternative name entry was last updated."
+                    },
+                    "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "The date and time when the alternative name entry was created."
+                    }
+                }
+            }
+        }
+    }
+}

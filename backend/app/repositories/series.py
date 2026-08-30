@@ -149,3 +149,22 @@ class SeriesRepository(BaseRepository):
         total = result.scalar_one()
 
         return int(total)
+
+    async def get_by_id(self, series_id: int) -> Optional[Series]:
+        """Return one series by primary key with aka rows, or ``None``.
+
+        Args:
+            series_id: Series primary key.
+
+        Returns:
+            Series with ``series_aka`` loaded, or ``None`` when missing.
+        """
+
+        statement = (
+            select(Series)
+            .where(col(Series.id) == series_id)
+            .options(selectinload(_relationship_attr(Series.series_aka)))
+        )
+        result = await self.session.exec(statement)
+
+        return result.first()

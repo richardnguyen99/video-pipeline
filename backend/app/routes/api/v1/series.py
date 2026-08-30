@@ -11,7 +11,7 @@ from app.cache.policy import (
     SUSTAIN_RATE,
 )
 from app.dependencies import SeriesServiceDep
-from app.schemas.series import SeriesListResponse
+from app.schemas.series import SeriesDetailResponse, SeriesListResponse
 
 router = APIRouter()
 
@@ -68,3 +68,35 @@ async def list_series(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/series/{series_id}",
+    response_model=SeriesDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get series",
+    dependencies=[
+        Depends(
+            cache(ttl=CACHE_TTL_SECONDS, eviction_group="series_detail"),
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="series_detail:burst",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="series_detail:sustain",
+            ),
+        ),
+    ],
+)
+async def get_series(
+    series_id: int,
+    service: SeriesServiceDep,
+) -> SeriesDetailResponse:
+    """Return one series with native Japanese name and all akas."""
+
+    return await service.get_series(series_id)

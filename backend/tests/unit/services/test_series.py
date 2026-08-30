@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException, status
 
 from app.repositories.series import SeriesRepository
 from app.services.series import SeriesService
@@ -55,6 +57,15 @@ class FakeSeriesRepository:
         self.count_calls.append({"q": q, "locale_key": locale_key})
 
         return self.count_result
+
+    async def get_by_id(self, series_id: int) -> Any | None:
+        """Return one row by id when present."""
+
+        for row in self.list_result:
+            if getattr(row, "id", None) == series_id:
+                return row
+
+        return None
 
 
 def _series(
@@ -169,3 +180,67 @@ async def test_list_series_forwards_search_and_pagination() -> None:
     assert repo.count_calls == [
         {"q": "team zero", "locale_key": "en-us"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_series_returns_detail_with_akas() -> None:
+    """Detail payload keeps Japanese name and lists all akas."""
+
+    created = datetime.datetime(2026, 1, 1, 12, 0, 0)
+    updated = datetime.datetime(2026, 2, 1, 12, 0, 0)
+    row = _series(
+        series_id=30167,
+        name="ノンフィクション（teamZERO）",
+        ruby="のんふぃくしょん",
+        dmm_id="212560",
+        akas=[
+            SimpleNamespace(
+                id=10,
+                language="vi",
+                translated_name="Nonfiction",
+                created_at=created,
+                updated_at=updated,
+            ),
+            SimpleNamespace(
+                id=11,
+                language="en-us",
+                translated_name="Nonfiction (teamZERO)",
+                created_at=created,
+                updated_at=updated,
+            ),
+        ],
+    )
+    row.created_at = created
+    row.updated_at = updated
+
+    repo = FakeSeriesRepository(list_result=[row])
+    service = SeriesService(repository=cast(SeriesRepository, repo))
+    result = await service.get_series(30167)
+
+    assert result.id == 30167
+    assert result.name == "ノンフィクション（teamZERO）"
+    assert result.ruby == "のんふぃくしょん"
+    assert result.dmm_id == "212560"
+    assert result.created_at == created
+    assert result.updated_at == updated
+    assert len(result.akas) == 2
+    assert result.akas[0].language == "en-us"
+    assert result.akas[0].name == "Nonfiction (teamZERO)"
+    assert result.akas[1].language == "vi"
+    payload = result.model_dump(by_alias=True)
+    assert payload["dmmId"] == "212560"
+    assert payload["createdAt"] == created
+    assert payload["akas"][0]["name"] == "Nonfiction (teamZERO)"
+
+
+@pytest.mark.asyncio
+async def test_get_series_not_found() -> None:
+    """Missing series yields HTTP 404."""
+
+    repo = FakeSeriesRepository(list_result=[])
+    service = SeriesService(repository=cast(SeriesRepository, repo))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_series(999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

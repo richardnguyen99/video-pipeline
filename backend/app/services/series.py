@@ -2,9 +2,16 @@
 
 from typing import Optional
 
+from fastapi import HTTPException, status
+
 from app.models.series import Series, SeriesAka
 from app.repositories.series import SeriesRepository
-from app.schemas.series import SeriesListResponse, SeriesResponse
+from app.schemas.series import (
+    SeriesAkaResponse,
+    SeriesDetailResponse,
+    SeriesListResponse,
+    SeriesResponse,
+)
 
 MAX_LIST_LIMIT = 100
 
@@ -64,6 +71,31 @@ class SeriesService:
             dmm_id=series.dmm_id,
         )
 
+    def _to_detail_response(self, series: Series) -> SeriesDetailResponse:
+        """Map an ORM series to the detail response shape."""
+
+        akas: list[SeriesAka] = list(getattr(series, "series_aka", None) or [])
+        aka_items = [
+            SeriesAkaResponse(
+                id=aka.id,
+                name=aka.translated_name,
+                language=aka.language,
+                created_at=aka.created_at,
+                updated_at=aka.updated_at,
+            )
+            for aka in sorted(akas, key=lambda item: (item.language, item.id))
+        ]
+
+        return SeriesDetailResponse(
+            id=series.id,
+            name=series.name,
+            ruby=series.ruby,
+            dmm_id=series.dmm_id,
+            created_at=series.created_at,
+            updated_at=series.updated_at,
+            akas=aka_items,
+        )
+
     async def list_series(
         self,
         locale: Optional[str] = None,
@@ -108,3 +140,26 @@ class SeriesService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def get_series(self, series_id: int) -> SeriesDetailResponse:
+        """Return one series with all aka translations.
+
+        Args:
+            series_id: Series primary key.
+
+        Returns:
+            Detailed series payload (native Japanese ``name`` + ``akas``).
+
+        Raises:
+            HTTPException: 404 when the series does not exist.
+        """
+
+        row = await self._repository.get_by_id(series_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Series not found",
+            )
+
+        return self._to_detail_response(row)
