@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ActressMultiFilter } from "@/components/video/actress-multi-filter";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { SeriesSingleFilter } from "@/components/video/series-single-filter";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
@@ -55,7 +56,6 @@ interface VideoBrowseProps {
   makerOptions: NamedEntity[];
   labelOptions: NamedEntity[];
   directorOptions: NamedEntity[];
-  seriesOptions: NamedEntity[];
   searchIssues?: VideoDiscoverSearchIssue[];
   className?: string;
 }
@@ -110,7 +110,6 @@ export function VideoBrowse({
   makerOptions,
   labelOptions,
   directorOptions,
-  seriesOptions,
   searchIssues = [],
   className,
 }: VideoBrowseProps) {
@@ -367,13 +366,11 @@ export function VideoBrowse({
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, director: id }))}
                   container={dialogBody}
                 />
-                <SingleEntityFilter
-                  label="Series"
+                <SeriesSingleFilter
                   value={draftFilters.series}
-                  display={entityName(seriesOptions, draftFilters.series)}
-                  options={seriesOptions}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, series: id }))}
                   container={dialogBody}
+                  triggerClassName={filterTriggerClass}
                 />
                 <FeaturesCountFilter
                   value={draftFilters.features_cnt}
@@ -446,13 +443,11 @@ export function VideoBrowse({
             onChange={(id) => setSingle("director", id)}
             container={menuPortal}
           />
-          <SingleEntityFilter
-            label="Series"
+          <SeriesSingleFilter
             value={filters.series}
-            display={entityName(seriesOptions, filters.series)}
-            options={seriesOptions}
             onChange={(id) => setSingle("series", id)}
             container={menuPortal}
+            triggerClassName={filterTriggerClass}
           />
           <FeaturesCountFilter value={filters.features_cnt} onChange={setFeaturesCnt} container={menuPortal} />
           {filtersActive || sort !== DEFAULT_VIDEO_SORT ? (

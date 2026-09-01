@@ -8,13 +8,13 @@ import {
   getAvailableDiscoverDirectors,
   getAvailableDiscoverLabels,
   getAvailableDiscoverMakers,
-  getAvailableDiscoverSeries,
   parseFeaturesCnt,
   softParseVideoDiscoverSearch,
 } from "@/libs/discover-videos";
 import { parseSearch } from "@/libs/search-params";
 import { actressFilterInfiniteOptions } from "@/queries/actresses";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
+import { seriesFilterInfiniteOptions } from "@/queries/series";
 import { videoListQueryOptions } from "@/queries/videos";
 import type { VideoListQueryParams } from "@/queries/videos";
 
@@ -87,6 +87,7 @@ export const Route = createFileRoute("/videos/")({
       context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)),
       context.queryClient.ensureInfiniteQueryData(actressFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
     ]);
 
     return {
@@ -95,14 +96,12 @@ export const Route = createFileRoute("/videos/")({
       makerOptions: getAvailableDiscoverMakers(),
       labelOptions: getAvailableDiscoverLabels(),
       directorOptions: getAvailableDiscoverDirectors(),
-      seriesOptions: getAvailableDiscoverSeries(),
     };
   },
 });
 
 function VideosDiscoverPage() {
-  const { queryParams, searchIssues, makerOptions, labelOptions, directorOptions, seriesOptions } =
-    Route.useLoaderData();
+  const { queryParams, searchIssues, makerOptions, labelOptions, directorOptions } = Route.useLoaderData();
 
   const { data } = useSuspenseQuery(videoListQueryOptions(queryParams));
 
@@ -120,7 +119,6 @@ function VideosDiscoverPage() {
       makerOptions={makerOptions}
       labelOptions={labelOptions}
       directorOptions={directorOptions}
-      seriesOptions={seriesOptions}
     />
   );
 }
