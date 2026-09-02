@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { SeriesMultiFilter } from "@/components/video/series-multi-filter";
 import type { ActressFilters, ActressSort } from "@/libs/actresses";
 import {
   ACTRESS_SORT_OPTIONS,
@@ -102,7 +103,8 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const makers = getAvailableActressMakers();
   const cups = getAvailableCupSizes();
 
-  const nonMeasurementCount = filters.labels.length + filters.genres.length + filters.makers.length;
+  const nonMeasurementCount =
+    filters.labels.length + filters.genres.length + filters.makers.length + filters.series.length;
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(
@@ -177,6 +179,11 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
       <GenreMultiFilter
         selected={filters.genres}
         onChange={(genres) => updateSearch({ filters: { ...filters, genres }, page: 1 })}
+        triggerClassName={filterTriggerClass}
+      />
+      <SeriesMultiFilter
+        selected={filters.series}
+        onChange={(series) => updateSearch({ filters: { ...filters, series }, page: 1 })}
         triggerClassName={filterTriggerClass}
       />
       <EntityFilterDropdown

@@ -7,6 +7,7 @@ import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchPar
 import { DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
 import { actressListQueryOptions } from "@/queries/actresses";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
+import { seriesFilterInfiniteOptions } from "@/queries/series";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const SORT_VALUES: ActressSort[] = [
@@ -99,6 +100,9 @@ export const Route = createFileRoute("/actresses/")({
     const genres = asIdArray(search.genres);
     if (genres) result.genres = genres;
 
+    const series = asIdArray(search.series);
+    if (series) result.series = series;
+
     const makers = asIdArray(search.makers);
     if (makers) result.makers = makers;
 
@@ -133,6 +137,7 @@ export const Route = createFileRoute("/actresses/")({
       labels: deps.labels ?? [],
       genres: deps.genres ?? [],
       makers: deps.makers ?? [],
+      series: deps.series ?? [],
       cups: deps.cups ?? [],
       bustMin: deps.bustMin,
       bustMax: deps.bustMax,
@@ -151,7 +156,10 @@ export const Route = createFileRoute("/actresses/")({
 
     const pagePromise = context.queryClient.ensureQueryData(actressListQueryOptions({ page, sort, filters }));
 
-    await context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions());
+    await Promise.all([
+      context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
+    ]);
 
     return {
       sort,

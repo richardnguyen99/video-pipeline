@@ -52,6 +52,7 @@ export type ActressListQueryParams = {
   sort?: number;
   cups?: string[];
   genres?: number[];
+  series?: number[];
   makers?: number[];
   labels?: number[];
   bustMin?: number;
@@ -170,6 +171,7 @@ export async function fetchActressList(params: ActressListQueryParams): Promise<
       sort: params.sort,
       cups: params.cups,
       genres: params.genres,
+      series: params.series,
       makers: params.makers,
       label: params.labels,
       bustMin: params.bustMin,
@@ -192,6 +194,7 @@ export function filtersToListParams(
   ActressListQueryParams,
   | "cups"
   | "genres"
+  | "series"
   | "makers"
   | "labels"
   | "bustMin"
@@ -208,6 +211,7 @@ export function filtersToListParams(
   return {
     cups: filters.cups.length > 0 ? filters.cups : undefined,
     genres: filters.genres.length > 0 ? filters.genres : undefined,
+    series: filters.series.length > 0 ? filters.series : undefined,
     makers: filters.makers.length > 0 ? filters.makers : undefined,
     labels: filters.labels.length > 0 ? filters.labels : undefined,
     bustMin: filters.bustMin,

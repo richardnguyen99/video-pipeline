@@ -17,6 +17,7 @@ export interface ActressFilters {
   labels: number[];
   genres: number[];
   makers: number[];
+  series: number[];
   cups: string[];
   bustMin?: number;
   bustMax?: number;
@@ -34,6 +35,7 @@ export const DEFAULT_ACTRESS_FILTERS: ActressFilters = {
   labels: [],
   genres: [],
   makers: [],
+  series: [],
   cups: [],
 };
 
@@ -402,6 +404,7 @@ export const ACTRESS_SORT_OPTIONS: {
 ];
 
 export type ActressesSearchParams = {
+  series?: number[];
   page?: number;
   sort?: ActressSort;
   labels?: number[];
@@ -436,6 +439,7 @@ export function buildActressesSearch(input: {
 
   if (filters.labels.length > 0) search.labels = filters.labels;
   if (filters.genres.length > 0) search.genres = filters.genres;
+  if (filters.series.length > 0) search.series = filters.series;
   if (filters.makers.length > 0) search.makers = filters.makers;
   if (filters.cups.length > 0) search.cups = filters.cups;
   if (filters.bustMin != null) search.bustMin = filters.bustMin;
