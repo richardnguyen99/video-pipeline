@@ -7,6 +7,7 @@ import { DEFAULT_ACTRESS_VIDEO_SORT, actressVideoListQueryParams } from "@/libs/
 import { ApiError } from "@/libs/api-client";
 import { actressSummaryQueryOptions } from "@/queries/actresses";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
+import { seriesFilterInfiniteOptions } from "@/queries/series";
 import { videoListQueryOptions } from "@/queries/videos";
 
 const SORT_VALUES: ActressVideoSort[] = ["latest", "most-viewed", "most-liked", "most-comments", "title"];
@@ -58,6 +59,14 @@ export const Route = createFileRoute("/actresses/$actressId")({
     if (labels) result.labels = labels;
     const genres = asIdArray(search.genres);
     if (genres) result.genres = genres;
+
+    const seriesRaw = search.series;
+    if (typeof seriesRaw === "number" && Number.isFinite(seriesRaw)) {
+      result.series = Math.floor(seriesRaw);
+    } else if (typeof seriesRaw === "string" && seriesRaw.trim() !== "") {
+      const n = Number(seriesRaw);
+      if (Number.isFinite(n)) result.series = Math.floor(n);
+    }
     const makers = asIdArray(search.makers);
     if (makers) result.makers = makers;
 
@@ -87,6 +96,7 @@ export const Route = createFileRoute("/actresses/$actressId")({
       labels: deps.labels ?? [],
       genres: deps.genres ?? [],
       makers: deps.makers ?? [],
+      series: deps.series,
     };
     const sort = deps.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
     const page = deps.page ?? 1;
@@ -95,7 +105,10 @@ export const Route = createFileRoute("/actresses/$actressId")({
       videoListQueryOptions(actressVideoListQueryParams(id, { page, sort, filters })),
     );
 
-    await context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions());
+    await Promise.all([
+      context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
+    ]);
 
     return {
       actress,

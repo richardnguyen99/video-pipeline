@@ -11,6 +11,7 @@ export interface ActressVideoFilters {
   labels: number[];
   genres: number[];
   makers: number[];
+  series?: number;
 }
 
 export const DEFAULT_ACTRESS_VIDEO_SORT: ActressVideoSort = "latest";
@@ -38,6 +39,7 @@ export type ActressVideoSearchParams = {
   labels?: number[];
   genres?: number[];
   makers?: number[];
+  series?: number;
 };
 
 export function buildActressVideoSearch(input: {
@@ -57,6 +59,7 @@ export function buildActressVideoSearch(input: {
   if (filters.labels.length > 0) search.labels = filters.labels;
   if (filters.genres.length > 0) search.genres = filters.genres;
   if (filters.makers.length > 0) search.makers = filters.makers;
+  if (filters.series != null) search.series = filters.series;
 
   return search;
 }
@@ -177,6 +180,7 @@ export async function getActressVideoPage(
     genre: filters.genres.length > 0 ? filters.genres : undefined,
     maker: filters.makers.length > 0 ? filters.makers[0] : undefined,
     label: filters.labels.length > 0 ? filters.labels[0] : undefined,
+    series: filters.series,
   });
 
   return {
@@ -210,5 +214,6 @@ export function actressVideoListQueryParams(
     genre: filters.genres.length > 0 ? filters.genres : undefined,
     maker: filters.makers.length > 0 ? filters.makers[0] : undefined,
     label: filters.labels.length > 0 ? filters.labels[0] : undefined,
+    series: filters.series,
   };
 }

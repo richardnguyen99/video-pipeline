@@ -20,6 +20,7 @@ import {
   buildActressVideoSearch,
 } from "@/libs/actress-videos";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { SeriesSingleFilter } from "@/components/video/series-single-filter";
 import { getAvailableDiscoverLabels, getAvailableDiscoverMakers } from "@/libs/discover-videos";
 import type { NamedEntity } from "@/mocks/videos";
 import { captureScrollPosition, cn } from "@/libs/utils";
@@ -93,7 +94,8 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
 
   const [filtersOpen, setFiltersOpen] = useState(false);
 
-  const nonMeasurementCount = filters.labels.length + filters.genres.length + filters.makers.length;
+  const nonMeasurementCount =
+    filters.labels.length + filters.genres.length + filters.makers.length + (filters.series != null ? 1 : 0);
 
   const hasActiveFilters = nonMeasurementCount > 0;
 
@@ -131,6 +133,11 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
       <GenreMultiFilter
         selected={filters.genres}
         onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
+        triggerClassName={filterTriggerClass}
+      />
+      <SeriesSingleFilter
+        value={filters.series}
+        onChange={(series) => updateSearch({ filters: { ...filters, series } })}
         triggerClassName={filterTriggerClass}
       />
       <EntityFilterDropdown
