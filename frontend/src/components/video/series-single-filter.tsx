@@ -172,8 +172,8 @@ export function SeriesSingleFilter({ value, onChange, container, triggerClassNam
           />
         </div>
 
-        <ScrollArea key={`${debouncedQuery}-${options.length}`}>
-          <div className="max-h-[min(50vh,20rem)] p-1">
+        <ScrollArea className="h-[min(50vh,20rem)]">
+          <div className="p-1">
             {isPending ? (
               <p className="px-2 py-1.5 text-sm text-muted-foreground">Loading…</p>
             ) : available.length === 0 ? (

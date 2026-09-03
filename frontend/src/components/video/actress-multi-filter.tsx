@@ -196,8 +196,8 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
           />
         </div>
 
-        <ScrollArea key={`${debouncedQuery}-${options.length}`}>
-          <div className="max-h-[min(50vh,20rem)] p-1">
+        <ScrollArea className="h-[min(50vh,20rem)]">
+          <div className="p-1">
             {isPending ? (
               <p className="px-2 py-1.5 text-sm text-muted-foreground">Loading…</p>
             ) : available.length === 0 ? (
@@ -241,31 +241,29 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
 
         <DropdownMenuSeparator />
 
-        <ScrollArea key={draftItems.map((item) => `${item.id}:${item.name}`).join(",")}>
-          <div className="flex min-h-8 max-h-[min(20vh,12rem)] flex-wrap gap-1.5 p-2">
-            {draftItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No selections</p>
-            ) : (
-              draftItems.map((item) => (
-                <Badge key={item.id} variant="secondary" className="gap-1 pr-1">
-                  <span className="max-w-28 truncate">{item.name}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="cursor-pointer rounded-full p-0.5"
-                    aria-label={`Remove ${item.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDraft((prev) => prev.filter((id) => id !== item.id));
-                    }}
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </Badge>
-              ))
-            )}
-          </div>
-        </ScrollArea>
+        <div className="flex min-h-8 flex-wrap gap-1.5 p-2">
+          {draftItems.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No selections</p>
+          ) : (
+            draftItems.map((item) => (
+              <Badge key={item.id} variant="secondary" className="gap-1 pr-1">
+                <span className="max-w-28 truncate">{item.name}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="cursor-pointer rounded-full p-0.5"
+                  aria-label={`Remove ${item.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDraft((prev) => prev.filter((id) => id !== item.id));
+                  }}
+                >
+                  <X className="size-3" />
+                </Button>
+              </Badge>
+            ))
+          )}
+        </div>
 
         <div className="flex gap-2 border-t border-border p-2">
           <Button
