@@ -7,6 +7,7 @@ from fastapi import Depends
 from app.dependencies.repositories import (
     ActressRepositoryDep,
     GenreRepositoryDep,
+    MakerRepositoryDep,
     SeriesRepositoryDep,
     VideoRepositoryDep,
 )
@@ -14,6 +15,7 @@ from app.dependencies.settings import SettingsDep
 from app.services.actress import ActressService
 from app.services.genre import GenreService
 from app.services.health import HealthService
+from app.services.maker import MakerService
 from app.services.series import SeriesService
 from app.services.video import VideoService
 
@@ -48,6 +50,14 @@ def get_genre_service(
     return GenreService(repository=repository)
 
 
+def get_maker_service(
+    repository: MakerRepositoryDep,
+) -> MakerService:
+    """Build a request-scoped ``MakerService``."""
+
+    return MakerService(repository=repository)
+
+
 def get_series_service(
     repository: SeriesRepositoryDep,
 ) -> SeriesService:
@@ -60,4 +70,5 @@ HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 VideoServiceDep = Annotated[VideoService, Depends(get_video_service)]
 GenreServiceDep = Annotated[GenreService, Depends(get_genre_service)]
+MakerServiceDep = Annotated[MakerService, Depends(get_maker_service)]
 SeriesServiceDep = Annotated[SeriesService, Depends(get_series_service)]
