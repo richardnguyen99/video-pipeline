@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ActressMultiFilter } from "@/components/video/actress-multi-filter";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { MakerSingleFilter } from "@/components/video/maker-single-filter";
 import { SeriesSingleFilter } from "@/components/video/series-single-filter";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
@@ -53,7 +54,6 @@ interface VideoBrowseProps {
   totalPages: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
-  makerOptions: NamedEntity[];
   labelOptions: NamedEntity[];
   directorOptions: NamedEntity[];
   searchIssues?: VideoDiscoverSearchIssue[];
@@ -107,7 +107,6 @@ export function VideoBrowse({
   totalPages,
   sort,
   filters,
-  makerOptions,
   labelOptions,
   directorOptions,
   searchIssues = [],
@@ -342,14 +341,13 @@ export function VideoBrowse({
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
-                <SingleEntityFilter
-                  label="Maker"
+                <MakerSingleFilter
                   value={draftFilters.maker}
-                  display={entityName(makerOptions, draftFilters.maker)}
-                  options={makerOptions}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, maker: id }))}
                   container={dialogBody}
+                  triggerClassName={filterTriggerClass}
                 />
+
                 <SingleEntityFilter
                   label="Label"
                   value={draftFilters.label}
@@ -358,6 +356,7 @@ export function VideoBrowse({
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, label: id }))}
                   container={dialogBody}
                 />
+
                 <SingleEntityFilter
                   label="Director"
                   value={draftFilters.director}
@@ -366,6 +365,7 @@ export function VideoBrowse({
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, director: id }))}
                   container={dialogBody}
                 />
+
                 <SeriesSingleFilter
                   value={draftFilters.series}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, series: id }))}
@@ -419,14 +419,13 @@ export function VideoBrowse({
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />
-          <SingleEntityFilter
-            label="Maker"
+          <MakerSingleFilter
             value={filters.maker}
-            display={entityName(makerOptions, filters.maker)}
-            options={makerOptions}
             onChange={(id) => setSingle("maker", id)}
             container={menuPortal}
+            triggerClassName={filterTriggerClass}
           />
+
           <SingleEntityFilter
             label="Label"
             value={filters.label}
@@ -435,6 +434,7 @@ export function VideoBrowse({
             onChange={(id) => setSingle("label", id)}
             container={menuPortal}
           />
+
           <SingleEntityFilter
             label="Director"
             value={filters.director}
@@ -443,6 +443,7 @@ export function VideoBrowse({
             onChange={(id) => setSingle("director", id)}
             container={menuPortal}
           />
+
           <SeriesSingleFilter
             value={filters.series}
             onChange={(id) => setSingle("series", id)}
@@ -595,159 +596,6 @@ export function VideoBrowse({
 
       <div ref={setMenuPortal} className="relative z-100" />
     </div>
-  );
-}
-
-function MultiEntityFilter({
-  label,
-  selected,
-  options,
-  onChange,
-  container,
-}: {
-  label: string;
-  selected: number[];
-  options: NamedEntity[];
-  onChange: (ids: number[]) => void;
-  container?: HTMLElement | null;
-}) {
-  const active = selected.length > 0;
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [draft, setDraft] = useState<number[]>(selected);
-
-  const draftSet = new Set(draft);
-  const draftItems = options.filter((item) => draftSet.has(item.id));
-  const available = options.filter((item) => !draftSet.has(item.id));
-  const normalized = query.trim().toLowerCase();
-  const filtered = normalized ? available.filter((item) => item.name.toLowerCase().includes(normalized)) : available;
-
-  function commitAndClose() {
-    onChange(draft);
-    setQuery("");
-    setOpen(false);
-  }
-
-  function handleOpenChange(nextOpen: boolean) {
-    if (nextOpen) {
-      setDraft(selected);
-      setOpen(true);
-    } else {
-      commitAndClose();
-    }
-  }
-
-  function stopInputMenuKeys(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      return;
-    }
-
-    e.stopPropagation();
-  }
-
-  return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-      <DropdownMenuTrigger className={filterTriggerClass(active)}>
-        <span className="truncate">
-          {label}
-          {active ? ` (${selected.length})` : ""}
-        </span>
-        <ChevronDown className="size-3.5 shrink-0 opacity-60" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        side="bottom"
-        sideOffset={4}
-        container={container}
-        className="z-100 min-w-64 w-(--anchor-width) max-sm:min-w-0 p-0"
-      >
-        <div className="flex flex-col gap-2 border-b border-border p-2">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="px-0 py-0">{label} (OR)</DropdownMenuLabel>
-          </DropdownMenuGroup>
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={stopInputMenuKeys}
-            onKeyUp={stopInputMenuKeys}
-            placeholder={`Search ${label.toLowerCase()}…`}
-            className="h-8"
-            aria-label={`Search ${label}`}
-          />
-        </div>
-
-        {/** This key ensures the ScrollArea resets when the filtered list or
-         * query changes, especially when the list is changed during a query
-         * search.
-         */}
-        <ScrollArea key={filtered.length + query} className="">
-          <div className="p-1 max-h-[min(50vh,20rem)]">
-            {filtered.length === 0 ? (
-              <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                {available.length === 0 ? "No more options" : "No matches"}
-              </p>
-            ) : (
-              filtered.map((item) => (
-                <DropdownMenuItem
-                  key={item.id}
-                  closeOnClick={false}
-                  onClick={() => setDraft((prev) => [...prev, item.id])}
-                >
-                  {item.name}
-                </DropdownMenuItem>
-              ))
-            )}
-          </div>
-        </ScrollArea>
-        <DropdownMenuSeparator />
-
-        <ScrollArea key={draftItems.length} className="">
-          <div className="flex min-h-8 max-h-[min(20vh,12rem)] flex-wrap gap-1.5 p-2">
-            {draftItems.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No selections</p>
-            ) : (
-              draftItems.map((item) => (
-                <Badge key={item.id} variant="secondary" className="gap-1 pr-1">
-                  <span className="max-w-28 truncate">{item.name}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="rounded-full p-0.5 cursor-pointer"
-                    aria-label={`Remove ${item.name}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDraft((prev) => prev.filter((id) => id !== item.id));
-                    }}
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </Badge>
-              ))
-            )}
-          </div>
-        </ScrollArea>
-        <div className="flex gap-2 border-t border-border p-2">
-          <Button
-            type="button"
-            variant="destructive"
-            className={cn("flex-1 cursor-pointer")}
-            onClick={() => setDraft([])}
-            disabled={draft.length === 0}
-          >
-            Clear
-          </Button>
-          <Button
-            type="button"
-            className={cn("flex-1 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer")}
-            onClick={commitAndClose}
-            disabled={draft.length === 0 && selected.length === 0}
-          >
-            Apply
-            {draft.length > 0 && ` (${draft.length})`}
-          </Button>
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
