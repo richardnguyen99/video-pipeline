@@ -2,9 +2,13 @@
 
 from typing import Optional
 
+from fastapi import HTTPException, status
+
 from app.models.maker import Maker, MakerAka
 from app.repositories.maker import MakerRepository
 from app.schemas.maker import (
+    MakerAkaResponse,
+    MakerDetailResponse,
     MakerListResponse,
     MakerResponse,
 )
@@ -76,6 +80,31 @@ class MakerService:
             dmm_id=maker.dmm_id,
         )
 
+    def _to_detail_response(self, maker: Maker) -> MakerDetailResponse:
+        """Map an ORM maker to the detail response shape."""
+
+        akas: list[MakerAka] = list(getattr(maker, "maker_aka", None) or [])
+        aka_items = [
+            MakerAkaResponse(
+                id=aka.id,
+                name=aka.translated_name,
+                language=aka.language,
+                created_at=aka.created_at,
+                updated_at=aka.updated_at,
+            )
+            for aka in sorted(akas, key=lambda item: (item.language, item.id))
+        ]
+
+        return MakerDetailResponse(
+            id=maker.id,
+            name=maker.name,
+            ruby=maker.ruby,
+            dmm_id=maker.dmm_id,
+            created_at=maker.created_at,
+            updated_at=maker.updated_at,
+            akas=aka_items,
+        )
+
     async def list_makers(
         self,
         locale: Optional[str] = None,
@@ -120,3 +149,26 @@ class MakerService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def get_maker(self, maker_id: int) -> MakerDetailResponse:
+        """Return one maker with all aka translations.
+
+        Args:
+            maker_id: Maker primary key.
+
+        Returns:
+            Detailed maker payload (native Japanese ``name`` + ``akas``).
+
+        Raises:
+            HTTPException: 404 when the maker does not exist.
+        """
+
+        row = await self._repository.get_by_id(maker_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Maker not found",
+            )
+
+        return self._to_detail_response(row)

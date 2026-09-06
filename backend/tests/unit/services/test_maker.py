@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException, status
 
 from app.repositories.maker import MakerRepository
 from app.services.maker import MakerService
@@ -69,9 +71,9 @@ class FakeMakerRepository:
 def _maker(
     *,
     maker_id: int = 1,
-    name: str = "足コキ",
-    ruby: str | None = "あしこき",
-    dmm_id: str = "5048",
+    name: str = "ムーディーズ",
+    ruby: str | None = "むーでぃーず",
+    dmm_id: str = "40130",
     akas: list[SimpleNamespace] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
@@ -125,13 +127,13 @@ async def test_list_makers_without_locale_uses_native_name() -> None:
     """Omitting locale keeps ``name`` as native Japanese."""
 
     row = _maker(
-        name="4時間以上作品",
-        ruby="4じかんいじょうさくひん",
-        dmm_id="6179",
+        name="ムーディーズ",
+        ruby="むーでぃーず",
+        dmm_id="40130",
         akas=[
             SimpleNamespace(
                 language="en-us",
-                translated_name="Titles Over 4 Hours",
+                translated_name="MOODYZ",
             ),
         ],
     )
@@ -140,7 +142,7 @@ async def test_list_makers_without_locale_uses_native_name() -> None:
     result = await service.list_makers()
 
     assert result.total == 1
-    assert result.items[0].name == "4時間以上作品"
+    assert result.items[0].name == "ムーディーズ"
 
 
 @pytest.mark.asyncio
@@ -169,7 +171,7 @@ async def test_list_makers_forwards_search_and_pagination() -> None:
     repo = FakeMakerRepository(list_result=[], count_result=0)
     service = MakerService(repository=cast(MakerRepository, repo))
     await service.list_makers(
-        q="foot job",
+        q="moodyz soft",
         locale="en-us",
         limit=50,
         offset=10,
@@ -177,7 +179,7 @@ async def test_list_makers_forwards_search_and_pagination() -> None:
 
     assert repo.list_calls == [
         {
-            "q": "foot job",
+            "q": "moodyz soft",
             "locale_key": "en-us",
             "load_aka": True,
             "limit": 50,
@@ -185,5 +187,64 @@ async def test_list_makers_forwards_search_and_pagination() -> None:
         },
     ]
     assert repo.count_calls == [
-        {"q": "foot job", "locale_key": "en-us"},
+        {"q": "moodyz soft", "locale_key": "en-us"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_maker_returns_detail_with_akas() -> None:
+    """Detail payload keeps Japanese name and lists all akas."""
+
+    created = datetime.datetime(2026, 1, 1, 12, 0, 0)
+    updated = datetime.datetime(2026, 2, 1, 12, 0, 0)
+    row = _maker(
+        maker_id=40130,
+        name="ムーディーズ",
+        ruby="むーでぃーず",
+        dmm_id="40130",
+        akas=[
+            SimpleNamespace(
+                id=10,
+                language="vi",
+                translated_name="MOODYZ",
+                created_at=created,
+                updated_at=updated,
+            ),
+            SimpleNamespace(
+                id=11,
+                language="en-us",
+                translated_name="MOODYZ",
+                created_at=created,
+                updated_at=updated,
+            ),
+        ],
+    )
+    row.created_at = created
+    row.updated_at = updated
+
+    repo = FakeMakerRepository(list_result=[row])
+    service = MakerService(repository=cast(MakerRepository, repo))
+    result = await service.get_maker(40130)
+
+    assert result.id == 40130
+    assert result.name == "ムーディーズ"
+    assert len(result.akas) == 2
+    assert result.akas[0].name == "MOODYZ"
+    assert result.akas[0].language == "en-us"
+    payload = result.model_dump(by_alias=True)
+    assert payload["dmmId"] == "40130"
+    assert payload["createdAt"] == created
+    assert payload["updatedAt"] == updated
+
+
+@pytest.mark.asyncio
+async def test_get_maker_not_found() -> None:
+    """Missing maker yields HTTP 404."""
+
+    repo = FakeMakerRepository(list_result=[])
+    service = MakerService(repository=cast(MakerRepository, repo))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_maker(999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

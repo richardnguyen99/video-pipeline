@@ -11,7 +11,7 @@ from app.cache.policy import (
     SUSTAIN_RATE,
 )
 from app.dependencies import MakerServiceDep
-from app.schemas.maker import MakerListResponse
+from app.schemas.maker import MakerDetailResponse, MakerListResponse
 
 router = APIRouter()
 
@@ -68,3 +68,35 @@ async def list_makers(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/makers/{maker_id}",
+    response_model=MakerDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get maker",
+    dependencies=[
+        Depends(
+            cache(ttl=CACHE_TTL_SECONDS, eviction_group="maker_detail"),
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="maker_detail:burst",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="maker_detail:sustain",
+            ),
+        ),
+    ],
+)
+async def get_maker(
+    maker_id: int,
+    service: MakerServiceDep,
+) -> MakerDetailResponse:
+    """Return one maker with native Japanese name and all akas."""
+
+    return await service.get_maker(maker_id)
