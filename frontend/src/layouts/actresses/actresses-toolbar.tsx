@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { MakerMultiFilter } from "@/components/video/maker-multi-filter";
 import { SeriesMultiFilter } from "@/components/video/series-multi-filter";
 import type { ActressFilters, ActressSort } from "@/libs/actresses";
 import {
@@ -24,7 +25,6 @@ import {
   DEFAULT_ACTRESS_FILTERS,
   buildActressesSearch,
   getAvailableActressLabels,
-  getAvailableActressMakers,
   getAvailableCupSizes,
 } from "@/libs/actresses";
 import type { NamedEntity } from "@/mocks/videos";
@@ -100,7 +100,6 @@ function EntityFilterDropdown({
 export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const navigate = useNavigate();
   const labels = getAvailableActressLabels();
-  const makers = getAvailableActressMakers();
   const cups = getAvailableCupSizes();
 
   const nonMeasurementCount =
@@ -134,7 +133,7 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
     });
   }
 
-  function toggleIdFilter(key: "labels" | "genres" | "makers", id: number, checked: boolean) {
+  function toggleIdFilter(key: "labels" | "genres", id: number, checked: boolean) {
     const current = filters[key];
     const nextValues = checked ? [...current, id] : current.filter((v) => v !== id);
     updateSearch({
@@ -186,11 +185,11 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
         onChange={(series) => updateSearch({ filters: { ...filters, series }, page: 1 })}
         triggerClassName={filterTriggerClass}
       />
-      <EntityFilterDropdown
-        label="Maker"
-        items={makers}
+
+      <MakerMultiFilter
         selected={filters.makers}
-        onToggle={(id, checked) => toggleIdFilter("makers", id, checked)}
+        onChange={(makers) => updateSearch({ filters: { ...filters, makers }, page: 1 })}
+        triggerClassName={filterTriggerClass}
       />
     </>
   );
