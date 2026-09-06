@@ -1,0 +1,55 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+        "total",
+        "limit",
+        "offset",
+        "items"
+    ],
+    "properties": {
+        "total": {
+            "type": "number",
+            "description": "Total number of makers available"
+        },
+        "limit": {
+            "type": "number",
+            "description": "The maximum number of makers returned in the response"
+        },
+        "offset": {
+            "type": "number",
+            "description": "The offset of the first maker in the response"
+        },
+        "items": {
+            "type": "array",
+            "description": "List of maker items",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "dmmId"
+                ],
+                "description": "maker item in the list response",
+                "properties": {
+                    "id": {
+                        "type": "number",
+                        "description": "The unique identifier for the maker"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the maker depending on the `locale` query"
+                    },
+                    "ruby": {
+                        "type": "string",
+                        "description": "The ruby text of the maker"
+                    },
+                    "dmmId": {
+                        "type": "string",
+                        "description": "The DMM identifier for the maker"
+                    }
+                }
+            }
+        }
+    }
+}
