@@ -7,6 +7,7 @@ import { DEFAULT_ACTRESS_VIDEO_SORT, actressVideoListQueryParams } from "@/libs/
 import { ApiError } from "@/libs/api-client";
 import { actressSummaryQueryOptions } from "@/queries/actresses";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
+import { makerFilterInfiniteOptions } from "@/queries/makers";
 import { seriesFilterInfiniteOptions } from "@/queries/series";
 import { videoListQueryOptions } from "@/queries/videos";
 
@@ -108,6 +109,7 @@ export const Route = createFileRoute("/actresses/$actressId")({
     await Promise.all([
       context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
     ]);
 
     return {

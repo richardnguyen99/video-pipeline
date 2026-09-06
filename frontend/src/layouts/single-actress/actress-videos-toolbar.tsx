@@ -20,8 +20,9 @@ import {
   buildActressVideoSearch,
 } from "@/libs/actress-videos";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { MakerSingleFilter } from "@/components/video/maker-single-filter";
 import { SeriesSingleFilter } from "@/components/video/series-single-filter";
-import { getAvailableDiscoverLabels, getAvailableDiscoverMakers } from "@/libs/discover-videos";
+import { getAvailableDiscoverLabels } from "@/libs/discover-videos";
 import type { NamedEntity } from "@/mocks/videos";
 import { captureScrollPosition, cn } from "@/libs/utils";
 
@@ -90,7 +91,6 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
   const navigate = useNavigate();
   const { actressId } = useParams({ from: "/actresses/$actressId" });
   const labels = getAvailableDiscoverLabels();
-  const makers = getAvailableDiscoverMakers();
 
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -114,7 +114,7 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
     });
   }
 
-  function toggleIdFilter(key: "labels" | "makers", id: number, checked: boolean) {
+  function toggleIdFilter(key: "labels", id: number, checked: boolean) {
     const current = filters[key];
     const nextValues = checked ? [...current, id] : current.filter((v) => v !== id);
     updateSearch({
@@ -130,21 +130,30 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
         selected={filters.labels}
         onToggle={(id, checked) => toggleIdFilter("labels", id, checked)}
       />
+
       <GenreMultiFilter
         selected={filters.genres}
         onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
         triggerClassName={filterTriggerClass}
       />
+
       <SeriesSingleFilter
         value={filters.series}
         onChange={(series) => updateSearch({ filters: { ...filters, series } })}
         triggerClassName={filterTriggerClass}
       />
-      <EntityFilterDropdown
-        label="Maker"
-        items={makers}
-        selected={filters.makers}
-        onToggle={(id, checked) => toggleIdFilter("makers", id, checked)}
+
+      <MakerSingleFilter
+        value={filters.makers[0]}
+        onChange={(makerId) =>
+          updateSearch({
+            filters: {
+              ...filters,
+              makers: makerId != null ? [makerId] : [],
+            },
+          })
+        }
+        triggerClassName={filterTriggerClass}
       />
     </>
   );
