@@ -7,6 +7,7 @@ from fastapi import Depends
 from app.dependencies.database import SessionDep
 from app.repositories.actress import ActressRepository
 from app.repositories.genre import GenreRepository
+from app.repositories.label import LabelRepository
 from app.repositories.maker import MakerRepository
 from app.repositories.series import SeriesRepository
 from app.repositories.video import VideoRepository
@@ -42,6 +43,12 @@ def get_maker_repository(session: SessionDep) -> MakerRepository:
     return MakerRepository(session=session)
 
 
+def get_label_repository(session: SessionDep) -> LabelRepository:
+    """Build a request-scoped ``LabelRepository``."""
+
+    return LabelRepository(session=session)
+
+
 ActressRepositoryDep = Annotated[
     ActressRepository,
     Depends(get_actress_repository),
@@ -61,4 +68,8 @@ SeriesRepositoryDep = Annotated[
 MakerRepositoryDep = Annotated[
     MakerRepository,
     Depends(get_maker_repository),
+]
+LabelRepositoryDep = Annotated[
+    LabelRepository,
+    Depends(get_label_repository),
 ]
