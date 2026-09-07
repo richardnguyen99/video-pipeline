@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ActressMultiFilter } from "@/components/video/actress-multi-filter";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { LabelSingleFilter } from "@/components/video/label-single-filter";
 import { MakerSingleFilter } from "@/components/video/maker-single-filter";
 import { SeriesSingleFilter } from "@/components/video/series-single-filter";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
@@ -54,7 +55,6 @@ interface VideoBrowseProps {
   totalPages: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
-  labelOptions: NamedEntity[];
   directorOptions: NamedEntity[];
   searchIssues?: VideoDiscoverSearchIssue[];
   className?: string;
@@ -107,7 +107,6 @@ export function VideoBrowse({
   totalPages,
   sort,
   filters,
-  labelOptions,
   directorOptions,
   searchIssues = [],
   className,
@@ -348,13 +347,11 @@ export function VideoBrowse({
                   triggerClassName={filterTriggerClass}
                 />
 
-                <SingleEntityFilter
-                  label="Label"
+                <LabelSingleFilter
                   value={draftFilters.label}
-                  display={entityName(labelOptions, draftFilters.label)}
-                  options={labelOptions}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, label: id }))}
                   container={dialogBody}
+                  triggerClassName={filterTriggerClass}
                 />
 
                 <SingleEntityFilter
@@ -426,13 +423,11 @@ export function VideoBrowse({
             triggerClassName={filterTriggerClass}
           />
 
-          <SingleEntityFilter
-            label="Label"
+          <LabelSingleFilter
             value={filters.label}
-            display={entityName(labelOptions, filters.label)}
-            options={labelOptions}
             onChange={(id) => setSingle("label", id)}
             container={menuPortal}
+            triggerClassName={filterTriggerClass}
           />
 
           <SingleEntityFilter
