@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException, status
 
 from app.repositories.label import LabelRepository
 from app.services.label import LabelService
@@ -69,9 +71,9 @@ class FakeLabelRepository:
 def _label(
     *,
     label_id: int = 1,
-    name: str = "ムーディーズ",
-    ruby: str | None = "むーでぃーず",
-    dmm_id: str = "40130",
+    name: str = "プレミアム",
+    ruby: str | None = "ぷれみあむ",
+    dmm_id: str = "5001",
     akas: list[SimpleNamespace] | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
@@ -187,3 +189,62 @@ async def test_list_labels_forwards_search_and_pagination() -> None:
     assert repo.count_calls == [
         {"q": "premium soft", "locale_key": "en-us"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_label_returns_detail_with_akas() -> None:
+    """Detail payload keeps Japanese name and lists all akas."""
+
+    created = datetime.datetime(2026, 1, 1, 12, 0, 0)
+    updated = datetime.datetime(2026, 2, 1, 12, 0, 0)
+    row = _label(
+        label_id=5001,
+        name="プレミアム",
+        ruby="ぷれみあむ",
+        dmm_id="5001",
+        akas=[
+            SimpleNamespace(
+                id=10,
+                language="vi",
+                translated_name="Premium",
+                created_at=created,
+                updated_at=updated,
+            ),
+            SimpleNamespace(
+                id=11,
+                language="en-us",
+                translated_name="Premium",
+                created_at=created,
+                updated_at=updated,
+            ),
+        ],
+    )
+    row.created_at = created
+    row.updated_at = updated
+
+    repo = FakeLabelRepository(list_result=[row])
+    service = LabelService(repository=cast(LabelRepository, repo))
+    result = await service.get_label(5001)
+
+    assert result.id == 5001
+    assert result.name == "プレミアム"
+    assert len(result.akas) == 2
+    assert result.akas[0].name == "Premium"
+    assert result.akas[0].language == "en-us"
+    payload = result.model_dump(by_alias=True)
+    assert payload["dmmId"] == "5001"
+    assert payload["createdAt"] == created
+    assert payload["updatedAt"] == updated
+
+
+@pytest.mark.asyncio
+async def test_get_label_not_found() -> None:
+    """Missing label yields HTTP 404."""
+
+    repo = FakeLabelRepository(list_result=[])
+    service = LabelService(repository=cast(LabelRepository, repo))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_label(999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

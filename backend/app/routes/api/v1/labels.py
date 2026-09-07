@@ -11,7 +11,7 @@ from app.cache.policy import (
     SUSTAIN_RATE,
 )
 from app.dependencies import LabelServiceDep
-from app.schemas.label import LabelListResponse
+from app.schemas.label import LabelDetailResponse, LabelListResponse
 
 router = APIRouter()
 
@@ -68,3 +68,35 @@ async def list_labels(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/labels/{label_id}",
+    response_model=LabelDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get label",
+    dependencies=[
+        Depends(
+            cache(ttl=CACHE_TTL_SECONDS, eviction_group="label_detail"),
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="label_detail:burst",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="label_detail:sustain",
+            ),
+        ),
+    ],
+)
+async def get_label(
+    label_id: int,
+    service: LabelServiceDep,
+) -> LabelDetailResponse:
+    """Return one label with native Japanese name and all akas."""
+
+    return await service.get_label(label_id)

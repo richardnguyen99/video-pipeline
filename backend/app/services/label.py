@@ -2,9 +2,16 @@
 
 from typing import Optional
 
+from fastapi import HTTPException, status
+
 from app.models.label import Label, LabelAka
 from app.repositories.label import LabelRepository
-from app.schemas.label import LabelListResponse, LabelResponse
+from app.schemas.label import (
+    LabelAkaResponse,
+    LabelDetailResponse,
+    LabelListResponse,
+    LabelResponse,
+)
 
 MAX_LIST_LIMIT = 100
 
@@ -73,6 +80,31 @@ class LabelService:
             dmm_id=label.dmm_id,
         )
 
+    def _to_detail_response(self, label: Label) -> LabelDetailResponse:
+        """Map an ORM label to the detail response shape."""
+
+        akas: list[LabelAka] = list(getattr(label, "label_aka", None) or [])
+        aka_items = [
+            LabelAkaResponse(
+                id=aka.id,
+                name=aka.translated_name,
+                language=aka.language,
+                created_at=aka.created_at,
+                updated_at=aka.updated_at,
+            )
+            for aka in sorted(akas, key=lambda item: (item.language, item.id))
+        ]
+
+        return LabelDetailResponse(
+            id=label.id,
+            name=label.name,
+            ruby=label.ruby,
+            dmm_id=label.dmm_id,
+            created_at=label.created_at,
+            updated_at=label.updated_at,
+            akas=aka_items,
+        )
+
     async def list_labels(
         self,
         locale: Optional[str] = None,
@@ -117,3 +149,26 @@ class LabelService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def get_label(self, label_id: int) -> LabelDetailResponse:
+        """Return one label with all aka translations.
+
+        Args:
+            label_id: Label primary key.
+
+        Returns:
+            Detailed label payload (native Japanese ``name`` + ``akas``).
+
+        Raises:
+            HTTPException: 404 when the label does not exist.
+        """
+
+        row = await self._repository.get_by_id(label_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Label not found",
+            )
+
+        return self._to_detail_response(row)
