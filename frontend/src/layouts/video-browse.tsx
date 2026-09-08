@@ -8,6 +8,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ActressMultiFilter } from "@/components/video/actress-multi-filter";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { DirectorSingleFilter } from "@/components/video/director-single-filter";
 import { LabelSingleFilter } from "@/components/video/label-single-filter";
 import { MakerSingleFilter } from "@/components/video/maker-single-filter";
 import { SeriesSingleFilter } from "@/components/video/series-single-filter";
@@ -21,12 +22,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem } from "@/components/ui/pagination";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type {
   FeaturesCountRange,
   VideoDiscoverFilters,
@@ -42,9 +41,8 @@ import {
   hasActiveDiscoverFilters,
 } from "@/libs/discover-videos";
 import { buttonVariants } from "@/libs/shadcn_variants";
-import type { NamedEntity, Video } from "@/mocks/videos";
+import type { Video } from "@/mocks/videos";
 import { captureScrollPosition, cn, restoreScrollPosition } from "@/libs/utils";
-import { Button } from "@/components/ui/button";
 
 interface VideoBrowseProps {
   title?: string;
@@ -55,7 +53,6 @@ interface VideoBrowseProps {
   totalPages: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
-  directorOptions: NamedEntity[];
   searchIssues?: VideoDiscoverSearchIssue[];
   className?: string;
 }
@@ -72,11 +69,6 @@ function filterTriggerClass(active?: boolean) {
     "hover:bg-muted",
     active && "border-primary/50 text-primary",
   );
-}
-
-function entityName(options: NamedEntity[], id: number | undefined): string | undefined {
-  if (id == null) return undefined;
-  return options.find((o) => o.id === id)?.name;
 }
 
 function featuresCntLabel(range: FeaturesCountRange | undefined): string {
@@ -107,7 +99,6 @@ export function VideoBrowse({
   totalPages,
   sort,
   filters,
-  directorOptions,
   searchIssues = [],
   className,
 }: VideoBrowseProps) {
@@ -354,13 +345,11 @@ export function VideoBrowse({
                   triggerClassName={filterTriggerClass}
                 />
 
-                <SingleEntityFilter
-                  label="Director"
+                <DirectorSingleFilter
                   value={draftFilters.director}
-                  display={entityName(directorOptions, draftFilters.director)}
-                  options={directorOptions}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, director: id }))}
                   container={dialogBody}
+                  triggerClassName={filterTriggerClass}
                 />
 
                 <SeriesSingleFilter
@@ -430,13 +419,11 @@ export function VideoBrowse({
             triggerClassName={filterTriggerClass}
           />
 
-          <SingleEntityFilter
-            label="Director"
+          <DirectorSingleFilter
             value={filters.director}
-            display={entityName(directorOptions, filters.director)}
-            options={directorOptions}
             onChange={(id) => setSingle("director", id)}
             container={menuPortal}
+            triggerClassName={filterTriggerClass}
           />
 
           <SeriesSingleFilter
@@ -591,140 +578,6 @@ export function VideoBrowse({
 
       <div ref={setMenuPortal} className="relative z-100" />
     </div>
-  );
-}
-
-function SingleEntityFilter({
-  label,
-  value,
-  display,
-  options,
-  onChange,
-  container,
-}: {
-  label: string;
-  value: number | undefined;
-  display: string | undefined;
-  options: NamedEntity[];
-  onChange: (id: number | undefined) => void;
-  container?: HTMLElement | null;
-}) {
-  const active = value != null;
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [draft, setDraft] = useState<number | undefined>(value);
-
-  const draftItem = draft != null ? options.find((item) => item.id === draft) : undefined;
-  const available = options.filter((item) => item.id !== draft);
-  const normalized = query.trim().toLowerCase();
-  const filtered = normalized ? available.filter((item) => item.name.toLowerCase().includes(normalized)) : available;
-
-  function commitAndClose() {
-    onChange(draft);
-    setQuery("");
-    setOpen(false);
-  }
-
-  function handleOpenChange(nextOpen: boolean) {
-    if (nextOpen) {
-      setDraft(value);
-      setOpen(true);
-    } else {
-      commitAndClose();
-    }
-  }
-
-  function stopInputMenuKeys(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      return;
-    }
-
-    e.stopPropagation();
-  }
-
-  return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-      <DropdownMenuTrigger className={filterTriggerClass(active)}>
-        <span className="max-w-36 truncate">{active && display ? display : label}</span>
-        <ChevronDown className="size-3.5 shrink-0 opacity-60" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        container={container}
-        className="z-100 min-w-64 w-(--anchor-width) max-sm:min-w-0 p-0"
-      >
-        <div className="flex flex-col gap-2 border-b border-border p-2">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="px-0 py-0">{label}</DropdownMenuLabel>
-          </DropdownMenuGroup>
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={stopInputMenuKeys}
-            onKeyUp={stopInputMenuKeys}
-            placeholder={`Search ${label.toLowerCase()}…`}
-            className="h-8"
-            aria-label={`Search ${label}`}
-          />
-        </div>
-        <ScrollArea key={filtered.length + query} className="max-h-[min(50vh,20rem)]">
-          <div className="p-1">
-            {filtered.length === 0 ? (
-              <p className="px-2 py-1.5 text-sm text-muted-foreground">
-                {available.length === 0 ? "No more options" : "No matches"}
-              </p>
-            ) : (
-              filtered.map((item) => (
-                <DropdownMenuItem key={item.id} closeOnClick={false} onClick={() => setDraft(item.id)}>
-                  {item.name}
-                </DropdownMenuItem>
-              ))
-            )}
-          </div>
-        </ScrollArea>
-        <DropdownMenuSeparator />
-        <div className="flex min-h-8 flex-wrap gap-1.5 p-2">
-          {draftItem == null ? (
-            <p className="text-xs text-muted-foreground">No selection</p>
-          ) : (
-            <Badge variant="secondary" className="gap-1 pr-1">
-              <span className="max-w-36 truncate">{draftItem.name}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                className="rounded-full p-0.5 cursor-pointer"
-                aria-label={`Remove ${draftItem.name}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDraft(undefined);
-                }}
-              >
-                <X className="size-3" />
-              </Button>
-            </Badge>
-          )}
-        </div>
-        <div className="flex gap-2 border-t border-border p-2">
-          <Button
-            type="button"
-            variant="destructive"
-            className="flex-1 cursor-pointer"
-            onClick={() => setDraft(undefined)}
-            disabled={draft == null}
-          >
-            Clear
-          </Button>
-          <Button
-            type="button"
-            className="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer"
-            onClick={commitAndClose}
-            disabled={draft == null && value == null}
-          >
-            Apply
-          </Button>
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }
 
