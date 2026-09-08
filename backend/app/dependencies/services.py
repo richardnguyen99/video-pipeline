@@ -6,6 +6,7 @@ from fastapi import Depends
 
 from app.dependencies.repositories import (
     ActressRepositoryDep,
+    DirectorRepositoryDep,
     GenreRepositoryDep,
     LabelRepositoryDep,
     MakerRepositoryDep,
@@ -14,6 +15,7 @@ from app.dependencies.repositories import (
 )
 from app.dependencies.settings import SettingsDep
 from app.services.actress import ActressService
+from app.services.director import DirectorService
 from app.services.genre import GenreService
 from app.services.health import HealthService
 from app.services.label import LabelService
@@ -68,6 +70,14 @@ def get_label_service(
     return LabelService(repository=repository)
 
 
+def get_director_service(
+    repository: DirectorRepositoryDep,
+) -> DirectorService:
+    """Build a request-scoped ``DirectorService``."""
+
+    return DirectorService(repository=repository)
+
+
 def get_series_service(
     repository: SeriesRepositoryDep,
 ) -> SeriesService:
@@ -82,4 +92,5 @@ VideoServiceDep = Annotated[VideoService, Depends(get_video_service)]
 GenreServiceDep = Annotated[GenreService, Depends(get_genre_service)]
 MakerServiceDep = Annotated[MakerService, Depends(get_maker_service)]
 LabelServiceDep = Annotated[LabelService, Depends(get_label_service)]
+DirectorServiceDep = Annotated[DirectorService, Depends(get_director_service)]
 SeriesServiceDep = Annotated[SeriesService, Depends(get_series_service)]

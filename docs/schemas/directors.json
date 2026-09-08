@@ -1,0 +1,55 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "required": [
+        "total",
+        "limit",
+        "offset",
+        "items"
+    ],
+    "properties": {
+        "total": {
+            "type": "number",
+            "description": "Total number of directors available"
+        },
+        "limit": {
+            "type": "number",
+            "description": "The maximum number of directors returned in the response"
+        },
+        "offset": {
+            "type": "number",
+            "description": "The offset of the first director in the response"
+        },
+        "items": {
+            "type": "array",
+            "description": "List of director items",
+            "items": {
+                "type": "object",
+                "required": [
+                    "id",
+                    "name",
+                    "dmmId"
+                ],
+                "description": "Director item in the list response",
+                "properties": {
+                    "id": {
+                        "type": "number",
+                        "description": "The unique identifier for the director"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the director depending on the locale` query"
+                    },
+                    "ruby": {
+                        "type": "string",
+                        "description": "The ruby text of the director"
+                    },
+                    "dmmId": {
+                        "type": "string",
+                        "description": "The DMM identifier for the director"
+                    }
+                }
+            }
+        }
+    }
+}

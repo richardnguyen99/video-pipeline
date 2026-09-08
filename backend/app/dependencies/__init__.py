@@ -10,12 +10,14 @@ from app.dependencies.redis import (
 )
 from app.dependencies.repositories import (
     ActressRepositoryDep,
+    DirectorRepositoryDep,
     GenreRepositoryDep,
     LabelRepositoryDep,
     MakerRepositoryDep,
     SeriesRepositoryDep,
     VideoRepositoryDep,
     get_actress_repository,
+    get_director_repository,
     get_genre_repository,
     get_label_repository,
     get_maker_repository,
@@ -24,6 +26,7 @@ from app.dependencies.repositories import (
 )
 from app.dependencies.services import (
     ActressServiceDep,
+    DirectorServiceDep,
     GenreServiceDep,
     HealthServiceDep,
     LabelServiceDep,
@@ -31,6 +34,7 @@ from app.dependencies.services import (
     SeriesServiceDep,
     VideoServiceDep,
     get_actress_service,
+    get_director_service,
     get_genre_service,
     get_health_service,
     get_label_service,
@@ -44,6 +48,8 @@ from app.dependencies.storage import ObjectStorageDep, get_storage
 __all__ = [
     "ActressRepositoryDep",
     "ActressServiceDep",
+    "DirectorRepositoryDep",
+    "DirectorServiceDep",
     "GenreRepositoryDep",
     "GenreServiceDep",
     "LabelRepositoryDep",
@@ -59,6 +65,8 @@ __all__ = [
     "VideoServiceDep",
     "get_actress_repository",
     "get_actress_service",
+    "get_director_repository",
+    "get_director_service",
     "get_genre_repository",
     "get_genre_service",
     "get_label_repository",
