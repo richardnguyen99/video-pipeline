@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
@@ -15,8 +14,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
+import { LabelMultiFilter } from "@/components/video/label-multi-filter";
 import { MakerMultiFilter } from "@/components/video/maker-multi-filter";
 import { SeriesMultiFilter } from "@/components/video/series-multi-filter";
 import type { ActressFilters, ActressSort } from "@/libs/actresses";
@@ -24,10 +23,8 @@ import {
   ACTRESS_SORT_OPTIONS,
   DEFAULT_ACTRESS_FILTERS,
   buildActressesSearch,
-  getAvailableActressLabels,
   getAvailableCupSizes,
 } from "@/libs/actresses";
-import type { NamedEntity } from "@/mocks/videos";
 import { cn } from "@/libs/utils";
 
 interface ActressesToolbarProps {
@@ -55,51 +52,8 @@ function sortLabel(sort: ActressSort): string {
   return opt.group ? `${opt.group}: ${opt.label}` : opt.label;
 }
 
-function EntityFilterDropdown({
-  label,
-  items,
-  selected,
-  onToggle,
-}: {
-  label: string;
-  items: NamedEntity[];
-  selected: number[];
-  onToggle: (id: number, checked: boolean) => void;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className={filterTriggerClass(selected.length > 0)}>
-        <span className="truncate">
-          {label}
-          {selected.length > 0 ? ` (${selected.length})` : ""}
-        </span>
-        <ChevronDown className="size-3.5 shrink-0 opacity-60" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0 p-0">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 pt-2">{label} (OR)</DropdownMenuLabel>
-          <ScrollArea className="h-auto max-h-125">
-            <div className="p-1">
-              {items.map((item) => (
-                <DropdownMenuCheckboxItem
-                  key={item.id}
-                  checked={selected.includes(item.id)}
-                  onCheckedChange={(checked) => onToggle(item.id, Boolean(checked))}
-                >
-                  {item.name}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </div>
-          </ScrollArea>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
 export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const navigate = useNavigate();
-  const labels = getAvailableActressLabels();
   const cups = getAvailableCupSizes();
 
   const nonMeasurementCount =
@@ -133,15 +87,6 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
     });
   }
 
-  function toggleIdFilter(key: "labels" | "genres", id: number, checked: boolean) {
-    const current = filters[key];
-    const nextValues = checked ? [...current, id] : current.filter((v) => v !== id);
-    updateSearch({
-      filters: { ...filters, [key]: nextValues },
-      page: 1,
-    });
-  }
-
   function toggleCup(value: string, checked: boolean) {
     const nextValues = checked ? [...filters.cups, value] : filters.cups.filter((v) => v !== value);
     updateSearch({
@@ -169,17 +114,18 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
 
   const entityFilters = (
     <>
-      <EntityFilterDropdown
-        label="Label"
-        items={labels}
+      <LabelMultiFilter
         selected={filters.labels}
-        onToggle={(id, checked) => toggleIdFilter("labels", id, checked)}
+        onChange={(labels) => updateSearch({ filters: { ...filters, labels }, page: 1 })}
+        triggerClassName={filterTriggerClass}
       />
+
       <GenreMultiFilter
         selected={filters.genres}
         onChange={(genres) => updateSearch({ filters: { ...filters, genres }, page: 1 })}
         triggerClassName={filterTriggerClass}
       />
+
       <SeriesMultiFilter
         selected={filters.series}
         onChange={(series) => updateSearch({ filters: { ...filters, series }, page: 1 })}

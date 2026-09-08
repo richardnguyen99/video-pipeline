@@ -7,6 +7,7 @@ import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchPar
 import { DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
 import { actressListQueryOptions } from "@/queries/actresses";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
+import { labelFilterInfiniteOptions } from "@/queries/labels";
 import { makerFilterInfiniteOptions } from "@/queries/makers";
 import { seriesFilterInfiniteOptions } from "@/queries/series";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -161,6 +162,7 @@ export const Route = createFileRoute("/actresses/")({
       context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(labelFilterInfiniteOptions()),
     ]);
 
     return {
