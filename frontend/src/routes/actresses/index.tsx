@@ -6,6 +6,7 @@ import { ActressesGridSkeleton, ActressesIndexSkeleton } from "@/layouts/actress
 import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchParams } from "@/libs/actresses";
 import { DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
 import { actressListQueryOptions } from "@/queries/actresses";
+import { directorFilterInfiniteOptions } from "@/queries/directors";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { labelFilterInfiniteOptions } from "@/queries/labels";
 import { makerFilterInfiniteOptions } from "@/queries/makers";
@@ -108,6 +109,9 @@ export const Route = createFileRoute("/actresses/")({
     const makers = asIdArray(search.makers);
     if (makers) result.makers = makers;
 
+    const directors = asIdArray(search.directors);
+    if (directors) result.directors = directors;
+
     const cups = asStringArray(search.cups);
     if (cups) result.cups = cups;
 
@@ -140,6 +144,7 @@ export const Route = createFileRoute("/actresses/")({
       genres: deps.genres ?? [],
       makers: deps.makers ?? [],
       series: deps.series ?? [],
+      directors: deps.directors ?? [],
       cups: deps.cups ?? [],
       bustMin: deps.bustMin,
       bustMax: deps.bustMax,
@@ -163,6 +168,7 @@ export const Route = createFileRoute("/actresses/")({
       context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(labelFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(directorFilterInfiniteOptions()),
     ]);
 
     return {

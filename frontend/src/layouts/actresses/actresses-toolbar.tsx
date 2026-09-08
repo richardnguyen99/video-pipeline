@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { DirectorMultiFilter } from "@/components/video/director-multi-filter";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
 import { LabelMultiFilter } from "@/components/video/label-multi-filter";
 import { MakerMultiFilter } from "@/components/video/maker-multi-filter";
@@ -57,7 +58,11 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
   const cups = getAvailableCupSizes();
 
   const nonMeasurementCount =
-    filters.labels.length + filters.genres.length + filters.makers.length + filters.series.length;
+    filters.labels.length +
+    filters.genres.length +
+    filters.makers.length +
+    filters.series.length +
+    filters.directors.length;
 
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(
@@ -135,6 +140,12 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
       <MakerMultiFilter
         selected={filters.makers}
         onChange={(makers) => updateSearch({ filters: { ...filters, makers }, page: 1 })}
+        triggerClassName={filterTriggerClass}
+      />
+
+      <DirectorMultiFilter
+        selected={filters.directors}
+        onChange={(directors) => updateSearch({ filters: { ...filters, directors }, page: 1 })}
         triggerClassName={filterTriggerClass}
       />
     </>
