@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
+from fastapi import HTTPException, status
 
 from app.repositories.director import DirectorRepository
 from app.services.director import DirectorService
@@ -187,3 +189,62 @@ async def test_list_directors_forwards_search_and_pagination() -> None:
     assert repo.count_calls == [
         {"q": "kyousei soft", "locale_key": "en-us"},
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_director_returns_detail_with_akas() -> None:
+    """Detail payload keeps Japanese name and lists all akas."""
+
+    created = datetime.datetime(2026, 1, 1, 12, 0, 0)
+    updated = datetime.datetime(2026, 2, 1, 12, 0, 0)
+    row = _director(
+        director_id=3001,
+        name="キョウセイ",
+        ruby="きょうせい",
+        dmm_id="3001",
+        akas=[
+            SimpleNamespace(
+                id=10,
+                language="vi",
+                translated_name="Kyousei",
+                created_at=created,
+                updated_at=updated,
+            ),
+            SimpleNamespace(
+                id=11,
+                language="en-us",
+                translated_name="Kyousei",
+                created_at=created,
+                updated_at=updated,
+            ),
+        ],
+    )
+    row.created_at = created
+    row.updated_at = updated
+
+    repo = FakeDirectorRepository(list_result=[row])
+    service = DirectorService(repository=cast(DirectorRepository, repo))
+    result = await service.get_director(3001)
+
+    assert result.id == 3001
+    assert result.name == "キョウセイ"
+    assert len(result.akas) == 2
+    assert result.akas[0].name == "Kyousei"
+    assert result.akas[0].language == "en-us"
+    payload = result.model_dump(by_alias=True)
+    assert payload["dmmId"] == "3001"
+    assert payload["createdAt"] == created
+    assert payload["updatedAt"] == updated
+
+
+@pytest.mark.asyncio
+async def test_get_director_not_found() -> None:
+    """Missing director yields HTTP 404."""
+
+    repo = FakeDirectorRepository(list_result=[])
+    service = DirectorService(repository=cast(DirectorRepository, repo))
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_director(999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

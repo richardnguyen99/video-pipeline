@@ -11,7 +11,7 @@ from app.cache.policy import (
     SUSTAIN_RATE,
 )
 from app.dependencies import DirectorServiceDep
-from app.schemas.director import DirectorListResponse
+from app.schemas.director import DirectorDetailResponse, DirectorListResponse
 
 router = APIRouter()
 
@@ -68,3 +68,35 @@ async def list_directors(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/directors/{director_id}",
+    response_model=DirectorDetailResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get director",
+    dependencies=[
+        Depends(
+            cache(ttl=CACHE_TTL_SECONDS, eviction_group="director_detail"),
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="director_detail:burst",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="director_detail:sustain",
+            ),
+        ),
+    ],
+)
+async def get_director(
+    director_id: int,
+    service: DirectorServiceDep,
+) -> DirectorDetailResponse:
+    """Return one director with native Japanese name and all akas."""
+
+    return await service.get_director(director_id)

@@ -2,9 +2,16 @@
 
 from typing import Optional
 
+from fastapi import HTTPException, status
+
 from app.models.director import Director, DirectorAka
 from app.repositories.director import DirectorRepository
-from app.schemas.director import DirectorListResponse, DirectorResponse
+from app.schemas.director import (
+    DirectorAkaResponse,
+    DirectorDetailResponse,
+    DirectorListResponse,
+    DirectorResponse,
+)
 
 MAX_LIST_LIMIT = 100
 
@@ -75,6 +82,35 @@ class DirectorService:
             dmm_id=director.dmm_id,
         )
 
+    def _to_detail_response(
+        self, director: Director
+    ) -> DirectorDetailResponse:
+        """Map an ORM director to the detail response shape."""
+
+        akas: list[DirectorAka] = list(
+            getattr(director, "director_aka", None) or [],
+        )
+        aka_items = [
+            DirectorAkaResponse(
+                id=aka.id,
+                name=aka.translated_name,
+                language=aka.language,
+                created_at=aka.created_at,
+                updated_at=aka.updated_at,
+            )
+            for aka in sorted(akas, key=lambda item: (item.language, item.id))
+        ]
+
+        return DirectorDetailResponse(
+            id=director.id,
+            name=director.name,
+            ruby=director.ruby,
+            dmm_id=director.dmm_id,
+            created_at=director.created_at,
+            updated_at=director.updated_at,
+            akas=aka_items,
+        )
+
     async def list_directors(
         self,
         locale: Optional[str] = None,
@@ -119,3 +155,26 @@ class DirectorService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def get_director(self, director_id: int) -> DirectorDetailResponse:
+        """Return one director with all aka translations.
+
+        Args:
+            director_id: Director primary key.
+
+        Returns:
+            Detailed director payload (native Japanese ``name`` + ``akas``).
+
+        Raises:
+            HTTPException: 404 when the director does not exist.
+        """
+
+        row = await self._repository.get_by_id(director_id)
+
+        if row is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Director not found",
+            )
+
+        return self._to_detail_response(row)
