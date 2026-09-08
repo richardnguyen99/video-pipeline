@@ -11,6 +11,7 @@ export interface ActressVideoFilters {
   labels: number[];
   genres: number[];
   makers: number[];
+  directors: number[];
   series?: number;
 }
 
@@ -20,6 +21,7 @@ export const DEFAULT_ACTRESS_VIDEO_FILTERS: ActressVideoFilters = {
   labels: [],
   genres: [],
   makers: [],
+  directors: [],
 };
 
 export const ACTRESS_VIDEO_SORT_OPTIONS: {
@@ -39,6 +41,7 @@ export type ActressVideoSearchParams = {
   labels?: number[];
   genres?: number[];
   makers?: number[];
+  directors?: number[];
   series?: number;
 };
 
@@ -59,6 +62,7 @@ export function buildActressVideoSearch(input: {
   if (filters.labels.length > 0) search.labels = filters.labels;
   if (filters.genres.length > 0) search.genres = filters.genres;
   if (filters.makers.length > 0) search.makers = filters.makers;
+  if (filters.directors.length > 0) search.directors = filters.directors;
   if (filters.series != null) search.series = filters.series;
 
   return search;
@@ -104,6 +108,11 @@ export function filterActressVideos(videos: Video[], filters: ActressVideoFilter
     if (filters.makers.length > 0) {
       if (!video.maker || !filters.makers.includes(video.maker.id)) return false;
     }
+
+    if (filters.directors.length > 0) {
+      if (!video.director || !filters.directors.includes(video.director.id)) return false;
+    }
+
     return true;
   });
 }
@@ -180,6 +189,7 @@ export async function getActressVideoPage(
     genre: filters.genres.length > 0 ? filters.genres : undefined,
     maker: filters.makers.length > 0 ? filters.makers[0] : undefined,
     label: filters.labels.length > 0 ? filters.labels[0] : undefined,
+    director: filters.directors.length > 0 ? filters.directors[0] : undefined,
     series: filters.series,
   });
 
@@ -214,6 +224,7 @@ export function actressVideoListQueryParams(
     genre: filters.genres.length > 0 ? filters.genres : undefined,
     maker: filters.makers.length > 0 ? filters.makers[0] : undefined,
     label: filters.labels.length > 0 ? filters.labels[0] : undefined,
+    director: filters.directors.length > 0 ? filters.directors[0] : undefined,
     series: filters.series,
   };
 }

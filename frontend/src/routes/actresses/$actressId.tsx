@@ -6,6 +6,7 @@ import type { ActressVideoFilters, ActressVideoSearchParams, ActressVideoSort } 
 import { DEFAULT_ACTRESS_VIDEO_SORT, actressVideoListQueryParams } from "@/libs/actress-videos";
 import { ApiError } from "@/libs/api-client";
 import { actressSummaryQueryOptions } from "@/queries/actresses";
+import { directorFilterInfiniteOptions } from "@/queries/directors";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { labelFilterInfiniteOptions } from "@/queries/labels";
 import { makerFilterInfiniteOptions } from "@/queries/makers";
@@ -72,6 +73,9 @@ export const Route = createFileRoute("/actresses/$actressId")({
     const makers = asIdArray(search.makers);
     if (makers) result.makers = makers;
 
+    const directors = asIdArray(search.directors);
+    if (directors) result.directors = directors;
+
     return result;
   },
   loaderDeps: ({ search }) => search,
@@ -98,6 +102,7 @@ export const Route = createFileRoute("/actresses/$actressId")({
       labels: deps.labels ?? [],
       genres: deps.genres ?? [],
       makers: deps.makers ?? [],
+      directors: deps.directors ?? [],
       series: deps.series,
     };
     const sort = deps.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
@@ -112,6 +117,7 @@ export const Route = createFileRoute("/actresses/$actressId")({
       context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(labelFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(directorFilterInfiniteOptions()),
     ]);
 
     return {

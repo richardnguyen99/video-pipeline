@@ -16,6 +16,7 @@ import {
   DEFAULT_ACTRESS_VIDEO_FILTERS,
   buildActressVideoSearch,
 } from "@/libs/actress-videos";
+import { DirectorSingleFilter } from "@/components/video/director-single-filter";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
 import { LabelSingleFilter } from "@/components/video/label-single-filter";
 import { MakerSingleFilter } from "@/components/video/maker-single-filter";
@@ -46,7 +47,11 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const nonMeasurementCount =
-    filters.labels.length + filters.genres.length + filters.makers.length + (filters.series != null ? 1 : 0);
+    filters.labels.length +
+    filters.genres.length +
+    filters.makers.length +
+    filters.directors.length +
+    (filters.series != null ? 1 : 0);
 
   const hasActiveFilters = nonMeasurementCount > 0;
 
@@ -99,6 +104,19 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
             filters: {
               ...filters,
               makers: makerId != null ? [makerId] : [],
+            },
+          })
+        }
+        triggerClassName={filterTriggerClass}
+      />
+
+      <DirectorSingleFilter
+        value={filters.directors[0]}
+        onChange={(directorId) =>
+          updateSearch({
+            filters: {
+              ...filters,
+              directors: directorId != null ? [directorId] : [],
             },
           })
         }
