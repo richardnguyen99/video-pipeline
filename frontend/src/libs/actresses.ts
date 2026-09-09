@@ -2,7 +2,7 @@ import { mockActressCatalog } from "@/mocks/actresses";
 import type { ActressRef, NamedEntity, Video } from "@/mocks/videos";
 import { mockVideos } from "@/mocks/videos";
 
-export const ACTRESSES_PAGE_SIZE = 20;
+export const ACTRESSES_PAGE_SIZE = 24;
 
 export type ActressSort =
   | "trending-year"

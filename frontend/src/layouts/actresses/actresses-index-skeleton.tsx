@@ -25,7 +25,7 @@ function ActressCardSkeleton() {
 export function ActressesGridSkeleton() {
   return (
     <>
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: ACTRESSES_PAGE_SIZE }).map((_, i) => (
           <li key={i} className="h-full min-w-0">
             <ActressCardSkeleton />
