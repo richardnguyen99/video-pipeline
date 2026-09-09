@@ -1,7 +1,7 @@
 import React from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { ActressBanner } from "@/layouts/single-actress/actress-banner";
+import { ActressBannerBackground, ActressProfileHeader } from "@/layouts/single-actress/actress-banner";
 import { ActressVideosGrid, ActressVideosShell } from "@/layouts/single-actress/actress-videos";
 import { ActressVideosGridSkeleton } from "@/layouts/single-actress/actress-videos-skeleton";
 import type { ActressVideoFilters, ActressVideoSort } from "@/libs/actress-videos";
@@ -17,23 +17,27 @@ interface ActressDetailProps {
 
 export function ActressDetail({ actress, sort, filters, pagePromise }: ActressDetailProps) {
   return (
-    <div className="min-h-screen">
-      <ActressBanner actress={actress} />
+    <div className="relative isolate min-h-screen">
+      <ActressBannerBackground actress={actress} />
 
-      <ActressVideosShell sort={sort} filters={filters}>
-        <React.Suspense
-          fallback={
-            <>
-              <div className="mb-6 flex h-5 items-center">
-                <Skeleton className="h-4 w-24" />
-              </div>
-              <ActressVideosGridSkeleton />
-            </>
-          }
-        >
-          <ActressVideosDeferred pagePromise={pagePromise} sort={sort} filters={filters} />
-        </React.Suspense>
-      </ActressVideosShell>
+      <div className="relative z-10 lg:pt-0 xl:pt-80">
+        <ActressProfileHeader actress={actress} />
+
+        <ActressVideosShell sort={sort} filters={filters}>
+          <React.Suspense
+            fallback={
+              <>
+                <div className="mb-6 flex h-5 items-center">
+                  <Skeleton className="h-4 w-24" />
+                </div>
+                <ActressVideosGridSkeleton />
+              </>
+            }
+          >
+            <ActressVideosDeferred pagePromise={pagePromise} sort={sort} filters={filters} />
+          </React.Suspense>
+        </ActressVideosShell>
+      </div>
     </div>
   );
 }

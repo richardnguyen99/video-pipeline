@@ -26,7 +26,7 @@ interface ActressVideosShellProps {
 
 export function ActressVideosShell({ sort, filters, children, className }: ActressVideosShellProps) {
   return (
-    <section className={cn("mx-auto w-full px-6 py-10 sm:px-10 lg:px-16", className)}>
+    <section className={cn("mx-auto w-full px-6 pt-4 pb-10 sm:px-10 lg:px-16", className)}>
       <header className="mb-6">
         <h2 className="text-pretty text-2xl font-semibold tracking-tight sm:text-3xl">Featured videos</h2>
       </header>
