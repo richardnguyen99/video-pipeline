@@ -14,11 +14,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { DirectorMultiFilter } from "@/components/video/director-multi-filter";
+import { EntityMultiFilter } from "@/components/entity-multi-filter";
+import {
+  directorMultiFilterConfig,
+  labelMultiFilterConfig,
+  makerMultiFilterConfig,
+  seriesMultiFilterConfig,
+} from "@/components/entity-multi-filter/configs";
 import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
-import { LabelMultiFilter } from "@/components/video/label-multi-filter";
-import { MakerMultiFilter } from "@/components/video/maker-multi-filter";
-import { SeriesMultiFilter } from "@/components/video/series-multi-filter";
 import type { ActressFilters, ActressSort } from "@/libs/actresses";
 import {
   ACTRESS_SORT_OPTIONS,
@@ -119,9 +122,10 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
 
   const entityFilters = (
     <>
-      <LabelMultiFilter
+      <EntityMultiFilter
         selected={filters.labels}
         onChange={(labels) => updateSearch({ filters: { ...filters, labels }, page: 1 })}
+        config={labelMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 
@@ -131,21 +135,24 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
         triggerClassName={filterTriggerClass}
       />
 
-      <SeriesMultiFilter
+      <EntityMultiFilter
         selected={filters.series}
         onChange={(series) => updateSearch({ filters: { ...filters, series }, page: 1 })}
+        config={seriesMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 
-      <MakerMultiFilter
+      <EntityMultiFilter
         selected={filters.makers}
         onChange={(makers) => updateSearch({ filters: { ...filters, makers }, page: 1 })}
+        config={makerMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 
-      <DirectorMultiFilter
+      <EntityMultiFilter
         selected={filters.directors}
         onChange={(directors) => updateSearch({ filters: { ...filters, directors }, page: 1 })}
+        config={directorMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
     </>

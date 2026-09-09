@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
+import type { InfiniteData, UseInfiniteQueryOptions, UseQueryOptions } from "@tanstack/react-query";
 import { ChevronDown, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -16,13 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  DEFAULT_MAKER_LOCALE,
-  flattenMakerFilterPages,
-  makerDetailQueryOptions,
-  makerFilterInfiniteOptions,
-  mapMakerDetailToNamedEntity,
-} from "@/queries/makers";
 import type { NamedEntity } from "@/mocks/videos";
 import { cn } from "@/libs/utils";
 
@@ -30,15 +24,50 @@ const SEARCH_DEBOUNCE_MS = 300;
 
 type NameMap = Partial<Record<number, string>>;
 
-interface MakerMultiFilterProps {
+export type EntityMultiFilterPage = {
+  items: Array<{ id: number; name: string }>;
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+type EntityInfiniteOptions = UseInfiniteQueryOptions<
+  EntityMultiFilterPage,
+  Error,
+  InfiniteData<EntityMultiFilterPage, number>,
+  readonly unknown[],
+  number
+>;
+
+export type EntityMultiFilterConfig<TDetail = unknown> = {
+  label: string;
+  searchPlaceholder: string;
+  searchAriaLabel?: string;
+  menuLabel?: string;
+  locale: string;
+  infiniteOptions: (q?: string, locale?: string) => object;
+  flattenPages: (pages: EntityMultiFilterPage[] | undefined) => NamedEntity[];
+  detailQueryOptions: (id: number) => object;
+  mapDetailToNamedEntity: (detail: TDetail, locale: string) => NamedEntity;
+};
+
+export interface EntityMultiFilterProps<TDetail = unknown> {
   selected: number[];
   onChange: (ids: number[]) => void;
+  config: EntityMultiFilterConfig<TDetail>;
   container?: HTMLElement | null;
   triggerClassName?: (active?: boolean) => string;
 }
 
-export function MakerMultiFilter({ selected, onChange, container, triggerClassName }: MakerMultiFilterProps) {
-  const locale = DEFAULT_MAKER_LOCALE;
+export function EntityMultiFilter<TDetail = unknown>({
+  selected,
+  onChange,
+  config,
+  container,
+  triggerClassName,
+}: EntityMultiFilterProps<TDetail>) {
+  const { label, locale, menuLabel = `${label} (OR)` } = config;
+  const searchAriaLabel = config.searchAriaLabel ?? `Search ${label.toLowerCase()}s`;
   const active = selected.length > 0;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -56,11 +85,12 @@ export function MakerMultiFilter({ selected, onChange, container, triggerClassNa
     };
   }, [query]);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching, isPending } = useInfiniteQuery(
-    makerFilterInfiniteOptions(debouncedQuery || undefined, locale),
-  );
+  const infiniteOptions = config.infiniteOptions(debouncedQuery || undefined, locale) as EntityInfiniteOptions;
 
-  const options = useMemo(() => flattenMakerFilterPages(data?.pages), [data?.pages]);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching, isPending } =
+    useInfiniteQuery(infiniteOptions);
+
+  const options = useMemo(() => config.flattenPages(data?.pages), [config, data?.pages]);
 
   const optionNameById = useMemo(() => {
     const map: NameMap = {};
@@ -79,10 +109,14 @@ export function MakerMultiFilter({ selected, onChange, container, triggerClassNa
   }, [selected, draft, sessionNames, optionNameById]);
 
   const detailQueries = useQueries({
-    queries: idsNeedingDetail.map((makerId) => ({
-      ...makerDetailQueryOptions(makerId),
-      staleTime: 5 * 60_000,
-    })),
+    queries: idsNeedingDetail.map((entityId) => {
+      const base = config.detailQueryOptions(entityId) as UseQueryOptions<TDetail, Error>;
+
+      return {
+        ...base,
+        staleTime: 5 * 60_000,
+      };
+    }),
   });
 
   const detailNameById: NameMap = {};
@@ -92,7 +126,7 @@ export function MakerMultiFilter({ selected, onChange, container, triggerClassNa
       continue;
     }
 
-    const entity = mapMakerDetailToNamedEntity(result.data, locale);
+    const entity = config.mapDetailToNamedEntity(result.data, locale);
     detailNameById[entity.id] = entity.name;
   }
 
@@ -171,7 +205,7 @@ export function MakerMultiFilter({ selected, onChange, container, triggerClassNa
         }
       >
         <span className="truncate">
-          Maker
+          {label}
           {active ? ` (${selected.length})` : ""}
         </span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
@@ -185,16 +219,16 @@ export function MakerMultiFilter({ selected, onChange, container, triggerClassNa
       >
         <div className="flex flex-col gap-2 border-b border-border p-2">
           <DropdownMenuGroup>
-            <DropdownMenuLabel className="px-0 py-0">Maker (OR)</DropdownMenuLabel>
+            <DropdownMenuLabel className="px-0 py-0">{menuLabel}</DropdownMenuLabel>
           </DropdownMenuGroup>
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={stopInputMenuKeys}
             onKeyUp={stopInputMenuKeys}
-            placeholder="Search makers…"
+            placeholder={config.searchPlaceholder}
             className="h-8"
-            aria-label="Search makers"
+            aria-label={searchAriaLabel}
           />
         </div>
 
