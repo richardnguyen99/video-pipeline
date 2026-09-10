@@ -45,6 +45,7 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
     qualities,
     currentQuality,
     isLoading,
+    hasStarted,
     error,
     togglePlay,
     seek,
@@ -52,7 +53,7 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
     setVolume,
     toggleMute,
     setQuality,
-  } = useHlsPlayer({ src });
+  } = useHlsPlayer({ src, autoPlay: false });
 
   const scheduleHideControls = useCallback(() => {
     if (hideTimerRef.current) {
@@ -170,14 +171,40 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
     >
       <video
         ref={videoRef}
-        className="size-full bg-background object-contain"
+        className="size-full bg-background object-cover"
         poster={poster}
+        preload="none"
         playsInline
         onClick={togglePlay}
       />
 
+      {!hasStarted ? (
+        <button
+          type="button"
+          className="group/poster absolute inset-0 z-1 flex size-full cursor-pointer items-center justify-center border-0 bg-transparent p-0"
+          onClick={togglePlay}
+          aria-label={title ? `Play ${title}` : "Play video"}
+        >
+          {poster ? (
+            <img
+              src={poster}
+              alt=""
+              className="absolute inset-0 size-full object-cover"
+              referrerPolicy="no-referrer"
+              draggable={false}
+            />
+          ) : null}
+
+          <span className="absolute inset-0 bg-black/0 transition-colors duration-200 group-hover/poster:bg-black/45" />
+
+          <span className="relative z-1 flex size-16 items-center justify-center rounded-full bg-black/55 text-white shadow-lg ring-1 ring-white/25 transition-transform duration-200 group-hover/poster:scale-105 sm:size-20">
+            <Play className="size-7 fill-current sm:size-8" />
+          </span>
+        </button>
+      ) : null}
+
       {isLoading && !error ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/40">
+        <div className="pointer-events-none absolute inset-0 z-2 flex items-center justify-center bg-background/40">
           <div className="size-10 animate-spin rounded-full border-2 border-muted border-t-primary" />
         </div>
       ) : null}
@@ -191,7 +218,7 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
 
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 bg-linear-to-t from-background via-background/70 to-transparent px-3 pt-12 pb-3 transition-opacity duration-200",
+          "absolute inset-x-0 bottom-0 z-10 bg-linear-to-t from-background via-background/70 to-transparent px-3 pt-12 pb-3 transition-opacity duration-200",
           controlsVisible ? "opacity-100" : "opacity-0",
         )}
       >

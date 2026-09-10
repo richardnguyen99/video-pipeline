@@ -13,6 +13,27 @@ export interface VideoImageUrl {
   type?: string | null;
 }
 
+const VIDEO_IMAGE_TYPE_PRIORITY = ["large", "small", "list"] as const;
+
+export function pickVideoImageUrl(
+  items: Array<{ url: string; type?: string | null }> | undefined,
+  priority: readonly string[] = VIDEO_IMAGE_TYPE_PRIORITY,
+): string | undefined {
+  if (items == null || items.length === 0) {
+    return undefined;
+  }
+
+  for (const preferred of priority) {
+    const match = items.find((item) => item.url !== "" && item.type?.trim().toLowerCase() === preferred);
+
+    if (match != null) {
+      return match.url;
+    }
+  }
+
+  return items.find((item) => item.url !== "")?.url;
+}
+
 export interface VideoVideoSampleImageUrlUrl {
   id: number;
   url: string;
@@ -40,6 +61,7 @@ export interface Video {
   sample_image_url?: VideoVideoSampleImageUrlUrl[];
   video_sample_image_url?: VideoVideoSampleImageUrlUrl[];
   sample_movie_url?: VideoSampleMovieUrl[];
+  m3u8_url?: string | null;
   m3u8_urls?: string[];
   views?: number;
   likes?: number;

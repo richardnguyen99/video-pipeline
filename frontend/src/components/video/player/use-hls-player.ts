@@ -24,6 +24,7 @@ interface UseHlsPlayerResult {
   qualities: HlsQuality[];
   currentQuality: number;
   isLoading: boolean;
+  hasStarted: boolean;
   error: string | null;
   play: () => void;
   pause: () => void;
@@ -44,7 +45,11 @@ function formatQualityLabel(level: Level): string {
 export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): UseHlsPlayerResult {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const playAfterLoadRef = useRef(false);
 
+  const [trackedSrc, setTrackedSrc] = useState(src);
+  const [mediaReady, setMediaReady] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(autoPlay);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolumeState] = useState(1);
@@ -53,23 +58,65 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
   const [buffered, setBuffered] = useState(0);
   const [qualities, setQualities] = useState<HlsQuality[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !src) return;
-
-    let hls: Hls | null = null;
-    setIsLoading(true);
-    setError(null);
+  if (trackedSrc !== src) {
+    setTrackedSrc(src);
+    setShouldLoad(autoPlay);
+    setMediaReady(false);
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setBuffered(0);
     setQualities([]);
     setCurrentQuality(-1);
+    setIsLoading(false);
+    setError(null);
+  }
+
+  useEffect(() => {
+    if (!shouldLoad) {
+      return;
+    }
+
+    const video = videoRef.current;
+
+    if (!video || !src) {
+      return;
+    }
+
+    let hls: Hls | null = null;
+    let cancelled = false;
+
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+      setQualities([]);
+      setCurrentQuality(-1);
+      setMediaReady(false);
+    });
+
+    if (autoPlay) {
+      playAfterLoadRef.current = true;
+    }
+
+    function tryPlay() {
+      if (playAfterLoadRef.current) {
+        playAfterLoadRef.current = false;
+        void video!.play().catch(() => undefined);
+      }
+    }
 
     if (Hls.isSupported()) {
       hls = new Hls({
         enableWorker: true,
         startLevel: -1,
+        autoStartLoad: true,
       });
       hlsRef.current = hls;
       hls.loadSource(src);
@@ -84,9 +131,8 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
         levels.sort((a, b) => b.height - a.height);
         setQualities(levels);
         setIsLoading(false);
-        if (autoPlay) {
-          void video.play().catch(() => undefined);
-        }
+        setMediaReady(true);
+        tryPlay();
       });
 
       hls.on(Hls.Events.LEVEL_SWITCHED, (_event, data) => {
@@ -97,6 +143,7 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
         if (data.fatal) {
           setError(data.details);
           setIsLoading(false);
+
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
             hls?.startLoad();
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -106,51 +153,76 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
       });
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
       video.src = src;
+
       const handleLoaded = () => {
         setIsLoading(false);
-        if (autoPlay) void video.play().catch(() => undefined);
+        setMediaReady(true);
+        tryPlay();
       };
+
       video.addEventListener("loadedmetadata", handleLoaded);
+
       return () => {
+        cancelled = true;
         video.removeEventListener("loadedmetadata", handleLoaded);
+        video.removeAttribute("src");
+        video.load();
+        hlsRef.current = null;
       };
     } else {
-      setError("HLS is not supported in this browser");
-      setIsLoading(false);
+      queueMicrotask(() => {
+        if (cancelled) {
+          return;
+        }
+
+        setError("HLS is not supported in this browser");
+        setIsLoading(false);
+      });
     }
 
     return () => {
+      cancelled = true;
       hls?.destroy();
       hlsRef.current = null;
     };
-  }, [src, autoPlay]);
+  }, [src, shouldLoad, autoPlay]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+
+    if (!video) {
+      return;
+    }
 
     function handlePlay() {
       setIsPlaying(true);
     }
+
     function handlePause() {
       setIsPlaying(false);
     }
+
     function handleTimeUpdate() {
       setCurrentTime(video!.currentTime);
+
       if (video!.buffered.length > 0) {
         setBuffered(video!.buffered.end(video!.buffered.length - 1));
       }
     }
+
     function handleDurationChange() {
       setDuration(video!.duration || 0);
     }
+
     function handleVolumeChange() {
       setVolumeState(video!.volume);
       setIsMuted(video!.muted);
     }
+
     function handleWaiting() {
       setIsLoading(true);
     }
+
     function handleCanPlay() {
       setIsLoading(false);
     }
@@ -174,9 +246,30 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
     };
   }, []);
 
+  const ensureLoaded = useCallback(() => {
+    playAfterLoadRef.current = true;
+
+    if (!shouldLoad) {
+      setShouldLoad(true);
+      setIsLoading(true);
+    }
+  }, [shouldLoad]);
+
   const play = useCallback(() => {
-    void videoRef.current?.play();
-  }, []);
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (!mediaReady) {
+      ensureLoaded();
+
+      return;
+    }
+
+    void video.play().catch(() => undefined);
+  }, [ensureLoaded, mediaReady]);
 
   const pause = useCallback(() => {
     videoRef.current?.pause();
@@ -184,26 +277,51 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
-    if (video.paused) void video.play();
-    else video.pause();
-  }, []);
+
+    if (!video) {
+      return;
+    }
+
+    if (!mediaReady || !shouldLoad) {
+      ensureLoaded();
+
+      return;
+    }
+
+    if (video.paused) {
+      void video.play().catch(() => undefined);
+    } else {
+      video.pause();
+    }
+  }, [ensureLoaded, mediaReady, shouldLoad]);
 
   const seek = useCallback((time: number) => {
     const video = videoRef.current;
-    if (!video) return;
+
+    if (!video) {
+      return;
+    }
+
     video.currentTime = Math.max(0, Math.min(time, video.duration || time));
   }, []);
 
   const seekBy = useCallback((delta: number) => {
     const video = videoRef.current;
-    if (!video) return;
+
+    if (!video) {
+      return;
+    }
+
     video.currentTime = Math.max(0, Math.min(video.currentTime + delta, video.duration || video.currentTime + delta));
   }, []);
 
   const setVolume = useCallback((value: number) => {
     const video = videoRef.current;
-    if (!video) return;
+
+    if (!video) {
+      return;
+    }
+
     const next = Math.max(0, Math.min(1, value));
     video.volume = next;
     video.muted = next === 0;
@@ -211,13 +329,21 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
 
   const toggleMute = useCallback(() => {
     const video = videoRef.current;
-    if (!video) return;
+
+    if (!video) {
+      return;
+    }
+
     video.muted = !video.muted;
   }, []);
 
   const setQuality = useCallback((levelIndex: number) => {
     const hls = hlsRef.current;
-    if (!hls) return;
+
+    if (!hls) {
+      return;
+    }
+
     hls.currentLevel = levelIndex;
     setCurrentQuality(levelIndex);
   }, []);
@@ -233,6 +359,7 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
     qualities,
     currentQuality,
     isLoading,
+    hasStarted: shouldLoad,
     error,
     play,
     pause,

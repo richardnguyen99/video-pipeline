@@ -10,7 +10,7 @@ import { VideoReviewImages } from "@/layouts/single-video/video-review-images";
 import { VideoSidebar } from "@/layouts/single-video/video-sidebar";
 import { ApiError } from "@/libs/api-client";
 import { getMockComments } from "@/mocks/comments";
-import { getMockRelatedVideos } from "@/mocks/videos";
+import { getMockRelatedVideos, pickVideoImageUrl } from "@/mocks/videos";
 import { videoDetailQueryOptions } from "@/queries/videos";
 
 export const Route = createFileRoute("/videos/$id")({
@@ -43,16 +43,27 @@ function VideoPage() {
 
   const comments = getMockComments(String(videoId));
   const streamSrc =
-    "m3u8_url" in video && typeof video.m3u8_url === "string" && video.m3u8_url ? video.m3u8_url : DEMO_HLS_SRC;
+    (typeof video.m3u8_url === "string" && video.m3u8_url) ||
+    (Array.isArray(video.m3u8_urls) && video.m3u8_urls[0]) ||
+    DEMO_HLS_SRC;
+  const poster =
+    pickVideoImageUrl(video.video_image_url) ??
+    video.image_urls?.[0] ??
+    pickVideoImageUrl(video.video_sample_image_url);
 
   return (
     <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <div className="min-w-0 flex-1">
-          <VideoPlayer src={streamSrc} />
-          <VideoMetadata video={video} />
+          <VideoPlayer src={streamSrc} poster={poster} title={video.title} />
+          <div className="mt-5 sm:mt-6">
+            <VideoMetadata video={video} />
+          </div>
+
           <VideoInfo video={video} />
+
           <VideoReviewImages video={video} />
+
           <VideoComments comments={comments} videoId={String(videoId)} />
         </div>
         <VideoSidebar videos={related} />
