@@ -17,11 +17,11 @@ import { Input } from "@/components/ui/input";
 import { EntityMultiFilter } from "@/components/entity-multi-filter";
 import {
   directorMultiFilterConfig,
+  genreMultiFilterConfig,
   labelMultiFilterConfig,
   makerMultiFilterConfig,
   seriesMultiFilterConfig,
 } from "@/components/entity-multi-filter/configs";
-import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
 import type { ActressFilters, ActressSort } from "@/libs/actresses";
 import {
   ACTRESS_SORT_OPTIONS,
@@ -129,9 +129,10 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
         triggerClassName={filterTriggerClass}
       />
 
-      <GenreMultiFilter
+      <EntityMultiFilter
         selected={filters.genres}
         onChange={(genres) => updateSearch({ filters: { ...filters, genres }, page: 1 })}
+        config={genreMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 

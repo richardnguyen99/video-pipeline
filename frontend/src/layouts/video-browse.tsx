@@ -6,12 +6,16 @@ import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRig
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ActressMultiFilter } from "@/components/video/actress-multi-filter";
-import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
-import { DirectorSingleFilter } from "@/components/video/director-single-filter";
-import { LabelSingleFilter } from "@/components/video/label-single-filter";
-import { MakerSingleFilter } from "@/components/video/maker-single-filter";
-import { SeriesSingleFilter } from "@/components/video/series-single-filter";
+import { EntityMultiFilter } from "@/components/entity-multi-filter";
+import {
+  actressMultiFilterConfig,
+  directorMultiFilterConfig,
+  genreMultiFilterConfig,
+  labelMultiFilterConfig,
+  makerMultiFilterConfig,
+  seriesMultiFilterConfig,
+} from "@/components/entity-multi-filter/configs";
+import { EntitySingleFilter } from "@/components/entity-single-filter";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
@@ -319,42 +323,48 @@ export function VideoBrowse({
             <div className="relative">
               <div ref={setDialogBody} className="absolute top-0 left-0 z-100 h-0 w-0 overflow-visible" aria-hidden />
               <div className="flex max-h-[min(70vh,28rem)] flex-col gap-2 overflow-y-auto px-5 py-4">
-                <ActressMultiFilter
+                <EntityMultiFilter
                   selected={draftFilters.actresses}
                   onChange={(actresses) => setDraftFilters((prev) => ({ ...prev, actresses }))}
+                  config={actressMultiFilterConfig}
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
-                <GenreMultiFilter
+                <EntityMultiFilter
                   selected={draftFilters.genres}
                   onChange={(genres) => setDraftFilters((prev) => ({ ...prev, genres }))}
+                  config={genreMultiFilterConfig}
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
-                <MakerSingleFilter
+                <EntitySingleFilter
                   value={draftFilters.maker}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, maker: id }))}
+                  config={makerMultiFilterConfig}
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
 
-                <LabelSingleFilter
+                <EntitySingleFilter
                   value={draftFilters.label}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, label: id }))}
+                  config={labelMultiFilterConfig}
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
 
-                <DirectorSingleFilter
+                <EntitySingleFilter
                   value={draftFilters.director}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, director: id }))}
+                  config={directorMultiFilterConfig}
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
 
-                <SeriesSingleFilter
+                <EntitySingleFilter
                   value={draftFilters.series}
                   onChange={(id) => setDraftFilters((prev) => ({ ...prev, series: id }))}
+                  config={seriesMultiFilterConfig}
                   container={dialogBody}
                   triggerClassName={filterTriggerClass}
                 />
@@ -393,42 +403,48 @@ export function VideoBrowse({
         </Dialog>
 
         <div className="hidden sm:contents">
-          <ActressMultiFilter
+          <EntityMultiFilter
             selected={filters.actresses}
             onChange={(actresses) => updateSearch({ filters: { ...filters, actresses } })}
+            config={actressMultiFilterConfig}
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />
-          <GenreMultiFilter
+          <EntityMultiFilter
             selected={filters.genres}
             onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
+            config={genreMultiFilterConfig}
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />
-          <MakerSingleFilter
+          <EntitySingleFilter
             value={filters.maker}
             onChange={(id) => setSingle("maker", id)}
+            config={makerMultiFilterConfig}
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />
 
-          <LabelSingleFilter
+          <EntitySingleFilter
             value={filters.label}
             onChange={(id) => setSingle("label", id)}
+            config={labelMultiFilterConfig}
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />
 
-          <DirectorSingleFilter
+          <EntitySingleFilter
             value={filters.director}
             onChange={(id) => setSingle("director", id)}
+            config={directorMultiFilterConfig}
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />
 
-          <SeriesSingleFilter
+          <EntitySingleFilter
             value={filters.series}
             onChange={(id) => setSingle("series", id)}
+            config={seriesMultiFilterConfig}
             container={menuPortal}
             triggerClassName={filterTriggerClass}
           />

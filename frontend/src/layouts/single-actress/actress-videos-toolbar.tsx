@@ -16,11 +16,15 @@ import {
   DEFAULT_ACTRESS_VIDEO_FILTERS,
   buildActressVideoSearch,
 } from "@/libs/actress-videos";
-import { DirectorSingleFilter } from "@/components/video/director-single-filter";
-import { GenreMultiFilter } from "@/components/video/genre-multi-filter";
-import { LabelSingleFilter } from "@/components/video/label-single-filter";
-import { MakerSingleFilter } from "@/components/video/maker-single-filter";
-import { SeriesSingleFilter } from "@/components/video/series-single-filter";
+import { EntityMultiFilter } from "@/components/entity-multi-filter";
+import {
+  directorMultiFilterConfig,
+  genreMultiFilterConfig,
+  labelMultiFilterConfig,
+  makerMultiFilterConfig,
+  seriesMultiFilterConfig,
+} from "@/components/entity-multi-filter/configs";
+import { EntitySingleFilter } from "@/components/entity-single-filter";
 import { captureScrollPosition, cn } from "@/libs/utils";
 
 interface ActressVideosToolbarProps {
@@ -72,7 +76,7 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
 
   const entityFilters = (
     <>
-      <LabelSingleFilter
+      <EntitySingleFilter
         value={filters.labels[0]}
         onChange={(labelId) =>
           updateSearch({
@@ -82,22 +86,25 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
             },
           })
         }
+        config={labelMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 
-      <GenreMultiFilter
+      <EntityMultiFilter
         selected={filters.genres}
         onChange={(genres) => updateSearch({ filters: { ...filters, genres } })}
+        config={genreMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 
-      <SeriesSingleFilter
+      <EntitySingleFilter
         value={filters.series}
         onChange={(series) => updateSearch({ filters: { ...filters, series } })}
+        config={seriesMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 
-      <MakerSingleFilter
+      <EntitySingleFilter
         value={filters.makers[0]}
         onChange={(makerId) =>
           updateSearch({
@@ -107,10 +114,11 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
             },
           })
         }
+        config={makerMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
 
-      <DirectorSingleFilter
+      <EntitySingleFilter
         value={filters.directors[0]}
         onChange={(directorId) =>
           updateSearch({
@@ -120,6 +128,7 @@ export function ActressVideosToolbar({ sort, filters }: ActressVideosToolbarProp
             },
           })
         }
+        config={directorMultiFilterConfig}
         triggerClassName={filterTriggerClass}
       />
     </>

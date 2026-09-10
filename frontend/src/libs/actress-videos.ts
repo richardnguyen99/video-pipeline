@@ -1,6 +1,5 @@
 import type { VideoSort } from "@/libs/discover-videos";
 import type { NamedEntity, Video } from "@/mocks/videos";
-import { getVideosByActressId } from "@/libs/actresses";
 
 /** 4 rows × 4 columns */
 export const ACTRESS_VIDEO_PAGE_SIZE = 16;

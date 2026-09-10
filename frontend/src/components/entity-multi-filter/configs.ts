@@ -1,5 +1,12 @@
 import type { EntityMultiFilterConfig } from "@/components/entity-multi-filter/index";
 import {
+  actressDetailQueryOptions,
+  actressFilterInfiniteOptions,
+  flattenActressFilterPages,
+  mapActressToNamedEntity,
+} from "@/queries/actresses";
+import type { ActressListItemApi } from "@/queries/actresses";
+import {
   DEFAULT_DIRECTOR_LOCALE,
   directorDetailQueryOptions,
   directorFilterInfiniteOptions,
@@ -39,6 +46,16 @@ import {
   seriesFilterInfiniteOptions,
 } from "@/queries/series";
 import type { SeriesDetailApi, SeriesListApiResponse } from "@/queries/series";
+
+export const actressMultiFilterConfig: EntityMultiFilterConfig<ActressListItemApi> = {
+  label: "Actress",
+  searchPlaceholder: "Search actresses…",
+  locale: "en-us",
+  infiniteOptions: (q) => actressFilterInfiniteOptions(q),
+  flattenPages: (pages) => flattenActressFilterPages(pages),
+  detailQueryOptions: actressDetailQueryOptions,
+  mapDetailToNamedEntity: (detail) => mapActressToNamedEntity(detail),
+};
 
 export const genreMultiFilterConfig: EntityMultiFilterConfig<GenreDetailApi> = {
   label: "Genre",

@@ -3,18 +3,14 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { VideoBrowse } from "@/layouts/video-browse";
 import type { VideoDiscoverFilters } from "@/libs/discover-videos";
-import {
-  DEFAULT_VIDEO_SORT,
-  getAvailableDiscoverDirectors,
-  parseFeaturesCnt,
-  softParseVideoDiscoverSearch,
-} from "@/libs/discover-videos";
+import { DEFAULT_VIDEO_SORT, parseFeaturesCnt, softParseVideoDiscoverSearch } from "@/libs/discover-videos";
 import { parseSearch } from "@/libs/search-params";
 import { actressFilterInfiniteOptions } from "@/queries/actresses";
+import { directorDetailQueryOptions, directorFilterInfiniteOptions } from "@/queries/directors";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
-import { labelFilterInfiniteOptions } from "@/queries/labels";
-import { makerFilterInfiniteOptions } from "@/queries/makers";
-import { seriesFilterInfiniteOptions } from "@/queries/series";
+import { labelDetailQueryOptions, labelFilterInfiniteOptions } from "@/queries/labels";
+import { makerDetailQueryOptions, makerFilterInfiniteOptions } from "@/queries/makers";
+import { seriesDetailQueryOptions, seriesFilterInfiniteOptions } from "@/queries/series";
 import { videoListQueryOptions } from "@/queries/videos";
 import type { VideoListQueryParams } from "@/queries/videos";
 
@@ -83,25 +79,44 @@ export const Route = createFileRoute("/videos/")({
   loader: async ({ context, location }) => {
     const { queryParams, searchIssues } = buildVideoListParams(location.searchStr);
 
+    const detailPrefetches: Promise<unknown>[] = [];
+
+    if (queryParams.maker != null) {
+      detailPrefetches.push(context.queryClient.ensureQueryData(makerDetailQueryOptions(queryParams.maker)));
+    }
+
+    if (queryParams.label != null) {
+      detailPrefetches.push(context.queryClient.ensureQueryData(labelDetailQueryOptions(queryParams.label)));
+    }
+
+    if (queryParams.director != null) {
+      detailPrefetches.push(context.queryClient.ensureQueryData(directorDetailQueryOptions(queryParams.director)));
+    }
+
+    if (queryParams.series != null) {
+      detailPrefetches.push(context.queryClient.ensureQueryData(seriesDetailQueryOptions(queryParams.series)));
+    }
+
     await Promise.all([
       context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)),
       context.queryClient.ensureInfiniteQueryData(actressFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(labelFilterInfiniteOptions()),
+      context.queryClient.ensureInfiniteQueryData(directorFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
+      ...detailPrefetches,
     ]);
 
     return {
       queryParams,
       searchIssues,
-      directorOptions: getAvailableDiscoverDirectors(),
     };
   },
 });
 
 function VideosDiscoverPage() {
-  const { queryParams, searchIssues, directorOptions } = Route.useLoaderData();
+  const { queryParams, searchIssues } = Route.useLoaderData();
 
   const { data } = useSuspenseQuery(videoListQueryOptions(queryParams));
 
@@ -116,7 +131,6 @@ function VideosDiscoverPage() {
       sort={data.sort}
       filters={data.filters}
       searchIssues={searchIssues}
-      directorOptions={directorOptions}
     />
   );
 }

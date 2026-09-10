@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { useInfiniteQuery, useQueries } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { InfiniteData, UseInfiniteQueryOptions, UseQueryOptions } from "@tanstack/react-query";
 import { ChevronDown, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -16,33 +17,45 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  actressDetailQueryOptions,
-  actressFilterInfiniteOptions,
-  flattenActressFilterPages,
-  mapActressToNamedEntity,
-} from "@/queries/actresses";
+import type { EntityMultiFilterConfig, EntityMultiFilterPage } from "@/components/entity-multi-filter";
 import type { NamedEntity } from "@/mocks/videos";
 import { cn } from "@/libs/utils";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
-type NameMap = Partial<Record<number, string>>;
+type EntityInfiniteOptions = UseInfiniteQueryOptions<
+  EntityMultiFilterPage,
+  Error,
+  InfiniteData<EntityMultiFilterPage, number>,
+  readonly unknown[],
+  number
+>;
 
-interface ActressMultiFilterProps {
-  selected: number[];
-  onChange: (ids: number[]) => void;
+export type EntitySingleFilterConfig<TDetail = unknown> = EntityMultiFilterConfig<TDetail>;
+
+export interface EntitySingleFilterProps<TDetail = unknown> {
+  value: number | undefined;
+  onChange: (id: number | undefined) => void;
+  config: EntitySingleFilterConfig<TDetail>;
   container?: HTMLElement | null;
   triggerClassName?: (active?: boolean) => string;
 }
 
-export function ActressMultiFilter({ selected, onChange, container, triggerClassName }: ActressMultiFilterProps) {
-  const active = selected.length > 0;
+export function EntitySingleFilter<TDetail = unknown>({
+  value,
+  onChange,
+  config,
+  container,
+  triggerClassName,
+}: EntitySingleFilterProps<TDetail>) {
+  const { label, locale, menuLabel = label } = config;
+  const searchAriaLabel = config.searchAriaLabel ?? `Search ${label.toLowerCase()}s`;
+  const active = value != null;
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [draft, setDraft] = useState<number[]>(selected);
-  const [sessionNames, setSessionNames] = useState<NameMap>({});
+  const [draft, setDraft] = useState<number | undefined>(value);
+  const [sessionName, setSessionName] = useState<string | undefined>();
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -54,14 +67,15 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
     };
   }, [query]);
 
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching, isPending } = useInfiniteQuery(
-    actressFilterInfiniteOptions(debouncedQuery || undefined),
-  );
+  const infiniteOptions = config.infiniteOptions(debouncedQuery || undefined, locale) as EntityInfiniteOptions;
 
-  const options = useMemo(() => flattenActressFilterPages(data?.pages), [data?.pages]);
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetching, isPending } =
+    useInfiniteQuery(infiniteOptions);
+
+  const options = useMemo(() => config.flattenPages(data?.pages), [config, data?.pages]);
 
   const optionNameById = useMemo(() => {
-    const map: NameMap = {};
+    const map: Partial<Record<number, string>> = {};
 
     for (const item of options) {
       map[item.id] = item.name;
@@ -70,55 +84,35 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
     return map;
   }, [options]);
 
-  const idsNeedingDetail = useMemo(() => {
-    const needed = new Set([...selected, ...draft]);
+  const needsDetail = value != null && optionNameById[value] === undefined && sessionName === undefined;
 
-    return [...needed].filter((id) => sessionNames[id] === undefined && optionNameById[id] === undefined);
-  }, [selected, draft, sessionNames, optionNameById]);
-
-  const detailQueries = useQueries({
-    queries: idsNeedingDetail.map((actressId) => ({
-      ...actressDetailQueryOptions(actressId),
-      staleTime: 5 * 60_000,
-    })),
+  const detailQuery = useQuery({
+    ...(config.detailQueryOptions(value ?? 0) as UseQueryOptions<TDetail, Error>),
+    enabled: needsDetail,
+    staleTime: 5 * 60_000,
   });
 
-  const detailNameById: NameMap = {};
+  const detailName =
+    detailQuery.data != null ? config.mapDetailToNamedEntity(detailQuery.data, locale).name : undefined;
 
-  for (const result of detailQueries) {
-    if (result.data == null) {
-      continue;
-    }
-
-    const entity = mapActressToNamedEntity(result.data);
-    detailNameById[entity.id] = entity.name;
+  function resolveName(id: number): string | undefined {
+    return optionNameById[id] ?? (id === value || id === draft ? sessionName : undefined) ?? detailName;
   }
 
-  const nameById: NameMap = {
-    ...detailNameById,
-    ...optionNameById,
-    ...sessionNames,
-  };
+  const draftItem: NamedEntity | undefined =
+    draft != null
+      ? {
+          id: draft,
+          name: resolveName(draft) ?? `#${draft}`,
+        }
+      : undefined;
 
-  function resolveName(id: number): string {
-    return nameById[id] ?? `#${id}`;
-  }
+  const available = options.filter((item) => item.id !== draft);
 
-  const draftSet = new Set(draft);
-  const draftItems: NamedEntity[] = draft.map((id) => ({
-    id,
-    name: resolveName(id),
-  }));
-  const available = options.filter((item) => !draftSet.has(item.id));
+  const triggerLabel = value != null ? (resolveName(value) ?? label) : label;
 
-  function selectionChanged(next: number[]): boolean {
-    if (next.length !== selected.length) {
-      return true;
-    }
-
-    const prev = new Set(selected);
-
-    return next.some((id) => !prev.has(id));
+  function selectionChanged(next: number | undefined): boolean {
+    return next !== value;
   }
 
   function commitAndClose() {
@@ -133,7 +127,7 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
-      setDraft(selected);
+      setDraft(value);
       setOpen(true);
 
       return;
@@ -151,7 +145,7 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
   }
 
   function rememberName(item: NamedEntity) {
-    setSessionNames((prev) => (prev[item.id] === item.name ? prev : { ...prev, [item.id]: item.name }));
+    setSessionName(item.name);
   }
 
   return (
@@ -168,10 +162,7 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
               )
         }
       >
-        <span className="truncate">
-          Actress
-          {active ? ` (${selected.length})` : ""}
-        </span>
+        <span className="max-w-36 truncate">{triggerLabel}</span>
         <ChevronDown className="size-3.5 shrink-0 opacity-60" />
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -183,16 +174,16 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
       >
         <div className="flex flex-col gap-2 border-b border-border p-2">
           <DropdownMenuGroup>
-            <DropdownMenuLabel className="px-0 py-0">Actress (OR)</DropdownMenuLabel>
+            <DropdownMenuLabel className="px-0 py-0">{menuLabel}</DropdownMenuLabel>
           </DropdownMenuGroup>
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={stopInputMenuKeys}
             onKeyUp={stopInputMenuKeys}
-            placeholder="Search actress…"
+            placeholder={config.searchPlaceholder}
             className="h-8"
-            aria-label="Search actress"
+            aria-label={searchAriaLabel}
           />
         </div>
 
@@ -211,7 +202,7 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
                   closeOnClick={false}
                   onClick={() => {
                     rememberName(item);
-                    setDraft((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+                    setDraft(item.id);
                   }}
                 >
                   {item.name}
@@ -242,26 +233,24 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
         <DropdownMenuSeparator />
 
         <div className="flex min-h-8 flex-wrap gap-1.5 p-2">
-          {draftItems.length === 0 ? (
-            <p className="text-xs text-muted-foreground">No selections</p>
+          {draftItem == null ? (
+            <p className="text-xs text-muted-foreground">No selection</p>
           ) : (
-            draftItems.map((item) => (
-              <Badge key={item.id} variant="secondary" className="gap-1 pr-1">
-                <span className="max-w-28 truncate">{item.name}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="cursor-pointer rounded-full p-0.5"
-                  aria-label={`Remove ${item.name}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDraft((prev) => prev.filter((id) => id !== item.id));
-                  }}
-                >
-                  <X className="size-3" />
-                </Button>
-              </Badge>
-            ))
+            <Badge variant="secondary" className="gap-1 pr-1">
+              <span className="max-w-36 truncate">{draftItem.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                className="cursor-pointer rounded-full p-0.5"
+                aria-label={`Remove ${draftItem.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDraft(undefined);
+                }}
+              >
+                <X className="size-3" />
+              </Button>
+            </Badge>
           )}
         </div>
 
@@ -270,8 +259,8 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
             type="button"
             variant="destructive"
             className="flex-1 cursor-pointer"
-            onClick={() => setDraft([])}
-            disabled={draft.length === 0}
+            onClick={() => setDraft(undefined)}
+            disabled={draft == null}
           >
             Clear
           </Button>
@@ -279,10 +268,9 @@ export function ActressMultiFilter({ selected, onChange, container, triggerClass
             type="button"
             className="flex-1 cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90"
             onClick={commitAndClose}
-            disabled={draft.length === 0 && selected.length === 0}
+            disabled={draft == null && value == null}
           >
             Apply
-            {draft.length > 0 ? ` (${draft.length})` : ""}
           </Button>
         </div>
       </DropdownMenuContent>
