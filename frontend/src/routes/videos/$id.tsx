@@ -4,10 +4,10 @@ import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
 import { VideoComments } from "@/components/video/comment";
 import { VideoPlayer, DEMO_HLS_SRC } from "@/components/video/player";
-import { VideoInfo } from "@/layouts/video_single_page/video-info";
-import { VideoMetadata } from "@/layouts/video_single_page/video-metadata";
-import { VideoReviewImages } from "@/layouts/video_single_page/video-review-images";
-import { VideoSidebar } from "@/layouts/video_single_page/video-sidebar";
+import { VideoInfo } from "@/layouts/single-video/video-info";
+import { VideoMetadata } from "@/layouts/single-video/video-metadata";
+import { VideoReviewImages } from "@/layouts/single-video/video-review-images";
+import { VideoSidebar } from "@/layouts/single-video/video-sidebar";
 import { ApiError } from "@/libs/api-client";
 import { getMockComments } from "@/mocks/comments";
 import { getMockRelatedVideos } from "@/mocks/videos";
