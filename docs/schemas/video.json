@@ -1,0 +1,422 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "video.json",
+    "title": "VideoDetailResponse",
+    "description": "Full single-video payload returned by the video detail endpoint.",
+    "type": "object",
+    "required": [
+        "id",
+        "video_id",
+        "title",
+        "cid",
+        "duration",
+        "release_date",
+        "jancode",
+        "maker_product",
+        "floor_code",
+        "created_at",
+        "updated_at",
+        "actresses",
+        "genres",
+        "series",
+        "makers",
+        "labels",
+        "directors",
+        "video_image_url",
+        "video_sample_image_url",
+        "video_sample_movie_url",
+        "m3u8_url",
+        "views",
+        "likes",
+        "dislikes",
+        "comments"
+    ],
+    "properties": {
+        "id": {
+            "type": "integer"
+        },
+        "video_id": {
+            "type": "string"
+        },
+        "title": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "cid": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "duration": {
+            "type": [
+                "integer",
+                "null"
+            ],
+            "description": "Duration in minutes"
+        },
+        "release_date": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date-time"
+        },
+        "jancode": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "maker_product": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "floor_code": {
+            "type": [
+                "string",
+                "null"
+            ]
+        },
+        "created_at": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date-time"
+        },
+        "updated_at": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "date-time"
+        },
+        "actresses": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/video_actress_detail"
+            }
+        },
+        "genres": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/catalog_entity"
+            }
+        },
+        "series": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/catalog_entity"
+            }
+        },
+        "makers": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/catalog_entity"
+            }
+        },
+        "labels": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/catalog_entity"
+            }
+        },
+        "directors": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/catalog_entity"
+            }
+        },
+        "video_image_url": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/media_url"
+            }
+        },
+        "video_sample_image_url": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/media_url"
+            }
+        },
+        "video_sample_movie_url": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/media_url"
+            }
+        },
+        "m3u8_url": {
+            "type": [
+                "string",
+                "null"
+            ],
+            "format": "uri"
+        },
+        "views": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "likes": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "dislikes": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "comments": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/video_comment"
+            }
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "catalog_entity": {
+            "type": "object",
+            "required": [
+                "id",
+                "name"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ruby": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "dmm_id": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "actress_aka": {
+            "type": "object",
+            "required": [
+                "id",
+                "translated_name"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "translated_name": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "actress_image": {
+            "type": "object",
+            "required": [
+                "id",
+                "url",
+                "attribute"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "attribute": {
+                    "type": "string"
+                }
+            },
+            "additionalProperties": false
+        },
+        "video_actress_detail": {
+            "type": "object",
+            "required": [
+                "id",
+                "name"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "ruby": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "image_url": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "format": "uri"
+                },
+                "dmm_id": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "actress_aka": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/actress_aka"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "actress_image": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/actress_image"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "media_url": {
+            "type": "object",
+            "required": [
+                "id",
+                "url"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "type": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "comment_user": {
+            "type": "object",
+            "required": [
+                "id",
+                "username"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "avatar_url": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "video_comment": {
+            "type": "object",
+            "required": [
+                "id",
+                "video_id",
+                "user",
+                "content",
+                "is_edited",
+                "is_deleted",
+                "created_at",
+                "updated_at",
+                "parent_id",
+                "likes",
+                "dislikes",
+                "viewer_vote",
+                "replies"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "video_id": {
+                    "type": "integer"
+                },
+                "user": {
+                    "$ref": "#/$defs/comment_user"
+                },
+                "content": {
+                    "type": "string"
+                },
+                "is_edited": {
+                    "type": "boolean"
+                },
+                "is_deleted": {
+                    "type": "boolean"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "parent_id": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "likes": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "dislikes": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "viewer_vote": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "replies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/video_comment"
+                    }
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

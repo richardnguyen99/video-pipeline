@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { pickVideoSampleImages } from "@/mocks/videos";
 import type { Video } from "@/mocks/videos";
 import { cn, imageFileName } from "@/libs/utils";
 
@@ -16,7 +17,7 @@ const EDGE_EPS = 4;
 const EDGE_NO_SCROLL = 2;
 
 export function VideoReviewImages({ video, className }: VideoReviewImagesProps) {
-  const images = video.sample_image_url ?? [];
+  const images = pickVideoSampleImages(video.video_sample_image_url ?? video.sample_image_url);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [canScrollPrev, setCanScrollPrev] = useState(false);

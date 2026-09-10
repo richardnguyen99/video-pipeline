@@ -4,8 +4,14 @@
 #
 # Usage:
 #   ./scripts/export-tables-csv.sh
-#   ENV_FILE=.env.export ./scripts/export-tables-csv.sh
-#   BATCH_SIZE=5000 ./scripts/export-tables-csv.sh
+#   ./scripts/export-tables-csv.sh 2026-01-01
+#   ./scripts/export-tables-csv.sh '2026-01-01 00:00:00+00'
+#   ENV_FILE=.env.export ./scripts/export-tables-csv.sh 2026-03-15T12:00:00Z
+#   BATCH_SIZE=5000 SINCE=2026-01-01 ./scripts/export-tables-csv.sh
+#
+# When a timestamp is given (first CLI arg or SINCE env), only rows with
+# created_at strictly after that instant are exported. Tables without a
+# created_at column are exported in full.
 #
 # Credentials and destination come from env / env file only.
 
@@ -24,6 +30,12 @@ fi
 BATCH_SIZE="${BATCH_SIZE:-10000}"
 EXPORT_DIR="${EXPORT_DIR:-$ROOT_DIR/exports}"
 
+# Prefer CLI timestamp over SINCE env when both are set.
+if [[ $# -ge 1 && -n "${1:-}" ]]; then
+  SINCE="$1"
+fi
+SINCE="${SINCE:-}"
+
 if [[ -n "${DATABASE_URL:-}" ]]; then
   PSQL=(psql "$DATABASE_URL")
 else
@@ -39,6 +51,19 @@ fi
 if ! command -v psql >/dev/null 2>&1; then
   echo "psql not found on PATH. Install client tools or run inside a postgres container." >&2
   exit 1
+fi
+
+if [[ -n "$SINCE" ]]; then
+  if ! [[ "$SINCE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}([ T][0-9]{2}:[0-9]{2}(:[0-9]{2}(\.[0-9]+)?)?(Z|[+-][0-9]{2}:?[0-9]{2})?)?$ ]]; then
+    echo "Invalid SINCE timestamp: $SINCE" >&2
+    echo "Use an ISO-8601-like value, e.g. 2026-01-01 or 2026-01-01T12:00:00Z" >&2
+    exit 1
+  fi
+
+  if ! "${PSQL[@]}" -v ON_ERROR_STOP=1 -At -c "SELECT '${SINCE}'::timestamptz;" >/dev/null; then
+    echo "PostgreSQL could not parse SINCE as timestamptz: $SINCE" >&2
+    exit 1
+  fi
 fi
 
 mkdir -p "$EXPORT_DIR"
@@ -98,6 +123,19 @@ else
   TABLES=("${DEFAULT_TABLES[@]}")
 fi
 
+table_has_created_at() {
+  local schema="$1"
+  local table="$2"
+
+  "${PSQL[@]}" -At -c \
+    "SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = '${schema}'
+       AND table_name = '${table}'
+       AND column_name = 'created_at'
+     LIMIT 1;"
+}
+
 export_table() {
   local qualified="$1"
   local schema="${qualified%%.*}"
@@ -105,24 +143,38 @@ export_table() {
   local batch=1
   local offset=0
   local out rows
+  local where_sql=""
+  local order_sql="ORDER BY 1"
+  local has_created=""
 
   echo "=== ${qualified} ==="
 
+  if [[ -n "$SINCE" ]]; then
+    has_created="$(table_has_created_at "$schema" "$table" || true)"
+
+    if [[ "$has_created" == "1" ]]; then
+      where_sql="WHERE created_at > '${SINCE}'::timestamptz"
+      order_sql="ORDER BY created_at, 1"
+      echo "  filter: created_at > ${SINCE}"
+    else
+      echo "  filter: skipped (no created_at column)"
+    fi
+  fi
+
   while true; do
     out="${EXPORT_DIR}/${table}_${batch}.csv"
-    # COPY TO STDOUT with LIMIT/OFFSET via subquery
     rows="$("${PSQL[@]}" -v ON_ERROR_STOP=1 -At -c \
       "SELECT COUNT(*) FROM (
          SELECT 1 FROM ${schema}.${table}
-         ORDER BY 1
+         ${where_sql}
+         ${order_sql}
          OFFSET ${offset} LIMIT ${BATCH_SIZE}
        ) t;")"
 
     if [[ -z "$rows" || "$rows" -eq 0 ]]; then
       if [[ "$batch" -eq 1 ]]; then
-        # empty table: still emit one header-only file
         "${PSQL[@]}" -v ON_ERROR_STOP=1 -c \
-          "\\copy (SELECT * FROM ${schema}.${table} LIMIT 0) TO STDOUT WITH (FORMAT csv, HEADER true)" \
+          "\\copy (SELECT * FROM ${schema}.${table} ${where_sql} LIMIT 0) TO STDOUT WITH (FORMAT csv, HEADER true)" \
           >"$out"
         echo "  wrote $out (empty)"
       fi
@@ -132,7 +184,8 @@ export_table() {
     "${PSQL[@]}" -v ON_ERROR_STOP=1 -c \
       "\\copy (
          SELECT * FROM ${schema}.${table}
-         ORDER BY 1
+         ${where_sql}
+         ${order_sql}
          OFFSET ${offset} LIMIT ${BATCH_SIZE}
        ) TO STDOUT WITH (FORMAT csv, HEADER true)" \
       >"$out"
@@ -146,6 +199,11 @@ export_table() {
 echo "Export dir:  $EXPORT_DIR"
 echo "Batch size:  $BATCH_SIZE"
 echo "Tables:      ${#TABLES[@]}"
+if [[ -n "$SINCE" ]]; then
+  echo "Since:       $SINCE (created_at > SINCE)"
+else
+  echo "Since:       (none — full table export)"
+fi
 echo
 
 for qualified in "${TABLES[@]}"; do

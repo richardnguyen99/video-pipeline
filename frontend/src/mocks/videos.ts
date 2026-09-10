@@ -34,6 +34,29 @@ export function pickVideoImageUrl(
   return items.find((item) => item.url !== "")?.url;
 }
 
+const VIDEO_SAMPLE_IMAGE_TYPE_PRIORITY = ["sample_l", "sample_gen", "sample_s"] as const;
+
+export function pickVideoSampleImages<T extends { url: string; type?: string | null }>(
+  items: T[] | undefined,
+  priority: readonly string[] = VIDEO_SAMPLE_IMAGE_TYPE_PRIORITY,
+): T[] {
+  if (items == null || items.length === 0) {
+    return [];
+  }
+
+  const withUrl = items.filter((item) => item.url !== "");
+
+  for (const preferred of priority) {
+    const matched = withUrl.filter((item) => item.type?.trim().toLowerCase() === preferred);
+
+    if (matched.length > 0) {
+      return matched;
+    }
+  }
+
+  return withUrl;
+}
+
 export interface VideoVideoSampleImageUrlUrl {
   id: number;
   url: string;
