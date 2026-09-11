@@ -12,6 +12,8 @@ from app.models.video import Video
 from app.repositories.video import VideoRepository
 from app.schemas.video import (
     CommentUserResponse,
+    VideoCatalogEntityAkaResponse,
+    VideoCatalogEntityResponse,
     VideoCommentResponse,
     VideoDetailResponse,
     VideoEngagementCounts,
@@ -165,6 +167,93 @@ class VideoService:
 
         return list(value or [])
 
+    @staticmethod
+    def _normalize_locale(locale: Optional[str]) -> str:
+        """Normalize locale query to a lowercase language key."""
+
+        if locale is None or locale.strip() == "":
+            return "en-us"
+
+        return locale.strip().lower()
+
+    @staticmethod
+    def _pick_catalog_aka(
+        akas: list[object],
+        locale_key: str,
+    ) -> Optional[VideoCatalogEntityAkaResponse]:
+        """Pick the aka row matching ``locale_key``, then ``en-us`` / ``en``."""
+
+        if not akas:
+            return None
+
+        ordered_keys = [locale_key]
+
+        for fallback in ("en-us", "en"):
+            if fallback not in ordered_keys:
+                ordered_keys.append(fallback)
+
+        by_language: dict[str, object] = {}
+
+        for aka in akas:
+            language = (getattr(aka, "language", None) or "").strip().lower()
+
+            if language == "":
+                continue
+
+            by_language.setdefault(language, aka)
+
+        for key in ordered_keys:
+            match = by_language.get(key)
+
+            if match is None:
+                continue
+
+            translated = (
+                getattr(match, "translated_name", None) or ""
+            ).strip()
+
+            if translated == "":
+                continue
+
+            return VideoCatalogEntityAkaResponse(
+                id=getattr(match, "id"),
+                translated_name=translated,
+                language=getattr(match, "language"),
+            )
+
+        return None
+
+    def _map_catalog_entity(
+        self,
+        entity: object,
+        aka_attr: str,
+        locale_key: str,
+    ) -> VideoCatalogEntityResponse:
+        """Map a catalog ORM row to the video detail entity payload."""
+
+        akas = list(getattr(entity, aka_attr, None) or [])
+
+        return VideoCatalogEntityResponse(
+            id=getattr(entity, "id"),
+            name=getattr(entity, "name"),
+            ruby=getattr(entity, "ruby", None),
+            dmm_id=getattr(entity, "dmm_id", None),
+            aka=self._pick_catalog_aka(akas, locale_key),
+        )
+
+    def _map_catalog_entities(
+        self,
+        entities: list[object],
+        aka_attr: str,
+        locale_key: str,
+    ) -> list[VideoCatalogEntityResponse]:
+        """Map a catalog collection with locale-aware aka."""
+
+        return [
+            self._map_catalog_entity(entity, aka_attr, locale_key)
+            for entity in entities
+        ]
+
     async def _to_video_detail_response(
         self,
         row: Video,
@@ -172,8 +261,11 @@ class VideoService:
         counts: VideoEngagementCounts,
         comments: list[object],
         m3u8_url: Optional[str],
+        locale: Optional[str] = None,
     ) -> VideoDetailResponse:
         """Validate a detail row and attach engagement fields."""
+
+        locale_key = self._normalize_locale(locale)
 
         # Avoid model_validate(row) so relationship attrs named like
         # engagement fields are never read.
@@ -191,11 +283,31 @@ class VideoService:
                 "created_at": row.created_at,
                 "updated_at": row.updated_at,
                 "actresses": row.actresses,
-                "genres": row.genres,
-                "series": row.series,
-                "makers": row.makers,
-                "labels": row.labels,
-                "directors": row.directors,
+                "genres": self._map_catalog_entities(
+                    list(row.genres or []),
+                    "genre_aka",
+                    locale_key,
+                ),
+                "series": self._map_catalog_entities(
+                    list(row.series or []),
+                    "series_aka",
+                    locale_key,
+                ),
+                "makers": self._map_catalog_entities(
+                    list(row.makers or []),
+                    "maker_aka",
+                    locale_key,
+                ),
+                "labels": self._map_catalog_entities(
+                    list(row.labels or []),
+                    "label_aka",
+                    locale_key,
+                ),
+                "directors": self._map_catalog_entities(
+                    list(row.directors or []),
+                    "director_aka",
+                    locale_key,
+                ),
                 "video_image_url": self._loaded_collection(
                     row,
                     "video_image_url",
@@ -320,13 +432,21 @@ class VideoService:
             offset=safe_offset,
         )
 
-    async def get_video(self, video_id: int) -> VideoDetailResponse:
+    async def get_video(
+        self,
+        video_id: int,
+        *,
+        locale: Optional[str] = None,
+    ) -> VideoDetailResponse:
         """Return a single video by primary key with full relations.
 
         Media and ``m3u8_url`` values are returned as stored in the database.
+        Catalog entities (genre, series, maker, label, director) include a
+        locale-matched ``aka`` when available.
 
         Args:
             video_id: ``Video.id`` primary key.
+            locale: Preferred aka language (default ``en-us``).
 
         Returns:
             A ``VideoDetailResponse`` including actress aka and images.
@@ -355,4 +475,5 @@ class VideoService:
             counts=counts,
             comments=list(comments),
             m3u8_url=master_m3u8,
+            locale=locale,
         )

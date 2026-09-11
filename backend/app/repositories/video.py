@@ -54,6 +54,24 @@ def _catalog_load(relationship: Any, *columns: Any) -> Any:
     )
 
 
+def _catalog_load_with_aka(
+    relationship: Any,
+    aka_relationship: Any,
+    aka_model: Type[Any],
+    *columns: Any,
+) -> Any:
+    """Select-in load a catalog M2M including locale aka rows."""
+
+    return selectinload(_relationship_attr(relationship)).options(
+        load_only(*(_col(column) for column in columns)),
+        selectinload(_relationship_attr(aka_relationship)).load_only(
+            _col(aka_model.id),
+            _col(aka_model.translated_name),
+            _col(aka_model.language),
+        ),
+    )
+
+
 def _media_load(relationship: Any, *columns: Any) -> Any:
     """Select-in load a media 1:N with only public response columns."""
 
@@ -88,36 +106,46 @@ def _detail_actress_load() -> Any:
 
 _DETAIL_OPTIONS: tuple[Any, ...] = (
     _detail_actress_load(),
-    _catalog_load(
+    _catalog_load_with_aka(
         Video.genres,
+        Genre.genre_aka,
+        GenreAka,
         Genre.id,
         Genre.name,
         Genre.ruby,
         Genre.dmm_id,
     ),
-    _catalog_load(
+    _catalog_load_with_aka(
         Video.series,
+        Series.series_aka,
+        SeriesAka,
         Series.id,
         Series.name,
         Series.ruby,
         Series.dmm_id,
     ),
-    _catalog_load(
+    _catalog_load_with_aka(
         Video.makers,
+        Maker.maker_aka,
+        MakerAka,
         Maker.id,
         Maker.name,
         Maker.ruby,
         Maker.dmm_id,
     ),
-    _catalog_load(
+    _catalog_load_with_aka(
         Video.labels,
+        Label.label_aka,
+        LabelAka,
         Label.id,
         Label.name,
         Label.ruby,
         Label.dmm_id,
     ),
-    _catalog_load(
+    _catalog_load_with_aka(
         Video.directors,
+        Director.director_aka,
+        DirectorAka,
         Director.id,
         Director.name,
         Director.ruby,

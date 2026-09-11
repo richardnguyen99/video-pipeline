@@ -8,6 +8,16 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.actress import ActressAkaResponse, ActressImageResponse
 
 
+class VideoCatalogEntityAkaResponse(BaseModel):
+    """Locale-specific alternative name for a catalog entity on a video."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    translated_name: str
+    language: str
+
+
 class VideoCatalogEntityResponse(BaseModel):
     """Lightweight catalog entity linked to a video."""
 
@@ -17,6 +27,7 @@ class VideoCatalogEntityResponse(BaseModel):
     name: str
     ruby: Optional[str] = None
     dmm_id: Optional[str] = None
+    aka: Optional[VideoCatalogEntityAkaResponse] = None
 
 
 class VideoActressSummaryResponse(BaseModel):

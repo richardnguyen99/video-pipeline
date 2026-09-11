@@ -137,7 +137,11 @@ async def get_video(
         ge=1,
         description="Primary key ``Video.id`` (not the string code).",
     ),
+    locale: Optional[str] = Query(
+        default="en-us",
+        description="Catalog aka language (e.g. en-us, ja, zh, vi).",
+    ),
 ) -> VideoDetailResponse:
     """Return one video with full relations and detailed actress data."""
 
-    return await service.get_video(video_id=video_id)
+    return await service.get_video(video_id=video_id, locale=locale)

@@ -178,6 +178,27 @@
     },
     "additionalProperties": false,
     "$defs": {
+        "catalog_entity_aka": {
+            "type": "object",
+            "required": [
+                "id",
+                "translated_name",
+                "language"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "translated_name": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Locale key such as en-us, zh, vi, ko."
+                }
+            },
+            "additionalProperties": false
+        },
         "catalog_entity": {
             "type": "object",
             "required": [
@@ -202,6 +223,17 @@
                         "string",
                         "null"
                     ]
+                },
+                "aka": {
+                    "oneOf": [
+                        {
+                            "$ref": "#/$defs/catalog_entity_aka"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ],
+                    "description": "Locale-matched alternative name for the request locale."
                 }
             },
             "additionalProperties": false

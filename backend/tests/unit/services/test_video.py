@@ -372,7 +372,19 @@ async def test_get_video_returns_detail_with_actress_relations(
             ),
         ],
         genres=[
-            SimpleNamespace(id=2, name="Drama", ruby=None, dmm_id="g-1"),
+            SimpleNamespace(
+                id=2,
+                name="ドラマ",
+                ruby=None,
+                dmm_id="g-1",
+                genre_aka=[
+                    SimpleNamespace(
+                        id=100,
+                        translated_name="Drama",
+                        language="en-us",
+                    ),
+                ],
+            ),
         ],
         series=[],
         makers=[],
@@ -394,7 +406,231 @@ async def test_get_video_returns_detail_with_actress_relations(
     assert result.id == 7
     assert result.actresses[0].actress_aka is not None
     assert result.actresses[0].actress_image[0].attribute == "avatar"
+    assert result.genres[0].name == "ドラマ"
+    assert result.genres[0].aka is not None
+    assert result.genres[0].aka.translated_name == "Drama"
+    assert result.genres[0].aka.language == "en-us"
     assert repository.get_calls == [7]
+
+
+def _catalog_entity(
+    *,
+    entity_id: int,
+    name: str,
+    dmm_id: str,
+    aka_attr: str,
+    akas: list[SimpleNamespace],
+) -> SimpleNamespace:
+    """Build a catalog entity namespace with the given aka relationship."""
+
+    return SimpleNamespace(
+        id=entity_id,
+        name=name,
+        ruby=None,
+        dmm_id=dmm_id,
+        **{aka_attr: akas},
+    )
+
+
+def _detail_row_with_catalog_akas() -> SimpleNamespace:
+    """Detail fixture covering genre/series/maker/label/director akas."""
+
+    return SimpleNamespace(
+        id=8,
+        video_id="MIRD-280",
+        title="Catalog aka fixture",
+        cid=None,
+        duration=120,
+        release_date=None,
+        jancode=None,
+        maker_product=None,
+        floor_code=None,
+        created_at=None,
+        updated_at=None,
+        actresses=[],
+        genres=[
+            _catalog_entity(
+                entity_id=146,
+                name="潮吹き",
+                dmm_id="5016",
+                aka_attr="genre_aka",
+                akas=[
+                    SimpleNamespace(
+                        id=1,
+                        translated_name="Squirting",
+                        language="en-us",
+                    ),
+                    SimpleNamespace(
+                        id=2,
+                        translated_name="潮喷",
+                        language="zh",
+                    ),
+                    SimpleNamespace(
+                        id=3,
+                        translated_name="Squirt",
+                        language="en",
+                    ),
+                ],
+            ),
+        ],
+        series=[
+            _catalog_entity(
+                entity_id=17873,
+                name="真性中出し",
+                dmm_id="6840",
+                aka_attr="series_aka",
+                akas=[
+                    SimpleNamespace(
+                        id=11,
+                        translated_name="True Creampie",
+                        language="en-us",
+                    ),
+                ],
+            ),
+        ],
+        makers=[
+            _catalog_entity(
+                entity_id=3905,
+                name="ムーディーズ",
+                dmm_id="1509",
+                aka_attr="maker_aka",
+                akas=[
+                    SimpleNamespace(
+                        id=21,
+                        translated_name="MOODYZ",
+                        language="en-us",
+                    ),
+                    SimpleNamespace(
+                        id=22,
+                        translated_name="Moodyz",
+                        language="en",
+                    ),
+                ],
+            ),
+        ],
+        labels=[
+            _catalog_entity(
+                entity_id=47,
+                name="MOODYZ REAL",
+                dmm_id="f6ce7d58137b41148991",
+                aka_attr="label_aka",
+                akas=[
+                    SimpleNamespace(
+                        id=31,
+                        translated_name="Moodyz Real",
+                        language="en",
+                    ),
+                ],
+            ),
+        ],
+        directors=[
+            _catalog_entity(
+                entity_id=28,
+                name="宇佐美忠則",
+                dmm_id="1612ea12883345d293be",
+                aka_attr="director_aka",
+                akas=[
+                    SimpleNamespace(
+                        id=41,
+                        translated_name="Tadanori Usami",
+                        language="en-us",
+                    ),
+                ],
+            ),
+        ],
+        video_image_url=[],
+        video_sample_image_url=[],
+        video_sample_movie_url=[],
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_video_catalog_akas_match_requested_locale(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Catalog entities expose aka for the requested locale."""
+
+    repository.get_result = _detail_row_with_catalog_akas()
+
+    result = await service.get_video(video_id=8, locale="zh")
+
+    assert result.genres[0].aka is not None
+    assert result.genres[0].aka.translated_name == "潮喷"
+    assert result.genres[0].aka.language == "zh"
+    assert result.series[0].aka is not None
+    assert result.series[0].aka.translated_name == "True Creampie"
+    assert result.series[0].aka.language == "en-us"
+    assert result.makers[0].aka is not None
+    assert result.makers[0].aka.translated_name == "MOODYZ"
+    assert result.labels[0].aka is not None
+    assert result.labels[0].aka.language == "en"
+    assert result.directors[0].aka is not None
+    assert result.directors[0].aka.translated_name == "Tadanori Usami"
+
+
+@pytest.mark.asyncio
+async def test_get_video_catalog_akas_default_to_en_us(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """When locale is omitted, catalog aka prefers en-us."""
+
+    repository.get_result = _detail_row_with_catalog_akas()
+
+    result = await service.get_video(video_id=8)
+
+    assert result.genres[0].aka is not None
+    assert result.genres[0].aka.language == "en-us"
+    assert result.genres[0].aka.translated_name == "Squirting"
+    assert result.makers[0].aka is not None
+    assert result.makers[0].aka.language == "en-us"
+
+
+@pytest.mark.asyncio
+async def test_get_video_catalog_aka_falls_back_to_en(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Missing locale and en-us fall back to language en."""
+
+    repository.get_result = _detail_row_with_catalog_akas()
+    repository.get_result.labels[0].label_aka = [
+        SimpleNamespace(
+            id=31,
+            translated_name="Moodyz Real",
+            language="en",
+        ),
+    ]
+
+    result = await service.get_video(video_id=8, locale="ko")
+
+    assert result.labels[0].aka is not None
+    assert result.labels[0].aka.language == "en"
+    assert result.labels[0].aka.translated_name == "Moodyz Real"
+
+
+@pytest.mark.asyncio
+async def test_get_video_catalog_aka_null_when_no_translation(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """aka is null when the entity has no matching translations."""
+
+    repository.get_result = _detail_row_with_catalog_akas()
+    repository.get_result.series[0].series_aka = []
+    repository.get_result.directors[0].director_aka = [
+        SimpleNamespace(
+            id=41,
+            translated_name="  ",
+            language="en-us",
+        ),
+    ]
+
+    result = await service.get_video(video_id=8, locale="en-us")
+
+    assert result.series[0].aka is None
+    assert result.directors[0].aka is None
 
 
 @pytest.mark.asyncio
