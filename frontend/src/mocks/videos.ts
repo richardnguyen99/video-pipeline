@@ -3,8 +3,40 @@ export interface NamedEntity {
   name: string;
 }
 
+export interface ActressImage {
+  id: number;
+  url: string;
+  attribute?: string | null;
+}
+
 export interface ActressRef extends NamedEntity {
   image_url?: string;
+  actress_image?: ActressImage[];
+  ruby?: string | null;
+  dmm_id?: string | null;
+}
+
+const ACTRESS_IMAGE_ATTRIBUTE_PRIORITY = ["default", "avatar"] as const;
+
+export function pickActressImageUrl(
+  items: Array<{ url: string; attribute?: string | null }> | undefined,
+  priority: readonly string[] = ACTRESS_IMAGE_ATTRIBUTE_PRIORITY,
+): string | undefined {
+  if (items == null || items.length === 0) {
+    return undefined;
+  }
+
+  const withUrl = items.filter((item) => item.url !== "");
+
+  for (const preferred of priority) {
+    const match = withUrl.find((item) => item.attribute?.trim().toLowerCase() === preferred);
+
+    if (match != null) {
+      return match.url;
+    }
+  }
+
+  return withUrl[0]?.url;
 }
 
 export interface VideoImageUrl {

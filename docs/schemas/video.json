@@ -262,13 +262,6 @@
                         "null"
                     ]
                 },
-                "image_url": {
-                    "type": [
-                        "string",
-                        "null"
-                    ],
-                    "format": "uri"
-                },
                 "dmm_id": {
                     "type": [
                         "string",

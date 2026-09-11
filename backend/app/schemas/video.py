@@ -38,7 +38,6 @@ class VideoActressDetailResponse(BaseModel):
     id: int
     name: str
     ruby: Optional[str] = None
-    image_url: Optional[str] = None
     dmm_id: Optional[str] = None
     actress_aka: Optional[ActressAkaResponse] = None
     actress_image: list[ActressImageResponse] = Field(default_factory=list)

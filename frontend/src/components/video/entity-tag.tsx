@@ -15,6 +15,10 @@ export interface EntityTagProps {
 }
 
 function buildVideoSearch(filter: EntityVideoFilterKey, id: number) {
+  if (filter === "genre") {
+    return { genre: [id] };
+  }
+
   return { [filter]: id };
 }
 
@@ -31,7 +35,14 @@ export function EntityTag({ entity, filter, to, imageUrl, asListItem = true, cla
     <>
       <span className="size-7 shrink-0 overflow-hidden rounded-full bg-muted">
         {imageUrl ? (
-          <img src={imageUrl} alt="" className="size-full object-cover" loading="lazy" />
+          <img
+            src={imageUrl}
+            alt=""
+            className="size-full object-cover"
+            loading="eager"
+            decoding="async"
+            referrerPolicy="no-referrer"
+          />
         ) : (
           <span className="flex size-full items-center justify-center text-[10px] font-semibold text-muted-foreground">
             {entity.name.slice(0, 1)}

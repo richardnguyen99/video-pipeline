@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 
 import { EntityTag } from "@/components/video/entity-tag";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { normalizeVideoEntities } from "@/mocks/videos";
+import { normalizeVideoEntities, pickActressImageUrl } from "@/mocks/videos";
 import type { ActressRef, NamedEntity, Video } from "@/mocks/videos";
 import { formatReleaseDate } from "@/libs/utils";
 
@@ -34,7 +34,6 @@ function CollapsibleEntityList<T extends NamedEntity>({
 }) {
   const [open, setOpen] = useState(false);
   const needsCollapse = items.length > PREVIEW_COUNT;
-  const preview = items.slice(0, PREVIEW_COUNT);
   const rest = items.slice(PREVIEW_COUNT);
 
   if (items.length === 0) {
@@ -45,12 +44,14 @@ function CollapsibleEntityList<T extends NamedEntity>({
     return <ul className="flex flex-wrap gap-2">{items.map(renderItem)}</ul>;
   }
 
-  const visible = open ? items : preview;
-
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
       <ul className="flex flex-wrap gap-2">
-        {visible.map(renderItem)}
+        {items.map((item, index) => (
+          <span key={item.id} className={open || index < PREVIEW_COUNT ? "contents" : "hidden"}>
+            {renderItem(item)}
+          </span>
+        ))}
         <li className="flex items-center">
           <CollapsibleTrigger
             className={
@@ -124,7 +125,12 @@ export function VideoInfo({ video }: VideoInfoProps) {
           <CollapsibleEntityList
             items={actresses}
             renderItem={(item) => (
-              <EntityTag key={item.id} entity={item} to={`/actresses/${item.id}`} imageUrl={item.image_url} />
+              <EntityTag
+                key={item.id}
+                entity={item}
+                to={`/actresses/${item.id}`}
+                imageUrl={pickActressImageUrl(item.actress_image) ?? item.image_url ?? null}
+              />
             )}
           />
         </InfoRow>
