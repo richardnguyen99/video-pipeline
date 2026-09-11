@@ -2,11 +2,10 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
-import { ActressTag } from "@/components/video/actress-tag";
-import { EntityLink } from "@/components/video/entity-link";
-import { GenreTag } from "@/components/video/genre-tag";
+import { EntityTag } from "@/components/video/entity-tag";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import type { NamedEntity, Video } from "@/mocks/videos";
+import { normalizeVideoEntities } from "@/mocks/videos";
+import type { ActressRef, NamedEntity, Video } from "@/mocks/videos";
 import { formatReleaseDate } from "@/libs/utils";
 
 interface VideoInfoProps {
@@ -24,13 +23,13 @@ function InfoRow({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function CollapsibleEntityList({
+function CollapsibleEntityList<T extends NamedEntity>({
   items,
   renderItem,
   emptyLabel = "—",
 }: {
-  items: NamedEntity[];
-  renderItem: (item: NamedEntity) => ReactNode;
+  items: T[];
+  renderItem: (item: T) => ReactNode;
   emptyLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -81,8 +80,12 @@ function CollapsibleEntityList({
 
 export function VideoInfo({ video }: VideoInfoProps) {
   const code = video.cid ?? video.video_id;
-  const actresses = video.actresses ?? [];
+  const actresses: ActressRef[] = video.actresses ?? [];
   const genres = video.genres ?? [];
+  const makers = normalizeVideoEntities(video.makers, video.maker);
+  const labels = normalizeVideoEntities(video.labels, video.label);
+  const directors = normalizeVideoEntities(video.directors, video.director);
+  const series = normalizeVideoEntities(video.series);
 
   return (
     <section className="mt-8" aria-label="Video information">
@@ -94,37 +97,42 @@ export function VideoInfo({ video }: VideoInfoProps) {
         </InfoRow>
         <InfoRow label="Title">{video.title}</InfoRow>
         <InfoRow label="Maker">
-          {video.maker ? (
-            <EntityLink to={`/makers/${video.maker.id}`} variant="single">
-              {video.maker.name}
-            </EntityLink>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
+          <CollapsibleEntityList
+            items={makers}
+            renderItem={(item) => <EntityTag key={item.id} entity={item} filter="maker" />}
+          />
         </InfoRow>
         <InfoRow label="Label">
-          {video.label ? (
-            <EntityLink to={`/labels/${video.label.id}`} variant="single">
-              {video.label.name}
-            </EntityLink>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
+          <CollapsibleEntityList
+            items={labels}
+            renderItem={(item) => <EntityTag key={item.id} entity={item} filter="label" />}
+          />
         </InfoRow>
         <InfoRow label="Director">
-          {video.director ? (
-            <EntityLink to={`/directors/${video.director.id}`} variant="single">
-              {video.director.name}
-            </EntityLink>
-          ) : (
-            <span className="text-muted-foreground">—</span>
-          )}
+          <CollapsibleEntityList
+            items={directors}
+            renderItem={(item) => <EntityTag key={item.id} entity={item} filter="director" />}
+          />
+        </InfoRow>
+        <InfoRow label="Series">
+          <CollapsibleEntityList
+            items={series}
+            renderItem={(item) => <EntityTag key={item.id} entity={item} filter="series" />}
+          />
         </InfoRow>
         <InfoRow label="Actresses">
-          <CollapsibleEntityList items={actresses} renderItem={(item) => <ActressTag key={item.id} actress={item} />} />
+          <CollapsibleEntityList
+            items={actresses}
+            renderItem={(item) => (
+              <EntityTag key={item.id} entity={item} to={`/actresses/${item.id}`} imageUrl={item.image_url} />
+            )}
+          />
         </InfoRow>
         <InfoRow label="Genres">
-          <CollapsibleEntityList items={genres} renderItem={(item) => <GenreTag key={item.id} genre={item} />} />
+          <CollapsibleEntityList
+            items={genres}
+            renderItem={(item) => <EntityTag key={item.id} entity={item} filter="genre" />}
+          />
         </InfoRow>
       </dl>
     </section>

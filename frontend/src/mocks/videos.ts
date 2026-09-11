@@ -90,12 +90,34 @@ export interface Video {
   likes?: number;
   dislikes?: number;
   comments?: number;
+  makers?: NamedEntity[];
+  labels?: NamedEntity[];
+  directors?: NamedEntity[];
+  series?: NamedEntity[] | NamedEntity | null;
   maker?: NamedEntity | null;
   label?: NamedEntity | null;
   director?: NamedEntity | null;
-  series?: NamedEntity | null;
   actresses?: ActressRef[];
   genres?: NamedEntity[];
+}
+
+export function normalizeVideoEntities(
+  items: NamedEntity[] | NamedEntity | null | undefined,
+  fallback?: NamedEntity | null,
+): NamedEntity[] {
+  if (Array.isArray(items)) {
+    return items;
+  }
+
+  if (items != null) {
+    return [items];
+  }
+
+  if (fallback != null) {
+    return [fallback];
+  }
+
+  return [];
 }
 
 export const mockVideos: Video[] = [
