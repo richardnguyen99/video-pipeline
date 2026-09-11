@@ -28,11 +28,28 @@ export interface ActressImage {
   attribute?: string | null;
 }
 
+export interface ActressAka {
+  id: number;
+  translated_name: string;
+  name?: string;
+}
+
 export interface ActressRef extends NamedEntity {
   image_url?: string;
   actress_image?: ActressImage[];
+  actress_aka?: ActressAka | null;
   ruby?: string | null;
   dmm_id?: string | null;
+}
+
+export function actressDisplayName(actress: ActressRef): string {
+  const translated = actress.actress_aka?.translated_name.trim();
+
+  if (translated) {
+    return translated;
+  }
+
+  return actress.name;
 }
 
 const ACTRESS_IMAGE_ATTRIBUTE_PRIORITY = ["default", "avatar"] as const;

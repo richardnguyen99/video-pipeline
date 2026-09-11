@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 
 import { EntityTag } from "@/components/video/entity-tag";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { normalizeVideoEntities, pickActressImageUrl } from "@/mocks/videos";
+import { actressDisplayName, normalizeVideoEntities, pickActressImageUrl } from "@/mocks/videos";
 import type { ActressRef, NamedEntity, Video } from "@/mocks/videos";
 import { formatReleaseDate } from "@/libs/utils";
 
@@ -127,7 +127,7 @@ export function VideoInfo({ video }: VideoInfoProps) {
             renderItem={(item) => (
               <EntityTag
                 key={item.id}
-                entity={item}
+                entity={{ id: item.id, name: actressDisplayName(item) }}
                 to={`/actresses/${item.id}`}
                 imageUrl={pickActressImageUrl(item.actress_image) ?? item.image_url ?? null}
               />
