@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
+import { catalogEntityDisplayName } from "@/mocks/videos";
 import type { NamedEntity } from "@/mocks/videos";
 import { cn } from "@/libs/utils";
 
@@ -23,6 +24,7 @@ function buildVideoSearch(filter: EntityVideoFilterKey, id: number) {
 }
 
 export function EntityTag({ entity, filter, to, imageUrl, asListItem = true, className }: EntityTagProps) {
+  const displayName = catalogEntityDisplayName(entity);
   const showAvatar = imageUrl !== undefined;
   const linkClassName = cn(
     showAvatar
@@ -35,24 +37,17 @@ export function EntityTag({ entity, filter, to, imageUrl, asListItem = true, cla
     <>
       <span className="size-7 shrink-0 overflow-hidden rounded-full bg-muted">
         {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt=""
-            className="size-full object-cover"
-            loading="eager"
-            decoding="async"
-            referrerPolicy="no-referrer"
-          />
+          <img src={imageUrl} alt="" className="size-full object-cover" loading="eager" decoding="async" />
         ) : (
           <span className="flex size-full items-center justify-center text-[10px] font-semibold text-muted-foreground">
-            {entity.name.slice(0, 1)}
+            {displayName.slice(0, 1)}
           </span>
         )}
       </span>
-      <span className="line-clamp-1">{entity.name}</span>
+      <span className="line-clamp-1">{displayName}</span>
     </>
   ) : (
-    entity.name
+    displayName
   );
 
   const tag =

@@ -1,6 +1,25 @@
+export interface CatalogEntityAka {
+  id: number;
+  translated_name: string;
+  language: string;
+}
+
 export interface NamedEntity {
   id: number;
   name: string;
+  ruby?: string | null;
+  dmm_id?: string | null;
+  aka?: CatalogEntityAka | null;
+}
+
+export function catalogEntityDisplayName(entity: NamedEntity): string {
+  const translated = entity.aka?.translated_name.trim();
+
+  if (translated) {
+    return translated;
+  }
+
+  return entity.name;
 }
 
 export interface ActressImage {

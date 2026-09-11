@@ -100,8 +100,12 @@ export async function fetchVideoList(params: VideoListQueryParams): Promise<Vide
   };
 }
 
-export async function fetchVideoById(videoId: string | number) {
-  return apiFetch<Video>(`/videos/${videoId}`);
+export const DEFAULT_VIDEO_DETAIL_LOCALE = "en-us";
+
+export async function fetchVideoById(videoId: string | number, locale: string = DEFAULT_VIDEO_DETAIL_LOCALE) {
+  return apiFetch<Video>(`/videos/${videoId}`, {
+    searchParams: { locale },
+  });
 }
 
 export function videoListQueryOptions(params: VideoListQueryParams) {
@@ -111,9 +115,9 @@ export function videoListQueryOptions(params: VideoListQueryParams) {
   });
 }
 
-export function videoDetailQueryOptions(videoId: string | number) {
+export function videoDetailQueryOptions(videoId: string | number, locale: string = DEFAULT_VIDEO_DETAIL_LOCALE) {
   return queryOptions({
-    queryKey: videoQueryKeys.detail(videoId),
-    queryFn: () => fetchVideoById(videoId),
+    queryKey: [...videoQueryKeys.detail(videoId), locale] as const,
+    queryFn: () => fetchVideoById(videoId, locale),
   });
 }
