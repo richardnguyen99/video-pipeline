@@ -105,6 +105,12 @@ def _detail_actress_load() -> Any:
 
 
 _DETAIL_OPTIONS: tuple[Any, ...] = (
+    _media_load(
+        Video.video_aka,
+        VideoAka.id,
+        VideoAka.translated_name,
+        VideoAka.language,
+    ),
     _detail_actress_load(),
     _catalog_load_with_aka(
         Video.genres,

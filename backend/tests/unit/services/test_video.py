@@ -390,6 +390,13 @@ async def test_get_video_returns_detail_with_actress_relations(
         makers=[],
         labels=[],
         directors=[],
+        video_aka=[
+            SimpleNamespace(
+                id=50,
+                translated_name="Detail Title EN",
+                language="en-us",
+            ),
+        ],
         video_image_url=[
             SimpleNamespace(
                 id=10,
@@ -410,6 +417,9 @@ async def test_get_video_returns_detail_with_actress_relations(
     assert result.genres[0].aka is not None
     assert result.genres[0].aka.translated_name == "Drama"
     assert result.genres[0].aka.language == "en-us"
+    assert result.video_aka is not None
+    assert result.video_aka.translated_name == "Detail Title EN"
+    assert result.video_aka.language == "en-us"
     assert repository.get_calls == [7]
 
 
@@ -538,10 +548,41 @@ def _detail_row_with_catalog_akas() -> SimpleNamespace:
                 ],
             ),
         ],
+        video_aka=[
+            SimpleNamespace(
+                id=60,
+                translated_name="Group Anal Pyramid EN",
+                language="en-us",
+            ),
+            SimpleNamespace(
+                id=61,
+                translated_name="Group Anal Pyramid ZH",
+                language="zh",
+            ),
+        ],
         video_image_url=[],
         video_sample_image_url=[],
         video_sample_movie_url=[],
     )
+
+
+@pytest.mark.asyncio
+async def test_get_video_video_aka_matches_requested_locale(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """video_aka follows the request locale with en-us fallback."""
+
+    repository.get_result = _detail_row_with_catalog_akas()
+
+    zh_result = await service.get_video(video_id=8, locale="zh")
+    assert zh_result.video_aka is not None
+    assert zh_result.video_aka.translated_name == "Group Anal Pyramid ZH"
+    assert zh_result.video_aka.language == "zh"
+
+    default_result = await service.get_video(video_id=8)
+    assert default_result.video_aka is not None
+    assert default_result.video_aka.language == "en-us"
 
 
 @pytest.mark.asyncio

@@ -158,6 +158,16 @@ class VideoCommentResponse(BaseModel):
     replies: list["VideoCommentResponse"] = Field(default_factory=list)
 
 
+class VideoAkaResponse(BaseModel):
+    """Locale-specific alternative title for a video."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    translated_name: str
+    language: str
+
+
 class VideoDetailResponse(BaseModel):
     """Full video payload including detailed actress relations."""
 
@@ -174,6 +184,7 @@ class VideoDetailResponse(BaseModel):
     floor_code: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    video_aka: Optional[VideoAkaResponse] = None
     actresses: list[VideoActressDetailResponse] = Field(default_factory=list)
     genres: list[VideoCatalogEntityResponse] = Field(default_factory=list)
     series: list[VideoCatalogEntityResponse] = Field(default_factory=list)

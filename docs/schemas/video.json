@@ -22,6 +22,7 @@
         "makers",
         "labels",
         "directors",
+        "video_aka",
         "video_image_url",
         "video_sample_image_url",
         "video_sample_movie_url",
@@ -43,6 +44,17 @@
                 "string",
                 "null"
             ]
+        },
+        "video_aka": {
+            "oneOf": [
+                {
+                    "$ref": "#/$defs/video_aka"
+                },
+                {
+                    "type": "null"
+                }
+            ],
+            "description": "Locale-matched alternative title for the request locale."
         },
         "cid": {
             "type": [
@@ -179,6 +191,27 @@
     "additionalProperties": false,
     "$defs": {
         "catalog_entity_aka": {
+            "type": "object",
+            "required": [
+                "id",
+                "translated_name",
+                "language"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "translated_name": {
+                    "type": "string"
+                },
+                "language": {
+                    "type": "string",
+                    "description": "Locale key such as en-us, zh, vi, ko."
+                }
+            },
+            "additionalProperties": false
+        },
+        "video_aka": {
             "type": "object",
             "required": [
                 "id",

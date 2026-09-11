@@ -12,6 +12,7 @@ from app.models.video import Video
 from app.repositories.video import VideoRepository
 from app.schemas.video import (
     CommentUserResponse,
+    VideoAkaResponse,
     VideoCatalogEntityAkaResponse,
     VideoCatalogEntityResponse,
     VideoCommentResponse,
@@ -177,11 +178,11 @@ class VideoService:
         return locale.strip().lower()
 
     @staticmethod
-    def _pick_catalog_aka(
+    def _pick_aka_row(
         akas: list[object],
         locale_key: str,
-    ) -> Optional[VideoCatalogEntityAkaResponse]:
-        """Pick the aka row matching ``locale_key``, then ``en-us`` / ``en``."""
+    ) -> Optional[object]:
+        """Pick the aka ORM row matching ``locale_key``, then ``en-us`` / ``en``."""
 
         if not akas:
             return None
@@ -215,13 +216,47 @@ class VideoService:
             if translated == "":
                 continue
 
-            return VideoCatalogEntityAkaResponse(
-                id=getattr(match, "id"),
-                translated_name=translated,
-                language=getattr(match, "language"),
-            )
+            return match
 
         return None
+
+    @classmethod
+    def _pick_catalog_aka(
+        cls,
+        akas: list[object],
+        locale_key: str,
+    ) -> Optional[VideoCatalogEntityAkaResponse]:
+        """Pick the catalog aka matching ``locale_key``, then ``en-us`` / ``en``."""
+
+        match = cls._pick_aka_row(akas, locale_key)
+
+        if match is None:
+            return None
+
+        return VideoCatalogEntityAkaResponse(
+            id=getattr(match, "id"),
+            translated_name=(getattr(match, "translated_name") or "").strip(),
+            language=getattr(match, "language"),
+        )
+
+    @classmethod
+    def _pick_video_aka(
+        cls,
+        akas: list[object],
+        locale_key: str,
+    ) -> Optional[VideoAkaResponse]:
+        """Pick the video title aka matching ``locale_key``, then ``en-us`` / ``en``."""
+
+        match = cls._pick_aka_row(akas, locale_key)
+
+        if match is None:
+            return None
+
+        return VideoAkaResponse(
+            id=getattr(match, "id"),
+            translated_name=(getattr(match, "translated_name") or "").strip(),
+            language=getattr(match, "language"),
+        )
 
     def _map_catalog_entity(
         self,
@@ -282,6 +317,10 @@ class VideoService:
                 "floor_code": row.floor_code,
                 "created_at": row.created_at,
                 "updated_at": row.updated_at,
+                "video_aka": self._pick_video_aka(
+                    self._loaded_collection(row, "video_aka"),
+                    locale_key,
+                ),
                 "actresses": row.actresses,
                 "genres": self._map_catalog_entities(
                     list(row.genres or []),
