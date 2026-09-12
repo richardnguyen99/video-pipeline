@@ -137,10 +137,17 @@ export interface VideoSampleMovieUrl {
   type?: string | null;
 }
 
+export interface VideoAka {
+  id: number;
+  translated_name: string;
+  language: string;
+}
+
 export interface Video {
   id: number;
   video_id: string;
   title: string;
+  video_aka?: VideoAka | null;
   cid?: string;
   duration?: number;
   release_date?: string;
@@ -167,6 +174,16 @@ export interface Video {
   director?: NamedEntity | null;
   actresses?: ActressRef[];
   genres?: NamedEntity[];
+}
+
+export function videoDisplayTitle(video: Pick<Video, "title" | "video_aka">): string {
+  const translated = video.video_aka?.translated_name.trim();
+
+  if (translated) {
+    return translated;
+  }
+
+  return video.title;
 }
 
 export function normalizeVideoEntities(

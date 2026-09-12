@@ -1,4 +1,5 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { videoDisplayTitle } from "@/mocks/videos";
 import type { Video } from "@/mocks/videos";
 import { formatCompactNumber, formatRelativeDate } from "@/libs/utils";
 import { VideoToolbarActions } from "@/components/video/video-toolbar-action";
@@ -12,7 +13,7 @@ export function VideoMetadata({ video, views = 124_800 }: VideoMetadataProps) {
   return (
     <TooltipProvider>
       <div className="space-y-3">
-        <h1 className="text-xl font-bold leading-tight sm:text-2xl lg:text-3xl">{video.title}</h1>
+        <h1 className="text-xl font-bold leading-tight sm:text-2xl lg:text-3xl">{videoDisplayTitle(video)}</h1>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">

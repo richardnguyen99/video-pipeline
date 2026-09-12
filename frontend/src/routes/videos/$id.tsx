@@ -10,7 +10,7 @@ import { VideoReviewImages } from "@/layouts/single-video/video-review-images";
 import { VideoSidebar } from "@/layouts/single-video/video-sidebar";
 import { ApiError } from "@/libs/api-client";
 import { getMockComments } from "@/mocks/comments";
-import { getMockRelatedVideos, pickVideoImageUrl } from "@/mocks/videos";
+import { getMockRelatedVideos, pickVideoImageUrl, videoDisplayTitle } from "@/mocks/videos";
 import { videoDetailQueryOptions } from "@/queries/videos";
 
 export const Route = createFileRoute("/videos/$id")({
@@ -55,7 +55,7 @@ function VideoPage() {
     <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <div className="min-w-0 flex-1">
-          <VideoPlayer src={streamSrc} poster={poster} title={video.title} />
+          <VideoPlayer src={streamSrc} poster={poster} title={videoDisplayTitle(video)} />
           <div className="mt-5 sm:mt-6">
             <VideoMetadata video={video} />
           </div>
