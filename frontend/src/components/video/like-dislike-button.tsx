@@ -7,9 +7,11 @@ import { VideoActionButton } from "./video-action-button";
 
 interface LikeDislikeButtonsProps {
   isAuthenticated: boolean;
+  likes?: number;
+  dislikes?: number;
 }
 
-export function LikeDislikeButtons({ isAuthenticated }: LikeDislikeButtonsProps) {
+export function LikeDislikeButtons({ isAuthenticated, likes = 0, dislikes: _dislikes = 0 }: LikeDislikeButtonsProps) {
   const [liked, setLiked] = useState<"like" | "dislike" | null>(null);
 
   const isLiked = liked === "like";
@@ -41,7 +43,7 @@ export function LikeDislikeButtons({ isAuthenticated }: LikeDislikeButtonsProps)
         onClick={handleLike}
       >
         <ThumbsUp className="size-4" fill={isLiked ? "currentColor" : "none"} strokeWidth={isLiked ? 0 : 2} />
-        <span className="hidden sm:inline">Like</span>
+        <span className="hidden sm:inline">{likes > 0 ? likes.toLocaleString() : "Like"}</span>
       </VideoActionButton>
 
       <div className="w-px shrink-0 self-stretch bg-border" aria-hidden />

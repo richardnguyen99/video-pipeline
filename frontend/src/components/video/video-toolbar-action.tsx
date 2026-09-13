@@ -9,7 +9,12 @@ import { ShareButton } from "./share-button";
 
 const IS_AUTHENTICATED = true;
 
-export function VideoToolbarActions() {
+interface VideoToolbarActionsProps {
+  likes?: number;
+  dislikes?: number;
+}
+
+export function VideoToolbarActions({ likes = 0, dislikes = 0 }: VideoToolbarActionsProps) {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportStep, setReportStep] = useState<1 | 2>(1);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
@@ -23,7 +28,7 @@ export function VideoToolbarActions() {
 
   return (
     <div className="flex items-center gap-2">
-      <LikeDislikeButtons isAuthenticated={IS_AUTHENTICATED} />
+      <LikeDislikeButtons isAuthenticated={IS_AUTHENTICATED} likes={likes} dislikes={dislikes} />
 
       <div className="hidden items-center gap-2 md:flex">
         <PlaylistSaveButton isAuthenticated={IS_AUTHENTICATED} />

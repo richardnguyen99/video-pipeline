@@ -1,15 +1,16 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { VideoToolbarActions } from "@/components/video/video-toolbar-action";
 import { videoDisplayTitle } from "@/mocks/videos";
 import type { Video } from "@/mocks/videos";
 import { formatCompactNumber, formatRelativeDate } from "@/libs/utils";
-import { VideoToolbarActions } from "@/components/video/video-toolbar-action";
 
 interface VideoMetadataProps {
   video: Video;
-  views?: number;
 }
 
-export function VideoMetadata({ video, views = 124_800 }: VideoMetadataProps) {
+export function VideoMetadata({ video }: VideoMetadataProps) {
+  const views = video.views ?? 0;
+
   return (
     <TooltipProvider>
       <div className="space-y-3">
@@ -22,7 +23,7 @@ export function VideoMetadata({ video, views = 124_800 }: VideoMetadataProps) {
             {formatRelativeDate(video.release_date)}
           </p>
 
-          <VideoToolbarActions />
+          <VideoToolbarActions likes={video.likes ?? 0} dislikes={video.dislikes ?? 0} />
         </div>
       </div>
     </TooltipProvider>

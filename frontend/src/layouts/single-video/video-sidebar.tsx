@@ -19,9 +19,9 @@ export function VideoSidebar({ videos }: VideoSidebarProps) {
           <VideoSidebarCard
             key={video.video_id}
             video={video}
-            views={8_000 + index * 1_730}
-            likes={200 + index * 97}
-            comments={12 + index * 7}
+            views={video.views ?? 0}
+            likes={video.likes ?? 0}
+            comments={typeof video.comments === "number" ? video.comments : (video.comments?.length ?? 0)}
             badge={index === 0 ? "recommended" : index < 3 ? "new" : undefined}
           />
         ))}

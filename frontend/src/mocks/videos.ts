@@ -1,3 +1,5 @@
+import type { VideoComment } from "@/mocks/comments";
+
 export interface CatalogEntityAka {
   id: number;
   translated_name: string;
@@ -164,7 +166,8 @@ export interface Video {
   views?: number;
   likes?: number;
   dislikes?: number;
-  comments?: number;
+  /** Detail payloads: comment tree. List payloads: aggregate count. */
+  comments?: number | VideoComment[];
   makers?: NamedEntity[];
   labels?: NamedEntity[];
   directors?: NamedEntity[];
@@ -174,6 +177,18 @@ export interface Video {
   director?: NamedEntity | null;
   actresses?: ActressRef[];
   genres?: NamedEntity[];
+}
+
+export function videoCommentList(video: Pick<Video, "comments">): VideoComment[] {
+  return Array.isArray(video.comments) ? video.comments : [];
+}
+
+export function videoCommentCount(video: Pick<Video, "comments">): number {
+  if (Array.isArray(video.comments)) {
+    return video.comments.length;
+  }
+
+  return video.comments ?? 0;
 }
 
 export function videoDisplayTitle(video: Pick<Video, "title" | "video_aka">): string {
