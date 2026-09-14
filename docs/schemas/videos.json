@@ -1,0 +1,171 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "videos.json",
+    "title": "VideoListResponse",
+    "description": "Paginated video list returned by the GET /api/v1/videos endpoint.",
+    "type": "object",
+    "required": [
+        "items",
+        "total",
+        "limit",
+        "offset"
+    ],
+    "properties": {
+        "items": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/video_item"
+            }
+        },
+        "total": {
+            "type": "integer",
+            "minimum": 0
+        },
+        "limit": {
+            "type": "integer",
+            "minimum": 1
+        },
+        "offset": {
+            "type": "integer",
+            "minimum": 0
+        }
+    },
+    "additionalProperties": false,
+    "$defs": {
+        "video_item": {
+            "description": "Summary video record used in list results (VideoResponse).",
+            "type": "object",
+            "required": [
+                "id",
+                "video_id",
+                "title",
+                "cid",
+                "duration",
+                "release_date",
+                "jancode",
+                "maker_product",
+                "floor_code",
+                "created_at",
+                "updated_at",
+                "views",
+                "likes",
+                "dislikes",
+                "comments",
+                "video_image_url"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "video_id": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "cid": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "duration": {
+                    "type": [
+                        "integer",
+                        "null"
+                    ],
+                    "description": "Duration in minutes"
+                },
+                "release_date": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "format": "date-time"
+                },
+                "jancode": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "maker_product": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "floor_code": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "created_at": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "format": "date-time"
+                },
+                "updated_at": {
+                    "type": [
+                        "string",
+                        "null"
+                    ],
+                    "format": "date-time"
+                },
+                "views": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "likes": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "dislikes": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "comments": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Total comment count"
+                },
+                "video_image_url": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/media_url"
+                    }
+                }
+            },
+            "additionalProperties": false
+        },
+        "media_url": {
+            "type": "object",
+            "required": [
+                "id",
+                "url"
+            ],
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "type": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}

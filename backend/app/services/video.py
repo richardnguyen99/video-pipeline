@@ -471,6 +471,55 @@ class VideoService:
             offset=safe_offset,
         )
 
+    async def list_recommended_videos(
+        self,
+        video_id: int,
+        *,
+        limit: int = 12,
+    ) -> VideoListResponse:
+        """Return ranked recommendations for a video.
+
+        Args:
+            video_id: Source ``Video.id`` primary key.
+            limit: Maximum number of items (clamped to 1–50).
+
+        Returns:
+            A ``VideoListResponse`` with the same item shape as list videos.
+
+        Raises:
+            HTTPException: When no video exists for ``video_id``.
+        """
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        safe_limit = max(1, min(limit, 50))
+        rows = await self._repository.list_recommended_for_video(
+            video_id,
+            limit=safe_limit,
+        )
+        engagement = await self._repository.count_engagement_for_videos(
+            [row.id for row in rows],
+        )
+        empty_counts = VideoEngagementCounts()
+        items = [
+            self._to_video_response(
+                row,
+                engagement.get(row.id, empty_counts),
+            )
+            for row in rows
+        ]
+
+        return VideoListResponse(
+            items=items,
+            total=len(items),
+            limit=safe_limit,
+            offset=0,
+        )
+
     async def get_video(
         self,
         video_id: int,

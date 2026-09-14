@@ -5,15 +5,14 @@
 import asyncio
 from typing import Any, Optional, Type
 
-from sqlalchemy import and_, exists, func, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy import select as sa_select
-from sqlalchemy.orm import load_only, selectinload
+from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
-from app.models.actress import Actress, ActressAka, ActressImage
+from app.models.actress import Actress, ActressAka
 from app.models.associations import (
     t_video_actress,
-    t_video_director,
     t_video_genre,
     t_video_label,
     t_video_maker,
@@ -28,426 +27,22 @@ from app.models.maker import Maker, MakerAka
 from app.models.series import Series, SeriesAka
 from app.models.video import (
     Video,
-    VideoAka,
     VideoImageUrl,
     VideoM3u8,
-    VideoSampleImageUrl,
-    VideoSampleMovieUrl,
 )
 from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
 from app.schemas.video import VideoEngagementCounts
-from app.schemas.video_filters import (
-    FeaturesCountRange,
-    VideoListFilters,
-    VideoSort,
+from app.schemas.video_filters import VideoListFilters
+from app.utils import relationship_attr
+from app.utils.common import media_load, search_terms
+from app.utils.video import (
+    DETAIL_OPTIONS,
+    apply_filters,
+    apply_search_with_catalog_ids,
+    apply_sort,
 )
-from app.utils import _col, _relationship_attr
-
-
-def _catalog_load(relationship: Any, *columns: Any) -> Any:
-    """Select-in load a catalog M2M with only public response columns."""
-
-    return selectinload(_relationship_attr(relationship)).load_only(
-        *(_col(column) for column in columns),
-    )
-
-
-def _catalog_load_with_aka(
-    relationship: Any,
-    aka_relationship: Any,
-    aka_model: Type[Any],
-    *columns: Any,
-) -> Any:
-    """Select-in load a catalog M2M including locale aka rows."""
-
-    return selectinload(_relationship_attr(relationship)).options(
-        load_only(*(_col(column) for column in columns)),
-        selectinload(_relationship_attr(aka_relationship)).load_only(
-            _col(aka_model.id),
-            _col(aka_model.translated_name),
-            _col(aka_model.language),
-        ),
-    )
-
-
-def _media_load(relationship: Any, *columns: Any) -> Any:
-    """Select-in load a media 1:N with only public response columns."""
-
-    return selectinload(_relationship_attr(relationship)).load_only(
-        *(_col(column) for column in columns),
-    )
-
-
-def _detail_actress_load() -> Any:
-    """Detail endpoints: one actress select-in, then nested aka/images."""
-
-    return selectinload(_relationship_attr(Video.actresses)).options(
-        load_only(
-            _col(Actress.id),
-            _col(Actress.name),
-            _col(Actress.ruby),
-            _col(Actress.image_url),
-            _col(Actress.dmm_id),
-        ),
-        selectinload(_relationship_attr(Actress.actress_aka)).load_only(
-            _col(ActressAka.id),
-            _col(ActressAka.name),
-            _col(ActressAka.translated_name),
-        ),
-        selectinload(_relationship_attr(Actress.actress_image)).load_only(
-            _col(ActressImage.id),
-            _col(ActressImage.url),
-            _col(ActressImage.attribute),
-        ),
-    )
-
-
-_DETAIL_OPTIONS: tuple[Any, ...] = (
-    _media_load(
-        Video.video_aka,
-        VideoAka.id,
-        VideoAka.translated_name,
-        VideoAka.language,
-    ),
-    _detail_actress_load(),
-    _catalog_load_with_aka(
-        Video.genres,
-        Genre.genre_aka,
-        GenreAka,
-        Genre.id,
-        Genre.name,
-        Genre.ruby,
-        Genre.dmm_id,
-    ),
-    _catalog_load_with_aka(
-        Video.series,
-        Series.series_aka,
-        SeriesAka,
-        Series.id,
-        Series.name,
-        Series.ruby,
-        Series.dmm_id,
-    ),
-    _catalog_load_with_aka(
-        Video.makers,
-        Maker.maker_aka,
-        MakerAka,
-        Maker.id,
-        Maker.name,
-        Maker.ruby,
-        Maker.dmm_id,
-    ),
-    _catalog_load_with_aka(
-        Video.labels,
-        Label.label_aka,
-        LabelAka,
-        Label.id,
-        Label.name,
-        Label.ruby,
-        Label.dmm_id,
-    ),
-    _catalog_load_with_aka(
-        Video.directors,
-        Director.director_aka,
-        DirectorAka,
-        Director.id,
-        Director.name,
-        Director.ruby,
-        Director.dmm_id,
-    ),
-    _media_load(
-        Video.video_image_url,
-        VideoImageUrl.id,
-        VideoImageUrl.url,
-        VideoImageUrl.type,
-    ),
-    _media_load(
-        Video.video_sample_image_url,
-        VideoSampleImageUrl.id,
-        VideoSampleImageUrl.url,
-        VideoSampleImageUrl.type,
-    ),
-    _media_load(
-        Video.video_sample_movie_url,
-        VideoSampleMovieUrl.id,
-        VideoSampleMovieUrl.url,
-        VideoSampleMovieUrl.type,
-    ),
-)
-
-
-def _exists_link(table: Any, fk_ids: list[int]) -> Any:
-    """EXISTS subquery: video linked to any of the given catalog ids."""
-
-    return exists(
-        sa_select(1)
-        .select_from(table)
-        .where(
-            table.c.video_id == Video.id,
-            table.c.fk_id.in_(fk_ids),
-        ),
-    )
-
-
-def _exists_single(table: Any, fk_id: int) -> Any:
-    """EXISTS subquery: video linked to one catalog id."""
-
-    return exists(
-        sa_select(1)
-        .select_from(table)
-        .where(
-            table.c.video_id == Video.id,
-            table.c.fk_id == fk_id,
-        ),
-    )
-
-
-def _actress_count_subquery() -> Any:
-    """Correlated count of featured actresses for a video."""
-
-    return (
-        sa_select(func.count())
-        .select_from(t_video_actress)
-        .where(t_video_actress.c.video_id == Video.id)
-        .correlate(Video)
-        .scalar_subquery()
-    )
-
-
-def _like_count_subquery() -> Any:
-    """Correlated like count for a video (``is_like is True``)."""
-
-    return (
-        sa_select(func.count())
-        .select_from(VideoReaction)
-        .where(
-            col(VideoReaction.video_id) == Video.id,
-            col(VideoReaction.is_like).is_(True),
-        )
-        .correlate(Video)
-        .scalar_subquery()
-    )
-
-
-def _search_terms(raw: str) -> list[str]:
-    """Split ``q`` on ``+`` and whitespace into non-empty terms."""
-
-    parts: list[str] = []
-
-    for chunk in raw.replace("+", " ").split():
-        if chunk:
-            parts.append(chunk)
-
-    return parts
-
-
-def _term_video_predicate(term: str):
-    """Match one term on video_id, title, or video aka (index-friendly)."""
-
-    pattern = f"%{term}%"
-
-    aka_match = exists(
-        sa_select(1)
-        .select_from(VideoAka)
-        .where(
-            col(VideoAka.fk_id) == col(Video.id),
-            col(VideoAka.translated_name).ilike(pattern),
-        ),
-    )
-
-    return or_(
-        col(Video.video_id).ilike(pattern),
-        col(Video.title).ilike(pattern),
-        aka_match,
-    )
-
-
-def _catalog_ids_predicate(
-    link_table: Any,
-    entity_ids: list[int],
-) -> Any:
-    """Video is linked to any of the pre-resolved catalog ids."""
-
-    if not entity_ids:
-        return None
-
-    return exists(
-        sa_select(1)
-        .select_from(link_table)
-        .where(
-            link_table.c.video_id == col(Video.id),
-            link_table.c.fk_id.in_(entity_ids),
-        ),
-    )
-
-
-def _apply_search_with_catalog_ids(
-    statement: Any,
-    filters: VideoListFilters,
-    catalog_by_term: list[dict[str, list[int]]],
-) -> Any:
-    """AND each term: video fields OR pre-resolved catalog id links.
-
-    Catalog ids are resolved in one batch query per entity type so the
-    main list query avoids nested correlated EXISTS on name/aka tables.
-    """
-
-    if filters.q is None or not filters.q.strip():
-        return statement
-
-    terms = _search_terms(filters.q)
-
-    for term, catalog_ids in zip(terms, catalog_by_term, strict=True):
-        predicates: list[Any] = [_term_video_predicate(term)]
-
-        for link_table, key in (
-            (t_video_actress, "actress"),
-            (t_video_genre, "genre"),
-            (t_video_maker, "maker"),
-            (t_video_label, "label"),
-            (t_video_series, "series"),
-            (t_video_director, "director"),
-        ):
-            pred = _catalog_ids_predicate(link_table, catalog_ids.get(key, []))
-
-            if pred is not None:
-                predicates.append(pred)
-
-        statement = statement.where(or_(*predicates))
-
-    return statement
-
-
-def _term_video_relevance(term: str) -> Any:
-    """Trigram similarity on video fields only (cheap rank key)."""
-
-    lowered = term.lower()
-
-    return func.greatest(
-        func.similarity(func.lower(col(Video.video_id)), lowered),
-        func.similarity(
-            func.lower(func.coalesce(col(Video.title), "")),
-            lowered,
-        ),
-    )
-
-
-def _video_relevance_expr(raw_query: str) -> Any:
-    """Sum per-term video-field relevance for multi-term ``q``."""
-
-    terms = _search_terms(raw_query)
-
-    if not terms:
-        return col(Video.id) * 0
-
-    score = _term_video_relevance(terms[0])
-
-    for term in terms[1:]:
-        score = score + _term_video_relevance(term)
-
-    return score
-
-
-def _apply_filters(statement: Any, filters: VideoListFilters) -> Any:
-    """Attach WHERE clauses for discover filters (OR within multi-id lists)."""
-
-    if filters.actress:
-        statement = statement.where(
-            _exists_link(t_video_actress, filters.actress),
-        )
-
-    if filters.genre:
-        statement = statement.where(
-            _exists_link(t_video_genre, filters.genre),
-        )
-
-    if filters.maker is not None:
-        statement = statement.where(
-            _exists_single(t_video_maker, filters.maker),
-        )
-
-    if filters.label is not None:
-        statement = statement.where(
-            _exists_single(t_video_label, filters.label),
-        )
-
-    if filters.director is not None:
-        statement = statement.where(
-            _exists_single(t_video_director, filters.director),
-        )
-
-    if filters.series is not None:
-        statement = statement.where(
-            _exists_single(t_video_series, filters.series),
-        )
-
-    if filters.features_cnt is not None:
-        statement = _apply_features_cnt(statement, filters.features_cnt)
-
-    return statement
-
-
-def _apply_features_cnt(
-    statement: Any,
-    range_: FeaturesCountRange,
-) -> Any:
-    """Filter by number of featured actresses."""
-
-    count_expr = _actress_count_subquery()
-
-    if range_.max is None:
-        return statement.where(count_expr >= range_.min)
-
-    if range_.min == range_.max:
-        return statement.where(count_expr == range_.min)
-
-    return statement.where(
-        count_expr >= range_.min,
-        count_expr <= range_.max,
-    )
-
-
-def _apply_sort(
-    statement: Any,
-    sort: VideoSort,
-    filters: Optional[VideoListFilters] = None,
-) -> Any:
-    """Apply ORDER BY matching frontend discover sort keys.
-
-    ``views`` has no dedicated column yet; it falls back to engagement
-    via like count then release date (same secondary keys as trending).
-    """
-
-    like_count = _like_count_subquery()
-    release = col(Video.release_date).desc().nulls_last()
-    video_pk = col(Video.id).desc()
-
-    if sort == VideoSort.LATEST:
-        return statement.order_by(release, video_pk)
-
-    if sort == VideoSort.ID:
-        return statement.order_by(col(Video.id).asc())
-
-    if sort == VideoSort.RANK:
-        if filters is not None and filters.q and filters.q.strip():
-            score = _video_relevance_expr(filters.q)
-
-            return statement.order_by(score.desc(), col(Video.id).asc())
-
-        return statement.order_by(release, video_pk)
-
-    if sort in {
-        VideoSort.LIKES,
-        VideoSort.VIEWS,
-        VideoSort.TRENDING_WEEK,
-        VideoSort.TRENDING_MONTH,
-        VideoSort.TRENDING_ALL,
-    }:
-        return statement.order_by(like_count.desc(), release, video_pk)
-
-    return statement.order_by(release, video_pk)
 
 
 class VideoRepository(BaseRepository):
@@ -651,17 +246,17 @@ class VideoRepository(BaseRepository):
         catalog_by_term: list[dict[str, list[int]]] | None = None
 
         if resolved.q and resolved.q.strip():
-            terms = _search_terms(resolved.q)
+            terms = search_terms(resolved.q)
             catalog_by_term = await self._resolve_catalog_ids_for_terms(
                 terms,
                 resolved.locale,
             )
 
         def _with_search(stmt: Any) -> Any:
-            stmt = _apply_filters(stmt, resolved)
+            stmt = apply_filters(stmt, resolved)
 
             if catalog_by_term is not None:
-                stmt = _apply_search_with_catalog_ids(
+                stmt = apply_search_with_catalog_ids(
                     stmt,
                     resolved,
                     catalog_by_term,
@@ -674,13 +269,13 @@ class VideoRepository(BaseRepository):
         )
         total = int((await self.session.exec(count_statement)).one())
 
-        page_statement = _apply_sort(
+        page_statement = apply_sort(
             _with_search(select(Video)),
             resolved.sort,
             resolved,
         )
         page_statement = page_statement.options(
-            _media_load(
+            media_load(
                 Video.video_image_url,
                 VideoImageUrl.id,
                 VideoImageUrl.url,
@@ -712,23 +307,23 @@ class VideoRepository(BaseRepository):
 
         resolved = filters or VideoListFilters()
         statement = select(Video)
-        statement = _apply_filters(statement, resolved)
+        statement = apply_filters(statement, resolved)
 
         if resolved.q and resolved.q.strip():
-            terms = _search_terms(resolved.q)
+            terms = search_terms(resolved.q)
             catalog_by_term = await self._resolve_catalog_ids_for_terms(
                 terms,
                 resolved.locale,
             )
-            statement = _apply_search_with_catalog_ids(
+            statement = apply_search_with_catalog_ids(
                 statement,
                 resolved,
                 catalog_by_term,
             )
 
-        statement = _apply_sort(statement, resolved.sort, resolved)
+        statement = apply_sort(statement, resolved.sort, resolved)
         statement = statement.options(
-            _media_load(
+            media_load(
                 Video.video_image_url,
                 VideoImageUrl.id,
                 VideoImageUrl.url,
@@ -749,15 +344,15 @@ class VideoRepository(BaseRepository):
 
         resolved = filters or VideoListFilters()
         statement = select(func.count()).select_from(Video)
-        statement = _apply_filters(statement, resolved)
+        statement = apply_filters(statement, resolved)
 
         if resolved.q and resolved.q.strip():
-            terms = _search_terms(resolved.q)
+            terms = search_terms(resolved.q)
             catalog_by_term = await self._resolve_catalog_ids_for_terms(
                 terms,
                 resolved.locale,
             )
-            statement = _apply_search_with_catalog_ids(
+            statement = apply_search_with_catalog_ids(
                 statement,
                 resolved,
                 catalog_by_term,
@@ -781,11 +376,128 @@ class VideoRepository(BaseRepository):
         statement = (
             select(Video)
             .where(col(Video.id) == video_id)
-            .options(*_DETAIL_OPTIONS)
+            .options(*DETAIL_OPTIONS)
         )
         result = await self.session.exec(statement)
 
         return result.first()
+
+    async def exists_by_id(self, video_id: int) -> bool:
+        """Return whether a video primary key exists."""
+
+        statement = select(col(Video.id)).where(col(Video.id) == video_id)
+        result = await self.session.exec(statement)
+
+        return result.first() is not None
+
+    async def list_recommended_for_video(
+        self,
+        video_id: int,
+        *,
+        limit: int = 12,
+    ) -> list[Video]:
+        """Return videos ranked by similarity to ``video_id``.
+
+        Ranking priority (highest first):
+        shared actresses, featured-actress-count proximity, shared genres,
+        shared series, shared labels, shared makers.
+
+        Args:
+            video_id: Source ``Video.id`` primary key.
+            limit: Maximum number of recommendations to return.
+
+        Returns:
+            Ordered ``Video`` rows with ``video_image_url`` loaded.
+        """
+
+        safe_limit = max(1, min(limit, 50))
+
+        async def _ids(table: Any) -> list[int]:
+            statement = select(table.c.fk_id).where(
+                table.c.video_id == video_id
+            )
+            rows = (await self.session.exec(statement)).all()
+
+            return [int(row) for row in rows]
+
+        actress_ids = await _ids(t_video_actress)
+        genre_ids = await _ids(t_video_genre)
+        series_ids = await _ids(t_video_series)
+        label_ids = await _ids(t_video_label)
+        maker_ids = await _ids(t_video_maker)
+        source_actress_count = len(actress_ids)
+
+        if not any((actress_ids, genre_ids, series_ids, label_ids, maker_ids)):
+            return []
+
+        def _shared_count(table: Any, seed_ids: list[int]) -> Any:
+            if not seed_ids:
+                return sa_select(func.coalesce(0, 0)).scalar_subquery()
+
+            return (
+                sa_select(func.count())
+                .select_from(table)
+                .where(
+                    table.c.video_id == col(Video.id),
+                    table.c.fk_id.in_(seed_ids),
+                )
+                .correlate(Video)
+                .scalar_subquery()
+            )
+
+        shared_actress = _shared_count(t_video_actress, actress_ids)
+        shared_genre = _shared_count(t_video_genre, genre_ids)
+        shared_series = _shared_count(t_video_series, series_ids)
+        shared_label = _shared_count(t_video_label, label_ids)
+        shared_maker = _shared_count(t_video_maker, maker_ids)
+
+        candidate_actress_count = (
+            sa_select(func.count())
+            .select_from(t_video_actress)
+            .where(t_video_actress.c.video_id == col(Video.id))
+            .correlate(Video)
+            .scalar_subquery()
+        )
+        features_proximity = -func.abs(
+            candidate_actress_count - source_actress_count,
+        )
+
+        overlap_predicate = or_(
+            shared_actress > 0,
+            shared_genre > 0,
+            shared_series > 0,
+            shared_label > 0,
+            shared_maker > 0,
+        )
+
+        statement = (
+            select(Video)
+            .where(
+                col(Video.id) != video_id,
+                overlap_predicate,
+            )
+            .order_by(
+                shared_actress.desc(),
+                features_proximity.desc(),
+                shared_genre.desc(),
+                shared_series.desc(),
+                shared_label.desc(),
+                shared_maker.desc(),
+                col(Video.id).desc(),
+            )
+            .options(
+                media_load(
+                    Video.video_image_url,
+                    VideoImageUrl.id,
+                    VideoImageUrl.url,
+                    VideoImageUrl.type,
+                ),
+            )
+            .limit(safe_limit)
+        )
+        result = await self.session.exec(statement)
+
+        return list(result.all())
 
     async def count_engagement_for_videos(
         self,
@@ -890,7 +602,7 @@ class VideoRepository(BaseRepository):
                 col(Comment.video_id) == video_id,
                 col(Comment.is_deleted).is_(False),
             )
-            .options(selectinload(_relationship_attr(Comment.user)))
+            .options(selectinload(relationship_attr(Comment.user)))
             .order_by(col(Comment.created_at).asc())
         )
         result = await self.session.exec(statement)

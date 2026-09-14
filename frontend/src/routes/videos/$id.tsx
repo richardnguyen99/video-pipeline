@@ -9,9 +9,12 @@ import { VideoMetadata } from "@/layouts/single-video/video-metadata";
 import { VideoReviewImages } from "@/layouts/single-video/video-review-images";
 import { VideoSidebar } from "@/layouts/single-video/video-sidebar";
 import { ApiError } from "@/libs/api-client";
-import { getMockComments } from "@/mocks/comments";
-import { getMockRelatedVideos, pickVideoImageUrl, videoDisplayTitle } from "@/mocks/videos";
-import { videoDetailQueryOptions } from "@/queries/videos";
+import { pickVideoImageUrl, videoCommentList, videoDisplayTitle } from "@/mocks/videos";
+import {
+  DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
+  videoDetailQueryOptions,
+  videoRecommendationsQueryOptions,
+} from "@/queries/videos";
 
 export const Route = createFileRoute("/videos/$id")({
   component: VideoPage,
@@ -21,7 +24,12 @@ export const Route = createFileRoute("/videos/$id")({
     const videoId = params.id;
 
     try {
-      await context.queryClient.ensureQueryData(videoDetailQueryOptions(videoId));
+      await Promise.all([
+        context.queryClient.ensureQueryData(videoDetailQueryOptions(videoId)),
+        context.queryClient.ensureQueryData(
+          videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
+        ),
+      ]);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         throw notFound();
@@ -30,18 +38,18 @@ export const Route = createFileRoute("/videos/$id")({
       throw error;
     }
 
-    return {
-      videoId,
-      related: getMockRelatedVideos(String(videoId), 12),
-    };
+    return { videoId };
   },
 });
 
 function VideoPage() {
-  const { videoId, related } = Route.useLoaderData();
+  const { videoId } = Route.useLoaderData();
   const { data: video } = useSuspenseQuery(videoDetailQueryOptions(videoId));
+  const { data: related } = useSuspenseQuery(
+    videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
+  );
 
-  const comments = getMockComments(String(videoId));
+  const comments = videoCommentList(video);
   const streamSrc =
     (typeof video.m3u8_url === "string" && video.m3u8_url) ||
     (Array.isArray(video.m3u8_urls) && video.m3u8_urls[0]) ||

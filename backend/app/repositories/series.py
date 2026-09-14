@@ -9,7 +9,7 @@ from sqlmodel import col, select
 
 from app.models.series import Series, SeriesAka
 from app.repositories.base import BaseRepository
-from app.utils.query import _relationship_attr
+from app.utils.query import relationship_attr
 
 
 class SeriesRepository(BaseRepository):
@@ -118,7 +118,7 @@ class SeriesRepository(BaseRepository):
 
         if load_aka:
             statement = statement.options(
-                selectinload(_relationship_attr(Series.series_aka)),
+                selectinload(relationship_attr(Series.series_aka)),
             )
 
         result = await self.session.exec(statement)
@@ -163,7 +163,7 @@ class SeriesRepository(BaseRepository):
         statement = (
             select(Series)
             .where(col(Series.id) == series_id)
-            .options(selectinload(_relationship_attr(Series.series_aka)))
+            .options(selectinload(relationship_attr(Series.series_aka)))
         )
         result = await self.session.exec(statement)
 

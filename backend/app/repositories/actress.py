@@ -29,7 +29,7 @@ from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
 from app.schemas.actress_filters import ActressListFilters, ActressSort
-from app.utils import _col, _relationship_attr
+from app.utils import query_col, relationship_attr
 
 
 class ActressRepository(BaseRepository):
@@ -396,18 +396,18 @@ class ActressRepository(BaseRepository):
             select(Actress)
             .options(
                 selectinload(
-                    _relationship_attr(Actress.actress_aka),
+                    relationship_attr(Actress.actress_aka),
                 ).load_only(
-                    _col(ActressAka.id),
-                    _col(ActressAka.name),
-                    _col(ActressAka.translated_name),
+                    query_col(ActressAka.id),
+                    query_col(ActressAka.name),
+                    query_col(ActressAka.translated_name),
                 ),
                 selectinload(
-                    _relationship_attr(Actress.actress_image),
+                    relationship_attr(Actress.actress_image),
                 ).load_only(
-                    _col(ActressImage.id),
-                    _col(ActressImage.url),
-                    _col(ActressImage.attribute),
+                    query_col(ActressImage.id),
+                    query_col(ActressImage.url),
+                    query_col(ActressImage.attribute),
                 ),
             )
             .offset(offset)
@@ -453,24 +453,24 @@ class ActressRepository(BaseRepository):
             .where(col(Actress.id) == actress_id)
             .options(
                 selectinload(
-                    _relationship_attr(Actress.actress_aka),
+                    relationship_attr(Actress.actress_aka),
                 ).load_only(
-                    _col(ActressAka.id),
-                    _col(ActressAka.name),
-                    _col(ActressAka.translated_name),
+                    query_col(ActressAka.id),
+                    query_col(ActressAka.name),
+                    query_col(ActressAka.translated_name),
                 ),
                 selectinload(
-                    _relationship_attr(Actress.actress_image),
+                    relationship_attr(Actress.actress_image),
                 ).load_only(
-                    _col(ActressImage.id),
-                    _col(ActressImage.url),
-                    _col(ActressImage.attribute),
+                    query_col(ActressImage.id),
+                    query_col(ActressImage.url),
+                    query_col(ActressImage.attribute),
                 ),
                 selectinload(
-                    _relationship_attr(Actress.actress_banner),
+                    relationship_attr(Actress.actress_banner),
                 ).load_only(
-                    _col(ActressBanner.id),
-                    _col(ActressBanner.url),
+                    query_col(ActressBanner.id),
+                    query_col(ActressBanner.url),
                 ),
             )
         )

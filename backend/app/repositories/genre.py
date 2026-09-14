@@ -9,7 +9,7 @@ from sqlmodel import col, select
 
 from app.models.genre import Genre, GenreAka
 from app.repositories.base import BaseRepository
-from app.utils.query import _relationship_attr
+from app.utils.query import relationship_attr
 
 
 class GenreRepository(BaseRepository):
@@ -119,7 +119,7 @@ class GenreRepository(BaseRepository):
 
         if load_aka:
             statement = statement.options(
-                selectinload(_relationship_attr(Genre.genre_aka)),
+                selectinload(relationship_attr(Genre.genre_aka)),
             )
 
         result = await self.session.exec(statement)
@@ -164,7 +164,7 @@ class GenreRepository(BaseRepository):
         statement = (
             select(Genre)
             .where(col(Genre.id) == genre_id)
-            .options(selectinload(_relationship_attr(Genre.genre_aka)))
+            .options(selectinload(relationship_attr(Genre.genre_aka)))
         )
         result = await self.session.exec(statement)
 

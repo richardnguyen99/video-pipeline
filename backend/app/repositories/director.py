@@ -9,7 +9,7 @@ from sqlmodel import col, select
 
 from app.models.director import Director, DirectorAka
 from app.repositories.base import BaseRepository
-from app.utils.query import _relationship_attr
+from app.utils.query import relationship_attr
 
 
 class DirectorRepository(BaseRepository):
@@ -119,7 +119,7 @@ class DirectorRepository(BaseRepository):
 
         if load_aka:
             statement = statement.options(
-                selectinload(_relationship_attr(Director.director_aka)),
+                selectinload(relationship_attr(Director.director_aka)),
             )
 
         result = await self.session.exec(statement)
@@ -164,7 +164,7 @@ class DirectorRepository(BaseRepository):
         statement = (
             select(Director)
             .where(col(Director.id) == director_id)
-            .options(selectinload(_relationship_attr(Director.director_aka)))
+            .options(selectinload(relationship_attr(Director.director_aka)))
         )
         result = await self.session.exec(statement)
 

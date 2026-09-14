@@ -46,6 +46,8 @@ export const videoQueryKeys = {
   list: (params: VideoListQueryParams) => [...videoQueryKeys.lists(), params] as const,
   details: () => [...videoQueryKeys.all, "detail"] as const,
   detail: (videoId: string | number) => [...videoQueryKeys.details(), videoId] as const,
+  recommendations: (videoId: string | number, limit: number) =>
+    [...videoQueryKeys.all, "recommendations", videoId, limit] as const,
 };
 
 function toSearchParams(params: VideoListQueryParams) {
@@ -119,5 +121,28 @@ export function videoDetailQueryOptions(videoId: string | number, locale: string
   return queryOptions({
     queryKey: [...videoQueryKeys.detail(videoId), locale] as const,
     queryFn: () => fetchVideoById(videoId, locale),
+  });
+}
+
+export const DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT = 12;
+
+export async function fetchVideoRecommendations(
+  videoId: string | number,
+  limit: number = DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
+): Promise<Video[]> {
+  const response = await apiFetch<VideoListApiResponse>(`/videos/${videoId}/recommendations`, {
+    searchParams: { limit },
+  });
+
+  return response.items;
+}
+
+export function videoRecommendationsQueryOptions(
+  videoId: string | number,
+  limit: number = DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
+) {
+  return queryOptions({
+    queryKey: videoQueryKeys.recommendations(videoId, limit),
+    queryFn: () => fetchVideoRecommendations(videoId, limit),
   });
 }

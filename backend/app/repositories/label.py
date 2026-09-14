@@ -9,7 +9,7 @@ from sqlmodel import col, select
 
 from app.models.label import Label, LabelAka
 from app.repositories.base import BaseRepository
-from app.utils.query import _relationship_attr
+from app.utils.query import relationship_attr
 
 
 class LabelRepository(BaseRepository):
@@ -119,7 +119,7 @@ class LabelRepository(BaseRepository):
 
         if load_aka:
             statement = statement.options(
-                selectinload(_relationship_attr(Label.label_aka)),
+                selectinload(relationship_attr(Label.label_aka)),
             )
 
         result = await self.session.exec(statement)
@@ -164,7 +164,7 @@ class LabelRepository(BaseRepository):
         statement = (
             select(Label)
             .where(col(Label.id) == label_id)
-            .options(selectinload(_relationship_attr(Label.label_aka)))
+            .options(selectinload(relationship_attr(Label.label_aka)))
         )
         result = await self.session.exec(statement)
 

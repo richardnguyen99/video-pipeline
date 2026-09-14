@@ -145,3 +145,56 @@ async def get_video(
     """Return one video with full relations and detailed actress data."""
 
     return await service.get_video(video_id=video_id, locale=locale)
+
+
+@router.get(
+    "/videos/{video_id}/recommendations",
+    response_model=VideoListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List recommended videos for a video",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video not found",
+        },
+    },
+    dependencies=[
+        Depends(
+            cache(
+                ttl=CACHE_TTL_SECONDS,
+                eviction_group="video_recommendations",
+            )
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="video_recommendations:burst",
+            )
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="video_recommendations:sustain",
+            )
+        ),
+    ],
+)
+async def list_video_recommendations(
+    service: VideoServiceDep,
+    video_id: int = Path(
+        ...,
+        ge=1,
+        description="Primary key ``Video.id`` of the source video.",
+    ),
+    limit: int = Query(default=12, ge=1, le=50),
+) -> VideoListResponse:
+    """Return videos ranked by similarity to the source video.
+
+    Ranking prioritizes shared actresses, featured-actress-count proximity,
+    then shared genres, series, labels, and makers. Item shape matches
+    ``GET /videos``.
+    """
+
+    return await service.list_recommended_videos(
+        video_id=video_id,
+        limit=limit,
+    )

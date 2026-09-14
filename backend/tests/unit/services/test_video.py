@@ -1,5 +1,7 @@
 """Unit tests for ``app.services.video.VideoService``."""
 
+# cSpell: disable
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -29,6 +31,9 @@ class FakeVideoRepository:
     count_calls: list[dict[str, Any]] = field(default_factory=list)
     get_result: Any | None = None
     get_calls: list[int] = field(default_factory=list)
+    exists_result: bool = True
+    recommended_result: list[Any] = field(default_factory=list)
+    recommended_calls: list[dict[str, Any]] = field(default_factory=list)
 
     async def list_videos(
         self,
@@ -84,6 +89,26 @@ class FakeVideoRepository:
         self.get_calls.append(video_id)
 
         return self.get_result
+
+    async def exists_by_id(
+        self,
+        video_id: int,  # pylint: disable=unused-argument
+    ) -> bool:
+        """Return configured existence flag."""
+
+        return self.exists_result
+
+    async def list_recommended_for_video(
+        self,
+        video_id: int,
+        *,
+        limit: int = 12,
+    ) -> list[Any]:
+        """Return configured recommendation rows."""
+
+        self.recommended_calls.append({"video_id": video_id, "limit": limit})
+
+        return list(self.recommended_result)
 
     async def count_engagement_for_videos(
         self,
@@ -688,3 +713,53 @@ async def test_get_video_raises_not_found_when_missing(
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
     assert repository.get_calls == [999]
+
+
+@pytest.mark.asyncio
+async def test_list_recommended_videos_returns_list_shape(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Recommendations use the list video response shape."""
+
+    repository.exists_result = True
+    repository.recommended_result = [
+        SimpleNamespace(
+            id=9,
+            video_id="REC-001",
+            title="Recommended",
+            cid=None,
+            duration=60,
+            release_date=None,
+            jancode=None,
+            maker_product=None,
+            floor_code=None,
+            created_at=None,
+            updated_at=None,
+            video_image_url=[],
+        ),
+    ]
+
+    result = await service.list_recommended_videos(video_id=7, limit=12)
+
+    assert result.total == 1
+    assert result.limit == 12
+    assert result.offset == 0
+    assert result.items[0].video_id == "REC-001"
+    assert repository.recommended_calls == [{"video_id": 7, "limit": 12}]
+
+
+@pytest.mark.asyncio
+async def test_list_recommended_videos_raises_not_found(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Missing source video yields HTTP 404."""
+
+    repository.exists_result = False
+    repository.get_result = None
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.list_recommended_videos(video_id=999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

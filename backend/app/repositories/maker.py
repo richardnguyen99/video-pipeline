@@ -9,7 +9,7 @@ from sqlmodel import col, select
 
 from app.models.maker import Maker, MakerAka
 from app.repositories.base import BaseRepository
-from app.utils.query import _relationship_attr
+from app.utils.query import relationship_attr
 
 
 class MakerRepository(BaseRepository):
@@ -119,7 +119,7 @@ class MakerRepository(BaseRepository):
 
         if load_aka:
             statement = statement.options(
-                selectinload(_relationship_attr(Maker.maker_aka)),
+                selectinload(relationship_attr(Maker.maker_aka)),
             )
 
         result = await self.session.exec(statement)
@@ -164,7 +164,7 @@ class MakerRepository(BaseRepository):
         statement = (
             select(Maker)
             .where(col(Maker.id) == maker_id)
-            .options(selectinload(_relationship_attr(Maker.maker_aka)))
+            .options(selectinload(relationship_attr(Maker.maker_aka)))
         )
         result = await self.session.exec(statement)
 
