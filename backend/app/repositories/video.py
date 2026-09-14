@@ -5,7 +5,7 @@
 import asyncio
 from typing import Any, Optional, Type
 
-from sqlalchemy import and_, func, or_
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -399,8 +399,8 @@ class VideoRepository(BaseRepository):
         """Return videos ranked by similarity to ``video_id``.
 
         Ranking priority (highest first):
-        shared actresses, featured-actress-count proximity, shared genres,
-        shared series, shared labels, shared makers.
+        exact featured-actress count match, shared actresses, count proximity,
+        shared genres, shared series, shared labels, shared makers.
 
         Args:
             video_id: Source ``Video.id`` primary key.
@@ -458,6 +458,10 @@ class VideoRepository(BaseRepository):
             .correlate(Video)
             .scalar_subquery()
         )
+        features_exact = case(
+            (candidate_actress_count == source_actress_count, 1),
+            else_=0,
+        )
         features_proximity = -func.abs(
             candidate_actress_count - source_actress_count,
         )
@@ -477,6 +481,7 @@ class VideoRepository(BaseRepository):
                 overlap_predicate,
             )
             .order_by(
+                features_exact.desc(),
                 shared_actress.desc(),
                 features_proximity.desc(),
                 shared_genre.desc(),
