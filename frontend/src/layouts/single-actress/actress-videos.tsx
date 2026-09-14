@@ -105,6 +105,7 @@ export function ActressVideosGrid({ videos, total, page, totalPages, sort, filte
                   resetScroll={false}
                   onClick={() => captureScrollPosition()}
                   aria-label="Go to previous page"
+                  activeOptions={{ exact: true, includeSearch: true }}
                   className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pr-2.5")}
                 >
                   <ChevronLeftIcon className="size-4" />
@@ -137,6 +138,14 @@ export function ActressVideosGrid({ videos, total, page, totalPages, sort, filte
                 );
               }
 
+              const pageLinkClassName = cn(
+                buttonVariants({
+                  variant: p === page ? "default" : "outline",
+                  size: "default",
+                }),
+                "h-9 min-w-9 justify-center px-2.5 tabular-nums",
+              );
+
               nodes.push(
                 <PaginationItem key={p}>
                   <Link
@@ -147,13 +156,10 @@ export function ActressVideosGrid({ videos, total, page, totalPages, sort, filte
                     onClick={() => captureScrollPosition()}
                     aria-label={`Go to page ${p}`}
                     aria-current={p === page ? "page" : undefined}
-                    className={cn(
-                      buttonVariants({
-                        variant: p === page ? "default" : "outline",
-                        size: "default",
-                      }),
-                      "h-9 min-w-9 justify-center px-2.5 tabular-nums",
-                    )}
+                    activeOptions={{ exact: true, includeSearch: true }}
+                    activeProps={{ className: pageLinkClassName }}
+                    inactiveProps={{ className: pageLinkClassName }}
+                    className={pageLinkClassName}
                   >
                     {p}
                   </Link>
@@ -172,6 +178,7 @@ export function ActressVideosGrid({ videos, total, page, totalPages, sort, filte
                   resetScroll={false}
                   onClick={() => captureScrollPosition()}
                   aria-label="Go to next page"
+                  activeOptions={{ exact: true, includeSearch: true }}
                   className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pl-2.5")}
                 >
                   <span className="hidden sm:block">Next</span>

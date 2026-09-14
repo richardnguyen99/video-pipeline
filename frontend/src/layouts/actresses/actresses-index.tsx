@@ -133,6 +133,25 @@ export function ActressesGrid({ actresses, page, totalPages, sort, filters }: Ac
                       search={pageSearch(p)}
                       aria-label={`Go to page ${p}`}
                       aria-current={p === page ? "page" : undefined}
+                      activeOptions={{ exact: true, includeSearch: true }}
+                      activeProps={{
+                        className: cn(
+                          buttonVariants({
+                            variant: p === page ? "default" : "outline",
+                            size: "icon",
+                          }),
+                          "h-9 min-w-9 w-auto px-2.5",
+                        ),
+                      }}
+                      inactiveProps={{
+                        className: cn(
+                          buttonVariants({
+                            variant: p === page ? "default" : "outline",
+                            size: "icon",
+                          }),
+                          "h-9 min-w-9 w-auto px-2.5",
+                        ),
+                      }}
                       className={cn(
                         buttonVariants({
                           variant: p === page ? "default" : "outline",
