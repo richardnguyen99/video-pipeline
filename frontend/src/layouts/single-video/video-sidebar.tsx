@@ -1,5 +1,5 @@
-import type { Video } from "@/mocks/videos";
 import { VideoSidebarCard } from "@/components/video/video-sidebar-card";
+import type { Video } from "@/mocks/videos";
 
 interface VideoSidebarProps {
   videos: Video[];

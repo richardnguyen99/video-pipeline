@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { useQueryErrorResetBoundary, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
@@ -8,6 +8,7 @@ import { VideoInfo } from "@/layouts/single-video/video-info";
 import { VideoMetadata } from "@/layouts/single-video/video-metadata";
 import { VideoReviewImages } from "@/layouts/single-video/video-review-images";
 import { VideoSidebar } from "@/layouts/single-video/video-sidebar";
+import { VideoSidebarSkeleton } from "@/layouts/single-video/video-sidebar-skeleton";
 import { ApiError } from "@/libs/api-client";
 import { pickVideoImageUrl, videoCommentList, videoDisplayTitle } from "@/mocks/videos";
 import {
@@ -24,12 +25,7 @@ export const Route = createFileRoute("/videos/$id")({
     const videoId = params.id;
 
     try {
-      await Promise.all([
-        context.queryClient.ensureQueryData(videoDetailQueryOptions(videoId)),
-        context.queryClient.ensureQueryData(
-          videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
-        ),
-      ]);
+      await context.queryClient.ensureQueryData(videoDetailQueryOptions(videoId));
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         throw notFound();
@@ -38,6 +34,10 @@ export const Route = createFileRoute("/videos/$id")({
       throw error;
     }
 
+    void context.queryClient.prefetchQuery(
+      videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
+    );
+
     return { videoId };
   },
 });
@@ -45,9 +45,6 @@ export const Route = createFileRoute("/videos/$id")({
 function VideoPage() {
   const { videoId } = Route.useLoaderData();
   const { data: video } = useSuspenseQuery(videoDetailQueryOptions(videoId));
-  const { data: related } = useSuspenseQuery(
-    videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
-  );
 
   const comments = videoCommentList(video);
   const streamSrc =
@@ -64,6 +61,7 @@ function VideoPage() {
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <div className="min-w-0 flex-1">
           <VideoPlayer src={streamSrc} poster={poster} title={videoDisplayTitle(video)} />
+
           <div className="mt-5 sm:mt-6">
             <VideoMetadata video={video} />
           </div>
@@ -74,10 +72,21 @@ function VideoPage() {
 
           <VideoComments comments={comments} videoId={String(videoId)} />
         </div>
-        <VideoSidebar videos={related} />
+
+        <Suspense fallback={<VideoSidebarSkeleton />}>
+          <VideoSidebarDeferred videoId={videoId} />
+        </Suspense>
       </div>
     </div>
   );
+}
+
+function VideoSidebarDeferred({ videoId }: { videoId: string }) {
+  const { data: related } = useSuspenseQuery(
+    videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
+  );
+
+  return <VideoSidebar videos={related} />;
 }
 
 function VideoError({ error }: { error: Error; reset: () => void }) {
