@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Video } from "@/mocks/videos";
+import { pickVideoImageUrl, pickVideoSampleImages } from "@/mocks/videos";
 import { cn, formatCompactNumber, formatDuration, formatRelativeDate } from "@/libs/utils";
 
 export type VideoCardBadge = "recommended" | "new" | "trending";
@@ -66,9 +67,13 @@ export function VideoSidebarCard({
   uploader,
   badge,
 }: VideoSidebarCardProps) {
-  // Cover/thumbnail from video_image_url; hover preview from sample_image_url only
-  const poster = video.image_urls?.[0] ?? video.video_image_url?.[0]?.url;
-  const thumbnails = video.sample_image_url?.map((s) => s.url) ?? [];
+  const poster =
+    pickVideoImageUrl(video.video_image_url) ??
+    video.image_urls?.[0] ??
+    pickVideoImageUrl(video.video_sample_image_url);
+  const thumbnails = pickVideoSampleImages(video.video_sample_image_url ?? video.sample_image_url).map(
+    (item) => item.url,
+  );
 
   const [isHovering, setIsHovering] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
