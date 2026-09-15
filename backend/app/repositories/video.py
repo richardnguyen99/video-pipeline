@@ -9,6 +9,7 @@ from typing import Any, Optional, Type
 from sqlalchemy import Table, and_, case, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import ColumnElement
 from sqlalchemy.sql.selectable import ScalarSelect
 from sqlmodel import col, select
 
@@ -434,12 +435,13 @@ class VideoRepository(BaseRepository):
         """Return videos ranked by similarity to ``video_id``.
 
         Ranking priority (highest first):
-        exact featured-actress count match, shared actress count, release
-        date within ±6 months of the source, count proximity, shared genres,
-        series, labels, makers.
+        exact featured-actress count match, shared series, shared actress
+        count, release date within ±6 months of the source, count proximity,
+        shared genres, labels, makers.
 
-        When the source has actresses, candidates must share at least one
-        actress so large compilations cannot rank on genre/maker alone.
+        Candidates must share at least one actress or the same series (when
+        the source has those links). Genre/label/maker-only overlap is used
+        only when the source has no actresses and no series.
 
         Args:
             video_id: Source ``Video.id`` primary key.
@@ -528,24 +530,37 @@ class VideoRepository(BaseRepository):
 
         rank_score = (
             features_exact * 1_000_000
+            + shared_series * 100_000
             + shared_actress * 100_000
-            + release_in_window * 10_000
+            + release_in_window * 100_000
             - count_delta * 100
             + shared_genre * 10
-            + shared_series * 5
             + shared_label * 3
             + shared_maker
         )
 
+        overlap_clauses: list[ColumnElement[bool]] = []
+
         if actress_ids:
-            overlap_predicate = shared_actress > 0
-        else:
-            overlap_predicate = or_(
-                shared_genre > 0,
-                shared_series > 0,
-                shared_label > 0,
-                shared_maker > 0,
-            )
+            overlap_clauses.append(shared_actress > 0)
+
+        if series_ids:
+            overlap_clauses.append(shared_series > 0)
+
+        if not overlap_clauses:
+            if genre_ids:
+                overlap_clauses.append(shared_genre > 0)
+
+            if label_ids:
+                overlap_clauses.append(shared_label > 0)
+
+            if maker_ids:
+                overlap_clauses.append(shared_maker > 0)
+
+        if not overlap_clauses:
+            return []
+
+        overlap_predicate = or_(*overlap_clauses)
 
         statement = (
             select(Video)
