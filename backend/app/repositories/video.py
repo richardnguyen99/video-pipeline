@@ -3,11 +3,13 @@
 # pylint: disable=too-many-locals,too-many-positional-arguments
 
 import asyncio
+from datetime import datetime, timedelta
 from typing import Any, Optional, Type
 
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import Table, and_, case, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.selectable import ScalarSelect
 from sqlmodel import col, select
 
 from app.models.actress import Actress, ActressAka
@@ -390,6 +392,39 @@ class VideoRepository(BaseRepository):
 
         return result.first() is not None
 
+    async def _association_fk_ids(
+        self,
+        table: Table,
+        video_id: int,
+    ) -> list[int]:
+        """Return association ``fk_id`` values linked to ``video_id``."""
+
+        statement = select(table.c.fk_id).where(table.c.video_id == video_id)
+        rows = (await self.session.exec(statement)).all()
+
+        return [int(row) for row in rows]
+
+    @staticmethod
+    def _shared_entity_count(
+        table: Table,
+        seed_ids: list[int],
+    ) -> ScalarSelect[int]:
+        """Correlated count of shared association rows for a candidate video."""
+
+        if not seed_ids:
+            return sa_select(func.coalesce(0, 0)).scalar_subquery()
+
+        return (
+            sa_select(func.count())
+            .select_from(table)
+            .where(
+                table.c.video_id == col(Video.id),
+                table.c.fk_id.in_(seed_ids),
+            )
+            .correlate(Video)
+            .scalar_subquery()
+        )
+
     async def list_recommended_for_video(
         self,
         video_id: int,
@@ -399,8 +434,12 @@ class VideoRepository(BaseRepository):
         """Return videos ranked by similarity to ``video_id``.
 
         Ranking priority (highest first):
-        exact featured-actress count match, shared actresses, count proximity,
-        shared genres, shared series, shared labels, shared makers.
+        exact featured-actress count match, shared actress count, release
+        date within ±6 months of the source, count proximity, shared genres,
+        series, labels, makers.
+
+        When the source has actresses, candidates must share at least one
+        actress so large compilations cannot rank on genre/maker alone.
 
         Args:
             video_id: Source ``Video.id`` primary key.
@@ -411,45 +450,34 @@ class VideoRepository(BaseRepository):
         """
 
         safe_limit = max(1, min(limit, 50))
+        release_window = timedelta(days=183)
 
-        async def _ids(table: Any) -> list[int]:
-            statement = select(table.c.fk_id).where(
-                table.c.video_id == video_id
+        source_row = (
+            await self.session.exec(
+                select(Video.release_date).where(col(Video.id) == video_id),
             )
-            rows = (await self.session.exec(statement)).all()
+        ).first()
+        source_release: datetime | None = (
+            source_row if isinstance(source_row, datetime) else None
+        )
 
-            return [int(row) for row in rows]
-
-        actress_ids = await _ids(t_video_actress)
-        genre_ids = await _ids(t_video_genre)
-        series_ids = await _ids(t_video_series)
-        label_ids = await _ids(t_video_label)
-        maker_ids = await _ids(t_video_maker)
+        actress_ids = await self._association_fk_ids(t_video_actress, video_id)
+        genre_ids = await self._association_fk_ids(t_video_genre, video_id)
+        series_ids = await self._association_fk_ids(t_video_series, video_id)
+        label_ids = await self._association_fk_ids(t_video_label, video_id)
+        maker_ids = await self._association_fk_ids(t_video_maker, video_id)
         source_actress_count = len(actress_ids)
 
         if not any((actress_ids, genre_ids, series_ids, label_ids, maker_ids)):
             return []
 
-        def _shared_count(table: Any, seed_ids: list[int]) -> Any:
-            if not seed_ids:
-                return sa_select(func.coalesce(0, 0)).scalar_subquery()
-
-            return (
-                sa_select(func.count())
-                .select_from(table)
-                .where(
-                    table.c.video_id == col(Video.id),
-                    table.c.fk_id.in_(seed_ids),
-                )
-                .correlate(Video)
-                .scalar_subquery()
-            )
-
-        shared_actress = _shared_count(t_video_actress, actress_ids)
-        shared_genre = _shared_count(t_video_genre, genre_ids)
-        shared_series = _shared_count(t_video_series, series_ids)
-        shared_label = _shared_count(t_video_label, label_ids)
-        shared_maker = _shared_count(t_video_maker, maker_ids)
+        shared_actress = self._shared_entity_count(
+            t_video_actress, actress_ids
+        )
+        shared_genre = self._shared_entity_count(t_video_genre, genre_ids)
+        shared_series = self._shared_entity_count(t_video_series, series_ids)
+        shared_label = self._shared_entity_count(t_video_label, label_ids)
+        shared_maker = self._shared_entity_count(t_video_maker, maker_ids)
 
         candidate_actress_count = (
             sa_select(func.count())
@@ -458,21 +486,66 @@ class VideoRepository(BaseRepository):
             .correlate(Video)
             .scalar_subquery()
         )
+        count_delta = func.abs(candidate_actress_count - source_actress_count)
         features_exact = case(
-            (candidate_actress_count == source_actress_count, 1),
+            (count_delta == 0, 1),
             else_=0,
         )
-        features_proximity = -func.abs(
-            candidate_actress_count - source_actress_count,
+
+        if source_release is not None:
+            window_low = source_release - release_window
+            window_high = source_release + release_window
+            release_in_window = case(
+                (
+                    and_(
+                        col(Video.release_date).is_not(None),
+                        col(Video.release_date) >= window_low,
+                        col(Video.release_date) <= window_high,
+                    ),
+                    1,
+                ),
+                else_=0,
+            )
+            release_delta_days = case(
+                (
+                    col(Video.release_date).is_not(None),
+                    func.abs(
+                        func.extract(
+                            "epoch",
+                            col(Video.release_date) - source_release,
+                        )
+                        / 86400.0,
+                    ),
+                ),
+                else_=99999.0,
+            )
+        else:
+            release_in_window = case((col(Video.id) == -1, 1), else_=0)
+            release_delta_days = case(
+                (col(Video.release_date).is_(None), 99999.0),
+                else_=99999.0,
+            )
+
+        rank_score = (
+            features_exact * 1_000_000
+            + shared_actress * 100_000
+            + release_in_window * 10_000
+            - count_delta * 100
+            + shared_genre * 10
+            + shared_series * 5
+            + shared_label * 3
+            + shared_maker
         )
 
-        overlap_predicate = or_(
-            shared_actress > 0,
-            shared_genre > 0,
-            shared_series > 0,
-            shared_label > 0,
-            shared_maker > 0,
-        )
+        if actress_ids:
+            overlap_predicate = shared_actress > 0
+        else:
+            overlap_predicate = or_(
+                shared_genre > 0,
+                shared_series > 0,
+                shared_label > 0,
+                shared_maker > 0,
+            )
 
         statement = (
             select(Video)
@@ -481,13 +554,8 @@ class VideoRepository(BaseRepository):
                 overlap_predicate,
             )
             .order_by(
-                features_exact.desc(),
-                shared_actress.desc(),
-                features_proximity.desc(),
-                shared_genre.desc(),
-                shared_series.desc(),
-                shared_label.desc(),
-                shared_maker.desc(),
+                rank_score.desc(),
+                release_delta_days.asc(),
                 col(Video.id).desc(),
             )
             .options(
