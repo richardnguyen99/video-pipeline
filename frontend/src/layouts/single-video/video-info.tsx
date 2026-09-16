@@ -99,30 +99,35 @@ export function VideoInfo({ video }: VideoInfoProps) {
         <InfoRow label="Title">{videoDisplayTitle(video)}</InfoRow>
         <InfoRow label="Maker">
           <CollapsibleEntityList
+            key={`makers-${video.id}`}
             items={makers}
             renderItem={(item) => <EntityTag key={item.id} entity={item} filter="maker" />}
           />
         </InfoRow>
         <InfoRow label="Label">
           <CollapsibleEntityList
+            key={`labels-${video.id}`}
             items={labels}
             renderItem={(item) => <EntityTag key={item.id} entity={item} filter="label" />}
           />
         </InfoRow>
         <InfoRow label="Director">
           <CollapsibleEntityList
+            key={`directors-${video.id}`}
             items={directors}
             renderItem={(item) => <EntityTag key={item.id} entity={item} filter="director" />}
           />
         </InfoRow>
         <InfoRow label="Series">
           <CollapsibleEntityList
+            key={`series-${video.id}`}
             items={series}
             renderItem={(item) => <EntityTag key={item.id} entity={item} filter="series" />}
           />
         </InfoRow>
         <InfoRow label="Actresses">
           <CollapsibleEntityList
+            key={`actresses-${video.id}`}
             items={actresses}
             renderItem={(item) => (
               <EntityTag
@@ -136,6 +141,7 @@ export function VideoInfo({ video }: VideoInfoProps) {
         </InfoRow>
         <InfoRow label="Genres">
           <CollapsibleEntityList
+            key={`genres-${video.id}`}
             items={genres}
             renderItem={(item) => <EntityTag key={item.id} entity={item} filter="genre" />}
           />

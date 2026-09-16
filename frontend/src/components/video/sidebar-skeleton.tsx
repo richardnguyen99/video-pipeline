@@ -1,9 +1,11 @@
 import React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function SidebarSkeleton({ key, ...rest }: React.ComponentPropsWithRef<"div">) {
+interface SidebarSkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
+
+export function SidebarSkeleton({ ...rest }: SidebarSkeletonProps) {
   return (
-    <div key={key} className="flex gap-3" {...rest}>
+    <div className="flex gap-3" {...rest}>
       <Skeleton className="aspect-video w-40 shrink-0 rounded-lg sm:w-44" />
 
       <div className="flex min-w-0 flex-1 flex-col gap-2 py-0.5">
