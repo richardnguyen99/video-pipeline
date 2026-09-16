@@ -189,10 +189,10 @@ async def list_video_recommendations(
 ) -> VideoListResponse:
     """Return videos ranked by similarity to the source video.
 
-    Returns pre-computed recommendations stored in ``video_recommendation``.
-    Ranking was computed offline (exact cast size, shared series/cast,
-    release ±6 months, genres/labels/makers). Item shape matches
-    ``GET /videos``.
+    Prefers pre-computed ``video_recommendation`` rows; falls back to live
+    ranking when none exist (e.g. newly inserted videos). Ranking uses exact
+    cast size, shared series/cast, release ±6 months, and catalog overlap.
+    Item shape matches ``GET /videos``.
     """
 
     return await service.list_recommended_videos(

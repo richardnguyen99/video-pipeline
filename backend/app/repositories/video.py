@@ -433,10 +433,11 @@ class VideoRepository(BaseRepository):
         *,
         limit: int = 12,
     ) -> list[Video]:
-        """Return pre-computed recommendations for ``video_id``.
+        """Return recommendations for ``video_id``.
 
-        Rows come from ``video_recommendation``, ordered by ``rank``.
-        Run the offline compute job after catalog changes to refresh them.
+        Prefers pre-computed ``video_recommendation`` rows. When none exist
+        (e.g. a newly inserted video not yet processed by the offline job),
+        falls back to the live ranking query so the sidebar is never empty.
 
         Args:
             video_id: Source ``Video.id`` primary key.
@@ -447,8 +448,14 @@ class VideoRepository(BaseRepository):
         """
 
         safe_limit = max(1, min(limit, 50))
+        image_options = media_load(
+            Video.video_image_url,
+            VideoImageUrl.id,
+            VideoImageUrl.url,
+            VideoImageUrl.type,
+        )
 
-        statement = (
+        precomputed_statement = (
             select(Video)
             .join(
                 VideoRecommendation,
@@ -458,19 +465,38 @@ class VideoRepository(BaseRepository):
             .order_by(
                 col(VideoRecommendation.rank).asc(),
             )
-            .options(
-                media_load(
-                    Video.video_image_url,
-                    VideoImageUrl.id,
-                    VideoImageUrl.url,
-                    VideoImageUrl.type,
-                ),
-            )
+            .options(image_options)
             .limit(safe_limit)
         )
-        result = await self.session.exec(statement)
+        precomputed = list(
+            (await self.session.exec(precomputed_statement)).all()
+        )
 
-        return list(result.all())
+        if precomputed:
+            return precomputed
+
+        candidates = await self.compute_recommendation_candidates(
+            video_id,
+            limit=safe_limit,
+        )
+
+        if not candidates:
+            return []
+
+        candidate_ids = [recommended_id for recommended_id, _ in candidates]
+        live_statement = (
+            select(Video)
+            .where(col(Video.id).in_(candidate_ids))
+            .options(image_options)
+        )
+        loaded = list((await self.session.exec(live_statement)).all())
+        by_id = {video.id: video for video in loaded}
+
+        return [
+            by_id[recommended_id]
+            for recommended_id in candidate_ids
+            if recommended_id in by_id
+        ]
 
     async def compute_recommendation_candidates(
         self,
