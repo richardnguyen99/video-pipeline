@@ -86,7 +86,7 @@ function VideoSidebarDeferred({ videoId }: { videoId: string }) {
     videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
   );
 
-  return <VideoSidebar videos={related} />;
+  return <VideoSidebar videoId={videoId} videos={related} />;
 }
 
 function VideoError({ error }: { error: Error; reset: () => void }) {

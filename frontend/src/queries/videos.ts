@@ -126,6 +126,17 @@ export function videoDetailQueryOptions(videoId: string | number, locale: string
 
 export const DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT = 12;
 
+/** Max recommendation rows the API stores / returns (offline job limit). */
+export const VIDEO_RECOMMENDATIONS_MAX_LIMIT = 50;
+
+/** At most two sidebar pages (initial + one load-more). */
+export const VIDEO_RECOMMENDATIONS_MAX_PAGES = 2;
+
+export const VIDEO_RECOMMENDATIONS_EXPANDED_LIMIT = Math.min(
+  DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT * VIDEO_RECOMMENDATIONS_MAX_PAGES,
+  VIDEO_RECOMMENDATIONS_MAX_LIMIT,
+);
+
 export async function fetchVideoRecommendations(
   videoId: string | number,
   limit: number = DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
