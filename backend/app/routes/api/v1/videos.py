@@ -189,10 +189,10 @@ async def list_video_recommendations(
 ) -> VideoListResponse:
     """Return videos ranked by similarity to the source video.
 
-    Ranking prioritizes exact featured-actress count match, shared cast,
-    release date within ±6 months of the source, count proximity, then
-    genres, series, labels, and makers. When the source has actresses,
-    candidates must share at least one. Item shape matches ``GET /videos``.
+    Returns pre-computed recommendations stored in ``video_recommendation``.
+    Ranking was computed offline (exact cast size, shared series/cast,
+    release ±6 months, genres/labels/makers). Item shape matches
+    ``GET /videos``.
     """
 
     return await service.list_recommended_videos(

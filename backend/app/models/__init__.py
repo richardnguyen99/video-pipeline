@@ -45,4 +45,5 @@ from app.models.video import (
     VideoSampleMovieUrl,
 )
 from app.models.video_reaction import VideoReaction
+from app.models.video_recommendation import VideoRecommendation
 from app.models.video_view import VideoView

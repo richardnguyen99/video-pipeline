@@ -6,7 +6,7 @@ import asyncio
 from datetime import datetime, timedelta
 from typing import Any, Optional, Type
 
-from sqlalchemy import Table, and_, case, func, or_
+from sqlalchemy import Table, and_, case, delete, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import ColumnElement
@@ -34,6 +34,7 @@ from app.models.video import (
     VideoM3u8,
 )
 from app.models.video_reaction import VideoReaction
+from app.models.video_recommendation import VideoRecommendation
 from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
 from app.schemas.video import VideoEngagementCounts
@@ -432,7 +433,52 @@ class VideoRepository(BaseRepository):
         *,
         limit: int = 12,
     ) -> list[Video]:
-        """Return videos ranked by similarity to ``video_id``.
+        """Return pre-computed recommendations for ``video_id``.
+
+        Rows come from ``video_recommendation``, ordered by ``rank``.
+        Run the offline compute job after catalog changes to refresh them.
+
+        Args:
+            video_id: Source ``Video.id`` primary key.
+            limit: Maximum number of recommendations to return.
+
+        Returns:
+            Ordered ``Video`` rows with ``video_image_url`` loaded.
+        """
+
+        safe_limit = max(1, min(limit, 50))
+
+        statement = (
+            select(Video)
+            .join(
+                VideoRecommendation,
+                col(VideoRecommendation.recommended_video_id) == col(Video.id),
+            )
+            .where(col(VideoRecommendation.video_id) == video_id)
+            .order_by(
+                col(VideoRecommendation.rank).asc(),
+            )
+            .options(
+                media_load(
+                    Video.video_image_url,
+                    VideoImageUrl.id,
+                    VideoImageUrl.url,
+                    VideoImageUrl.type,
+                ),
+            )
+            .limit(safe_limit)
+        )
+        result = await self.session.exec(statement)
+
+        return list(result.all())
+
+    async def compute_recommendation_candidates(
+        self,
+        video_id: int,
+        *,
+        limit: int = 50,
+    ) -> list[tuple[int, float]]:
+        """Compute ranked recommendation candidates for one video.
 
         Ranking priority (highest first):
         exact featured-actress count match, shared series, shared actress
@@ -445,10 +491,10 @@ class VideoRepository(BaseRepository):
 
         Args:
             video_id: Source ``Video.id`` primary key.
-            limit: Maximum number of recommendations to return.
+            limit: Maximum candidates to return (clamped to 1–50).
 
         Returns:
-            Ordered ``Video`` rows with ``video_image_url`` loaded.
+            Ordered ``(recommended_video_id, score)`` pairs.
         """
 
         safe_limit = max(1, min(limit, 50))
@@ -530,9 +576,9 @@ class VideoRepository(BaseRepository):
 
         rank_score = (
             features_exact * 1_000_000
-            + shared_series * 100_000
+            + shared_series * 200_000
             + shared_actress * 100_000
-            + release_in_window * 100_000
+            + release_in_window * 10_000
             - count_delta * 100
             + shared_genre * 10
             + shared_label * 3
@@ -563,7 +609,7 @@ class VideoRepository(BaseRepository):
         overlap_predicate = or_(*overlap_clauses)
 
         statement = (
-            select(Video)
+            select(col(Video.id), rank_score)
             .where(
                 col(Video.id) != video_id,
                 overlap_predicate,
@@ -573,19 +619,125 @@ class VideoRepository(BaseRepository):
                 release_delta_days.asc(),
                 col(Video.id).desc(),
             )
-            .options(
-                media_load(
-                    Video.video_image_url,
-                    VideoImageUrl.id,
-                    VideoImageUrl.url,
-                    VideoImageUrl.type,
-                ),
-            )
             .limit(safe_limit)
         )
         result = await self.session.exec(statement)
 
-        return list(result.all())
+        return [(int(row[0]), float(row[1])) for row in result.all()]
+
+    async def replace_recommendations_for_video(
+        self,
+        video_id: int,
+        *,
+        limit: int = 50,
+    ) -> int:
+        """Recompute and persist recommendations for one video.
+
+        Deletes existing ``video_recommendation`` rows for ``video_id`` and
+        inserts the newly ranked candidates.
+
+        Args:
+            video_id: Source ``Video.id`` primary key.
+            limit: Max candidates to store (clamped to 1–50).
+
+        Returns:
+            Number of recommendation rows written.
+        """
+
+        candidates = await self.compute_recommendation_candidates(
+            video_id,
+            limit=limit,
+        )
+
+        await self.session.execute(
+            delete(VideoRecommendation).where(
+                col(VideoRecommendation.video_id) == video_id,
+            ),
+        )
+
+        for rank, (recommended_id, score) in enumerate(candidates, start=1):
+            self.session.add(
+                VideoRecommendation(
+                    video_id=video_id,
+                    recommended_video_id=recommended_id,
+                    rank=rank,
+                    score=score,
+                ),
+            )
+
+        await self.session.commit()
+
+        return len(candidates)
+
+    async def list_video_ids_missing_recommendations(self) -> list[int]:
+        """Return video ids that have no pre-computed recommendation rows."""
+
+        has_rows = (
+            sa_select(col(VideoRecommendation.video_id))
+            .where(col(VideoRecommendation.video_id) == col(Video.id))
+            .exists()
+        )
+        statement = (
+            select(col(Video.id))
+            .where(~has_rows)
+            .order_by(col(Video.id).asc())
+        )
+        rows = (await self.session.exec(statement)).all()
+
+        return [int(row) for row in rows]
+
+    async def list_video_ids_created_since(
+        self,
+        since: datetime,
+    ) -> list[int]:
+        """Return video ids with ``created_at`` strictly after ``since``."""
+
+        statement = (
+            select(col(Video.id))
+            .where(col(Video.created_at) > since)
+            .order_by(col(Video.id).asc())
+        )
+        rows = (await self.session.exec(statement)).all()
+
+        return [int(row) for row in rows]
+
+    async def list_related_recommendation_source_ids(
+        self,
+        video_id: int,
+    ) -> list[int]:
+        """Return other video ids that share actresses or series with ``video_id``.
+
+        Used after inserting a new video so existing sources can rank it into
+        their recommendation lists.
+        """
+
+        actress_ids = await self._association_fk_ids(t_video_actress, video_id)
+        series_ids = await self._association_fk_ids(t_video_series, video_id)
+        related: set[int] = set()
+
+        if actress_ids:
+            actress_result = await self.session.execute(
+                sa_select(t_video_actress.c.video_id)
+                .where(
+                    t_video_actress.c.fk_id.in_(actress_ids),
+                    t_video_actress.c.video_id != video_id,
+                )
+                .distinct(),
+            )
+            related.update(int(row[0]) for row in actress_result.all())
+
+        if series_ids:
+            series_result = await self.session.execute(
+                sa_select(t_video_series.c.video_id)
+                .where(
+                    t_video_series.c.fk_id.in_(series_ids),
+                    t_video_series.c.video_id != video_id,
+                )
+                .distinct(),
+            )
+            related.update(int(row[0]) for row in series_result.all())
+
+        return sorted(related)
 
     async def count_engagement_for_videos(
         self,
