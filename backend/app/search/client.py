@@ -6,35 +6,43 @@ from elasticsearch import AsyncElasticsearch
 
 from app.config import settings
 
-_client: Optional[AsyncElasticsearch] = None
+
+class _ElasticsearchState:
+    """Mutable holder for the process-wide client (avoids ``global``)."""
+
+    client: Optional[AsyncElasticsearch] = None
+
+
+_STATE = _ElasticsearchState()
 
 
 def get_elasticsearch() -> AsyncElasticsearch:
     """Return a process-wide async Elasticsearch client."""
 
-    global _client
+    if _STATE.client is not None:
+        return _STATE.client
 
-    if _client is None:
-        kwargs: dict[str, object] = {
-            "hosts": [settings.elasticsearch_url],
-        }
+    username = settings.elasticsearch_username
+    password = settings.elasticsearch_password
 
-        if settings.elasticsearch_username and settings.elasticsearch_password:
-            kwargs["basic_auth"] = (
-                settings.elasticsearch_username,
-                settings.elasticsearch_password,
-            )
+    if username and password:
+        _STATE.client = AsyncElasticsearch(
+            hosts=[settings.elasticsearch_url],
+            basic_auth=(username, password),
+        )
+    else:
+        _STATE.client = AsyncElasticsearch(
+            hosts=[settings.elasticsearch_url],
+        )
 
-        _client = AsyncElasticsearch(**kwargs)
-
-    return _client
+    return _STATE.client
 
 
 async def close_elasticsearch() -> None:
     """Close the shared client if it was opened."""
 
-    global _client
+    if _STATE.client is None:
+        return
 
-    if _client is not None:
-        await _client.close()
-        _client = None
+    await _STATE.client.close()
+    _STATE.client = None

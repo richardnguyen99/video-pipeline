@@ -14,6 +14,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from app.config import settings
 from app.models.video import Video
 from app.search.mappings import VIDEOS_INDEX_MAPPINGS, VIDEOS_INDEX_SETTINGS
+from app.utils.query import relationship_attr
 
 
 def video_to_document(video: Video) -> dict[str, Any]:
@@ -75,13 +76,15 @@ class VideoIndexer:
     async def ensure_index(self, *, recreate: bool = False) -> None:
         """Create the videos index (optionally drop first)."""
 
-        exists = await self._client.indices.exists(index=self._index)
+        index_exists = bool(
+            await self._client.indices.exists(index=self._index),
+        )
 
-        if exists and recreate:
+        if index_exists and recreate:
             await self._client.indices.delete(index=self._index)
-            exists = False
+            index_exists = False
 
-        if not exists:
+        if not index_exists:
             await self._client.indices.create(
                 index=self._index,
                 settings=VIDEOS_INDEX_SETTINGS,
@@ -102,13 +105,13 @@ class VideoIndexer:
             statement = (
                 select(Video)
                 .options(
-                    selectinload(Video.actresses),
-                    selectinload(Video.genres),
-                    selectinload(Video.series),
-                    selectinload(Video.makers),
-                    selectinload(Video.labels),
-                    selectinload(Video.directors),
-                    selectinload(Video.video_aka),
+                    selectinload(relationship_attr(Video.actresses)),
+                    selectinload(relationship_attr(Video.genres)),
+                    selectinload(relationship_attr(Video.series)),
+                    selectinload(relationship_attr(Video.makers)),
+                    selectinload(relationship_attr(Video.labels)),
+                    selectinload(relationship_attr(Video.directors)),
+                    selectinload(relationship_attr(Video.video_aka)),
                 )
                 .order_by(col(Video.id).asc())
                 .offset(offset)

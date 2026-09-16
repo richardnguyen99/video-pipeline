@@ -23,7 +23,8 @@ class VideoSearchService:
         self._index = index_name or settings.elasticsearch_index_videos
 
     def _filter_clauses(
-        self, filters: VideoListFilters
+        self,
+        filters: VideoListFilters,
     ) -> list[dict[str, Any]]:
         """Build Elasticsearch filter clauses from discover filters."""
 
@@ -49,7 +50,7 @@ class VideoSearchService:
 
         return clauses
 
-    def _sort_clause(self, sort: VideoSort) -> list[dict[str, Any]]:
+    def _sort_clause(self, sort: VideoSort) -> list[str | dict[str, Any]]:
         """Map app sort values to Elasticsearch sort."""
 
         if sort == VideoSort.LATEST:
