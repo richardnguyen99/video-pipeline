@@ -291,6 +291,39 @@ class VideoRepository(BaseRepository):
 
         return rows, total
 
+    async def list_videos_by_ids(
+        self,
+        video_ids: list[int],
+    ) -> list[Video]:
+        """Load videos by primary key preserving the given order.
+
+        Args:
+            video_ids: Ordered list of ``Video.id`` values.
+
+        Returns:
+            Matching ``Video`` rows with ``video_image_url`` loaded.
+        """
+
+        if not video_ids:
+            return []
+
+        statement = (
+            select(Video)
+            .where(col(Video.id).in_(video_ids))
+            .options(
+                media_load(
+                    Video.video_image_url,
+                    VideoImageUrl.id,
+                    VideoImageUrl.url,
+                    VideoImageUrl.type,
+                ),
+            )
+        )
+        rows = list((await self.session.exec(statement)).all())
+        by_id = {video.id: video for video in rows}
+
+        return [by_id[video_id] for video_id in video_ids if video_id in by_id]
+
     async def list_videos(
         self,
         *,

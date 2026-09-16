@@ -2,12 +2,13 @@
 
 # pylint: disable=too-many-locals
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import NoInspectionAvailable
 
+from app.config import settings
 from app.models.video import Video
 from app.repositories.video import VideoRepository
 from app.schemas.video import (
@@ -28,6 +29,9 @@ from app.schemas.video_filters import (
     parse_features_cnt,
 )
 
+if TYPE_CHECKING:
+    from app.search.service import VideoSearchService
+
 
 class VideoService:
     """Business operations for video resources."""
@@ -35,14 +39,17 @@ class VideoService:
     def __init__(
         self,
         repository: VideoRepository,
+        search_service: Optional["VideoSearchService"] = None,
     ) -> None:
         """Create a video service.
 
         Args:
             repository: Video data-access collaborator.
+            search_service: Optional Elasticsearch search collaborator.
         """
 
         self._repository = repository
+        self._search_service = search_service
 
     def _to_video_response(
         self,
@@ -447,11 +454,27 @@ class VideoService:
         else:
             safe_offset = max(0, offset)
 
-        rows, total = await self._repository.list_and_count_videos(
-            filters=filters,
-            limit=safe_limit,
-            offset=safe_offset,
+        use_elasticsearch = (
+            settings.elasticsearch_enabled
+            and self._search_service is not None
+            and filters.q is not None
+            and filters.q.strip() != ""
+            and filters.features_cnt is None
         )
+
+        if use_elasticsearch:
+            search_ids, total = await self._search_service.search_video_ids(  # type: ignore[union-attr] # (already checked with `use_elasticsearch`)
+                filters=filters,
+                limit=safe_limit,
+                offset=safe_offset,
+            )
+            rows = await self._repository.list_videos_by_ids(search_ids)
+        else:
+            rows, total = await self._repository.list_and_count_videos(
+                filters=filters,
+                limit=safe_limit,
+                offset=safe_offset,
+            )
         engagement = await self._repository.count_engagement_for_videos(
             [row.id for row in rows],
         )

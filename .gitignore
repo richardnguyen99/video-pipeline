@@ -222,6 +222,7 @@ __marimo__/
 .env.postgres
 .env.import
 .env.redis
+.env.elasticsearch
 
 # data / backup
 data/

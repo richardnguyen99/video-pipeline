@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     # Public URL prefix returned to clients (CDN or virtual-host/path style).
     object_storage_public_base_url: str = "http://localhost:9000/video-samples"
 
+    # Elasticsearch (optional; when disabled, video ``q`` uses Postgres).
+    elasticsearch_enabled: bool = False
+    elasticsearch_url: str = "http://localhost:9200"
+    elasticsearch_index_videos: str = "videos"
+    elasticsearch_username: Optional[str] = None
+    elasticsearch_password: Optional[str] = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
