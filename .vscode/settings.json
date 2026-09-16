@@ -27,6 +27,7 @@
     "sqlalchemy",
     "sqltypes",
     "trgm",
+    "typer",
     "uselist"
   ],
 

@@ -1,3 +1,21 @@
+[project]
+name = "video-pipeline"
+dynamic = ["version"]
+description = "Video pipeline API and management CLI"
+requires-python = ">=3.14"
+readme = "VERSION"
+
+[project.scripts]
+vp-cli = "cli.main:main"
+
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*", "cli*"]
+exclude = ["tests*", "alembic*"]
+
 [tool.black]
 line-length = 79
 target-version = ["py314"]
