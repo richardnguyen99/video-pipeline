@@ -42,7 +42,7 @@ function buildVideoListParams(locationSearchStr: string): {
 
   return {
     queryParams: {
-      sort: data.sort ?? DEFAULT_VIDEO_SORT,
+      sort: data.sort ?? (q ? undefined : DEFAULT_VIDEO_SORT),
       page: data.page ?? 1,
       actress: filters.actresses,
       genre: filters.genres,
@@ -75,6 +75,7 @@ export const Route = createFileRoute("/videos/")({
     director: search.director,
     series: search.series,
     features_cnt: search.features_cnt,
+    q: search.q,
   }),
   loader: async ({ context, location }) => {
     const { queryParams, searchIssues } = buildVideoListParams(location.searchStr);
@@ -120,10 +121,14 @@ function VideosDiscoverPage() {
 
   const { data } = useSuspenseQuery(videoListQueryOptions(queryParams));
 
+  const q = queryParams.q?.trim();
+  const title = q ? `Results for “${q}”` : "Videos";
+  const description = q ? "Elasticsearch-backed catalog search." : "Discover titles across the catalog.";
+
   return (
     <VideoBrowse
-      title="Videos"
-      description="Discover titles across the catalog."
+      title={title}
+      description={description}
       videos={data.videos}
       total={data.total}
       page={data.page}
@@ -131,6 +136,7 @@ function VideosDiscoverPage() {
       sort={data.sort}
       filters={data.filters}
       searchIssues={searchIssues}
+      q={q}
     />
   );
 }

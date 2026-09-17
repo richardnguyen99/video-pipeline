@@ -205,6 +205,7 @@ export type VideoDiscoverSearchParams = {
   director?: number;
   series?: number;
   features_cnt?: string;
+  q?: string;
   /** Internal: validation issues; never written to the URL. */
   _searchIssues?: VideoDiscoverSearchIssue[];
 };
@@ -350,6 +351,15 @@ export function softParseVideoDiscoverSearch(search: unknown): {
     }
   }
 
+  if (input.q != null && input.q !== "") {
+    const raw =
+      typeof input.q === "string" ? input.q.trim() : Array.isArray(input.q) ? String(input.q[0] ?? "").trim() : "";
+
+    if (raw) {
+      data.q = raw;
+    }
+  }
+
   return { data, issues };
 }
 
@@ -433,6 +443,7 @@ export function buildVideoDiscoverSearch(input: {
   sort?: VideoSort;
   page?: number;
   filters?: VideoDiscoverFilters;
+  q?: string;
 }): VideoDiscoverSearchParams {
   const filters = input.filters ?? DEFAULT_VIDEO_FILTERS;
   const search: VideoDiscoverSearchParams = {};
@@ -452,6 +463,9 @@ export function buildVideoDiscoverSearch(input: {
   if (filters.features_cnt != null) {
     search.features_cnt = stringifyFeaturesCnt(filters.features_cnt);
   }
+
+  const q = input.q?.trim();
+  if (q) search.q = q;
 
   return search;
 }

@@ -58,6 +58,7 @@ interface VideoBrowseProps {
   sort: VideoSort;
   filters: VideoDiscoverFilters;
   searchIssues?: VideoDiscoverSearchIssue[];
+  q?: string;
   className?: string;
 }
 
@@ -104,6 +105,7 @@ export function VideoBrowse({
   sort,
   filters,
   searchIssues = [],
+  q,
   className,
 }: VideoBrowseProps) {
   const navigate = useNavigate();
@@ -139,11 +141,12 @@ export function VideoBrowse({
     filters.features_cnt != null,
   ].filter(Boolean).length;
 
-  function updateSearch(next: { sort?: VideoSort; filters?: VideoDiscoverFilters; page?: number }) {
+  function updateSearch(next: { sort?: VideoSort; filters?: VideoDiscoverFilters; page?: number; q?: string | null }) {
     const nextSort = next.sort ?? sort;
     const nextFilters = next.filters ?? filters;
     const filtersChanged = next.filters != null || (next.sort != null && next.sort !== sort);
     const nextPage = filtersChanged ? 1 : (next.page ?? page);
+    const nextQ = next.q === null ? undefined : (next.q ?? q);
 
     void navigate({
       to: "/videos",
@@ -151,6 +154,7 @@ export function VideoBrowse({
         sort: nextSort,
         filters: nextFilters,
         page: nextPage,
+        q: nextQ,
       }),
       replace: true,
       resetScroll: false,

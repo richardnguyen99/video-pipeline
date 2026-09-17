@@ -55,11 +55,13 @@ function toSearchParams(params: VideoListQueryParams) {
   const page = Math.max(1, params.page ?? 1);
   const offset = (page - 1) * limit;
   const features = params.features_cnt != null ? stringifyFeaturesCnt(params.features_cnt) : undefined;
+  const hasQuery = Boolean(params.q?.trim());
+  const sort = params.sort ?? (hasQuery ? undefined : DEFAULT_VIDEO_SORT);
 
   return {
     limit,
     offset,
-    sort: params.sort ?? DEFAULT_VIDEO_SORT,
+    sort,
     q: params.q,
     locale: params.locale,
     actress: params.actress,

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Clapperboard, Menu, Search, X } from "lucide-react";
+import { Clapperboard, Menu, X } from "lucide-react";
 
+import { SiteSearchBox } from "@/components/search/site-search-box";
 import { Button } from "@/components/ui/button";
 
 const navLinks = [
@@ -39,11 +40,12 @@ export default function SiteHeader() {
           : "border-b border-transparent bg-transparent"
       }`}
     >
-      <div className="flex h-16 items-center justify-between px-6 sm:px-10 lg:px-16">
-        <Link to="/" className="flex items-center gap-2">
+      <div className="flex h-16 items-center justify-between gap-3 px-6 sm:px-10 lg:px-16">
+        <Link to="/" className="flex shrink-0 items-center gap-2">
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-[0_0_20px_-2px_var(--color-primary)]">
             <Clapperboard className="size-4" />
           </span>
+
           <span className="text-lg font-semibold tracking-tight">Velvet</span>
         </Link>
 
@@ -60,13 +62,13 @@ export default function SiteHeader() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" aria-label="Search" className="hidden sm:inline-flex">
-            <Search className="size-4" />
-          </Button>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
+          <SiteSearchBox className="hidden max-w-md flex-1 sm:block" compact />
+
           <Button size="sm" className="hidden sm:inline-flex" nativeButton={false} render={<Link to="/sign-in" />}>
             Sign in
           </Button>
+
           <Button
             variant="ghost"
             size="icon"
@@ -81,6 +83,8 @@ export default function SiteHeader() {
 
       {open ? (
         <div className="border-t border-border/60 bg-background/95 px-4 py-3 md:hidden">
+          <SiteSearchBox className="mb-3" onNavigate={() => setOpen(false)} />
+
           <nav className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <Link
@@ -93,6 +97,7 @@ export default function SiteHeader() {
                 {link.label}
               </Link>
             ))}
+
             <Button
               size="sm"
               className="mt-2"
