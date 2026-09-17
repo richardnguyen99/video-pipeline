@@ -1,13 +1,14 @@
 /**
- * Header search box following Elastic Search UI's header pattern:
- * submit redirects to the discover results page with `?q=`.
+ * Header search box with Elastic Search UI autocomplete.
+ * Enter → /videos?q=… ; click a result → /videos/$id.
  *
- * @see https://www.elastic.co/docs/reference/search-ui/guides-adding-search-bar-to-header
+ * Uses a relative/absolute dropdown (not Popover) so the panel matches the
+ * input width and does not reposition on page scroll.
  */
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Loader2, Search, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -27,14 +28,24 @@ type SiteSearchBoxProps = {
 
 export function SiteSearchBox({ className, compact = false, defaultValue = "", onNavigate }: SiteSearchBoxProps) {
   const navigate = useNavigate();
+  const routeSearch = useSearch({ strict: false });
+  const rawQ = "q" in routeSearch ? routeSearch.q : undefined;
+  const routeQ = typeof rawQ === "string" ? rawQ : defaultValue;
+
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
-  const [value, setValue] = useState(defaultValue);
+  const requestIdRef = useRef(0);
+  const [value, setValue] = useState(routeQ);
+  const [trackedRouteQ, setTrackedRouteQ] = useState(routeQ);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const requestIdRef = useRef(0);
+
+  if (routeQ !== trackedRouteQ) {
+    setTrackedRouteQ(routeQ);
+    setValue(routeQ);
+  }
 
   const term = value.trim();
   const canSearch = term.length >= MIN_QUERY_LENGTH;
@@ -122,6 +133,7 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
     function onPointerDown(event: MouseEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {
         setOpen(false);
+        setActiveIndex(-1);
       }
     }
 
@@ -136,11 +148,14 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (!open || visibleResults.length === 0) {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
+    if (event.key === "Escape") {
+      setOpen(false);
+      setActiveIndex(-1);
 
+      return;
+    }
+
+    if (!showPanel || visibleResults.length === 0) {
       return;
     }
 
@@ -154,24 +169,6 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
     if (event.key === "ArrowUp") {
       event.preventDefault();
       setActiveIndex((index) => (index <= 0 ? visibleResults.length - 1 : index - 1));
-
-      return;
-    }
-
-    if (event.key === "Enter" && activeIndex >= 0) {
-      event.preventDefault();
-      const selected = visibleResults.at(activeIndex);
-
-      if (selected != null) {
-        goToVideo(selected);
-      }
-
-      return;
-    }
-
-    if (event.key === "Escape") {
-      setOpen(false);
-      setActiveIndex(-1);
     }
   }
 
@@ -185,7 +182,7 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
-      <form onSubmit={handleSubmit} role="search" className="relative">
+      <form onSubmit={handleSubmit} role="search" className="relative w-full">
         <Search
           className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
           aria-hidden
@@ -197,7 +194,7 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
           value={value}
           onChange={(event) => setValue(event.target.value)}
           onFocus={() => {
-            if (visibleResults.length > 0) {
+            if (canSearch && results.length > 0) {
               setOpen(true);
             }
           }}
@@ -208,8 +205,8 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
           aria-controls={listId}
           aria-expanded={showPanel}
           className={cn(
-            "h-9 border-border/80 bg-background/80 pr-9 pl-9 shadow-none",
-            compact ? "w-44 sm:w-56 lg:w-72" : "w-full",
+            "h-9 w-full border-border/80 bg-background/80 pr-9 pl-9 shadow-none",
+            compact ? "min-w-48 sm:min-w-56 lg:min-w-72" : null,
           )}
         />
 
