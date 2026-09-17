@@ -46,7 +46,7 @@ import {
 } from "@/libs/discover-videos";
 import { buttonVariants } from "@/libs/shadcn_variants";
 import type { Video } from "@/mocks/videos";
-import { captureScrollPosition, cn, restoreScrollPosition } from "@/libs/utils";
+import { cn, restoreScrollPosition } from "@/libs/utils";
 
 interface VideoBrowseProps {
   title?: string;
@@ -499,9 +499,9 @@ export function VideoBrowse({
                     sort,
                     filters,
                     page: page - 1,
+                    q,
                   })}
-                  resetScroll={false}
-                  onClick={() => captureScrollPosition()}
+                  resetScroll
                   aria-label="Go to previous page"
                   className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pr-2.5")}
                 >
@@ -541,9 +541,9 @@ export function VideoBrowse({
                         sort,
                         filters,
                         page: p,
+                        q,
                       })}
-                      resetScroll={false}
-                      onClick={() => captureScrollPosition()}
+                      resetScroll
                       aria-label={`Go to page ${p}`}
                       aria-current={p === page ? "page" : undefined}
                       activeOptions={{ exact: true, includeSearch: true }}
@@ -588,9 +588,9 @@ export function VideoBrowse({
                     sort,
                     filters,
                     page: page + 1,
+                    q,
                   })}
-                  resetScroll={false}
-                  onClick={() => captureScrollPosition()}
+                  resetScroll
                   aria-label="Go to next page"
                   className={cn(buttonVariants({ variant: "outline", size: "default" }), "gap-1 px-2.5 sm:pl-2.5")}
                 >
