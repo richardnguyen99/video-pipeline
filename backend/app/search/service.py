@@ -8,6 +8,33 @@ from elasticsearch import AsyncElasticsearch
 
 from app.config import settings
 from app.schemas.video_filters import VideoListFilters, VideoSort
+from app.utils.common import search_terms
+
+_MATCH_FIELDS: list[str] = [
+    "video_id.text^5",
+    "title^3",
+    "title_akas^2",
+    "actress_names^4",
+    "genre_names^2",
+    "series_names",
+    "maker_names",
+    "label_names",
+    "director_names",
+    "search_blob",
+]
+
+_SUBSTRING_FIELDS: list[str] = [
+    "video_id",
+    "title.keyword",
+    "title_akas.keyword",
+    "actress_names.keyword",
+    "genre_names.keyword",
+    "series_names.keyword",
+    "maker_names.keyword",
+    "label_names.keyword",
+    "director_names.keyword",
+    "search_blob.keyword",
+]
 
 
 class VideoSearchService:
@@ -23,8 +50,7 @@ class VideoSearchService:
         self._index = index_name or settings.elasticsearch_index_videos
 
     def _filter_clauses(
-        self,
-        filters: VideoListFilters,
+        self, filters: VideoListFilters
     ) -> list[dict[str, Any]]:
         """Build Elasticsearch filter clauses from discover filters."""
 
@@ -68,6 +94,94 @@ class VideoSearchService:
             {"id": {"order": "desc"}},
         ]
 
+    def _substring_should(self, term: str) -> list[dict[str, Any]]:
+        """Postgres ``ILIKE %term%`` parity via case-insensitive wildcards.
+
+        Only used for terms long enough to avoid matching noise.
+        """
+
+        if len(term) < 2:
+            return []
+
+        pattern = f"*{term.lower()}*"
+
+        return [
+            {
+                "wildcard": {
+                    field: {
+                        "value": pattern,
+                        "case_insensitive": True,
+                    },
+                },
+            }
+            for field in _SUBSTRING_FIELDS
+        ]
+
+    def _term_clause(self, term: str) -> dict[str, Any]:
+        """Match one term on video fields OR catalog names (Postgres parity).
+
+        - Analyzed ``multi_match`` (no fuzziness) for token equality
+        - Keyword wildcards for substring contains (``ILIKE %term%``)
+        - ``match_phrase`` boosts contiguous multi-character / multi-word names
+        """
+
+        should: list[dict[str, Any]] = [
+            {
+                "multi_match": {
+                    "query": term,
+                    "fields": _MATCH_FIELDS,
+                    "type": "best_fields",
+                    "operator": "and",
+                },
+            },
+            {
+                "match_phrase": {
+                    "actress_names": {
+                        "query": term,
+                        "boost": 6,
+                    },
+                },
+            },
+            {
+                "match_phrase": {
+                    "title": {
+                        "query": term,
+                        "boost": 3,
+                    },
+                },
+            },
+            {
+                "match_phrase": {
+                    "genre_names": {
+                        "query": term,
+                        "boost": 2,
+                    },
+                },
+            },
+            *self._substring_should(term),
+        ]
+
+        return {
+            "bool": {
+                "should": should,
+                "minimum_should_match": 1,
+            },
+        }
+
+    def _text_must_clauses(self, query_text: str) -> list[dict[str, Any]]:
+        """AND across terms; each term may match any catalog/title field.
+
+        Mirrors Postgres discover search: terms are split on ``+`` / whitespace,
+        every term must hit somewhere (code, title, aka, actress, genre, …).
+        """
+
+        terms = search_terms(query_text)
+
+        if not terms:
+            return []
+
+        return [self._term_clause(term) for term in terms]
+
     async def search_video_ids(
         self,
         *,
@@ -80,40 +194,14 @@ class VideoSearchService:
         When ``filters.q`` is empty, only filter/sort clauses apply (browse mode).
         """
 
-        must: list[dict[str, Any]] = []
         query_text = (filters.q or "").strip()
-
-        if query_text:
-            must.append(
-                {
-                    "multi_match": {
-                        "query": query_text,
-                        "fields": [
-                            "video_id^5",
-                            "video_id.text^4",
-                            "title^3",
-                            "title_akas^2",
-                            "actress_names^2",
-                            "genre_names",
-                            "series_names",
-                            "maker_names",
-                            "label_names",
-                            "director_names",
-                        ],
-                        "type": "best_fields",
-                        "operator": "and",
-                        "fuzziness": "AUTO",
-                    },
-                },
-            )
-
+        must: list[dict[str, Any]] = (
+            self._text_must_clauses(query_text)
+            if query_text
+            else [{"match_all": {}}]
+        )
         filter_clauses = self._filter_clauses(filters)
-        bool_query: dict[str, Any] = {}
-
-        if must:
-            bool_query["must"] = must
-        else:
-            bool_query["must"] = [{"match_all": {}}]
+        bool_query: dict[str, Any] = {"must": must}
 
         if filter_clauses:
             bool_query["filter"] = filter_clauses
@@ -125,6 +213,8 @@ class VideoSearchService:
             size=max(1, min(limit, 100)),
             sort=self._sort_clause(filters.sort),
             source=False,
+            track_total_hits=True,
+            request_cache=True,
         )
         hits = response.get("hits", {})
         total_raw = hits.get("total", 0)

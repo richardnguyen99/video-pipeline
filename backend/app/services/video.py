@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-locals
 
+import logging
 from typing import TYPE_CHECKING, Optional
 
 from fastapi import HTTPException, status
@@ -31,6 +32,8 @@ from app.schemas.video_filters import (
 
 if TYPE_CHECKING:
     from app.search.service import VideoSearchService
+
+_logger = logging.getLogger("uvicorn.error")
 
 
 class VideoService:
@@ -435,6 +438,9 @@ class VideoService:
                     detail=str(exc),
                 ) from exc
 
+        has_query = q is not None and q.strip() != ""
+        default_sort = VideoSort.RANK if has_query else VideoSort.TRENDING_WEEK
+
         filters = VideoListFilters(
             actress=list(actress or []),
             genre=list(genre or []),
@@ -445,7 +451,7 @@ class VideoService:
             features_cnt=features_range,
             q=q,
             locale=(locale or "en-us").strip() or "en-us",
-            sort=sort or VideoSort.TRENDING_WEEK,
+            sort=sort or default_sort,
         )
 
         if page is not None:
@@ -470,6 +476,15 @@ class VideoService:
             )
             rows = await self._repository.list_videos_by_ids(search_ids)
         else:
+            if filters.q and filters.q.strip():
+                _logger.info(
+                    "video list search backend=postgres q=%r "
+                    "elasticsearch_enabled=%s search_service=%s features_cnt=%s",
+                    filters.q,
+                    settings.elasticsearch_enabled,
+                    self._search_service is not None,
+                    filters.features_cnt is not None,
+                )
             rows, total = await self._repository.list_and_count_videos(
                 filters=filters,
                 limit=safe_limit,

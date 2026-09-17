@@ -15,9 +15,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import Response
 
 import app.models  # pylint: disable=unused-import
-from app.config import AppEnvironment, settings
+from app.config import _ENV_FILE, AppEnvironment, settings
 from app.database import create_db_and_tables
 from app.routes import api_v1_router
+from app.search.client import close_elasticsearch
 
 RequestResponseEndpoint = Callable[[Request], Awaitable[Response]]
 PUBLIC_CACHE_STATUS_HEADER = "x-cache"
@@ -28,7 +29,32 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Handle application startup and shutdown events."""
 
     await create_db_and_tables()
-    yield
+
+    logger = logging.getLogger("uvicorn.error")
+
+    if settings.elasticsearch_enabled:
+        logger.info(
+            "Elasticsearch search ENABLED url=%s videos_index=%s "
+            "actresses_index=%s env_file=%s",
+            settings.elasticsearch_url,
+            settings.elasticsearch_index_videos,
+            settings.elasticsearch_index_actresses,
+            _ENV_FILE,
+        )
+    else:
+        logger.warning(
+            "Elasticsearch search DISABLED (elasticsearch_enabled=%r env_file=%s) — "
+            "video ``q`` uses Postgres. Set ELASTICSEARCH_ENABLED=true in "
+            "backend/.env and fully restart uvicorn (not only --reload).",
+            settings.elasticsearch_enabled,
+            _ENV_FILE,
+        )
+
+    try:
+        yield
+    finally:
+
+        await close_elasticsearch()
 
 
 fastapi_app = FastAPI(

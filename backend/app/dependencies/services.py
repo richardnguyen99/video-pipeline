@@ -1,9 +1,11 @@
 """Service-layer dependency providers."""
 
+import logging
 from typing import Annotated
 
 from fastapi import Depends
 
+from app.config import settings
 from app.dependencies.repositories import (
     ActressRepositoryDep,
     DirectorRepositoryDep,
@@ -14,6 +16,8 @@ from app.dependencies.repositories import (
     VideoRepositoryDep,
 )
 from app.dependencies.settings import SettingsDep
+from app.search.client import get_elasticsearch
+from app.search.service import VideoSearchService
 from app.services.actress import ActressService
 from app.services.director import DirectorService
 from app.services.genre import GenreService
@@ -22,6 +26,8 @@ from app.services.label import LabelService
 from app.services.maker import MakerService
 from app.services.series import SeriesService
 from app.services.video import VideoService
+
+_logger = logging.getLogger("uvicorn.error")
 
 
 def get_health_service(settings: SettingsDep) -> HealthService:
@@ -43,7 +49,20 @@ def get_video_service(
 ) -> VideoService:
     """Build a ``VideoService`` for the current request."""
 
-    return VideoService(repository=repository)
+    search_service = None
+
+    if settings.elasticsearch_enabled:
+        search_service = VideoSearchService(get_elasticsearch())
+    else:
+        _logger.debug(
+            "VideoService: skipping Elasticsearch (elasticsearch_enabled=%r)",
+            settings.elasticsearch_enabled,
+        )
+
+    return VideoService(
+        repository=repository,
+        search_service=search_service,
+    )
 
 
 def get_genre_service(

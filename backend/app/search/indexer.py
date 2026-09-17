@@ -12,9 +12,78 @@ from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import settings
+from app.models.actress import Actress
+from app.models.director import Director
+from app.models.genre import Genre
+from app.models.label import Label
+from app.models.maker import Maker
+from app.models.series import Series
 from app.models.video import Video
 from app.search.mappings import VIDEOS_INDEX_MAPPINGS, VIDEOS_INDEX_SETTINGS
 from app.utils.query import relationship_attr
+
+
+def _unique_strings(*values: object) -> list[str]:
+    """Return non-empty string values in order, de-duplicated."""
+
+    seen: set[str] = set()
+    result: list[str] = []
+
+    for value in values:
+        if value is None:
+            continue
+
+        text = str(value).strip()
+
+        if not text or text in seen:
+            continue
+
+        seen.add(text)
+        result.append(text)
+
+    return result
+
+
+def _actress_search_names(actress: object) -> list[str]:
+    """Collect searchable name variants for one actress."""
+
+    names = _unique_strings(
+        getattr(actress, "name", None),
+        getattr(actress, "original_name", None),
+        getattr(actress, "dmm_name", None),
+        getattr(actress, "ruby", None),
+    )
+    aka = getattr(actress, "actress_aka", None)
+
+    if aka is not None:
+        names = _unique_strings(
+            *names,
+            getattr(aka, "name", None),
+            getattr(aka, "translated_name", None),
+        )
+
+    return names
+
+
+def _catalog_search_names(
+    entity: object,
+    aka_attr: str,
+) -> list[str]:
+    """Collect name + ruby + aka translated names for a catalog entity."""
+
+    names = _unique_strings(
+        getattr(entity, "name", None),
+        getattr(entity, "ruby", None),
+    )
+    akas = list(getattr(entity, aka_attr, None) or [])
+
+    for aka in akas:
+        names = _unique_strings(
+            *names,
+            getattr(aka, "translated_name", None),
+        )
+
+    return names
 
 
 def video_to_document(video: Video) -> dict[str, Any]:
@@ -28,34 +97,89 @@ def video_to_document(video: Video) -> dict[str, Any]:
     directors = list(getattr(video, "directors", None) or [])
     akas = list(getattr(video, "video_aka", None) or [])
 
+    actress_names: list[str] = []
+
+    for actress in actresses:
+        actress_names.extend(_actress_search_names(actress))
+
+    actress_names = _unique_strings(*actress_names)
+    genre_names = _unique_strings(
+        *[
+            name
+            for genre in genres
+            for name in _catalog_search_names(genre, "genre_aka")
+        ],
+    )
+    series_names = _unique_strings(
+        *[
+            name
+            for item in series
+            for name in _catalog_search_names(item, "series_aka")
+        ],
+    )
+    maker_names = _unique_strings(
+        *[
+            name
+            for item in makers
+            for name in _catalog_search_names(item, "maker_aka")
+        ],
+    )
+    label_names = _unique_strings(
+        *[
+            name
+            for item in labels
+            for name in _catalog_search_names(item, "label_aka")
+        ],
+    )
+    director_names = _unique_strings(
+        *[
+            name
+            for item in directors
+            for name in _catalog_search_names(item, "director_aka")
+        ],
+    )
+    title_akas = [
+        str(aka.translated_name)
+        for aka in akas
+        if getattr(aka, "translated_name", None)
+    ]
+    search_blob = " ".join(
+        _unique_strings(
+            video.video_id,
+            video.title,
+            *title_akas,
+            *actress_names,
+            *genre_names,
+            *series_names,
+            *maker_names,
+            *label_names,
+            *director_names,
+        ),
+    )
+
     return {
         "id": video.id,
         "video_id": video.video_id,
         "title": video.title or "",
-        "title_akas": [
-            aka.translated_name
-            for aka in akas
-            if getattr(aka, "translated_name", None)
-        ],
+        "title_akas": title_akas,
         "release_date": (
             video.release_date.isoformat()
             if video.release_date is not None
             else None
         ),
         "actress_ids": [actress.id for actress in actresses],
-        "actress_names": [
-            actress.name for actress in actresses if actress.name
-        ],
+        "actress_names": actress_names,
         "genre_ids": [genre.id for genre in genres],
-        "genre_names": [genre.name for genre in genres if genre.name],
+        "genre_names": genre_names,
         "series_ids": [item.id for item in series],
-        "series_names": [item.name for item in series if item.name],
+        "series_names": series_names,
         "maker_ids": [item.id for item in makers],
-        "maker_names": [item.name for item in makers if item.name],
+        "maker_names": maker_names,
         "label_ids": [item.id for item in labels],
-        "label_names": [item.name for item in labels if item.name],
+        "label_names": label_names,
         "director_ids": [item.id for item in directors],
-        "director_names": [item.name for item in directors if item.name],
+        "director_names": director_names,
+        "search_blob": search_blob,
     }
 
 
@@ -105,12 +229,28 @@ class VideoIndexer:
             statement = (
                 select(Video)
                 .options(
-                    selectinload(relationship_attr(Video.actresses)),
-                    selectinload(relationship_attr(Video.genres)),
-                    selectinload(relationship_attr(Video.series)),
-                    selectinload(relationship_attr(Video.makers)),
-                    selectinload(relationship_attr(Video.labels)),
-                    selectinload(relationship_attr(Video.directors)),
+                    selectinload(
+                        relationship_attr(Video.actresses)
+                    ).selectinload(
+                        relationship_attr(Actress.actress_aka),
+                    ),
+                    selectinload(relationship_attr(Video.genres)).selectinload(
+                        relationship_attr(Genre.genre_aka),
+                    ),
+                    selectinload(relationship_attr(Video.series)).selectinload(
+                        relationship_attr(Series.series_aka),
+                    ),
+                    selectinload(relationship_attr(Video.makers)).selectinload(
+                        relationship_attr(Maker.maker_aka),
+                    ),
+                    selectinload(relationship_attr(Video.labels)).selectinload(
+                        relationship_attr(Label.label_aka),
+                    ),
+                    selectinload(
+                        relationship_attr(Video.directors)
+                    ).selectinload(
+                        relationship_attr(Director.director_aka),
+                    ),
                     selectinload(relationship_attr(Video.video_aka)),
                 )
                 .order_by(col(Video.id).asc())

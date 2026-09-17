@@ -838,31 +838,24 @@ class VideoRepository(BaseRepository):
         for video_id, total in view_result.all():
             totals[int(video_id)]["views"] = int(total)
 
-        like_statement = (
-            select(col(VideoReaction.video_id), func.count())
-            .where(
-                col(VideoReaction.video_id).in_(unique_ids),
-                col(VideoReaction.is_like).is_(True),
+        reaction_statement = (
+            select(
+                col(VideoReaction.video_id),
+                func.count()
+                .filter(col(VideoReaction.is_like).is_(True))
+                .label("likes"),
+                func.count()
+                .filter(col(VideoReaction.is_like).is_(False))
+                .label("dislikes"),
             )
+            .where(col(VideoReaction.video_id).in_(unique_ids))
             .group_by(col(VideoReaction.video_id))
         )
-        like_result = await self.session.exec(like_statement)
+        reaction_result = await self.session.exec(reaction_statement)
 
-        for video_id, total in like_result.all():
-            totals[int(video_id)]["likes"] = int(total)
-
-        dislike_statement = (
-            select(col(VideoReaction.video_id), func.count())
-            .where(
-                col(VideoReaction.video_id).in_(unique_ids),
-                col(VideoReaction.is_like).is_(False),
-            )
-            .group_by(col(VideoReaction.video_id))
-        )
-        dislike_result = await self.session.exec(dislike_statement)
-
-        for video_id, total in dislike_result.all():
-            totals[int(video_id)]["dislikes"] = int(total)
+        for video_id, likes, dislikes in reaction_result.all():
+            totals[int(video_id)]["likes"] = int(likes)
+            totals[int(video_id)]["dislikes"] = int(dislikes)
 
         comment_statement = (
             select(col(Comment.video_id), func.count())

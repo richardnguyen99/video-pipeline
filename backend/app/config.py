@@ -4,10 +4,16 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Optional
 
+from dotenv import load_dotenv
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
+_BACKEND_ROOT = Path(__file__).resolve().parents[1]
+_VERSION_FILE = _BACKEND_ROOT / "VERSION"
+_ENV_FILE = _BACKEND_ROOT / ".env"
+
+if _ENV_FILE.is_file():
+    load_dotenv(_ENV_FILE, override=True)
 
 
 def load_app_version() -> str:
@@ -74,17 +80,39 @@ class Settings(BaseSettings):
     object_storage_public_base_url: str = "http://localhost:9000/video-samples"
 
     # Elasticsearch (optional; when disabled, video ``q`` uses Postgres).
-    elasticsearch_enabled: bool = False
+    elasticsearch_enabled: bool = Field(
+        default=False,
+        description="When true, video list ``q`` uses the Elasticsearch index.",
+    )
     elasticsearch_url: str = "http://localhost:9200"
     elasticsearch_index_videos: str = "videos"
+    elasticsearch_index_actresses: str = "actresses"
     elasticsearch_username: Optional[str] = None
     elasticsearch_password: Optional[str] = None
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ENV_FILE) if _ENV_FILE.is_file() else None,
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         case_sensitive=False,
+        extra="ignore",
     )
+
+    @field_validator("elasticsearch_enabled", mode="before")
+    @classmethod
+    def parse_elasticsearch_enabled(cls, value: object) -> object:
+        """Accept common truthy/falsy string forms from env files."""
+
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+
+            if normalized in {"0", "false", "no", "off", ""}:
+                return False
+
+        return value
 
     @property
     def cors_origin_list(self) -> list[str]:
