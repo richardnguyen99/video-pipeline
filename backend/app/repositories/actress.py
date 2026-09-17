@@ -30,6 +30,7 @@ from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
 from app.schemas.actress_filters import ActressListFilters, ActressSort
 from app.utils import query_col, relationship_attr
+from app.utils.common import search_terms
 
 
 class ActressRepository(BaseRepository):
@@ -52,9 +53,9 @@ class ActressRepository(BaseRepository):
 
     @staticmethod
     def _search_terms(raw: str) -> list[str]:
-        """Split a search string into non-empty space-separated terms."""
+        """Split ``q`` on ``+`` only; preserve spaces inside each term."""
 
-        return [part for part in raw.strip().split() if part]
+        return search_terms(raw)
 
     @staticmethod
     def _term_match_predicate(term: str) -> Any:

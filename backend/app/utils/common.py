@@ -97,12 +97,20 @@ def catalog_ids_predicate(
 
 
 def search_terms(raw: str) -> list[str]:
-    """Split ``q`` on ``+`` and whitespace into non-empty terms."""
+    """Split ``q`` on ``+`` into non-empty terms; keep spaces inside each term.
+
+    Examples:
+    - ``mird+sweat`` → ``["mird", "sweat"]`` (AND across terms)
+    - ``aimi yoshikawa+team`` → ``["aimi yoshikawa", "team"]``
+      (does not split the actress name on whitespace)
+    """
 
     parts: list[str] = []
 
-    for chunk in raw.replace("+", " ").split():
-        if chunk:
-            parts.append(chunk)
+    for chunk in raw.split("+"):
+        term = chunk.strip()
+
+        if term:
+            parts.append(term)
 
     return parts

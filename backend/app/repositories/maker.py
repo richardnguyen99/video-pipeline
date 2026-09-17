@@ -9,6 +9,7 @@ from sqlmodel import col, select
 
 from app.models.maker import Maker, MakerAka
 from app.repositories.base import BaseRepository
+from app.utils.common import search_terms
 from app.utils.query import relationship_attr
 
 
@@ -17,9 +18,9 @@ class MakerRepository(BaseRepository):
 
     @staticmethod
     def _search_terms(raw: str) -> list[str]:
-        """Split a search string into non-empty space-separated terms."""
+        """Split ``q`` on ``+`` only; preserve spaces inside each term."""
 
-        return [part for part in raw.strip().split() if part]
+        return search_terms(raw)
 
     @staticmethod
     def _term_match_predicate(
