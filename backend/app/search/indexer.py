@@ -86,6 +86,42 @@ def _catalog_search_names(
     return names
 
 
+def _pick_video_image_url(video: object) -> Optional[str]:
+    """Prefer list / small / large cover URL for search UI thumbnails."""
+
+    images = list(getattr(video, "video_image_url", None) or [])
+    priority = ("list", "small", "large")
+
+    by_type: dict[str, str] = {}
+
+    for image in images:
+        url = getattr(image, "url", None)
+        image_type = (getattr(image, "type", None) or "").strip().lower()
+
+        if not url:
+            continue
+
+        text_url = str(url).strip()
+
+        if not text_url:
+            continue
+
+        if image_type and image_type not in by_type:
+            by_type[image_type] = text_url
+
+    for preferred in priority:
+        if preferred in by_type:
+            return by_type[preferred]
+
+    for image in images:
+        url = getattr(image, "url", None)
+
+        if url and str(url).strip():
+            return str(url).strip()
+
+    return None
+
+
 def video_to_document(video: Video) -> dict[str, Any]:
     """Serialize a loaded ``Video`` row into an Elasticsearch document."""
 
@@ -180,6 +216,7 @@ def video_to_document(video: Video) -> dict[str, Any]:
         "director_ids": [item.id for item in directors],
         "director_names": director_names,
         "search_blob": search_blob,
+        "image_url": _pick_video_image_url(video),
     }
 
 
@@ -252,6 +289,7 @@ class VideoIndexer:
                         relationship_attr(Director.director_aka),
                     ),
                     selectinload(relationship_attr(Video.video_aka)),
+                    selectinload(relationship_attr(Video.video_image_url)),
                 )
                 .order_by(col(Video.id).asc())
                 .offset(offset)

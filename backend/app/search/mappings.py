@@ -68,6 +68,7 @@ VIDEOS_INDEX_MAPPINGS: dict[str, Any] = {
         "director_ids": {"type": "integer"},
         "director_names": dict(_TEXT_WITH_KEYWORD),
         "search_blob": dict(_TEXT_WITH_KEYWORD),
+        "image_url": {"type": "keyword", "index": False},
     },
 }
 

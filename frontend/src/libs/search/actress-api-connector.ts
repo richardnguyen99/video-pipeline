@@ -1,51 +1,48 @@
 /**
- * Search UI–compatible connector for videos.
+ * Search UI–compatible connector for actresses.
  *
- * Posts to FastAPI proxy endpoints (`/search-ui/videos/search` and
- * `/search-ui/videos/autocomplete`) so the browser never talks to Elasticsearch.
+ * Posts to FastAPI proxy endpoints (`/search-ui/actresses/search` and
+ * `/search-ui/actresses/autocomplete`).
  *
  * @see https://www.elastic.co/docs/reference/search-ui/tutorials-elasticsearch-production-usage
- * @see https://www.elastic.co/docs/reference/search-ui/guides-building-custom-connector
  */
 
 import { getApiBaseUrl } from "@/libs/api-client";
 
-export type SearchRequestState = {
+export type ActressSearchRequestState = {
   searchTerm?: string;
   current?: number;
   resultsPerPage?: number;
 };
 
-export type SearchResultField = {
+export type ActressSearchResultField = {
   raw?: string | number | null | Array<string | number | null>;
   snippet?: string;
 };
 
-export type SearchResult = {
+export type ActressSearchResult = {
   id: { raw: string };
-  video_id?: SearchResultField;
-  title?: SearchResultField;
-  release_date?: SearchResultField;
-  actress_names?: SearchResultField;
-  genre_names?: SearchResultField;
-  image_url?: SearchResultField;
-  [key: string]: SearchResultField | { raw: string } | undefined;
+  name?: ActressSearchResultField;
+  original_name?: ActressSearchResultField;
+  ruby?: ActressSearchResultField;
+  aka_translated_names?: ActressSearchResultField;
+  [key: string]: ActressSearchResultField | { raw: string } | undefined;
 };
 
-export type SearchResponseState = {
-  results: SearchResult[];
+export type ActressSearchResponseState = {
+  results: ActressSearchResult[];
   totalResults: number;
   totalPages: number;
   resultSearchTerm?: string;
 };
 
-export type AutocompleteSuggestion = {
+export type ActressAutocompleteSuggestion = {
   suggestion: string;
 };
 
-export type AutocompleteResponseState = {
-  autocompletedResults: SearchResult[];
-  autocompletedSuggestions: Record<string, AutocompleteSuggestion[]>;
+export type ActressAutocompleteResponseState = {
+  autocompletedResults: ActressSearchResult[];
+  autocompletedSuggestions: Record<string, ActressAutocompleteSuggestion[]>;
 };
 
 type ProxyBody = {
@@ -80,7 +77,7 @@ async function postSearchUi<T>(path: string, body: ProxyBody): Promise<T> {
   return (await response.json()) as T;
 }
 
-function toProxyBody(state: SearchRequestState, options?: { autocompleteSize?: number }): ProxyBody {
+function toProxyBody(state: ActressSearchRequestState, options?: { autocompleteSize?: number }): ProxyBody {
   const searchTerm = (state.searchTerm ?? "").trim();
   const resultsPerPage = Math.min(Math.max(state.resultsPerPage ?? 20, 1), 100);
   const current = Math.max(state.current ?? 1, 1);
@@ -98,14 +95,8 @@ function toProxyBody(state: SearchRequestState, options?: { autocompleteSize?: n
   };
 }
 
-/**
- * Connector implementing the Search UI ``APIConnector`` surface for videos.
- *
- * Pair with ``ApiProxyConnector``-style base path:
- * ``${API}/search-ui/videos`` → ``/search`` + ``/autocomplete``.
- */
-export class VideoApiConnector {
-  async onSearch(state: SearchRequestState): Promise<SearchResponseState> {
+export class ActressApiConnector {
+  async onSearch(state: ActressSearchRequestState): Promise<ActressSearchResponseState> {
     const searchTerm = (state.searchTerm ?? "").trim();
 
     if (!searchTerm) {
@@ -116,10 +107,10 @@ export class VideoApiConnector {
       };
     }
 
-    return postSearchUi<SearchResponseState>("/search-ui/videos/search", toProxyBody(state));
+    return postSearchUi<ActressSearchResponseState>("/search-ui/actresses/search", toProxyBody(state));
   }
 
-  async onAutocomplete(state: SearchRequestState): Promise<AutocompleteResponseState> {
+  async onAutocomplete(state: ActressSearchRequestState): Promise<ActressAutocompleteResponseState> {
     const searchTerm = (state.searchTerm ?? "").trim();
 
     if (searchTerm.length < 2) {
@@ -129,8 +120,8 @@ export class VideoApiConnector {
       };
     }
 
-    return postSearchUi<AutocompleteResponseState>(
-      "/search-ui/videos/autocomplete",
+    return postSearchUi<ActressAutocompleteResponseState>(
+      "/search-ui/actresses/autocomplete",
       toProxyBody(state, { autocompleteSize: 6 }),
     );
   }
@@ -140,4 +131,4 @@ export class VideoApiConnector {
   onAutocompleteResultClick(): void {}
 }
 
-export const videoApiConnector = new VideoApiConnector();
+export const actressApiConnector = new ActressApiConnector();

@@ -13,6 +13,7 @@ from app.routes.api.v1.health import router as health_router
 from app.routes.api.v1.labels import router as labels_router
 from app.routes.api.v1.makers import router as makers_router
 from app.routes.api.v1.series import router as series_router
+from app.routes.api.v1.search_ui import router as search_ui_router
 from app.routes.api.v1.videos import router as videos_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -28,6 +29,10 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     videos_router,
     tags=["videos"],
+)
+api_v1_router.include_router(
+    search_ui_router,
+    tags=["search-ui"],
 )
 api_v1_router.include_router(
     genres_router,

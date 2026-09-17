@@ -226,3 +226,59 @@ class VideoSearchService:
         ids = [int(hit["_id"]) for hit in hits.get("hits", [])]
 
         return ids, total
+
+    async def search_documents(
+        self,
+        *,
+        query_text: str,
+        limit: int = 20,
+        offset: int = 0,
+        source_fields: Optional[list[str]] = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Return video documents and total hits for Search UI proxy."""
+
+        text = (query_text or "").strip()
+        must: list[dict[str, Any]] = (
+            self._text_must_clauses(text) if text else [{"match_all": {}}]
+        )
+        fields = source_fields or [
+            "id",
+            "video_id",
+            "title",
+            "title_akas",
+            "release_date",
+            "actress_names",
+            "genre_names",
+            "series_names",
+            "maker_names",
+            "label_names",
+            "director_names",
+            "image_url",
+        ]
+
+        response = await self._client.search(
+            index=self._index,
+            query={"bool": {"must": must}},
+            from_=max(0, offset),
+            size=max(1, min(limit, 100)),
+            sort=["_score", {"id": {"order": "desc"}}],
+            source={"includes": fields},
+            track_total_hits=True,
+            request_cache=True,
+        )
+        hits = response.get("hits", {})
+        total_raw = hits.get("total", 0)
+        total = (
+            int(total_raw.get("value", 0))
+            if isinstance(total_raw, dict)
+            else int(total_raw or 0)
+        )
+        documents: list[dict[str, Any]] = []
+
+        for hit in hits.get("hits", []):
+            source = dict(hit.get("_source") or {})
+            source["_id"] = hit.get("_id")
+            source["_score"] = hit.get("_score")
+            documents.append(source)
+
+        return documents, total

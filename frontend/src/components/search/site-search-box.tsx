@@ -241,9 +241,10 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
           ) : (
             <ul className="max-h-80 overflow-y-auto py-1">
               {visibleResults.map((result, index) => {
-                const title = String(result.title.raw ?? "");
-                const code = String(result.video_id.raw ?? "");
-                const image = result.image_url.raw ? String(result.image_url.raw) : null;
+                const title = String(result.title?.raw ?? "");
+                const code = String(result.video_id?.raw ?? "");
+                const imageRaw = result.image_url?.raw;
+                const image = imageRaw != null && imageRaw !== "" ? String(imageRaw) : null;
                 const active = index === activeIndex;
 
                 return (
