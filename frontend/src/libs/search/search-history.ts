@@ -133,6 +133,21 @@ export function rememberSearchVideo(result: SearchResult): SearchHistoryState {
   return next;
 }
 
+export function removeSearchQuery(query: string): SearchHistoryState {
+  const q = query.trim();
+
+  if (q.length === 0) {
+    return readSearchHistory();
+  }
+
+  const current = readSearchHistory();
+  const queries = current.queries.filter((item) => item !== q);
+  const next = { ...current, queries };
+  writeSearchHistory(next);
+
+  return next;
+}
+
 export function clearSearchHistory(): SearchHistoryState {
   writeSearchHistory({ ...EMPTY });
 

@@ -13,8 +13,9 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { FormEvent, KeyboardEvent } from "react";
 import { useHotkey, formatForDisplay } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
-import { Clock, Loader2, Search, X } from "lucide-react";
+import { Clock, Loader2, Search, Trash2, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SearchResult } from "@/libs/search/video-api-connector";
 import { videoApiConnector } from "@/libs/search/video-api-connector";
@@ -24,6 +25,7 @@ import {
   recentVideoToSearchResult,
   rememberSearchQuery,
   rememberSearchVideo,
+  removeSearchQuery,
 } from "@/libs/search/search-history";
 import type { SearchHistoryState } from "@/libs/search/search-history";
 import { cn } from "@/libs/utils";
@@ -128,6 +130,11 @@ export function SiteSearchBox({
     },
     [deactivateSearch, navigate, onNavigate],
   );
+
+  const removeHistoryQuery = useCallback((query: string) => {
+    setHistory(removeSearchQuery(query));
+    setActiveIndex(-1);
+  }, []);
 
   const goToVideo = useCallback(
     (result: SearchResult) => {
@@ -463,20 +470,49 @@ export function SiteSearchBox({
                     const active = index === activeIndex;
 
                     return (
-                      <li key={`q-${query}`} id={`${listId}-option-${index}`} role="option" aria-selected={active}>
+                      <li
+                        key={`q-${query}`}
+                        id={`${listId}-option-${index}`}
+                        role="option"
+                        aria-selected={active}
+                        className="group/query relative"
+                        onMouseEnter={() => setActiveIndex(index)}
+                      >
                         <button
                           type="button"
                           className={cn(
-                            "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
+                            "flex w-full items-center gap-3 px-3 py-2 pr-10 text-left text-sm transition-colors",
                             active ? "bg-muted" : "hover:bg-muted/70",
                           )}
-                          onMouseEnter={() => setActiveIndex(index)}
                           onClick={() => goToResults(query)}
                         >
                           <Clock className="size-4 shrink-0 text-muted-foreground" />
 
                           <span className="min-w-0 flex-1 truncate font-medium">{query}</span>
                         </button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Remove search “${query}”`}
+                          className={cn(
+                            "absolute top-1/2 right-1.5 size-7 -translate-y-1/2 p-1.5",
+                            "text-muted-foreground opacity-0 transition-opacity",
+                            "hover:bg-destructive/15 hover:text-destructive",
+                            "focus-visible:opacity-100 focus-visible:ring-destructive/30",
+                            "active:-translate-y-1/2!",
+                            "group-hover/query:opacity-100",
+                            active ? "opacity-100" : null,
+                          )}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            removeHistoryQuery(query);
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
                       </li>
                     );
                   })}
