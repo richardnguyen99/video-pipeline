@@ -63,7 +63,7 @@ export default function SiteHeader() {
         </nav>
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
-          <SiteSearchBox className="hidden max-w-md flex-1 sm:block" compact />
+          <SiteSearchBox className="hidden max-w-md flex-1 sm:block" compact enableHotkey />
 
           <Button size="sm" className="hidden sm:inline-flex" nativeButton={false} render={<Link to="/sign-in" />}>
             Sign in

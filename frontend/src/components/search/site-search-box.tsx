@@ -1,6 +1,7 @@
 /**
  * Header search box with Elastic Search UI autocomplete.
- * Enter → /videos?q=… ; click a result → /videos/$id.
+ * Enter → /videos?q=… (or active result → /videos/$id);
+ * Mod+K focuses the bar; Esc closes the panel.
  *
  * Uses a relative/absolute dropdown (not Popover) so the panel matches the
  * input width and does not reposition on page scroll.
@@ -8,7 +9,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useHotkey, formatForDisplay } from "@tanstack/react-hotkeys";
+import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Search, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
@@ -24,34 +26,44 @@ type SiteSearchBoxProps = {
   compact?: boolean;
   defaultValue?: string;
   onNavigate?: () => void;
+  /** Register global Mod+K to focus this instance (desktop header only). */
+  enableHotkey?: boolean;
 };
 
-export function SiteSearchBox({ className, compact = false, defaultValue = "", onNavigate }: SiteSearchBoxProps) {
+export function SiteSearchBox({
+  className,
+  compact = false,
+  defaultValue = "",
+  onNavigate,
+  enableHotkey = false,
+}: SiteSearchBoxProps) {
   const navigate = useNavigate();
-  const routeSearch = useSearch({ strict: false });
-  const rawQ = "q" in routeSearch ? routeSearch.q : undefined;
-  const routeQ = typeof rawQ === "string" ? rawQ : defaultValue;
 
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const requestIdRef = useRef(0);
-  const [value, setValue] = useState(routeQ);
-  const [trackedRouteQ, setTrackedRouteQ] = useState(routeQ);
+  const [value, setValue] = useState(defaultValue);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
-
-  if (routeQ !== trackedRouteQ) {
-    setTrackedRouteQ(routeQ);
-    setValue(routeQ);
-  }
 
   const term = value.trim();
   const canSearch = term.length >= MIN_QUERY_LENGTH;
   const visibleResults = canSearch ? results : [];
   const visibleLoading = canSearch && loading;
   const showPanel = open && canSearch;
+
+  const deactivateSearch = useCallback(() => {
+    requestIdRef.current += 1;
+    setOpen(false);
+    setActiveIndex(-1);
+    setValue("");
+    setResults([]);
+    setLoading(false);
+    inputRef.current?.blur();
+  }, []);
 
   const goToResults = useCallback(
     (nextTerm: string) => {
@@ -61,27 +73,57 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
         return;
       }
 
-      setOpen(false);
+      deactivateSearch();
       onNavigate?.();
       void navigate({
         to: "/videos",
         search: { q },
       });
     },
-    [navigate, onNavigate],
+    [deactivateSearch, navigate, onNavigate],
   );
 
   const goToVideo = useCallback(
     (result: SearchResult) => {
-      setOpen(false);
+      deactivateSearch();
       onNavigate?.();
       void navigate({
         to: "/videos/$id",
         params: { id: result.id.raw },
       });
     },
-    [navigate, onNavigate],
+    [deactivateSearch, navigate, onNavigate],
   );
+
+  const focusSearch = useCallback(() => {
+    const input = inputRef.current;
+
+    if (input == null) {
+      return;
+    }
+
+    input.focus();
+    input.select();
+
+    if (canSearch && results.length > 0) {
+      setOpen(true);
+    }
+  }, [canSearch, results.length]);
+
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    setActiveIndex(-1);
+  }, []);
+
+  useHotkey("Mod+K", focusSearch, {
+    enabled: enableHotkey,
+    preventDefault: true,
+  });
+
+  useHotkey("Escape", closePanel, {
+    enabled: showPanel,
+    preventDefault: true,
+  });
 
   useEffect(() => {
     if (!canSearch) {
@@ -142,33 +184,93 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
+  const searchAllIndex = visibleResults.length;
+  const optionCount = visibleResults.length + 1;
+  const searchAllActive = activeIndex === searchAllIndex;
+
+  function activateOption(index: number) {
+    if (index < 0 || index === searchAllIndex) {
+      goToResults(value);
+
+      return;
+    }
+
+    const selected = visibleResults.at(index);
+
+    if (selected != null) {
+      goToVideo(selected);
+    }
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (showPanel && activeIndex >= 0) {
+      activateOption(activeIndex);
+
+      return;
+    }
+
     goToResults(value);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") {
-      setOpen(false);
-      setActiveIndex(-1);
+      event.preventDefault();
+      closePanel();
 
       return;
     }
 
-    if (!showPanel || visibleResults.length === 0) {
+    if (!showPanel) {
+      return;
+    }
+
+    if (visibleResults.length === 0) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        goToResults(value);
+      }
+
       return;
     }
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex((index) => (index + 1) % visibleResults.length);
+      setActiveIndex((index) => {
+        if (index < 0) {
+          return 0;
+        }
+
+        return (index + 1) % optionCount;
+      });
 
       return;
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      setActiveIndex((index) => (index <= 0 ? visibleResults.length - 1 : index - 1));
+      setActiveIndex((index) => {
+        if (index < 0) {
+          return searchAllIndex;
+        }
+
+        return index === 0 ? searchAllIndex : index - 1;
+      });
+
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+
+      if (activeIndex >= 0) {
+        activateOption(activeIndex);
+
+        return;
+      }
+
+      goToResults(value);
     }
   }
 
@@ -178,7 +280,10 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
     setOpen(false);
     setActiveIndex(-1);
     setLoading(false);
+    inputRef.current?.focus();
   }
+
+  const hotkeyLabel = formatForDisplay("Mod+K");
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -189,6 +294,7 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
         />
 
         <Input
+          ref={inputRef}
           type="search"
           name="q"
           value={value}
@@ -199,11 +305,12 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
             }
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Search videos, actresses, genres…"
+          placeholder={`Search… (${hotkeyLabel})`}
           autoComplete="off"
           aria-autocomplete="list"
           aria-controls={listId}
           aria-expanded={showPanel}
+          aria-activedescendant={activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined}
           className={cn(
             "h-9 w-full border-border/80 bg-background/80 pr-9 pl-9 shadow-none",
             compact ? "min-w-48 sm:min-w-56 lg:min-w-72" : null,
@@ -245,7 +352,7 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
                 const active = index === activeIndex;
 
                 return (
-                  <li key={result.id.raw} role="option" aria-selected={active}>
+                  <li key={result.id.raw} id={`${listId}-option-${index}`} role="option" aria-selected={active}>
                     <button
                       type="button"
                       className={cn(
@@ -277,7 +384,14 @@ export function SiteSearchBox({ className, compact = false, defaultValue = "", o
 
           <button
             type="button"
-            className="flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-sm font-medium text-primary hover:bg-muted/60"
+            id={`${listId}-option-${searchAllIndex}`}
+            role="option"
+            aria-selected={searchAllActive}
+            className={cn(
+              "flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-sm font-medium text-primary",
+              searchAllActive ? "bg-muted" : "hover:bg-muted/60",
+            )}
+            onMouseEnter={() => setActiveIndex(searchAllIndex)}
             onClick={() => goToResults(value)}
           >
             <Search className="size-3.5" />
