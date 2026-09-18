@@ -148,6 +148,14 @@ export function removeSearchQuery(query: string): SearchHistoryState {
   return next;
 }
 
+export function clearSearchQueries(): SearchHistoryState {
+  const current = readSearchHistory();
+  const next = { ...current, queries: [] };
+  writeSearchHistory(next);
+
+  return next;
+}
+
 export function clearSearchHistory(): SearchHistoryState {
   writeSearchHistory({ ...EMPTY });
 

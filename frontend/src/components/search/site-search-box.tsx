@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import type { SearchResult } from "@/libs/search/video-api-connector";
 import { videoApiConnector } from "@/libs/search/video-api-connector";
 import {
+  clearSearchQueries,
   mergeRecentVideosOnTop,
   readSearchHistory,
   recentVideoToSearchResult,
@@ -133,6 +134,11 @@ export function SiteSearchBox({
 
   const removeHistoryQuery = useCallback((query: string) => {
     setHistory(removeSearchQuery(query));
+    setActiveIndex(-1);
+  }, []);
+
+  const clearAllHistoryQueries = useCallback(() => {
+    setHistory(clearSearchQueries());
     setActiveIndex(-1);
   }, []);
 
@@ -461,9 +467,33 @@ export function SiteSearchBox({
           <div className="max-h-80 overflow-y-auto py-1">
             {historyQueries.length > 0 ? (
               <div>
-                <p className="px-3 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                  Recent searches
-                </p>
+                <div className="group/queries relative flex items-center gap-2 px-3 py-1.5">
+                  <p className="min-w-0 flex-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    Recent searches
+                  </p>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Clear all recent searches"
+                    className={cn(
+                      "size-7 shrink-0 p-1.5",
+                      "text-muted-foreground opacity-0 transition-opacity",
+                      "hover:bg-destructive/15 hover:text-destructive",
+                      "focus-visible:opacity-100 focus-visible:ring-destructive/30",
+                      "active:translate-y-0",
+                      "group-hover/queries:opacity-100",
+                    )}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      clearAllHistoryQueries();
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
 
                 <ul>
                   {historyQueries.map((query, index) => {
