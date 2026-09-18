@@ -171,6 +171,14 @@ export function clearSearchQueries(): SearchHistoryState {
   return next;
 }
 
+export function clearSearchVideos(): SearchHistoryState {
+  const current = readSearchHistory();
+  const next = { ...current, videos: [] };
+  writeSearchHistory(next);
+
+  return next;
+}
+
 export function clearSearchHistory(): SearchHistoryState {
   writeSearchHistory({ ...EMPTY });
 

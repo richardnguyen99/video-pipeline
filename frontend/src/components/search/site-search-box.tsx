@@ -21,6 +21,7 @@ import type { SearchResult } from "@/libs/search/video-api-connector";
 import { videoApiConnector } from "@/libs/search/video-api-connector";
 import {
   clearSearchQueries,
+  clearSearchVideos,
   mergeRecentVideosOnTop,
   readSearchHistory,
   recentVideoToSearchResult,
@@ -145,6 +146,11 @@ export function SiteSearchBox({
 
   const clearAllHistoryQueries = useCallback(() => {
     setHistory(clearSearchQueries());
+    setActiveIndex(-1);
+  }, []);
+
+  const clearAllHistoryVideos = useCallback(() => {
+    setHistory(clearSearchVideos());
     setActiveIndex(-1);
   }, []);
 
@@ -558,14 +564,38 @@ export function SiteSearchBox({
 
             {historyVideoResults.length > 0 ? (
               <div>
-                <p
+                <div
                   className={cn(
-                    "px-3 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase",
+                    "group/videos relative flex items-center gap-2 px-3 py-1.5",
                     historyQueries.length > 0 ? "mt-1 border-t border-border pt-2" : null,
                   )}
                 >
-                  Recent videos
-                </p>
+                  <p className="min-w-0 flex-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    Recent videos
+                  </p>
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label="Clear all recent videos"
+                    className={cn(
+                      "size-7 shrink-0 p-1.5",
+                      "text-muted-foreground opacity-0 transition-opacity",
+                      "hover:bg-destructive/15 hover:text-destructive",
+                      "focus-visible:opacity-100 focus-visible:ring-destructive/30",
+                      "active:translate-y-0",
+                      "group-hover/videos:opacity-100",
+                    )}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      clearAllHistoryVideos();
+                    }}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
 
                 <ul>
                   {historyVideoResults.map((result, videoIndex) => {
