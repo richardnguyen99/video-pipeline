@@ -17,6 +17,7 @@ import { Clock, Loader2, Search, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SearchResult } from "@/libs/search/video-api-connector";
 import { videoApiConnector } from "@/libs/search/video-api-connector";
 import {
@@ -35,6 +36,10 @@ import { cn } from "@/libs/utils";
 
 const DEBOUNCE_MS = 280;
 const MIN_QUERY_LENGTH = 2;
+
+const HISTORY_TOOLTIP_CLASS = cn(
+  "z-[200] rounded-full border border-primary/25 bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow-md",
+);
 
 type SiteSearchBoxProps = {
   className?: string;
@@ -484,27 +489,37 @@ export function SiteSearchBox({
                     Recent searches
                   </p>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Clear all recent searches"
-                    className={cn(
-                      "size-7 shrink-0 p-1.5",
-                      "text-muted-foreground opacity-0 transition-opacity",
-                      "hover:bg-destructive/15 hover:text-destructive",
-                      "focus-visible:opacity-100 focus-visible:ring-destructive/30",
-                      "active:translate-y-0",
-                      "group-hover/queries:opacity-100",
-                    )}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      clearAllHistoryQueries();
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                  <div className="opacity-0 transition-opacity group-hover/queries:opacity-100 focus-within:opacity-100">
+                    <Tooltip disableHoverablePopup>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label="Clear all recent searches"
+                            className={cn(
+                              "size-7 shrink-0 p-1.5 text-muted-foreground",
+                              "hover:bg-destructive/15 hover:text-destructive",
+                              "focus-visible:ring-destructive/30",
+                              "active:translate-y-0",
+                            )}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              clearAllHistoryQueries();
+                            }}
+                          />
+                        }
+                      >
+                        <Trash2 className="size-3.5" />
+                      </TooltipTrigger>
+
+                      <TooltipContent side="bottom" sideOffset={6} className={HISTORY_TOOLTIP_CLASS}>
+                        Clear all recent searches
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
 
                 <ul>
@@ -533,28 +548,44 @@ export function SiteSearchBox({
                           <span className="min-w-0 flex-1 truncate font-medium">{query}</span>
                         </button>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`Remove search “${query}”`}
+                        <div
                           className={cn(
-                            "absolute top-1/2 right-1.5 size-7 -translate-y-1/2 p-1.5",
-                            "text-muted-foreground opacity-0 transition-opacity",
-                            "hover:bg-destructive/15 hover:text-destructive",
-                            "focus-visible:opacity-100 focus-visible:ring-destructive/30",
-                            "active:-translate-y-1/2!",
-                            "group-hover/query:opacity-100",
+                            "absolute top-1/2 right-1.5 z-10 -translate-y-1/2",
+                            "opacity-0 transition-opacity",
+                            "group-hover/query:opacity-100 focus-within:opacity-100",
                             active ? "opacity-100" : null,
                           )}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            removeHistoryQuery(query);
-                          }}
                         >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                          <Tooltip disableHoverablePopup>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label={`Remove search “${query}”`}
+                                  className={cn(
+                                    "size-7 p-1.5 text-muted-foreground",
+                                    "hover:bg-destructive/15 hover:text-destructive",
+                                    "focus-visible:ring-destructive/30",
+                                    "active:translate-y-0",
+                                  )}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    removeHistoryQuery(query);
+                                  }}
+                                />
+                              }
+                            >
+                              <Trash2 className="size-3.5" />
+                            </TooltipTrigger>
+
+                            <TooltipContent side="left" sideOffset={6} className={HISTORY_TOOLTIP_CLASS}>
+                              Remove this search
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                       </li>
                     );
                   })}
@@ -574,27 +605,37 @@ export function SiteSearchBox({
                     Recent videos
                   </p>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label="Clear all recent videos"
-                    className={cn(
-                      "size-7 shrink-0 p-1.5",
-                      "text-muted-foreground opacity-0 transition-opacity",
-                      "hover:bg-destructive/15 hover:text-destructive",
-                      "focus-visible:opacity-100 focus-visible:ring-destructive/30",
-                      "active:translate-y-0",
-                      "group-hover/videos:opacity-100",
-                    )}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      clearAllHistoryVideos();
-                    }}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
+                  <div className="opacity-0 transition-opacity group-hover/videos:opacity-100 focus-within:opacity-100">
+                    <Tooltip disableHoverablePopup>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-xs"
+                            aria-label="Clear all recent videos"
+                            className={cn(
+                              "size-7 shrink-0 p-1.5 text-muted-foreground",
+                              "hover:bg-destructive/15 hover:text-destructive",
+                              "focus-visible:ring-destructive/30",
+                              "active:translate-y-0",
+                            )}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              clearAllHistoryVideos();
+                            }}
+                          />
+                        }
+                      >
+                        <Trash2 className="size-3.5" />
+                      </TooltipTrigger>
+
+                      <TooltipContent side="bottom" sideOffset={6} className={HISTORY_TOOLTIP_CLASS}>
+                        Clear all recent videos
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                 </div>
 
                 <ul>
@@ -639,28 +680,44 @@ export function SiteSearchBox({
                           </span>
                         </button>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          aria-label={`Remove recent video “${title}”`}
+                        <div
                           className={cn(
-                            "absolute top-1/2 right-1.5 size-7 -translate-y-1/2 p-1.5",
-                            "text-muted-foreground opacity-0 transition-opacity",
-                            "hover:bg-destructive/15 hover:text-destructive",
-                            "focus-visible:opacity-100 focus-visible:ring-destructive/30",
-                            "active:-translate-y-1/2!",
-                            "group-hover/video:opacity-100",
+                            "absolute top-1/2 right-1.5 z-10 -translate-y-1/2",
+                            "opacity-0 transition-opacity",
+                            "group-hover/video:opacity-100 focus-within:opacity-100",
                             active ? "opacity-100" : null,
                           )}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            removeHistoryVideo(result.id.raw);
-                          }}
                         >
-                          <Trash2 className="size-3.5" />
-                        </Button>
+                          <Tooltip disableHoverablePopup>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label={`Remove recent video “${title}”`}
+                                  className={cn(
+                                    "size-7 p-1.5 text-muted-foreground",
+                                    "hover:bg-destructive/15 hover:text-destructive",
+                                    "focus-visible:ring-destructive/30",
+                                    "active:translate-y-0",
+                                  )}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    removeHistoryVideo(result.id.raw);
+                                  }}
+                                />
+                              }
+                            >
+                              <Trash2 className="size-3.5" />
+                            </TooltipTrigger>
+
+                            <TooltipContent side="left" sideOffset={6} className={HISTORY_TOOLTIP_CLASS}>
+                              Remove this video
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
                       </li>
                     );
                   })}
