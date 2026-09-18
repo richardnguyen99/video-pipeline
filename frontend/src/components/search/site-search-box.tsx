@@ -27,6 +27,7 @@ import {
   rememberSearchQuery,
   rememberSearchVideo,
   removeSearchQuery,
+  removeSearchVideo,
 } from "@/libs/search/search-history";
 import type { SearchHistoryState } from "@/libs/search/search-history";
 import { cn } from "@/libs/utils";
@@ -134,6 +135,11 @@ export function SiteSearchBox({
 
   const removeHistoryQuery = useCallback((query: string) => {
     setHistory(removeSearchQuery(query));
+    setActiveIndex(-1);
+  }, []);
+
+  const removeHistoryVideo = useCallback((id: string) => {
+    setHistory(removeSearchVideo(id));
     setActiveIndex(-1);
   }, []);
 
@@ -576,15 +582,16 @@ export function SiteSearchBox({
                         id={`${listId}-option-${index}`}
                         role="option"
                         aria-selected={active}
+                        className="group/video relative"
+                        onMouseEnter={() => setActiveIndex(index)}
                       >
                         <button
                           type="button"
                           className={cn(
-                            "flex w-full items-center gap-3 border-l-2 px-3 py-2 text-left text-sm transition-colors",
+                            "flex w-full items-center gap-3 border-l-2 px-3 py-2 pr-11 text-left text-sm transition-colors",
                             "border-l-primary/70 bg-primary/5",
                             active ? "bg-primary/15" : "hover:bg-primary/10",
                           )}
-                          onMouseEnter={() => setActiveIndex(index)}
                           onClick={() => goToVideo(result)}
                         >
                           {image ? (
@@ -601,6 +608,29 @@ export function SiteSearchBox({
                             <span className="mt-0.5 block text-xs text-muted-foreground">{code}</span>
                           </span>
                         </button>
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={`Remove recent video “${title}”`}
+                          className={cn(
+                            "absolute top-1/2 right-1.5 size-7 -translate-y-1/2 p-1.5",
+                            "text-muted-foreground opacity-0 transition-opacity",
+                            "hover:bg-destructive/15 hover:text-destructive",
+                            "focus-visible:opacity-100 focus-visible:ring-destructive/30",
+                            "active:-translate-y-1/2!",
+                            "group-hover/video:opacity-100",
+                            active ? "opacity-100" : null,
+                          )}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            removeHistoryVideo(result.id.raw);
+                          }}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
                       </li>
                     );
                   })}

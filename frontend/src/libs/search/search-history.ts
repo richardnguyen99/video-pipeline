@@ -148,6 +148,21 @@ export function removeSearchQuery(query: string): SearchHistoryState {
   return next;
 }
 
+export function removeSearchVideo(id: string): SearchHistoryState {
+  const videoId = id.trim();
+
+  if (videoId.length === 0) {
+    return readSearchHistory();
+  }
+
+  const current = readSearchHistory();
+  const videos = current.videos.filter((item) => item.id !== videoId);
+  const next = { ...current, videos };
+  writeSearchHistory(next);
+
+  return next;
+}
+
 export function clearSearchQueries(): SearchHistoryState {
   const current = readSearchHistory();
   const next = { ...current, queries: [] };
