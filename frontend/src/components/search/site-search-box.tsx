@@ -5,17 +5,27 @@
  *
  * Uses a relative/absolute dropdown (not Popover) so the panel matches the
  * input width and does not reposition on page scroll.
+ *
+ * Anonymous search history (localStorage): recent queries + up to 5 videos.
  */
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import { useHotkey, formatForDisplay } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
-import { Loader2, Search, X } from "lucide-react";
+import { Clock, Loader2, Search, X } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import type { SearchResult } from "@/libs/search/video-api-connector";
 import { videoApiConnector } from "@/libs/search/video-api-connector";
+import {
+  mergeRecentVideosOnTop,
+  readSearchHistory,
+  recentVideoToSearchResult,
+  rememberSearchQuery,
+  rememberSearchVideo,
+} from "@/libs/search/search-history";
+import type { SearchHistoryState } from "@/libs/search/search-history";
 import { cn } from "@/libs/utils";
 
 const DEBOUNCE_MS = 280;
@@ -29,6 +39,8 @@ type SiteSearchBoxProps = {
   /** Register global Mod+K to focus this instance (desktop header only). */
   enableHotkey?: boolean;
 };
+
+type PanelMode = "history" | "autocomplete";
 
 export function SiteSearchBox({
   className,
@@ -48,12 +60,45 @@ export function SiteSearchBox({
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [history, setHistory] = useState<SearchHistoryState>(() => readSearchHistory());
 
   const term = value.trim();
   const canSearch = term.length >= MIN_QUERY_LENGTH;
-  const visibleResults = canSearch ? results : [];
+  const hasHistory = history.queries.length > 0 || history.videos.length > 0;
+  const panelMode: PanelMode = canSearch ? "autocomplete" : "history";
+
+  const { orderedResults, recentIds } = useMemo(() => {
+    if (!canSearch) {
+      return {
+        orderedResults: [] as SearchResult[],
+        recentIds: new Set<string>(),
+      };
+    }
+
+    const merged = mergeRecentVideosOnTop(results, history.videos, term);
+
+    return {
+      orderedResults: merged.results,
+      recentIds: merged.recentIds,
+    };
+  }, [canSearch, results, history.videos, term]);
+
+  const historyVideos = history.videos;
+  const historyQueries = history.queries;
+
+  const historyVideoResults = useMemo(() => historyVideos.map(recentVideoToSearchResult), [historyVideos]);
+
+  const visibleResults = panelMode === "autocomplete" ? orderedResults : historyVideoResults;
   const visibleLoading = canSearch && loading;
-  const showPanel = open && canSearch;
+  const showHistoryPanel = open && panelMode === "history" && hasHistory;
+  const showAutocompletePanel = open && panelMode === "autocomplete";
+  const showPanel = showHistoryPanel || showAutocompletePanel;
+
+  const queryOptionCount = panelMode === "history" ? historyQueries.length : 0;
+  const videoOptionCount = visibleResults.length;
+  const searchAllIndex = panelMode === "autocomplete" ? queryOptionCount + videoOptionCount : -1;
+  const optionCount =
+    panelMode === "history" ? queryOptionCount + videoOptionCount : queryOptionCount + videoOptionCount + 1;
 
   const deactivateSearch = useCallback(() => {
     requestIdRef.current += 1;
@@ -73,6 +118,7 @@ export function SiteSearchBox({
         return;
       }
 
+      setHistory(rememberSearchQuery(q));
       deactivateSearch();
       onNavigate?.();
       void navigate({
@@ -85,6 +131,7 @@ export function SiteSearchBox({
 
   const goToVideo = useCallback(
     (result: SearchResult) => {
+      setHistory(rememberSearchVideo(result));
       deactivateSearch();
       onNavigate?.();
       void navigate({
@@ -105,10 +152,12 @@ export function SiteSearchBox({
     input.focus();
     input.select();
 
-    if (canSearch && results.length > 0) {
+    if (canSearch && orderedResults.length > 0) {
+      setOpen(true);
+    } else if (!canSearch && hasHistory) {
       setOpen(true);
     }
-  }, [canSearch, results.length]);
+  }, [canSearch, orderedResults.length, hasHistory]);
 
   const closePanel = useCallback(() => {
     setOpen(false);
@@ -184,22 +233,69 @@ export function SiteSearchBox({
     return () => document.removeEventListener("mousedown", onPointerDown);
   }, []);
 
-  const searchAllIndex = visibleResults.length;
-  const optionCount = visibleResults.length + 1;
-  const searchAllActive = activeIndex === searchAllIndex;
+  function resolveOption(index: number): {
+    kind: "query" | "video" | "search-all";
+    query?: string;
+    video?: SearchResult;
+  } | null {
+    if (index < 0) {
+      return null;
+    }
+
+    if (panelMode === "history") {
+      if (index < queryOptionCount) {
+        return { kind: "query", query: historyQueries[index] };
+      }
+
+      const videoIndex = index - queryOptionCount;
+      const video = visibleResults.at(videoIndex);
+
+      if (video != null) {
+        return { kind: "video", video };
+      }
+
+      return null;
+    }
+
+    if (index < videoOptionCount) {
+      const video = visibleResults.at(index);
+
+      if (video != null) {
+        return { kind: "video", video };
+      }
+
+      return null;
+    }
+
+    if (index === searchAllIndex) {
+      return { kind: "search-all" };
+    }
+
+    return null;
+  }
 
   function activateOption(index: number) {
-    if (index < 0 || index === searchAllIndex) {
+    const option = resolveOption(index);
+
+    if (option == null) {
       goToResults(value);
 
       return;
     }
 
-    const selected = visibleResults.at(index);
+    if (option.kind === "query" && option.query != null) {
+      goToResults(option.query);
 
-    if (selected != null) {
-      goToVideo(selected);
+      return;
     }
+
+    if (option.kind === "video" && option.video != null) {
+      goToVideo(option.video);
+
+      return;
+    }
+
+    goToResults(value);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -226,7 +322,7 @@ export function SiteSearchBox({
       return;
     }
 
-    if (visibleResults.length === 0) {
+    if (optionCount === 0) {
       if (event.key === "Enter") {
         event.preventDefault();
         goToResults(value);
@@ -252,10 +348,10 @@ export function SiteSearchBox({
       event.preventDefault();
       setActiveIndex((index) => {
         if (index < 0) {
-          return searchAllIndex;
+          return optionCount - 1;
         }
 
-        return index === 0 ? searchAllIndex : index - 1;
+        return index === 0 ? optionCount - 1 : index - 1;
       });
 
       return;
@@ -277,13 +373,32 @@ export function SiteSearchBox({
   function handleClear() {
     setValue("");
     setResults([]);
-    setOpen(false);
     setActiveIndex(-1);
     setLoading(false);
+
+    if (hasHistory) {
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+
     inputRef.current?.focus();
   }
 
+  function handleFocus() {
+    if (canSearch && (results.length > 0 || orderedResults.length > 0)) {
+      setOpen(true);
+
+      return;
+    }
+
+    if (!canSearch && hasHistory) {
+      setOpen(true);
+    }
+  }
+
   const hotkeyLabel = formatForDisplay("Mod+K");
+  const searchAllActive = activeIndex === searchAllIndex;
 
   return (
     <div ref={rootRef} className={cn("relative", className)}>
@@ -299,11 +414,7 @@ export function SiteSearchBox({
           name="q"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          onFocus={() => {
-            if (canSearch && results.length > 0) {
-              setOpen(true);
-            }
-          }}
+          onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           placeholder={`Search… (${hotkeyLabel})`}
           autoComplete="off"
@@ -334,7 +445,107 @@ export function SiteSearchBox({
         ) : null}
       </form>
 
-      {showPanel ? (
+      {showHistoryPanel ? (
+        <div
+          id={listId}
+          role="listbox"
+          className="absolute top-[calc(100%+0.35rem)] right-0 left-0 z-50 overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
+        >
+          <div className="max-h-80 overflow-y-auto py-1">
+            {historyQueries.length > 0 ? (
+              <div>
+                <p className="px-3 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Recent searches
+                </p>
+
+                <ul>
+                  {historyQueries.map((query, index) => {
+                    const active = index === activeIndex;
+
+                    return (
+                      <li key={`q-${query}`} id={`${listId}-option-${index}`} role="option" aria-selected={active}>
+                        <button
+                          type="button"
+                          className={cn(
+                            "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
+                            active ? "bg-muted" : "hover:bg-muted/70",
+                          )}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onClick={() => goToResults(query)}
+                        >
+                          <Clock className="size-4 shrink-0 text-muted-foreground" />
+
+                          <span className="min-w-0 flex-1 truncate font-medium">{query}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
+            {historyVideoResults.length > 0 ? (
+              <div>
+                <p
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-medium tracking-wide text-muted-foreground uppercase",
+                    historyQueries.length > 0 ? "mt-1 border-t border-border pt-2" : null,
+                  )}
+                >
+                  Recent videos
+                </p>
+
+                <ul>
+                  {historyVideoResults.map((result, videoIndex) => {
+                    const index = queryOptionCount + videoIndex;
+                    const active = index === activeIndex;
+                    const title = String(result.title?.raw ?? "");
+                    const code = String(result.video_id?.raw ?? "");
+                    const imageRaw = result.image_url?.raw;
+                    const image = imageRaw != null && imageRaw !== "" ? String(imageRaw) : null;
+
+                    return (
+                      <li
+                        key={`v-${result.id.raw}`}
+                        id={`${listId}-option-${index}`}
+                        role="option"
+                        aria-selected={active}
+                      >
+                        <button
+                          type="button"
+                          className={cn(
+                            "flex w-full items-center gap-3 border-l-2 px-3 py-2 text-left text-sm transition-colors",
+                            "border-l-primary/70 bg-primary/5",
+                            active ? "bg-primary/15" : "hover:bg-primary/10",
+                          )}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onClick={() => goToVideo(result)}
+                        >
+                          {image ? (
+                            <img src={image} alt="" className="size-10 shrink-0 rounded object-cover" loading="lazy" />
+                          ) : (
+                            <span className="flex size-10 shrink-0 items-center justify-center rounded bg-muted text-muted-foreground">
+                              <Search className="size-4" />
+                            </span>
+                          )}
+
+                          <span className="min-w-0 flex-1">
+                            <span className="line-clamp-1 font-medium">{title}</span>
+
+                            <span className="mt-0.5 block text-xs text-muted-foreground">{code}</span>
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {showAutocompletePanel ? (
         <div
           id={listId}
           role="listbox"
@@ -350,6 +561,7 @@ export function SiteSearchBox({
                 const imageRaw = result.image_url?.raw;
                 const image = imageRaw != null && imageRaw !== "" ? String(imageRaw) : null;
                 const active = index === activeIndex;
+                const isRecent = recentIds.has(result.id.raw);
 
                 return (
                   <li key={result.id.raw} id={`${listId}-option-${index}`} role="option" aria-selected={active}>
@@ -357,7 +569,14 @@ export function SiteSearchBox({
                       type="button"
                       className={cn(
                         "flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
-                        active ? "bg-muted" : "hover:bg-muted/70",
+                        isRecent
+                          ? cn(
+                              "border-l-2 border-l-primary/70 bg-primary/5",
+                              active ? "bg-primary/15" : "hover:bg-primary/10",
+                            )
+                          : active
+                            ? "bg-muted"
+                            : "hover:bg-muted/70",
                       )}
                       onMouseEnter={() => setActiveIndex(index)}
                       onClick={() => goToVideo(result)}
@@ -373,7 +592,15 @@ export function SiteSearchBox({
                       <span className="min-w-0 flex-1">
                         <span className="line-clamp-1 font-medium">{title}</span>
 
-                        <span className="mt-0.5 block text-xs text-muted-foreground">{code}</span>
+                        <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                          {code}
+
+                          {isRecent ? (
+                            <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              Recent
+                            </span>
+                          ) : null}
+                        </span>
                       </span>
                     </button>
                   </li>
