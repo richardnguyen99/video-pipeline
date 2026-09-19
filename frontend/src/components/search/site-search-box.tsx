@@ -17,6 +17,7 @@ import { Clock, Loader2, Search, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SearchResult } from "@/libs/search/video-api-connector";
 import { videoApiConnector } from "@/libs/search/video-api-connector";
@@ -142,21 +143,45 @@ export function SiteSearchBox({
   const removeHistoryQuery = useCallback((query: string) => {
     setHistory(removeSearchQuery(query));
     setActiveIndex(-1);
+    toast.add({
+      type: "info",
+      title: "Search removed",
+      description: `“${query}” was removed from recent searches.`,
+      timeout: 5000,
+    });
   }, []);
 
-  const removeHistoryVideo = useCallback((id: string) => {
+  const removeHistoryVideo = useCallback((id: string, label?: string) => {
     setHistory(removeSearchVideo(id));
     setActiveIndex(-1);
+    toast.add({
+      type: "info",
+      title: "Video removed",
+      description: label ? `“${label}” was removed from recent videos.` : "Removed from recent videos.",
+      timeout: 5000,
+    });
   }, []);
 
   const clearAllHistoryQueries = useCallback(() => {
     setHistory(clearSearchQueries());
     setActiveIndex(-1);
+    toast.add({
+      type: "warning",
+      title: "Searches cleared",
+      description: "All recent searches were removed.",
+      timeout: 5000,
+    });
   }, []);
 
   const clearAllHistoryVideos = useCallback(() => {
     setHistory(clearSearchVideos());
     setActiveIndex(-1);
+    toast.add({
+      type: "warning",
+      title: "Videos cleared",
+      description: "All recent videos were removed.",
+      timeout: 5000,
+    });
   }, []);
 
   const goToVideo = useCallback(
@@ -705,7 +730,7 @@ export function SiteSearchBox({
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    removeHistoryVideo(result.id.raw);
+                                    removeHistoryVideo(result.id.raw, code || title);
                                   }}
                                 />
                               }

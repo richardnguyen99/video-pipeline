@@ -285,3 +285,12 @@ body::before {
     width: 100%;
   }
 }
+
+@keyframes toast-progress-shrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}

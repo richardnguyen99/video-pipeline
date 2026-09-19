@@ -4,6 +4,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools";
 
 import Footer from "@/components/footer";
 import Header from "@/components/site-header";
+import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 const THEME_INIT_SCRIPT = `
@@ -18,11 +19,13 @@ export default function RootDocument({ children }: { children: React.ReactNode }
       </head>
       <body className="font-sans antialiased">
         <TooltipProvider>
-          <main className="relative min-h-screen bg-background text-foreground">
-            <Header />
-            {children}
-            <Footer />
-          </main>
+          <Toaster>
+            <main className="relative min-h-screen bg-background text-foreground">
+              <Header />
+              {children}
+              <Footer />
+            </main>
+          </Toaster>
           <TanStackDevtools
             config={{
               position: "bottom-right",
