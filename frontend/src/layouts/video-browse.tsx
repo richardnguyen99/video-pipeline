@@ -156,7 +156,7 @@ export function VideoBrowse({
         page: nextPage,
         q: nextQ,
       }),
-      replace: true,
+      replace: false,
       resetScroll: false,
     });
   }

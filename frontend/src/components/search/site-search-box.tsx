@@ -135,6 +135,7 @@ export function SiteSearchBox({
       void navigate({
         to: "/videos",
         search: { q },
+        replace: false,
       });
     },
     [deactivateSearch, navigate, onNavigate],
