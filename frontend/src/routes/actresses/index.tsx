@@ -115,6 +115,10 @@ export const Route = createFileRoute("/actresses/")({
     const cups = asStringArray(search.cups);
     if (cups) result.cups = cups;
 
+    if (typeof search.q === "string" && search.q.trim() !== "") {
+      result.q = search.q.trim();
+    }
+
     const numericKeys = [
       "bustMin",
       "bustMax",
@@ -160,8 +164,9 @@ export const Route = createFileRoute("/actresses/")({
 
     const sort = deps.sort ?? DEFAULT_ACTRESS_SORT;
     const page = deps.page ?? 1;
+    const q = deps.q?.trim() ? deps.q.trim() : undefined;
 
-    const pagePromise = context.queryClient.ensureQueryData(actressListQueryOptions({ page, sort, filters }));
+    const pagePromise = context.queryClient.ensureQueryData(actressListQueryOptions({ page, sort, filters, q }));
 
     await Promise.all([
       context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
@@ -175,6 +180,7 @@ export const Route = createFileRoute("/actresses/")({
       sort,
       filters,
       page,
+      q,
       pagePromise,
     };
   },
@@ -182,12 +188,13 @@ export const Route = createFileRoute("/actresses/")({
 });
 
 function ActressesPage() {
-  const { sort, filters, pagePromise } = Route.useLoaderData();
+  const { sort, filters, q, pagePromise } = Route.useLoaderData();
 
   return (
     <ActressesShell
       sort={sort}
       filters={filters}
+      q={q}
       totalSlot={
         <React.Suspense fallback={<Skeleton className="ml-1 inline-block h-4 w-24 align-middle sm:h-5" />}>
           <ActressesTotalCount pagePromise={pagePromise} />
@@ -195,7 +202,7 @@ function ActressesPage() {
       }
     >
       <React.Suspense fallback={<ActressesGridSkeleton />}>
-        <ActressesGridContent pagePromise={pagePromise} />
+        <ActressesGridContent pagePromise={pagePromise} q={q} />
       </React.Suspense>
     </ActressesShell>
   );
@@ -206,7 +213,7 @@ function ActressesTotalCount({ pagePromise }: { pagePromise: Promise<ActressPage
   return <>{` ${data.total} profiles.`}</>;
 }
 
-function ActressesGridContent({ pagePromise }: { pagePromise: Promise<ActressPageResult> }) {
+function ActressesGridContent({ pagePromise, q }: { pagePromise: Promise<ActressPageResult>; q?: string }) {
   const data = React.use(pagePromise);
 
   return (
@@ -216,6 +223,7 @@ function ActressesGridContent({ pagePromise }: { pagePromise: Promise<ActressPag
       totalPages={data.totalPages}
       sort={data.sort}
       filters={data.filters}
+      q={q}
     />
   );
 }

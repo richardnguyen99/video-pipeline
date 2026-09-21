@@ -73,11 +73,16 @@ export const ACTRESS_SORT_BY_VIDEO_CNT = 7;
 export const ACTRESS_SORT_BY_SUB_CNT = 8;
 export const ACTRESS_SORT_BY_VIEW_CNT = 9;
 export const ACTRESS_SORT_BY_ID = 10;
+export const ACTRESS_SORT_BY_RANK = 11;
 
 export const ACTRESS_FILTER_OPTIONS_LIMIT = 100;
 
 /** Map UI sort keys to backend numeric sort. */
-export function actressSortToApi(sort: ActressSort): number {
+export function actressSortToApi(sort: ActressSort, q?: string): number {
+  if (q?.trim() && sort === DEFAULT_ACTRESS_SORT) {
+    return ACTRESS_SORT_BY_RANK;
+  }
+
   switch (sort) {
     case "most-videos":
       return ACTRESS_SORT_BY_VIDEO_CNT;
@@ -236,16 +241,19 @@ export async function fetchActressPage(input: {
   pageSize?: number;
   sort?: ActressSort;
   filters?: ActressFilters;
+  q?: string;
 }): Promise<ActressPageResult> {
   const pageSize = input.pageSize ?? ACTRESSES_PAGE_SIZE;
   const sort = input.sort ?? DEFAULT_ACTRESS_SORT;
   const filters = input.filters ?? DEFAULT_ACTRESS_FILTERS;
   const page = Math.max(1, input.page);
+  const q = input.q?.trim() ? input.q.trim() : undefined;
 
   const response = await fetchActressList({
     limit: pageSize,
     page,
-    sort: actressSortToApi(sort),
+    q,
+    sort: actressSortToApi(sort, q),
     ...filtersToListParams(filters),
   });
 
@@ -269,16 +277,19 @@ export function actressListQueryOptions(input: {
   pageSize?: number;
   sort?: ActressSort;
   filters?: ActressFilters;
+  q?: string;
 }) {
   const pageSize = input.pageSize ?? ACTRESSES_PAGE_SIZE;
   const sort = input.sort ?? DEFAULT_ACTRESS_SORT;
   const filters = input.filters ?? DEFAULT_ACTRESS_FILTERS;
   const page = Math.max(1, input.page);
+  const q = input.q?.trim() ? input.q.trim() : undefined;
 
   const listParams: ActressListQueryParams = {
     limit: pageSize,
     page,
-    sort: actressSortToApi(sort),
+    q,
+    sort: actressSortToApi(sort, q),
     ...filtersToListParams(filters),
   };
 
@@ -290,6 +301,7 @@ export function actressListQueryOptions(input: {
         pageSize,
         sort,
         filters,
+        q,
       }),
   });
 }

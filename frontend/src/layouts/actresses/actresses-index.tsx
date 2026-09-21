@@ -18,25 +18,31 @@ import { cn } from "@/libs/utils";
 interface ActressesShellProps {
   sort: ActressSort;
   filters: ActressFilters;
+  q?: string;
   totalSlot?: React.ReactNode;
   total?: number;
   children: React.ReactNode;
 }
 
-export function ActressesShell({ sort, filters, totalSlot, total, children }: ActressesShellProps) {
+export function ActressesShell({ sort, filters, q, totalSlot, total, children }: ActressesShellProps) {
+  const query = q?.trim();
+  const title = query ? `Results for “${query}”` : "Actresses";
+  const description = query ? "Elasticsearch-backed actress search." : "Browse performers and their featured titles.";
+
   return (
     <div className="min-h-screen pt-16">
       <div className="mx-auto w-full px-6 py-10 sm:px-10 lg:px-16">
         <header className="mb-8">
-          <h1 className="text-pretty text-3xl font-semibold tracking-tight sm:text-4xl">Actresses</h1>
+          <h1 className="text-pretty text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h1>
+
           <div className="mt-2 max-w-xl text-sm text-muted-foreground sm:text-base">
-            Browse performers and their featured titles.
+            {description}
             {totalSlot}
             {typeof total === "number" ? ` ${total} profiles.` : null}
           </div>
         </header>
 
-        <ActressesToolbar sort={sort} filters={filters} />
+        <ActressesToolbar sort={sort} filters={filters} q={query} />
 
         {children}
       </div>
@@ -50,6 +56,7 @@ interface ActressesGridProps {
   totalPages: number;
   sort: ActressSort;
   filters: ActressFilters;
+  q?: string;
 }
 
 function buildPageNumbers(page: number, totalPages: number): number[] {
@@ -64,14 +71,14 @@ function buildPageNumbers(page: number, totalPages: number): number[] {
   return [...pages].sort((a, b) => a - b);
 }
 
-export function ActressesGrid({ actresses, page, totalPages, sort, filters }: ActressesGridProps) {
+export function ActressesGrid({ actresses, page, totalPages, sort, filters, q }: ActressesGridProps) {
   const prevPage = page > 1 ? page - 1 : null;
   const nextPage = page < totalPages ? page + 1 : null;
 
   const pageNumbers = buildPageNumbers(page, totalPages);
 
   function pageSearch(targetPage: number) {
-    return buildActressesSearch({ page: targetPage, sort, filters });
+    return buildActressesSearch({ page: targetPage, sort, filters, q });
   }
 
   return (

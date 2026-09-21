@@ -1,6 +1,7 @@
 import { useState } from "react";
+import type { FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowUpDown, Check, ChevronDown, ListFilter } from "lucide-react";
+import { ArrowUpDown, Check, ChevronDown, ListFilter, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
@@ -34,6 +35,7 @@ import { cn } from "@/libs/utils";
 interface ActressesToolbarProps {
   sort: ActressSort;
   filters: ActressFilters;
+  q?: string;
 }
 
 function filterTriggerClass(active?: boolean) {
@@ -56,7 +58,7 @@ function sortLabel(sort: ActressSort): string {
   return opt.group ? `${opt.group}: ${opt.label}` : opt.label;
 }
 
-export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
+export function ActressesToolbar({ sort, filters, q = "" }: ActressesToolbarProps) {
   const navigate = useNavigate();
   const cups = getAvailableCupSizes();
 
@@ -84,15 +86,31 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
     ),
   );
 
-  function updateSearch(next: { sort?: ActressSort; filters?: ActressFilters; page?: number }) {
+  function updateSearch(next: { sort?: ActressSort; filters?: ActressFilters; page?: number; q?: string | null }) {
+    const nextQ = next.q === null ? undefined : (next.q ?? q);
+
     void navigate({
       to: "/actresses",
       search: buildActressesSearch({
         page: next.page ?? 1,
         sort: next.sort ?? sort,
         filters: next.filters ?? filters,
+        q: nextQ,
       }),
+      replace: false,
     });
+  }
+
+  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const nextQ = String(data.get("q") ?? "").trim();
+    updateSearch({ q: nextQ || null, page: 1 });
+  }
+
+  function handleSearchClear() {
+    updateSearch({ q: null, page: 1 });
   }
 
   function toggleCup(value: string, checked: boolean) {
@@ -161,90 +179,128 @@ export function ActressesToolbar({ sort, filters }: ActressesToolbarProps) {
 
   return (
     <div className="mb-6 space-y-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        <DropdownMenu>
-          <DropdownMenuTrigger className={filterTriggerClass()}>
-            <span className="inline-flex min-w-0 items-center gap-1.5">
-              <ArrowUpDown className="size-3.5 shrink-0" />
-              <span className="truncate">{sortLabel(sort)}</span>
-            </span>
-            <ChevronDown className="size-3.5 shrink-0 opacity-60" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0">
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Trending</DropdownMenuLabel>
-              {trending.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => updateSearch({ sort: opt.value, page: 1 })}
-                  className="flex items-center justify-between gap-2"
-                >
-                  {opt.label}
-                  {sort === opt.value ? <Check className="size-4" /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              {otherSorts.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => updateSearch({ sort: opt.value, page: 1 })}
-                  className="flex items-center justify-between gap-2"
-                >
-                  {opt.label}
-                  {sort === opt.value ? <Check className="size-4" /> : null}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <DropdownMenu>
+            <DropdownMenuTrigger className={filterTriggerClass()}>
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <ArrowUpDown className="size-3.5 shrink-0" />
+                <span className="truncate">{sortLabel(sort)}</span>
+              </span>
+              <ChevronDown className="size-3.5 shrink-0 opacity-60" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-48 w-(--anchor-width) max-sm:min-w-0">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Trending</DropdownMenuLabel>
+                {trending.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => updateSearch({ sort: opt.value, page: 1 })}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    {opt.label}
+                    {sort === opt.value ? <Check className="size-4" /> : null}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                {otherSorts.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.value}
+                    onClick={() => updateSearch({ sort: opt.value, page: 1 })}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    {opt.label}
+                    {sort === opt.value ? <Check className="size-4" /> : null}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <div className="w-full space-y-2 sm:hidden">
-          <button
+          <div className="w-full space-y-2 sm:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              className={cn(filterTriggerClass(filtersOpen || nonMeasurementCount > 0))}
+              onClick={() => setFiltersOpen((v) => !v)}
+            >
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <ListFilter className="size-3.5 shrink-0" />
+                <span className="truncate">
+                  Filters
+                  {nonMeasurementCount > 0 ? ` (${nonMeasurementCount})` : ""}
+                </span>
+              </span>
+              <ChevronDown
+                className={cn("size-3.5 shrink-0 opacity-60 transition-transform", filtersOpen && "rotate-180")}
+              />
+            </Button>
+            {filtersOpen ? <div className="grid grid-cols-1 gap-2 pt-1">{entityFilters}</div> : null}
+          </div>
+
+          <div className="hidden sm:contents">{entityFilters}</div>
+
+          <Button
             type="button"
-            className={cn(filterTriggerClass(filtersOpen || nonMeasurementCount > 0))}
-            onClick={() => setFiltersOpen((v) => !v)}
+            variant="outline"
+            onClick={() => setMoreOpen((v) => !v)}
+            className={cn(filterTriggerClass(moreOpen), moreOpen && "bg-muted")}
           >
             <span className="inline-flex min-w-0 items-center gap-1.5">
               <ListFilter className="size-3.5 shrink-0" />
-              <span className="truncate">
-                Filters
-                {nonMeasurementCount > 0 ? ` (${nonMeasurementCount})` : ""}
-              </span>
+              <span className="truncate">More filters</span>
             </span>
             <ChevronDown
-              className={cn("size-3.5 shrink-0 opacity-60 transition-transform", filtersOpen && "rotate-180")}
+              className={cn("size-3.5 shrink-0 opacity-60 transition-transform", moreOpen && "rotate-180")}
             />
-          </button>
-          {filtersOpen ? <div className="grid grid-cols-1 gap-2 pt-1">{entityFilters}</div> : null}
+          </Button>
+
+          {hasActiveFilters ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="w-full sm:w-auto"
+              onClick={() => updateSearch({ filters: { ...DEFAULT_ACTRESS_FILTERS }, page: 1 })}
+            >
+              Clear filters
+            </Button>
+          ) : null}
         </div>
 
-        <div className="hidden sm:contents">{entityFilters}</div>
-
-        <button
-          type="button"
-          onClick={() => setMoreOpen((v) => !v)}
-          className={cn(filterTriggerClass(moreOpen), moreOpen && "bg-muted")}
+        <form
+          key={q}
+          className="relative w-full shrink-0 md:w-56 lg:w-72"
+          onSubmit={handleSearchSubmit}
+          role="search"
+          aria-label="Search actresses"
         >
-          <span className="inline-flex min-w-0 items-center gap-1.5">
-            <ListFilter className="size-3.5 shrink-0" />
-            <span className="truncate">More filters</span>
-          </span>
-          <ChevronDown className={cn("size-3.5 shrink-0 opacity-60 transition-transform", moreOpen && "rotate-180")} />
-        </button>
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 
-        {hasActiveFilters ? (
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => updateSearch({ filters: { ...DEFAULT_ACTRESS_FILTERS }, page: 1 })}
-          >
-            Clear filters
-          </Button>
-        ) : null}
+          <Input
+            type="search"
+            name="q"
+            defaultValue={q}
+            placeholder="Search actresses…"
+            className="h-9 pr-9 pl-9"
+            autoComplete="off"
+          />
+
+          {q.trim() !== "" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Clear search"
+              className="absolute top-1/2 right-1.5 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              onClick={handleSearchClear}
+            >
+              <X className="size-3.5" />
+            </Button>
+          ) : null}
+        </form>
       </div>
 
       <Collapsible open={moreOpen} onOpenChange={setMoreOpen}>

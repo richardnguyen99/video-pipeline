@@ -409,6 +409,7 @@ export type ActressesSearchParams = {
   series?: number[];
   page?: number;
   sort?: ActressSort;
+  q?: string;
   labels?: number[];
   genres?: number[];
   makers?: number[];
@@ -430,15 +431,28 @@ export function buildActressesSearch(input: {
   page?: number;
   sort?: ActressSort;
   filters?: ActressFilters;
+  q?: string | null;
 }): ActressesSearchParams {
   const filters = input.filters ?? DEFAULT_ACTRESS_FILTERS;
   const search: ActressesSearchParams = {};
 
   const page = input.page ?? 1;
-  if (page > 1) search.page = page;
+
+  if (page > 1) {
+    search.page = page;
+  }
 
   const sort = input.sort ?? DEFAULT_ACTRESS_SORT;
-  if (sort !== DEFAULT_ACTRESS_SORT) search.sort = sort;
+
+  if (sort !== DEFAULT_ACTRESS_SORT) {
+    search.sort = sort;
+  }
+
+  const q = input.q?.trim();
+
+  if (q) {
+    search.q = q;
+  }
 
   if (filters.labels.length > 0) search.labels = filters.labels;
   if (filters.genres.length > 0) search.genres = filters.genres;
