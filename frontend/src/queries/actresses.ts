@@ -306,6 +306,78 @@ export function actressListQueryOptions(input: {
   });
 }
 
+/** Split ``q`` on ``+`` only; preserve spaces inside each term. */
+export function splitSearchTerms(raw: string): string[] {
+  return raw
+    .split("+")
+    .map((chunk) => chunk.trim())
+    .filter((term) => term.length > 0);
+}
+
+/**
+ * Related actresses for a video search query.
+ *
+ * Video ``q`` uses AND across ``+`` terms (e.g. ``aika+sweat``). Actress names
+ * rarely contain genre terms, so this fetches each term independently and
+ * merges the best matches (name terms still surface performers).
+ */
+export async function fetchRelatedSearchActresses(q: string, limit = 5): Promise<ActressSummary[]> {
+  const terms = splitSearchTerms(q);
+
+  if (terms.length === 0) {
+    return [];
+  }
+
+  const pages = await Promise.all(
+    terms.map((term) =>
+      fetchActressPage({
+        page: 1,
+        pageSize: limit,
+        q: term,
+      }),
+    ),
+  );
+
+  type Ranked = { actress: ActressSummary; score: number };
+  const byId = new Map<number, Ranked>();
+
+  pages.forEach((page, termIndex) => {
+    const termWeight = terms.length - termIndex;
+
+    page.items.forEach((actress, index) => {
+      const rankWeight = limit - index;
+      const add = termWeight * 10 + rankWeight;
+      const existing = byId.get(actress.id);
+
+      if (existing != null) {
+        existing.score += add;
+      } else {
+        byId.set(actress.id, { actress, score: add });
+      }
+    });
+  });
+
+  return [...byId.values()]
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+
+      return b.actress.videoCount - a.actress.videoCount;
+    })
+    .slice(0, limit)
+    .map((entry) => entry.actress);
+}
+
+export function relatedSearchActressesQueryOptions(q: string, limit = 5) {
+  const normalized = q.trim();
+
+  return queryOptions({
+    queryKey: [...actressQueryKeys.all, "related-search", normalized, limit] as const,
+    queryFn: () => fetchRelatedSearchActresses(normalized, limit),
+  });
+}
+
 export async function fetchActressFilterPage(params: {
   offset?: number;
   limit?: number;

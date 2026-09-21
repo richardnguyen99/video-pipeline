@@ -5,7 +5,7 @@ import { VideoBrowse } from "@/layouts/video-browse";
 import type { VideoDiscoverFilters } from "@/libs/discover-videos";
 import { DEFAULT_VIDEO_SORT, parseFeaturesCnt, softParseVideoDiscoverSearch } from "@/libs/discover-videos";
 import { parseSearch } from "@/libs/search-params";
-import { actressFilterInfiniteOptions, actressListQueryOptions } from "@/queries/actresses";
+import { actressFilterInfiniteOptions, relatedSearchActressesQueryOptions } from "@/queries/actresses";
 import { RELATED_SEARCH_ACTRESSES_LIMIT } from "@/components/video/related-search-actresses";
 import { directorDetailQueryOptions, directorFilterInfiniteOptions } from "@/queries/directors";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
@@ -103,11 +103,7 @@ export const Route = createFileRoute("/videos/")({
     const relatedActressesPrefetch =
       searchQ != null && searchQ !== ""
         ? context.queryClient.ensureQueryData(
-            actressListQueryOptions({
-              page: 1,
-              pageSize: RELATED_SEARCH_ACTRESSES_LIMIT,
-              q: searchQ,
-            }),
+            relatedSearchActressesQueryOptions(searchQ, RELATED_SEARCH_ACTRESSES_LIMIT),
           )
         : Promise.resolve();
 

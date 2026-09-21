@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { ActressCard } from "@/components/actress/actress-card";
-import { actressListQueryOptions } from "@/queries/actresses";
+import { relatedSearchActressesQueryOptions } from "@/queries/actresses";
 
 export const RELATED_SEARCH_ACTRESSES_LIMIT = 5;
 
@@ -11,21 +11,11 @@ interface RelatedSearchActressesProps {
 
 export function RelatedSearchActresses({ q }: RelatedSearchActressesProps) {
   const term = q.trim();
-  const { data } = useSuspenseQuery(
-    actressListQueryOptions({
-      page: 1,
-      pageSize: RELATED_SEARCH_ACTRESSES_LIMIT,
-      q: term || undefined,
-    }),
+  const { data: actresses } = useSuspenseQuery(
+    relatedSearchActressesQueryOptions(term, RELATED_SEARCH_ACTRESSES_LIMIT),
   );
 
-  if (!term) {
-    return null;
-  }
-
-  const actresses = data.items.slice(0, RELATED_SEARCH_ACTRESSES_LIMIT);
-
-  if (actresses.length === 0) {
+  if (!term || actresses.length === 0) {
     return null;
   }
 
