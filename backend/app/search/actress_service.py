@@ -7,6 +7,7 @@ from typing import Any, Optional
 from elasticsearch import AsyncElasticsearch
 
 from app.config import settings
+from app.schemas.actress_filters import ActressSort
 from app.utils.common import search_terms
 
 _MATCH_FIELDS: list[str] = [
@@ -103,6 +104,56 @@ class ActressSearchService:
             return []
 
         return [self._term_clause(term) for term in terms]
+
+    def _sort_clause(
+        self,
+        sort: Optional[ActressSort] = None,
+    ) -> list[str | dict[str, Any]]:
+        """Map app sort values to Elasticsearch sort."""
+
+        if sort == ActressSort.ID:
+            return [{"id": {"order": "asc"}}]
+
+        return [
+            "_score",
+            {"id": {"order": "asc"}},
+        ]
+
+    async def search_actress_ids(
+        self,
+        *,
+        query_text: str,
+        limit: int = 20,
+        offset: int = 0,
+        sort: Optional[ActressSort] = None,
+    ) -> tuple[list[int], int]:
+        """Return ordered actress primary keys and total hits for a text query."""
+
+        text = (query_text or "").strip()
+        must: list[dict[str, Any]] = (
+            self._text_must_clauses(text) if text else [{"match_all": {}}]
+        )
+
+        response = await self._client.search(
+            index=self._index,
+            query={"bool": {"must": must}},
+            from_=max(0, offset),
+            size=max(1, min(limit, 100)),
+            sort=self._sort_clause(sort),
+            source=False,
+            track_total_hits=True,
+            request_cache=True,
+        )
+        hits = response.get("hits", {})
+        total_raw = hits.get("total", 0)
+        total = (
+            int(total_raw.get("value", 0))
+            if isinstance(total_raw, dict)
+            else int(total_raw or 0)
+        )
+        ids = [int(hit["_id"]) for hit in hits.get("hits", [])]
+
+        return ids, total
 
     async def search_documents(
         self,

@@ -479,6 +479,51 @@ class ActressRepository(BaseRepository):
 
         return result.first()
 
+    async def list_actresses_by_ids(
+        self,
+        actress_ids: list[int],
+    ) -> list[Actress]:
+        """Load actresses by primary key preserving the given order.
+
+        Args:
+            actress_ids: Ordered list of ``Actress.id`` values.
+
+        Returns:
+            Matching ``Actress`` rows with aka and images loaded.
+        """
+
+        if not actress_ids:
+            return []
+
+        statement = (
+            select(Actress)
+            .where(col(Actress.id).in_(actress_ids))
+            .options(
+                selectinload(
+                    relationship_attr(Actress.actress_aka),
+                ).load_only(
+                    query_col(ActressAka.id),
+                    query_col(ActressAka.name),
+                    query_col(ActressAka.translated_name),
+                ),
+                selectinload(
+                    relationship_attr(Actress.actress_image),
+                ).load_only(
+                    query_col(ActressImage.id),
+                    query_col(ActressImage.url),
+                    query_col(ActressImage.attribute),
+                ),
+            )
+        )
+        rows = list((await self.session.exec(statement)).all())
+        by_id = {actress.id: actress for actress in rows}
+
+        return [
+            by_id[actress_id]
+            for actress_id in actress_ids
+            if actress_id in by_id
+        ]
+
     async def count_engagement_for_actresses(
         self,
         actress_ids: list[int],

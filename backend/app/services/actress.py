@@ -2,29 +2,92 @@
 
 # pylint: disable=too-many-locals
 
-from typing import Optional
+from __future__ import annotations
+
+import logging
+from typing import TYPE_CHECKING, Optional
 
 from fastapi import HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import NoInspectionAvailable
 
+from app.config import settings
 from app.repositories.actress import ActressRepository
 from app.schemas.actress import ActressListResponse, ActressResponse
 from app.schemas.actress_filters import ActressListFilters, ActressSort
+
+if TYPE_CHECKING:
+    from app.search.actress_service import ActressSearchService
+
+_logger = logging.getLogger("uvicorn.error")
 
 
 class ActressService:
     """Business operations for actress resources."""
 
-    def __init__(self, repository: ActressRepository) -> None:
+    def __init__(
+        self,
+        repository: ActressRepository,
+        search_service: Optional["ActressSearchService"] = None,
+    ) -> None:
         """Create an actress service.
 
         Args:
             repository: Actress data-access collaborator.
+            search_service: Optional Elasticsearch search collaborator.
         """
 
         self._repository = repository
+        self._search_service = search_service
+
+    @staticmethod
+    def _has_structured_filters(filters: ActressListFilters) -> bool:
+        """True when filters require columns not present in the ES index."""
+
+        return bool(
+            filters.cups
+            or filters.bust_min is not None
+            or filters.bust_max is not None
+            or filters.waist_min is not None
+            or filters.waist_max is not None
+            or filters.hip_min is not None
+            or filters.hip_max is not None
+            or filters.height_min is not None
+            or filters.height_max is not None
+            or filters.age_min is not None
+            or filters.age_max is not None
+            or filters.genres
+            or filters.makers
+            or filters.series
+            or filters.labels
+            or filters.directors
+        )
+
+    def _can_use_elasticsearch(self, filters: ActressListFilters) -> bool:
+        """Whether list search can run against the actresses ES index."""
+
+        if not settings.elasticsearch_enabled:
+            return False
+
+        if self._search_service is None:
+            return False
+
+        query = (filters.q or "").strip()
+
+        if not query:
+            return False
+
+        if self._has_structured_filters(filters):
+            return False
+
+        if filters.sort is not None and filters.sort not in (
+            ActressSort.RANK,
+            ActressSort.ID,
+        ):
+            return False
+
+        return True
 
     @staticmethod
     def _relationship_or_none(row: object, name: str) -> object:
@@ -137,6 +200,9 @@ class ActressService:
         safe_limit = max(1, limit)
         safe_offset = max(0, offset)
 
+        has_query = q is not None and q.strip() != ""
+        default_sort = ActressSort.RANK if has_query else None
+
         try:
             filters = ActressListFilters(
                 cups=list(cups or []),
@@ -156,7 +222,7 @@ class ActressService:
                 labels=list(labels or []),
                 directors=list(directors or []),
                 q=q,
-                sort=sort,
+                sort=sort or default_sort,
             )
         except ValidationError as exc:
             raise HTTPException(
@@ -164,12 +230,39 @@ class ActressService:
                 detail=exc.errors(),
             ) from exc
 
-        rows = await self._repository.list_actresses(
-            filters=filters,
-            limit=safe_limit,
-            offset=safe_offset,
-        )
-        total = await self._repository.count_actresses(filters=filters)
+        use_elasticsearch = self._can_use_elasticsearch(filters)
+
+        if use_elasticsearch and self._search_service is not None:
+            _logger.info(
+                "actress list search backend=elasticsearch "
+                "q=%r limit=%s offset=%s",
+                filters.q,
+                safe_limit,
+                safe_offset,
+            )
+            search_ids, total = await self._search_service.search_actress_ids(
+                query_text=filters.q or "",
+                limit=safe_limit,
+                offset=safe_offset,
+                sort=filters.sort,
+            )
+            rows = await self._repository.list_actresses_by_ids(search_ids)
+        else:
+            if has_query:
+                _logger.info(
+                    "actress list search backend=postgres q=%r "
+                    "elasticsearch_enabled=%s search_service=%s",
+                    filters.q,
+                    settings.elasticsearch_enabled,
+                    self._search_service is not None,
+                )
+            rows = await self._repository.list_actresses(
+                filters=filters,
+                limit=safe_limit,
+                offset=safe_offset,
+            )
+            total = await self._repository.count_actresses(filters=filters)
+
         engagement = await self._repository.count_engagement_for_actresses(
             [row.id for row in rows],
         )

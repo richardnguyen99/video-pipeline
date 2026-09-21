@@ -16,6 +16,7 @@ from app.dependencies.repositories import (
     VideoRepositoryDep,
 )
 from app.dependencies.settings import SettingsDep
+from app.search.actress_service import ActressSearchService
 from app.search.client import get_elasticsearch
 from app.search.service import VideoSearchService
 from app.services.actress import ActressService
@@ -41,7 +42,20 @@ def get_actress_service(
 ) -> ActressService:
     """Build a request-scoped ``ActressService``."""
 
-    return ActressService(repository=repository)
+    search_service = None
+
+    if settings.elasticsearch_enabled:
+        search_service = ActressSearchService(get_elasticsearch())
+    else:
+        _logger.debug(
+            "ActressService: skipping Elasticsearch (elasticsearch_enabled=%r)",
+            settings.elasticsearch_enabled,
+        )
+
+    return ActressService(
+        repository=repository,
+        search_service=search_service,
+    )
 
 
 def get_video_service(
