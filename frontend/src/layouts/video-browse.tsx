@@ -1,4 +1,4 @@
-import { useId, useLayoutEffect, useState } from "react";
+import React, { useId, useLayoutEffect, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { AlertTriangle, ArrowUpDown, Check, ChevronDown, ChevronLeft, ChevronRight, ListFilter, X } from "lucide-react";
@@ -16,6 +16,7 @@ import {
   seriesMultiFilterConfig,
 } from "@/components/entity-multi-filter/configs";
 import { EntitySingleFilter } from "@/components/entity-single-filter";
+import { RelatedSearchActresses } from "@/components/video/related-search-actresses";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import {
   DropdownMenu,
@@ -188,6 +189,12 @@ export function VideoBrowse({
           {` ${total} ${total === 1 ? "video" : "videos"}.`}
         </p>
       </header>
+
+      {q ? (
+        <React.Suspense fallback={null}>
+          <RelatedSearchActresses q={q} />
+        </React.Suspense>
+      ) : null}
 
       {searchIssues.length > 0 && !alertDismissed ? (
         <Alert variant="destructive" className="mb-6">

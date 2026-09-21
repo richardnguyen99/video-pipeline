@@ -5,7 +5,8 @@ import { VideoBrowse } from "@/layouts/video-browse";
 import type { VideoDiscoverFilters } from "@/libs/discover-videos";
 import { DEFAULT_VIDEO_SORT, parseFeaturesCnt, softParseVideoDiscoverSearch } from "@/libs/discover-videos";
 import { parseSearch } from "@/libs/search-params";
-import { actressFilterInfiniteOptions } from "@/queries/actresses";
+import { actressFilterInfiniteOptions, actressListQueryOptions } from "@/queries/actresses";
+import { RELATED_SEARCH_ACTRESSES_LIMIT } from "@/components/video/related-search-actresses";
 import { directorDetailQueryOptions, directorFilterInfiniteOptions } from "@/queries/directors";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { labelDetailQueryOptions, labelFilterInfiniteOptions } from "@/queries/labels";
@@ -98,8 +99,21 @@ export const Route = createFileRoute("/videos/")({
       detailPrefetches.push(context.queryClient.ensureQueryData(seriesDetailQueryOptions(queryParams.series)));
     }
 
+    const searchQ = queryParams.q?.trim();
+    const relatedActressesPrefetch =
+      searchQ != null && searchQ !== ""
+        ? context.queryClient.ensureQueryData(
+            actressListQueryOptions({
+              page: 1,
+              pageSize: RELATED_SEARCH_ACTRESSES_LIMIT,
+              q: searchQ,
+            }),
+          )
+        : Promise.resolve();
+
     await Promise.all([
       context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)),
+      relatedActressesPrefetch,
       context.queryClient.ensureInfiniteQueryData(actressFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
       context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
@@ -123,7 +137,7 @@ function VideosDiscoverPage() {
 
   const q = queryParams.q?.trim();
   const title = q ? `Results for “${q}”` : "Videos";
-  const description = q ? "Elasticsearch-backed catalog search." : "Discover titles across the catalog.";
+  const description = q ? "Matching titles for your search." : "Discover titles across the catalog.";
 
   return (
     <VideoBrowse
