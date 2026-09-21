@@ -187,6 +187,12 @@ export function SiteSearchBox({
 
   const goToVideo = useCallback(
     (result: SearchResult) => {
+      const q = value.trim();
+
+      if (q.length > 0) {
+        rememberSearchQuery(q);
+      }
+
       setHistory(rememberSearchVideo(result));
       deactivateSearch();
       onNavigate?.();
@@ -195,7 +201,7 @@ export function SiteSearchBox({
         params: { id: result.id.raw },
       });
     },
-    [deactivateSearch, navigate, onNavigate],
+    [deactivateSearch, navigate, onNavigate, value],
   );
 
   const focusSearch = useCallback(() => {
