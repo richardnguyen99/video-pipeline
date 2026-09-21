@@ -1,4 +1,6 @@
-"""Index mappings for catalog search documents."""
+"""Elasticsearch index settings and field mappings."""
+
+from __future__ import annotations
 
 from typing import Any
 
@@ -34,7 +36,7 @@ _TEXT_WITH_KEYWORD: dict[str, Any] = {
         "keyword": {
             "type": "keyword",
             "normalizer": "video_keyword",
-            "ignore_above": 512,
+            "ignore_above": 256,
         },
     },
 }
@@ -43,18 +45,19 @@ VIDEOS_INDEX_MAPPINGS: dict[str, Any] = {
     "properties": {
         "id": {"type": "integer"},
         "video_id": {
-            "type": "keyword",
-            "normalizer": "video_keyword",
+            "type": "text",
+            "analyzer": "video_text",
             "fields": {
-                "text": dict(_TEXT),
+                "keyword": {
+                    "type": "keyword",
+                    "normalizer": "video_keyword",
+                    "ignore_above": 64,
+                },
             },
         },
         "title": dict(_TEXT_WITH_KEYWORD),
-        "title_akas": dict(_TEXT_WITH_KEYWORD),
-        "release_date": {
-            "type": "date",
-            "format": "strict_date_optional_time||epoch_millis",
-        },
+        "title_akas": dict(_TEXT),
+        "release_date": {"type": "date"},
         "actress_ids": {"type": "integer"},
         "actress_names": dict(_TEXT_WITH_KEYWORD),
         "genre_ids": {"type": "integer"},
@@ -119,5 +122,9 @@ ACTRESSES_INDEX_MAPPINGS: dict[str, Any] = {
         "ruby": dict(_ACTRESS_TEXT_WITH_KEYWORD),
         "aka_names": dict(_ACTRESS_TEXT),
         "aka_translated_names": dict(_ACTRESS_TEXT),
+        "video_cnt": {"type": "integer"},
+        "has_image": {"type": "boolean"},
+        "has_details": {"type": "boolean"},
+        "image_url": {"type": "keyword", "index": False},
     },
 }

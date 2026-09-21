@@ -27,7 +27,7 @@ interface ActressesShellProps {
 export function ActressesShell({ sort, filters, q, totalSlot, total, children }: ActressesShellProps) {
   const query = q?.trim();
   const title = query ? `Results for “${query}”` : "Actresses";
-  const description = query ? "Elasticsearch-backed actress search." : "Browse performers and their featured titles.";
+  const description = query ? "Matching performers for your search." : "Browse performers and their featured titles.";
 
   return (
     <div className="min-h-screen pt-16">

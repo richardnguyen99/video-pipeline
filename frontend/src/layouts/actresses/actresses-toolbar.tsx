@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowUpDown, Check, ChevronDown, ListFilter, Search, X } from "lucide-react";
@@ -60,6 +60,7 @@ function sortLabel(sort: ActressSort): string {
 
 export function ActressesToolbar({ sort, filters, q = "" }: ActressesToolbarProps) {
   const navigate = useNavigate();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const cups = getAvailableCupSizes();
 
   const nonMeasurementCount =
@@ -110,6 +111,10 @@ export function ActressesToolbar({ sort, filters, q = "" }: ActressesToolbarProp
   }
 
   function handleSearchClear() {
+    if (searchInputRef.current != null) {
+      searchInputRef.current.value = "";
+    }
+
     updateSearch({ q: null, page: 1 });
   }
 
@@ -280,6 +285,7 @@ export function ActressesToolbar({ sort, filters, q = "" }: ActressesToolbarProp
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 
           <Input
+            ref={searchInputRef}
             type="search"
             name="q"
             defaultValue={q}
@@ -289,16 +295,22 @@ export function ActressesToolbar({ sort, filters, q = "" }: ActressesToolbarProp
           />
 
           {q.trim() !== "" ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              aria-label="Clear search"
-              className="absolute top-1/2 right-1.5 size-7 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={handleSearchClear}
-            >
-              <X className="size-3.5" />
-            </Button>
+            <div className="absolute inset-y-0 right-1.5 flex items-center">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label="Clear search"
+                className={cn("size-7 shrink-0 text-muted-foreground hover:text-foreground", "active:translate-y-0")}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleSearchClear();
+                }}
+              >
+                <X className="size-3.5" />
+              </Button>
+            </div>
           ) : null}
         </form>
       </div>
