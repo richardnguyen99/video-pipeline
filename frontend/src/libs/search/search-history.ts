@@ -1,6 +1,6 @@
 /**
  * Anonymous search history persisted in localStorage.
- * Stores recent query strings and recently selected videos.
+ * Stores recent query strings (with optional favorites) and recently selected videos.
  */
 
 import type { SearchResult } from "@/libs/search/video-api-connector";
@@ -8,6 +8,11 @@ import type { SearchResult } from "@/libs/search/video-api-connector";
 const STORAGE_KEY = "velvet.search.history.v1";
 const MAX_QUERIES = 15;
 const MAX_VIDEOS = 5;
+
+export type RecentQuery = {
+  query: string;
+  favorite: boolean;
+};
 
 export type RecentVideo = {
   id: string;
@@ -17,7 +22,7 @@ export type RecentVideo = {
 };
 
 export type SearchHistoryState = {
-  queries: string[];
+  queries: RecentQuery[];
   videos: RecentVideo[];
 };
 
@@ -45,6 +50,66 @@ function isRecentVideo(value: unknown): value is RecentVideo {
   );
 }
 
+function parseRecentQuery(value: unknown): RecentQuery | null {
+  if (typeof value === "string") {
+    const query = value.trim();
+
+    if (query.length === 0) {
+      return null;
+    }
+
+    return { query, favorite: false };
+  }
+
+  if (value == null || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as Record<string, unknown>;
+  const query = typeof item.query === "string" ? item.query.trim() : "";
+
+  if (query.length === 0) {
+    return null;
+  }
+
+  return {
+    query,
+    favorite: item.favorite === true,
+  };
+}
+
+/** Favorites first (stable within each group), then non-favorites. */
+function sortQueries(queries: RecentQuery[]): RecentQuery[] {
+  const favorites: RecentQuery[] = [];
+  const rest: RecentQuery[] = [];
+
+  for (const entry of queries) {
+    if (entry.favorite) {
+      favorites.push(entry);
+    } else {
+      rest.push(entry);
+    }
+  }
+
+  return [...favorites, ...rest];
+}
+
+function dedupeQueries(queries: RecentQuery[]): RecentQuery[] {
+  const seen = new Set<string>();
+  const result: RecentQuery[] = [];
+
+  for (const entry of queries) {
+    if (seen.has(entry.query)) {
+      continue;
+    }
+
+    seen.add(entry.query);
+    result.push(entry);
+  }
+
+  return result;
+}
+
 function normalize(raw: unknown): SearchHistoryState {
   if (raw == null || typeof raw !== "object") {
     return { ...EMPTY };
@@ -52,11 +117,11 @@ function normalize(raw: unknown): SearchHistoryState {
 
   const record = raw as Record<string, unknown>;
   const queries = Array.isArray(record.queries)
-    ? record.queries
-        .filter((q): q is string => typeof q === "string")
-        .map((q) => q.trim())
-        .filter((q) => q.length > 0)
-        .slice(0, MAX_QUERIES)
+    ? sortQueries(
+        dedupeQueries(
+          record.queries.map(parseRecentQuery).filter((entry): entry is RecentQuery => entry != null),
+        ).slice(0, MAX_QUERIES),
+      )
     : [];
   const videos = Array.isArray(record.videos) ? record.videos.filter(isRecentVideo).slice(0, MAX_VIDEOS) : [];
 
@@ -101,7 +166,39 @@ export function rememberSearchQuery(query: string): SearchHistoryState {
   }
 
   const current = readSearchHistory();
-  const queries = [q, ...current.queries.filter((item) => item !== q)].slice(0, MAX_QUERIES);
+  const existing = current.queries.find((item) => item.query === q);
+  const entry: RecentQuery = {
+    query: q,
+    favorite: existing?.favorite === true,
+  };
+  const others = current.queries.filter((item) => item.query !== q);
+  const queries = sortQueries([entry, ...others]).slice(0, MAX_QUERIES);
+  const next = { ...current, queries };
+  writeSearchHistory(next);
+
+  return next;
+}
+
+export function toggleFavoriteSearchQuery(query: string): SearchHistoryState {
+  const q = query.trim();
+
+  if (q.length === 0) {
+    return readSearchHistory();
+  }
+
+  const current = readSearchHistory();
+  const existing = current.queries.find((item) => item.query === q);
+
+  if (existing == null) {
+    return current;
+  }
+
+  const entry: RecentQuery = {
+    query: q,
+    favorite: !existing.favorite,
+  };
+  const others = current.queries.filter((item) => item.query !== q);
+  const queries = sortQueries([entry, ...others]).slice(0, MAX_QUERIES);
   const next = { ...current, queries };
   writeSearchHistory(next);
 
@@ -141,7 +238,7 @@ export function removeSearchQuery(query: string): SearchHistoryState {
   }
 
   const current = readSearchHistory();
-  const queries = current.queries.filter((item) => item !== q);
+  const queries = current.queries.filter((item) => item.query !== q);
   const next = { ...current, queries };
   writeSearchHistory(next);
 

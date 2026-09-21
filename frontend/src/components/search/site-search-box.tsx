@@ -13,7 +13,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import type { FormEvent, KeyboardEvent } from "react";
 import { useHotkey, formatForDisplay } from "@tanstack/react-hotkeys";
 import { useNavigate } from "@tanstack/react-router";
-import { Clock, Loader2, Search, Trash2, X } from "lucide-react";
+import { Clock, Loader2, Search, Star, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,7 @@ import {
   rememberSearchVideo,
   removeSearchQuery,
   removeSearchVideo,
+  toggleFavoriteSearchQuery,
 } from "@/libs/search/search-history";
 import type { SearchHistoryState } from "@/libs/search/search-history";
 import { cn } from "@/libs/utils";
@@ -148,6 +149,24 @@ export function SiteSearchBox({
       type: "info",
       title: "Search removed",
       description: `“${query}” was removed from recent searches.`,
+      timeout: 5000,
+    });
+  }, []);
+
+  const toggleHistoryQueryFavorite = useCallback((query: string) => {
+    const next = toggleFavoriteSearchQuery(query);
+    setHistory(next);
+    setActiveIndex(-1);
+
+    const entry = next.queries.find((item) => item.query === query);
+    const favorited = entry?.favorite === true;
+
+    toast.add({
+      type: "info",
+      title: favorited ? "Added to favorites" : "Removed from favorites",
+      description: favorited
+        ? `“${query}” is now pinned at the top of recent searches.`
+        : `“${query}” is no longer a favorite.`,
       timeout: 5000,
     });
   }, []);
@@ -306,7 +325,7 @@ export function SiteSearchBox({
 
     if (panelMode === "history") {
       if (index < queryOptionCount) {
-        return { kind: "query", query: historyQueries[index] };
+        return { kind: "query", query: historyQueries[index]?.query };
       }
 
       const videoIndex = index - queryOptionCount;
@@ -555,7 +574,8 @@ export function SiteSearchBox({
                 </div>
 
                 <ul>
-                  {historyQueries.map((query, index) => {
+                  {historyQueries.map((entry, index) => {
+                    const { query, favorite } = entry;
                     const active = index === activeIndex;
 
                     return (
@@ -570,7 +590,7 @@ export function SiteSearchBox({
                         <button
                           type="button"
                           className={cn(
-                            "flex w-full items-center gap-3 px-3 py-2 pr-10 text-left text-sm transition-colors",
+                            "flex w-full items-center gap-3 px-3 py-2 pr-17 text-left text-sm transition-colors",
                             active ? "bg-muted" : "hover:bg-muted/70",
                           )}
                           onClick={() => goToResults(query)}
@@ -582,12 +602,50 @@ export function SiteSearchBox({
 
                         <div
                           className={cn(
-                            "absolute top-1/2 right-1.5 z-10 -translate-y-1/2",
-                            "opacity-0 transition-opacity",
-                            "group-hover/query:opacity-100 focus-within:opacity-100",
-                            active ? "opacity-100" : null,
+                            "absolute top-1/2 right-1.5 z-10 flex -translate-y-1/2 items-center gap-0.5",
+                            "transition-opacity",
+                            favorite
+                              ? "opacity-100"
+                              : "opacity-0 group-hover/query:opacity-100 focus-within:opacity-100",
+                            active && !favorite ? "opacity-100" : null,
                           )}
                         >
+                          <Tooltip disableHoverablePopup>
+                            <TooltipTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  aria-label={
+                                    favorite ? `Remove “${query}” from favorites` : `Mark “${query}” as favorite`
+                                  }
+                                  aria-pressed={favorite}
+                                  className={cn(
+                                    "size-7 p-1.5",
+                                    "active:translate-y-0",
+                                    favorite
+                                      ? "text-amber-400 hover:bg-amber-400/15 hover:text-amber-300"
+                                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                  )}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    toggleHistoryQueryFavorite(query);
+                                  }}
+                                />
+                              }
+                            >
+                              <Star
+                                className={cn("size-3.5", favorite ? "fill-amber-400 text-amber-400" : "fill-none")}
+                              />
+                            </TooltipTrigger>
+
+                            <TooltipContent side="left" sideOffset={6} className={HISTORY_TOOLTIP_CLASS}>
+                              {favorite ? "Remove from favorites" : "Add to favorites"}
+                            </TooltipContent>
+                          </Tooltip>
+
                           <Tooltip disableHoverablePopup>
                             <TooltipTrigger
                               render={
@@ -601,6 +659,10 @@ export function SiteSearchBox({
                                     "hover:bg-destructive/15 hover:text-destructive",
                                     "focus-visible:ring-destructive/30",
                                     "active:translate-y-0",
+                                    favorite
+                                      ? "opacity-0 group-hover/query:opacity-100 focus-within:opacity-100"
+                                      : null,
+                                    active && favorite ? "opacity-100" : null,
                                   )}
                                   onClick={(event) => {
                                     event.preventDefault();
