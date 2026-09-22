@@ -192,10 +192,13 @@ class ActressRepository(BaseRepository):
             )
 
         if filters.q is not None and filters.q.strip():
-            for term in ActressRepository._search_terms(filters.q):
-                statement = statement.where(
-                    ActressRepository._term_match_predicate(term),
-                )
+            term_predicates = [
+                ActressRepository._term_match_predicate(term)
+                for term in ActressRepository._search_terms(filters.q)
+            ]
+
+            if term_predicates:
+                statement = statement.where(or_(*term_predicates))
 
         if filters.genres:
             statement = statement.where(
@@ -295,37 +298,40 @@ class ActressRepository(BaseRepository):
     def _get_aggregate_sort_exprs(cls) -> dict[ActressSort, Any]:
         """Return aggregate sort subqueries (built once per process)."""
 
-        if cls._aggregate_sort_exprs is None:
-            cls._aggregate_sort_exprs = {
-                ActressSort.VIDEO_CNT: (
-                    sa_select(func.count())
-                    .where(t_video_actress.c.fk_id == Actress.id)
-                    .correlate(Actress)
-                    .scalar_subquery()
-                ),
-                ActressSort.SUB_CNT: (
-                    sa_select(func.count())
-                    .select_from(UserActressSubscribe)
-                    .where(
-                        col(UserActressSubscribe.actress_id) == Actress.id,
-                    )
-                    .correlate(Actress)
-                    .scalar_subquery()
-                ),
-                ActressSort.VIEW_CNT: (
-                    sa_select(func.count())
-                    .select_from(t_video_actress)
-                    .join(
-                        VideoView,
-                        col(VideoView.video_id) == t_video_actress.c.video_id,
-                    )
-                    .where(t_video_actress.c.fk_id == Actress.id)
-                    .correlate(Actress)
-                    .scalar_subquery()
-                ),
-            }
+        if cls._aggregate_sort_exprs is not None:
+            return cls._aggregate_sort_exprs
 
-        return cls._aggregate_sort_exprs
+        exprs: dict[ActressSort, Any] = {
+            ActressSort.VIDEO_CNT: (
+                sa_select(func.count())
+                .where(t_video_actress.c.fk_id == Actress.id)
+                .correlate(Actress)
+                .scalar_subquery()
+            ),
+            ActressSort.SUB_CNT: (
+                sa_select(func.count())
+                .select_from(UserActressSubscribe)
+                .where(
+                    col(UserActressSubscribe.actress_id) == Actress.id,
+                )
+                .correlate(Actress)
+                .scalar_subquery()
+            ),
+            ActressSort.VIEW_CNT: (
+                sa_select(func.count())
+                .select_from(t_video_actress)
+                .join(
+                    VideoView,
+                    col(VideoView.video_id) == t_video_actress.c.video_id,
+                )
+                .where(t_video_actress.c.fk_id == Actress.id)
+                .correlate(Actress)
+                .scalar_subquery()
+            ),
+        }
+        cls._aggregate_sort_exprs = exprs
+
+        return exprs
 
     @classmethod
     def _order_clauses(
@@ -347,8 +353,13 @@ class ActressRepository(BaseRepository):
 
         if sort == ActressSort.RANK:
             if q is not None and q.strip():
+                video_cnt = cls._get_aggregate_sort_exprs()[
+                    ActressSort.VIDEO_CNT
+                ]
+
                 return (
                     cls._relevance_expr(q).desc(),
+                    video_cnt.desc(),
                     tie_break,
                 )
 

@@ -11,12 +11,12 @@ from app.schemas.actress_filters import ActressSort
 from app.utils.common import search_terms
 
 _MATCH_FIELDS: list[str] = [
-    "name^8",
-    "aka_translated_names^5",
-    "ruby^4",
-    "original_name^3",
-    "dmm_name^3",
-    "aka_names^2",
+    "name^3",
+    "aka_translated_names^2",
+    "ruby^1.5",
+    "original_name^1.5",
+    "dmm_name^1.5",
+    "aka_names^1",
 ]
 
 _SUBSTRING_FIELDS: list[str] = [
@@ -59,14 +59,14 @@ class ActressSearchService:
         ]
 
     def _term_clause(self, term: str) -> dict[str, Any]:
-        """Match one term with strong preference for exact / phrase name hits."""
+        """Match one term; modest exact boost so volume can still lead ranking."""
 
         should: list[dict[str, Any]] = [
             {
                 "term": {
                     "name.keyword": {
                         "value": term,
-                        "boost": 24,
+                        "boost": 1.5,
                         "case_insensitive": True,
                     },
                 },
@@ -75,7 +75,7 @@ class ActressSearchService:
                 "match_phrase": {
                     "name": {
                         "query": term,
-                        "boost": 12,
+                        "boost": 1.25,
                     },
                 },
             },
@@ -83,7 +83,7 @@ class ActressSearchService:
                 "match_phrase": {
                     "aka_translated_names": {
                         "query": term,
-                        "boost": 8,
+                        "boost": 1.0,
                     },
                 },
             },
@@ -91,7 +91,7 @@ class ActressSearchService:
                 "match_phrase": {
                     "ruby": {
                         "query": term,
-                        "boost": 6,
+                        "boost": 0.75,
                     },
                 },
             },
@@ -101,7 +101,7 @@ class ActressSearchService:
                     "fields": _MATCH_FIELDS,
                     "type": "best_fields",
                     "operator": "and",
-                    "boost": 2,
+                    "boost": 1.0,
                 },
             },
             *self._substring_should(term),
@@ -114,8 +114,13 @@ class ActressSearchService:
             },
         }
 
-    def _text_must_clauses(self, query_text: str) -> list[dict[str, Any]]:
-        """AND across split terms."""
+    def _text_should_clauses(self, query_text: str) -> list[dict[str, Any]]:
+        """OR across ``+`` terms so multi-name queries return a union of matches.
+
+        Videos use AND (every term must appear on the title). Actresses use OR
+        so ``aika+mio`` lists performers matching either name, with multi-term
+        hits ranked higher via bool ``should`` scoring.
+        """
 
         terms = search_terms(query_text)
 
@@ -124,32 +129,53 @@ class ActressSearchService:
 
         return [self._term_clause(term) for term in terms]
 
-    def _ranked_query(self, must: list[dict[str, Any]]) -> dict[str, Any]:
-        """Combine name relevancy with video count, details, and image quality."""
+    def _ranked_query(
+        self, term_clauses: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Rank name matches primarily by video count.
+
+        Name clauses act as a filter (constant score) so exact short names
+        like ``MIO`` (0 videos) cannot outrank high-volume partial matches
+        like ``Mio Kimijima`` (709). Among matches the order is:
+
+        1. ``log1p(video_cnt)``
+        2. small bonuses for image / profile details
+        3. stable ``id`` tie-break from the sort clause
+        """
 
         return {
             "function_score": {
-                "query": {"bool": {"must": must}},
+                "query": {
+                    "constant_score": {
+                        "filter": {
+                            "bool": {
+                                "should": term_clauses,
+                                "minimum_should_match": 1,
+                            },
+                        },
+                        "boost": 1.0,
+                    },
+                },
                 "functions": [
                     {
                         "field_value_factor": {
                             "field": "video_cnt",
+                            "factor": 1.0,
                             "modifier": "log1p",
-                            "factor": 2.0,
                             "missing": 0,
                         },
                     },
                     {
                         "filter": {"term": {"has_image": True}},
-                        "weight": 2.5,
+                        "weight": 0.25,
                     },
                     {
                         "filter": {"term": {"has_details": True}},
-                        "weight": 1.5,
+                        "weight": 0.15,
                     },
                 ],
                 "score_mode": "sum",
-                "boost_mode": "multiply",
+                "boost_mode": "sum",
             },
         }
 
@@ -179,10 +205,14 @@ class ActressSearchService:
         """Return ordered actress primary keys and total hits for a text query."""
 
         text = (query_text or "").strip()
-        must: list[dict[str, Any]] = (
-            self._text_must_clauses(text) if text else [{"match_all": {}}]
+        term_clauses: list[dict[str, Any]] = (
+            self._text_should_clauses(text) if text else [{"match_all": {}}]
         )
-        query = self._ranked_query(must) if text else {"bool": {"must": must}}
+        query = (
+            self._ranked_query(term_clauses)
+            if text
+            else {"bool": {"must": term_clauses}}
+        )
 
         response = await self._client.search(
             index=self._index,
@@ -216,10 +246,14 @@ class ActressSearchService:
         """Return actress documents and total hits for Search UI."""
 
         text = (query_text or "").strip()
-        must: list[dict[str, Any]] = (
-            self._text_must_clauses(text) if text else [{"match_all": {}}]
+        term_clauses: list[dict[str, Any]] = (
+            self._text_should_clauses(text) if text else [{"match_all": {}}]
         )
-        query = self._ranked_query(must) if text else {"bool": {"must": must}}
+        query = (
+            self._ranked_query(term_clauses)
+            if text
+            else {"bool": {"must": term_clauses}}
+        )
         fields = source_fields or [
             "id",
             "name",
