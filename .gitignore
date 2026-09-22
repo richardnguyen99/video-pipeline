@@ -226,3 +226,6 @@ __marimo__/
 
 # data / backup
 data/
+
+# logs
+logs/
