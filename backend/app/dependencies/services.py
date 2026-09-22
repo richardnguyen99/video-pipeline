@@ -13,6 +13,7 @@ from app.dependencies.repositories import (
     LabelRepositoryDep,
     MakerRepositoryDep,
     SeriesRepositoryDep,
+    UserRepositoryDep,
     VideoRepositoryDep,
 )
 from app.dependencies.settings import SettingsDep
@@ -20,6 +21,7 @@ from app.search.actress_service import ActressSearchService
 from app.search.client import get_elasticsearch
 from app.search.service import VideoSearchService
 from app.services.actress import ActressService
+from app.services.auth import AuthService
 from app.services.director import DirectorService
 from app.services.genre import GenreService
 from app.services.health import HealthService
@@ -119,6 +121,14 @@ def get_series_service(
     return SeriesService(repository=repository)
 
 
+def get_auth_service(
+    repository: UserRepositoryDep,
+) -> AuthService:
+    """Build a request-scoped ``AuthService``."""
+
+    return AuthService(repository=repository)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 VideoServiceDep = Annotated[VideoService, Depends(get_video_service)]
@@ -127,3 +137,4 @@ MakerServiceDep = Annotated[MakerService, Depends(get_maker_service)]
 LabelServiceDep = Annotated[LabelService, Depends(get_label_service)]
 DirectorServiceDep = Annotated[DirectorService, Depends(get_director_service)]
 SeriesServiceDep = Annotated[SeriesService, Depends(get_series_service)]
+AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]

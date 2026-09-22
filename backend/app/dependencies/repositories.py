@@ -11,7 +11,14 @@ from app.repositories.genre import GenreRepository
 from app.repositories.label import LabelRepository
 from app.repositories.maker import MakerRepository
 from app.repositories.series import SeriesRepository
+from app.repositories.user import UserRepository
 from app.repositories.video import VideoRepository
+
+
+def get_user_repository(session: SessionDep) -> UserRepository:
+    """Build a request-scoped ``UserRepository``."""
+
+    return UserRepository(session=session)
 
 
 def get_actress_repository(session: SessionDep) -> ActressRepository:
@@ -83,4 +90,8 @@ LabelRepositoryDep = Annotated[
 DirectorRepositoryDep = Annotated[
     DirectorRepository,
     Depends(get_director_repository),
+]
+UserRepositoryDep = Annotated[
+    UserRepository,
+    Depends(get_user_repository),
 ]
