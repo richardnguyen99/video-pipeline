@@ -6,20 +6,25 @@ import datetime
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional, cast
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.repositories.user import UserRepository
-from app.schemas.auth import RegisterRequest, UserResponse
+from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
 from app.services.auth import AuthService
-from app.utils.password import PASSWORD_ALGORITHM, verify_password
+from app.utils.password import (
+    PASSWORD_ALGORITHM,
+    hash_password,
+    verify_password,
+)
 
 
 @dataclass
 class FakeUser:
-    """Minimal user stand-in for registration responses."""
+    """Minimal user stand-in for registration and login responses."""
 
     id: uuid.UUID
     username: str
@@ -45,6 +50,15 @@ class FakeUser:
 
 
 @dataclass
+class FakeCredential:
+    """Minimal credential stand-in for login checks."""
+
+    password_hash: str
+    locked_until: Optional[datetime.datetime] = None
+    failed_login_attempts: int = 0
+
+
+@dataclass
 class FakeUserRepository:
     """In-memory stand-in for ``UserRepository``."""
 
@@ -53,6 +67,9 @@ class FakeUserRepository:
     create_calls: list[dict[str, Any]] = field(default_factory=list)
     raise_integrity: bool = False
     created_user: Optional[FakeUser] = None
+    session: object = field(default_factory=object)
+    login_success_calls: list[FakeUser] = field(default_factory=list)
+    login_failure_calls: list[FakeUser] = field(default_factory=list)
 
     async def get_by_username(self, username: str) -> Optional[FakeUser]:
         """Return a user keyed by username, if present."""
@@ -101,6 +118,18 @@ class FakeUserRepository:
         self.created_user = user
 
         return user
+
+    async def record_login_success(self, user: FakeUser) -> FakeUser:
+        """Record a successful login for assertions."""
+
+        self.login_success_calls.append(user)
+
+        return user
+
+    async def record_login_failure(self, user: FakeUser) -> None:
+        """Record a failed login for assertions."""
+
+        self.login_failure_calls.append(user)
 
 
 @pytest.fixture
@@ -248,3 +277,192 @@ async def test_register_conflict_on_integrity_error(
 
     assert exc_info.value.status_code == status.HTTP_409_CONFLICT
     assert "already registered" in str(exc_info.value.detail).lower()
+
+
+def _login_payload(**overrides: Any) -> LoginRequest:
+    """Build a valid ``LoginRequest`` with optional overrides."""
+
+    data: dict[str, Any] = {
+        "email": "alice@example.com",
+        "password": "Secret1!",
+    }
+    data.update(overrides)
+
+    return LoginRequest(**data)
+
+
+def _seed_login_user(
+    repository: FakeUserRepository,
+    *,
+    is_active: bool = True,
+) -> FakeUser:
+    """Register a user row on the fake repository for login tests."""
+
+    user = FakeUser(
+        id=uuid.UUID("00000000-0000-4000-8000-000000000001"),
+        username="alice_1",
+        email="alice@example.com",
+        display_name="Alice",
+        is_active=is_active,
+    )
+    repository.by_email[user.email] = user
+
+    return user
+
+
+@pytest.mark.asyncio
+async def test_login_returns_user_response(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Successful login returns the public profile and records success."""
+
+    user = _seed_login_user(repository)
+    credential = FakeCredential(password_hash=hash_password("Secret1!"))
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new_callable=AsyncMock,
+        return_value=credential,
+    ):
+        result = await service.login(_login_payload())
+
+    assert isinstance(result, UserResponse)
+    assert result.id == user.id
+    assert result.email == "alice@example.com"
+    assert result.username == "alice_1"
+    assert repository.login_success_calls == [user]
+    assert repository.login_failure_calls == []
+
+
+@pytest.mark.asyncio
+async def test_login_unknown_email_returns_401(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Unknown email yields a generic 401 (no enumeration)."""
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.login(_login_payload())
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "Invalid email or password" in str(exc_info.value.detail)
+    assert repository.login_success_calls == []
+    assert repository.login_failure_calls == []
+
+
+@pytest.mark.asyncio
+async def test_login_wrong_password_returns_401_and_records_failure(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Wrong password yields generic 401 and records a failure."""
+
+    user = _seed_login_user(repository)
+    credential = FakeCredential(password_hash=hash_password("Secret1!"))
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new_callable=AsyncMock,
+        return_value=credential,
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.login(_login_payload(password="Wrong1!"))
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "Invalid email or password" in str(exc_info.value.detail)
+    assert repository.login_failure_calls == [user]
+    assert repository.login_success_calls == []
+
+
+@pytest.mark.asyncio
+async def test_login_missing_credential_returns_401(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """User without credential row is treated as invalid login."""
+
+    _seed_login_user(repository)
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.login(_login_payload())
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert repository.login_success_calls == []
+
+
+@pytest.mark.asyncio
+async def test_login_disabled_account_returns_403(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Inactive accounts cannot sign in."""
+
+    _seed_login_user(repository, is_active=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.login(_login_payload())
+
+    assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+    assert "disabled" in str(exc_info.value.detail).lower()
+
+
+@pytest.mark.asyncio
+async def test_login_locked_account_returns_403(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Locked accounts cannot sign in until the lock expires."""
+
+    _seed_login_user(repository)
+    locked_until = datetime.datetime.now(datetime.timezone.utc).replace(
+        tzinfo=None,
+    ) + datetime.timedelta(minutes=10)
+    credential = FakeCredential(
+        password_hash=hash_password("Secret1!"),
+        locked_until=locked_until,
+    )
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new_callable=AsyncMock,
+        return_value=credential,
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.login(_login_payload())
+
+    assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+    assert "locked" in str(exc_info.value.detail).lower()
+    assert repository.login_success_calls == []
+
+
+@pytest.mark.asyncio
+async def test_login_expired_lock_allows_success(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Expired lock does not block a valid password."""
+
+    user = _seed_login_user(repository)
+    locked_until = datetime.datetime.now(datetime.timezone.utc).replace(
+        tzinfo=None,
+    ) - datetime.timedelta(minutes=1)
+    credential = FakeCredential(
+        password_hash=hash_password("Secret1!"),
+        locked_until=locked_until,
+    )
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new_callable=AsyncMock,
+        return_value=credential,
+    ):
+        result = await service.login(_login_payload())
+
+    assert result.username == "alice_1"
+    assert repository.login_success_calls == [user]

@@ -55,6 +55,14 @@ class Settings(BaseSettings):
     # Comma-separated browser origins allowed to call the API (CORS).
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # JWT access tokens (short-lived; stored in HttpOnly cookies).
+    jwt_secret_key: str = "change-me-in-production-use-a-long-random-string"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 15
+    jwt_cookie_name: str = "access_token"
+    jwt_cookie_path: str = "/"
+    jwt_cookie_samesite: str = "lax"
+
     # Default matches .env.example; overridden by DATABASE_URL in the environment.
     database_url: str = (
         "postgresql://user:password@localhost:5432/video_pipeline"
@@ -101,7 +109,7 @@ class Settings(BaseSettings):
     @field_validator("elasticsearch_enabled", mode="before")
     @classmethod
     def parse_elasticsearch_enabled(cls, value: object) -> object:
-        """Accept common truthy/falsy string forms from env files."""
+        """Accept common truthy/falsey string forms from env files."""
 
         if isinstance(value, str):
             normalized = value.strip().lower()
@@ -123,6 +131,17 @@ class Settings(BaseSettings):
             for origin in self.cors_origins.split(",")
             if origin.strip()
         ]
+
+    @property
+    def jwt_cookie_secure(self) -> bool:
+        """Default ``Secure`` flag for the JWT cookie outside of helpers.
+
+        Production enables Secure. Development and test keep it off so
+        cookies work on ``http://localhost``. Cookie helpers may still
+        force Secure when ``SameSite=None`` in production.
+        """
+
+        return self.app_env == AppEnvironment.PRODUCTION
 
     @field_validator("object_storage_endpoint", mode="before")
     @classmethod

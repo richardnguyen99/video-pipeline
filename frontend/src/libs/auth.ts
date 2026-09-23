@@ -1,5 +1,5 @@
 /**
- * Auth API helpers (registration and future session flows).
+ * Auth API helpers (registration and login).
  */
 
 import { ApiError, apiFetch } from "@/libs/api-client";
@@ -9,6 +9,11 @@ export type RegisterPayload = {
   email: string;
   password: string;
   display_name?: string | null;
+};
+
+export type LoginPayload = {
+  email: string;
+  password: string;
 };
 
 export type UserProfile = {
@@ -83,5 +88,18 @@ export async function registerUser(payload: RegisterPayload): Promise<UserProfil
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+  });
+}
+
+export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
+  return apiFetch<UserProfile>("/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email: payload.email.trim(),
+      password: payload.password,
+    }),
   });
 }

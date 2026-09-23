@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
@@ -10,6 +11,9 @@ from sqlmodel import col, select
 from app.models.credentials import UserCredential
 from app.models.user import User
 from app.repositories.base import BaseRepository
+
+_MAX_FAILED_LOGINS = 5
+_LOCKOUT_MINUTES = 15
 
 
 class UserRepository(BaseRepository):
@@ -154,3 +158,58 @@ class UserRepository(BaseRepository):
         await self.session.refresh(user)
 
         return user
+
+    async def record_login_success(self, user: User) -> User:
+        """Reset failed-login counters and stamp ``last_login_at``.
+
+        Args:
+            user: Authenticated user.
+
+        Returns:
+            The refreshed user after commit.
+        """
+
+        credential = await UserCredential.get_by_user_id(
+            self.session,
+            user.id,
+        )
+
+        if credential is not None:
+            credential.failed_login_attempts = 0
+            credential.locked_until = None
+            credential.last_login_at = datetime.now(timezone.utc).replace(
+                tzinfo=None,
+            )
+            self.session.add(credential)
+
+        await self.session.commit()
+        await self.session.refresh(user)
+
+        return user
+
+    async def record_login_failure(self, user: User) -> None:
+        """Increment failed-login attempts and lock after the threshold.
+
+        Args:
+            user: User whose credentials failed verification.
+        """
+
+        credential = await UserCredential.get_by_user_id(
+            self.session,
+            user.id,
+        )
+
+        if credential is None:
+            return
+
+        credential.failed_login_attempts = credential.failed_login_attempts + 1
+
+        if credential.failed_login_attempts >= _MAX_FAILED_LOGINS:
+            credential.locked_until = (
+                datetime.now(timezone.utc)
+                + timedelta(minutes=_LOCKOUT_MINUTES)
+            ).replace(tzinfo=None)
+            credential.failed_login_attempts = 0
+
+        self.session.add(credential)
+        await self.session.commit()

@@ -109,8 +109,38 @@ class RegisterRequest(BaseModel):
         return trimmed or None
 
 
+class LoginRequest(BaseModel):
+    """Payload for ``POST /api/v1/auth/login``."""
+
+    email: str = Field(
+        max_length=255,
+        description="Account email address.",
+    )
+    password: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Account password.",
+    )
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_rfc6531(cls, value: str) -> str:
+        """Validate email per RFC 6531 (SMTPUTF8 / internationalized)."""
+
+        try:
+            result = validate_email(
+                value,
+                allow_smtputf8=True,
+                check_deliverability=False,
+            )
+        except EmailNotValidError as exc:
+            raise ValueError(str(exc)) from exc
+
+        return result.normalized
+
+
 class UserResponse(BaseModel):
-    """Public user profile returned after registration."""
+    """Public user profile returned after registration or login."""
 
     model_config = ConfigDict(from_attributes=True)
 

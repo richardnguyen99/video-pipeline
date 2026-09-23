@@ -9,7 +9,11 @@ export function getApiBaseUrl(): string {
     return fromEnv.replace(/\/$/, "");
   }
 
-  return "http://127.0.0.1:8000/api/v1";
+  if (typeof window !== "undefined") {
+    return "/api/v1";
+  }
+
+  return "http://localhost:8000/api/v1";
 }
 
 export class ApiError extends Error {
@@ -57,6 +61,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit & { searchPar
 
   const response = await fetch(url, {
     ...requestInit,
+    credentials: requestInit.credentials ?? "include",
     headers: {
       Accept: "application/json",
       ...(requestInit.headers ?? {}),

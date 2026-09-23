@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.auth import RegisterRequest, UserResponse
+from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
 
 
 def test_register_request_accepts_valid_payload() -> None:
@@ -172,3 +172,46 @@ def test_user_response_from_attributes() -> None:
     assert response.username == "alice_1"
     assert response.email == "alice@example.com"
     assert response.is_active is True
+
+
+def test_login_request_accepts_valid_payload() -> None:
+    """Valid email and password pass validation."""
+
+    payload = LoginRequest(
+        email="alice@example.com",
+        password="Secret1!",
+    )
+
+    assert payload.email == "alice@example.com"
+    assert payload.password == "Secret1!"
+
+
+def test_login_request_normalizes_email() -> None:
+    """Email domain is lowercased; local-part case is preserved."""
+
+    payload = LoginRequest(
+        email="Alice@Example.COM",
+        password="any-password",
+    )
+
+    assert payload.email == "Alice@example.com"
+
+
+def test_login_request_rejects_invalid_email() -> None:
+    """Malformed email is rejected."""
+
+    with pytest.raises(ValidationError):
+        LoginRequest(
+            email="not-an-email",
+            password="Secret1!",
+        )
+
+
+def test_login_request_rejects_empty_password() -> None:
+    """Empty password is rejected."""
+
+    with pytest.raises(ValidationError):
+        LoginRequest(
+            email="alice@example.com",
+            password="",
+        )
