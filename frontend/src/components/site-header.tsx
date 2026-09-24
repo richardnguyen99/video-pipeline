@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -84,20 +85,22 @@ export default function SiteHeader() {
 
           {isAuthenticated ? (
             <DropdownMenu>
-              <DropdownMenuTrigger className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted">
+              <DropdownMenuTrigger className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_0_16px_-4px_var(--color-primary)] transition-colors hover:bg-primary/90">
                 <UserRound className="size-4" aria-hidden />
 
                 <span className="max-w-28 truncate">{user?.username}</span>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="min-w-44">
-                <DropdownMenuLabel className="font-normal">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium">{user?.username}</span>
+                <DropdownMenuGroup>
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-medium">{user?.username}</span>
 
-                    <span className="text-xs text-muted-foreground">{user?.email}</span>
-                  </div>
-                </DropdownMenuLabel>
+                      <span className="text-xs text-muted-foreground">{user?.email}</span>
+                    </div>
+                  </DropdownMenuLabel>
+                </DropdownMenuGroup>
 
                 <DropdownMenuSeparator />
 

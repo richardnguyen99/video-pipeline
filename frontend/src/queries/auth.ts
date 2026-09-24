@@ -20,7 +20,7 @@ export const authMeQueryOptions = queryOptions({
   queryFn: async (): Promise<UserProfile | null> => {
     return fetchAuthMe();
   },
-  staleTime: 0,
+  staleTime: 30_000,
   gcTime: 5 * 60_000,
   retry: false,
   refetchOnWindowFocus: true,

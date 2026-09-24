@@ -1,8 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import type { UserProfile } from "@/libs/auth";
+import { authMeQueryOptions, authQueryKeys } from "@/queries/auth";
 import { purgeLegacyAuthStorage, useAuthStore } from "@/stores/auth-store";
-import { authMeQueryOptions } from "@/queries/auth";
 
 export type AuthRouterContext = {
   isAuthenticated: boolean;
@@ -30,7 +30,12 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
   };
 }
 
+/**
+ * Apply a known session (login / logout) to Query cache and the Zustand mirror.
+ * Cancels any in-flight ``/auth/me`` so a late null response cannot wipe a fresh login.
+ */
 export function applyAuthSession(queryClient: QueryClient, user: UserProfile | null): void {
+  void queryClient.cancelQueries({ queryKey: authQueryKeys.me() });
   queryClient.setQueryData(authMeQueryOptions.queryKey, user);
 
   if (user !== null) {

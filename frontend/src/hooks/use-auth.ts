@@ -1,40 +1,45 @@
 import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import type { UserProfile } from "@/libs/auth";
 import { logoutUser } from "@/libs/auth";
+import { applyAuthSession } from "@/libs/auth-session";
+import { authMeQueryOptions } from "@/queries/auth";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
- * Auth state and actions from the in-memory Zustand store.
- * Session is the HttpOnly cookie; profile is never persisted to storage.
+ * Client auth mirror + logout.
+ *
+ * Session authority is TanStack Query (``authMeQueryOptions``). Zustand is a
+ * synchronous mirror for UI; Query supplies the value on first paint after
+ * SSR hydration so the header does not flash "Sign in".
  */
 export function useAuth() {
-  const user = useAuthStore((state) => state.user);
-  const status = useAuthStore((state) => state.status);
-  const setUser = useAuthStore((state) => state.setUser);
-  const clearUser = useAuthStore((state) => state.clearUser);
+  const queryClient = useQueryClient();
+  const storeUser = useAuthStore((state) => state.user);
+  const { data: queryUser } = useQuery(authMeQueryOptions);
+
+  const user: UserProfile | null = storeUser ?? (queryUser === undefined ? null : queryUser);
 
   const signOut = useCallback(async () => {
     try {
       await logoutUser();
     } catch {
-      // Clear memory even if the network call fails.
+      // Clear client session even if the network call fails.
     }
 
-    clearUser();
-  }, [clearUser]);
+    applyAuthSession(queryClient, null);
+  }, [queryClient]);
 
   const setAuthenticatedUser = useCallback(
     (next: UserProfile | null) => {
-      setUser(next);
+      applyAuthSession(queryClient, next);
     },
-    [setUser],
+    [queryClient],
   );
 
   return {
     isAuthenticated: user !== null,
-    isPending: status === "pending",
-    status,
     user,
     profile: user,
     signOut,
