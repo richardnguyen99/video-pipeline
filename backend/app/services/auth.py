@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
@@ -136,5 +137,28 @@ class AuthService:
             raise invalid
 
         user = await self._repository.record_login_success(user)
+
+        return UserResponse.model_validate(user)
+
+    async def get_current_user(self, user_id: uuid.UUID) -> UserResponse:
+        """Load the public profile for an authenticated user id.
+
+        Args:
+            user_id: Subject from a verified access JWT.
+
+        Returns:
+            Public user profile.
+
+        Raises:
+            HTTPException: 401 when the user is missing or inactive.
+        """
+
+        user = await self._repository.get_by_id(user_id)
+
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password.",
+            )
 
         return UserResponse.model_validate(user)

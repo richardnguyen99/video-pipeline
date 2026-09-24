@@ -1,73 +1,41 @@
-/**
- * Client-side session helpers for the authenticated user profile.
- * Access JWT lives in an HttpOnly cookie; profile is mirrored here for UI.
- */
+import type { QueryClient } from "@tanstack/react-query";
 
 import type { UserProfile } from "@/libs/auth";
+import { purgeLegacyAuthStorage, useAuthStore } from "@/stores/auth-store";
+import { authMeQueryOptions } from "@/queries/auth";
 
-const STORAGE_KEY = "vp.auth.user";
+export type AuthRouterContext = {
+  isAuthenticated: boolean;
+  user: UserProfile | null;
+};
 
-let cachedRaw: string | null | undefined;
-let cachedUser: UserProfile | null = null;
+/**
+ * Load session via TanStack Query and mirror into client auth store.
+ * Used from root ``beforeLoad`` so route guards see a consistent context.
+ */
+export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRouterContext> {
+  purgeLegacyAuthStorage();
 
-function readRaw(): string | null {
-  if (typeof window === "undefined") {
-    return null;
+  const user = await queryClient.ensureQueryData(authMeQueryOptions);
+
+  if (user !== null) {
+    useAuthStore.getState().setUser(user);
+  } else {
+    useAuthStore.getState().clearUser();
   }
 
-  try {
-    return window.localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  return {
+    isAuthenticated: user !== null,
+    user,
+  };
 }
 
-export function getStoredUser(): UserProfile | null {
-  if (typeof window === "undefined") {
-    return null;
+export function applyAuthSession(queryClient: QueryClient, user: UserProfile | null): void {
+  queryClient.setQueryData(authMeQueryOptions.queryKey, user);
+
+  if (user !== null) {
+    useAuthStore.getState().setUser(user);
+  } else {
+    useAuthStore.getState().clearUser();
   }
-
-  const raw = readRaw();
-
-  if (raw === cachedRaw) {
-    return cachedUser;
-  }
-
-  cachedRaw = raw;
-
-  if (!raw) {
-    cachedUser = null;
-
-    return null;
-  }
-
-  try {
-    cachedUser = JSON.parse(raw) as UserProfile;
-  } catch {
-    cachedUser = null;
-  }
-
-  return cachedUser;
-}
-
-export function setStoredUser(user: UserProfile): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  const raw = JSON.stringify(user);
-
-  window.localStorage.setItem(STORAGE_KEY, raw);
-  cachedRaw = raw;
-  cachedUser = user;
-}
-
-export function clearStoredUser(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.removeItem(STORAGE_KEY);
-  cachedRaw = null;
-  cachedUser = null;
 }

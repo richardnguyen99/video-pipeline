@@ -1,9 +1,18 @@
 import { useEffect, useState } from "react";
-import { Link } from "@tanstack/react-router";
-import { Clapperboard, Menu, X } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Clapperboard, LogOut, Menu, UserRound, X } from "lucide-react";
 
 import { SiteSearchBox } from "@/components/search/site-search-box";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/hooks/use-auth";
 
 const navLinks = [
   { label: "Videos", to: "/videos" as const },
@@ -23,6 +32,8 @@ const navLinks = [
 export default function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { isAuthenticated, user, signOut } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -31,6 +42,12 @@ export default function SiteHeader() {
 
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  async function handleSignOut() {
+    setOpen(false);
+    await signOut();
+    void navigate({ to: "/" });
+  }
 
   return (
     <header
@@ -65,9 +82,50 @@ export default function SiteHeader() {
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           <SiteSearchBox className="hidden max-w-md flex-1 sm:block" compact enableHotkey />
 
-          <Button size="sm" className="hidden sm:inline-flex" nativeButton={false} render={<Link to="/sign-in" />}>
-            Sign in
-          </Button>
+          {isAuthenticated ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted">
+                <UserRound className="size-4" aria-hidden />
+
+                <span className="max-w-28 truncate">{user?.username}</span>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end" className="min-w-44">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{user?.username}</span>
+
+                    <span className="text-xs text-muted-foreground">{user?.email}</span>
+                  </div>
+                </DropdownMenuLabel>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => {
+                    void navigate({ to: "/account" });
+                  }}
+                >
+                  Account
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onClick={() => {
+                    void handleSignOut();
+                  }}
+                >
+                  <LogOut className="size-4" aria-hidden />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button size="sm" className="hidden sm:inline-flex" nativeButton={false} render={<Link to="/sign-in" />}>
+              Sign in
+            </Button>
+          )}
 
           <Button
             variant="ghost"
@@ -98,15 +156,38 @@ export default function SiteHeader() {
               </Link>
             ))}
 
-            <Button
-              size="sm"
-              className="mt-2"
-              nativeButton={false}
-              render={<Link to="/sign-in" />}
-              onClick={() => setOpen(false)}
-            >
-              Sign in
-            </Button>
+            {isAuthenticated ? (
+              <>
+                <Link
+                  to="/account"
+                  onClick={() => setOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  Account
+                </Link>
+
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => {
+                    void handleSignOut();
+                  }}
+                >
+                  Sign out
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="sm"
+                className="mt-2"
+                nativeButton={false}
+                render={<Link to="/sign-in" />}
+                onClick={() => setOpen(false)}
+              >
+                Sign in
+              </Button>
+            )}
           </nav>
         </div>
       ) : null}

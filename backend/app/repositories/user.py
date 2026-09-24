@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -18,6 +19,21 @@ _LOCKOUT_MINUTES = 15
 
 class UserRepository(BaseRepository):
     """Persist and look up users and credentials."""
+
+    async def get_by_id(self, user_id: uuid.UUID) -> Optional[User]:
+        """Return a user by primary key, if any.
+
+        Args:
+            user_id: User UUID.
+
+        Returns:
+            Matching ``User`` or ``None``.
+        """
+
+        statement = select(User).where(col(User.id) == user_id)
+        result = await self.session.exec(statement)
+
+        return result.first()
 
     async def get_by_username(self, username: str) -> Optional[User]:
         """Return a user by exact username, if any.

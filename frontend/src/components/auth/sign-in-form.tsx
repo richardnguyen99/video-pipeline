@@ -32,7 +32,11 @@ function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined>
   });
 }
 
-export function SignInForm() {
+type SignInFormProps = {
+  redirectTo?: string;
+};
+
+export function SignInForm({ redirectTo }: SignInFormProps) {
   const navigate = useNavigate();
   const { setUser } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
@@ -55,6 +59,12 @@ export function SignInForm() {
         });
 
         setUser(user);
+
+        if (redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
+          window.location.assign(redirectTo);
+
+          return;
+        }
 
         void navigate({ to: "/" });
       } catch (error) {

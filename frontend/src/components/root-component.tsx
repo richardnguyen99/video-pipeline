@@ -5,6 +5,7 @@ export default function RootComponent() {
   return (
     <>
       <Outlet />
+
       {import.meta.env.DEV ? <ReactQueryDevtools buttonPosition="bottom-left" /> : null}
     </>
   );

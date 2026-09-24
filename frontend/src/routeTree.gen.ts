@@ -10,10 +10,13 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
+import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
+import { Route as GuestRegisterRouteImport } from './routes/_guest/register'
+import { Route as GuestSignInRouteImport } from './routes/_guest/sign-in'
 import { Route as ActressesIndexRouteImport } from './routes/actresses/index'
 import { Route as ActressesActressIdRouteImport } from './routes/actresses/$actressId'
 import { Route as VideosIndexRouteImport } from './routes/videos/index'
@@ -24,25 +27,38 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRoute = AuthenticatedRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestRoute = GuestRouteImport.update({
+  id: '/_guest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignInRoute = SignInRouteImport.update({
-  id: '/sign-in',
-  path: '/sign-in',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VideosRouteRoute = VideosRouteRouteImport.update({
   id: '/videos',
   path: '/videos',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
+  id: '/account',
+  path: '/account',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const GuestRegisterRoute = GuestRegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => GuestRoute,
+} as any)
+const GuestSignInRoute = GuestSignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => GuestRoute,
 } as any)
 const ActressesIndexRoute = ActressesIndexRouteImport.update({
   id: '/actresses/',
@@ -69,8 +85,9 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/videos': typeof VideosRouteRouteWithChildren
   '/about': typeof AboutRoute
-  '/register': typeof RegisterRoute
-  '/sign-in': typeof SignInRoute
+  '/account': typeof AuthenticatedAccountRoute
+  '/register': typeof GuestRegisterRoute
+  '/sign-in': typeof GuestSignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
   '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
@@ -79,8 +96,9 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/register': typeof RegisterRoute
-  '/sign-in': typeof SignInRoute
+  '/account': typeof AuthenticatedAccountRoute
+  '/register': typeof GuestRegisterRoute
+  '/sign-in': typeof GuestSignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
   '/videos/$id': typeof VideosIdRoute
   '/actresses': typeof ActressesIndexRoute
@@ -90,9 +108,12 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/videos': typeof VideosRouteRouteWithChildren
+  '/_authenticated': typeof AuthenticatedRouteWithChildren
+  '/_guest': typeof GuestRouteWithChildren
   '/about': typeof AboutRoute
-  '/register': typeof RegisterRoute
-  '/sign-in': typeof SignInRoute
+  '/_authenticated/account': typeof AuthenticatedAccountRoute
+  '/_guest/register': typeof GuestRegisterRoute
+  '/_guest/sign-in': typeof GuestSignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
   '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
@@ -104,6 +125,7 @@ export interface FileRouteTypes {
     | '/'
     | '/videos'
     | '/about'
+    | '/account'
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
@@ -114,6 +136,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/account'
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
@@ -124,9 +147,12 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/videos'
+    | '/_authenticated'
+    | '/_guest'
     | '/about'
-    | '/register'
-    | '/sign-in'
+    | '/_authenticated/account'
+    | '/_guest/register'
+    | '/_guest/sign-in'
     | '/actresses/$actressId'
     | '/videos/$id'
     | '/actresses/'
@@ -136,9 +162,9 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   VideosRouteRoute: typeof VideosRouteRouteWithChildren
+  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
+  GuestRoute: typeof GuestRouteWithChildren
   AboutRoute: typeof AboutRoute
-  RegisterRoute: typeof RegisterRoute
-  SignInRoute: typeof SignInRoute
   ActressesActressIdRoute: typeof ActressesActressIdRoute
   ActressesIndexRoute: typeof ActressesIndexRoute
 }
@@ -152,25 +178,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_guest': {
+      id: '/_guest'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof GuestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/about': {
       id: '/about'
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sign-in': {
-      id: '/sign-in'
-      path: '/sign-in'
-      fullPath: '/sign-in'
-      preLoaderRoute: typeof SignInRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/videos': {
@@ -179,6 +205,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/videos'
       preLoaderRoute: typeof VideosRouteRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/account': {
+      id: '/_authenticated/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedAccountRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_guest/register': {
+      id: '/_guest/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof GuestRegisterRouteImport
+      parentRoute: typeof GuestRoute
+    }
+    '/_guest/sign-in': {
+      id: '/_guest/sign-in'
+      path: '/sign-in'
+      fullPath: '/sign-in'
+      preLoaderRoute: typeof GuestSignInRouteImport
+      parentRoute: typeof GuestRoute
     }
     '/actresses/': {
       id: '/actresses/'
@@ -225,12 +272,36 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
   VideosRouteRouteChildren,
 )
 
+interface AuthenticatedRouteChildren {
+  AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
+}
+
+const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAccountRoute: AuthenticatedAccountRoute,
+}
+
+const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
+  AuthenticatedRouteChildren,
+)
+
+interface GuestRouteChildren {
+  GuestRegisterRoute: typeof GuestRegisterRoute
+  GuestSignInRoute: typeof GuestSignInRoute
+}
+
+const GuestRouteChildren: GuestRouteChildren = {
+  GuestRegisterRoute: GuestRegisterRoute,
+  GuestSignInRoute: GuestSignInRoute,
+}
+
+const GuestRouteWithChildren = GuestRoute._addFileChildren(GuestRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   VideosRouteRoute: VideosRouteRouteWithChildren,
+  AuthenticatedRoute: AuthenticatedRouteWithChildren,
+  GuestRoute: GuestRouteWithChildren,
   AboutRoute: AboutRoute,
-  RegisterRoute: RegisterRoute,
-  SignInRoute: SignInRoute,
   ActressesActressIdRoute: ActressesActressIdRoute,
   ActressesIndexRoute: ActressesIndexRoute,
 }

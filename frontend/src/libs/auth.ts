@@ -103,3 +103,15 @@ export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
     }),
   });
 }
+
+export async function logoutUser(): Promise<void> {
+  await apiFetch<null>("/auth/logout", {
+    method: "POST",
+  });
+}
+
+export async function fetchCurrentUser(): Promise<UserProfile> {
+  return apiFetch<UserProfile>("/auth/me", {
+    method: "GET",
+  });
+}

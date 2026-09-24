@@ -1,70 +1,43 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback } from "react";
 
 import type { UserProfile } from "@/libs/auth";
-import { clearStoredUser, getStoredUser, setStoredUser } from "@/libs/auth-session";
-
-const AUTH_EVENT = "vp-auth-change";
-
-function subscribe(onStoreChange: () => void): () => void {
-  if (typeof window === "undefined") {
-    return () => undefined;
-  }
-
-  const handler = () => {
-    onStoreChange();
-  };
-
-  window.addEventListener("storage", handler);
-  window.addEventListener(AUTH_EVENT, handler);
-
-  return () => {
-    window.removeEventListener("storage", handler);
-    window.removeEventListener(AUTH_EVENT, handler);
-  };
-}
-
-function getSnapshot(): UserProfile | null {
-  return getStoredUser();
-}
-
-function getServerSnapshot(): UserProfile | null {
-  return null;
-}
-
-function notifyAuthChange(): void {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.dispatchEvent(new Event(AUTH_EVENT));
-}
+import { logoutUser } from "@/libs/auth";
+import { useAuthStore } from "@/stores/auth-store";
 
 /**
- * Client auth state backed by localStorage (profile only; no JWT yet).
+ * Auth state and actions from the in-memory Zustand store.
+ * Session is the HttpOnly cookie; profile is never persisted to storage.
  */
 export function useAuth() {
-  const user = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const user = useAuthStore((state) => state.user);
+  const status = useAuthStore((state) => state.status);
+  const setUser = useAuthStore((state) => state.setUser);
+  const clearUser = useAuthStore((state) => state.clearUser);
 
-  const signOut = useCallback(() => {
-    clearStoredUser();
-    notifyAuthChange();
-  }, []);
-
-  const setUser = useCallback((next: UserProfile | null) => {
-    if (next === null) {
-      clearStoredUser();
-    } else {
-      setStoredUser(next);
+  const signOut = useCallback(async () => {
+    try {
+      await logoutUser();
+    } catch {
+      // Clear memory even if the network call fails.
     }
 
-    notifyAuthChange();
-  }, []);
+    clearUser();
+  }, [clearUser]);
+
+  const setAuthenticatedUser = useCallback(
+    (next: UserProfile | null) => {
+      setUser(next);
+    },
+    [setUser],
+  );
 
   return {
     isAuthenticated: user !== null,
+    isPending: status === "pending",
+    status,
     user,
     profile: user,
     signOut,
-    setUser,
+    setUser: setAuthenticatedUser,
   };
 }

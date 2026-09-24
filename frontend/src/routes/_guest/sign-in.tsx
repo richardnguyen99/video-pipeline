@@ -1,12 +1,20 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { z } from "zod";
 
 import { SignInForm } from "@/components/auth/sign-in-form";
 
-export const Route = createFileRoute("/sign-in")({
+const signInSearchSchema = z.object({
+  redirect: z.string().optional().catch(undefined),
+});
+
+export const Route = createFileRoute("/_guest/sign-in")({
+  validateSearch: signInSearchSchema,
   component: SignInPage,
 });
 
 function SignInPage() {
+  const { redirect: redirectTo } = Route.useSearch();
+
   return (
     <div className="flex min-h-screen items-center justify-center px-6 pt-16 pb-16">
       <div className="w-full max-w-sm space-y-6">
@@ -16,7 +24,7 @@ function SignInPage() {
           <p className="text-sm text-muted-foreground">Sign in with the email and password for your account.</p>
         </div>
 
-        <SignInForm />
+        <SignInForm redirectTo={redirectTo} />
 
         <p className="text-center text-sm text-muted-foreground">
           No account?{" "}
