@@ -12,10 +12,14 @@ from fastapi import HTTPException, status
 from app.config import settings
 from app.utils.jwt import (
     TOKEN_TYPE_ACCESS,
+    TOKEN_TYPE_REFRESH,
     access_token_max_age_seconds,
     create_access_token,
+    create_refresh_token,
     decode_access_token,
+    decode_refresh_token,
     parse_user_id,
+    refresh_token_max_age_seconds,
     remaining_token_ttl_seconds,
 )
 
@@ -207,3 +211,85 @@ def test_remaining_token_ttl_seconds_zero_when_missing_exp() -> None:
 
     assert remaining_token_ttl_seconds({}) == 0
     assert remaining_token_ttl_seconds({"exp": "bad"}) == 0
+
+
+def test_create_refresh_token_returns_encoded_jwt() -> None:
+    """Refresh token is a non-empty JWT with type=refresh and a jti."""
+
+    user_id = uuid.UUID("00000000-0000-4000-8000-0000000000bb")
+    token = create_refresh_token(user_id=user_id)
+
+    assert isinstance(token, str)
+    assert token.count(".") == 2
+
+    claims = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+    )
+
+    assert claims["sub"] == str(user_id)
+    assert claims["type"] == TOKEN_TYPE_REFRESH
+    assert "jti" in claims
+    assert claims["jti"]
+    assert "email" not in claims
+    assert "username" not in claims
+
+
+def test_decode_refresh_token_round_trip() -> None:
+    """Created refresh tokens decode with the same subject."""
+
+    user_id = uuid.uuid4()
+    token = create_refresh_token(user_id=user_id)
+    claims = decode_refresh_token(token)
+
+    assert claims["sub"] == str(user_id)
+    assert claims["type"] == TOKEN_TYPE_REFRESH
+
+
+def test_decode_refresh_token_rejects_access_type() -> None:
+    """Access tokens cannot be used as refresh tokens."""
+
+    token = create_access_token(
+        user_id=uuid.uuid4(),
+        email="alice@example.com",
+        username="alice_1",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        decode_refresh_token(token)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "type" in str(exc_info.value.detail).lower()
+
+
+def test_decode_refresh_token_rejects_expired() -> None:
+    """Expired refresh signature yields HTTP 401."""
+
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(uuid.uuid4()),
+        "type": TOKEN_TYPE_REFRESH,
+        "jti": str(uuid.uuid4()),
+        "iat": now - timedelta(days=30),
+        "exp": now - timedelta(days=1),
+    }
+    token = jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        decode_refresh_token(token)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "expired" in str(exc_info.value.detail).lower()
+
+
+def test_refresh_token_max_age_seconds_matches_settings() -> None:
+    """Cookie max-age matches configured refresh TTL in seconds."""
+
+    expected = max(1, settings.jwt_refresh_token_expire_days * 24 * 60 * 60)
+
+    assert refresh_token_max_age_seconds() == expected

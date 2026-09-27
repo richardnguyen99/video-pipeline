@@ -1,4 +1,4 @@
-"""JWT access-token helpers (PyJWT)."""
+"""JWT access- and refresh-token helpers (PyJWT)."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from app.config import settings
 
 TOKEN_TYPE_ACCESS = "access"
+TOKEN_TYPE_REFRESH = "refresh"
 
 
 def create_access_token(
@@ -52,6 +53,37 @@ def create_access_token(
     )
 
 
+def create_refresh_token(*, user_id: uuid.UUID) -> str:
+    """Create a long-lived refresh JWT for the given user.
+
+    Refresh tokens only carry ``sub`` / ``type`` / ``jti`` so they can mint
+    new access tokens without embedding profile claims. Rotation and
+    database-backed revocation are intentionally not applied here.
+
+    Args:
+        user_id: Authenticated user's primary key.
+
+    Returns:
+        Encoded JWT string.
+    """
+
+    now = datetime.now(timezone.utc)
+    expires = now + timedelta(days=settings.jwt_refresh_token_expire_days)
+    payload: dict[str, Any] = {
+        "sub": str(user_id),
+        "type": TOKEN_TYPE_REFRESH,
+        "jti": str(uuid.uuid4()),
+        "iat": now,
+        "exp": expires,
+    }
+
+    return jwt.encode(
+        payload,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+
+
 def decode_access_token(token: str) -> dict[str, Any]:
     """Decode and validate an access JWT.
 
@@ -65,6 +97,34 @@ def decode_access_token(token: str) -> dict[str, Any]:
         HTTPException: 401 when the token is missing, expired, or invalid.
     """
 
+    payload = _decode_jwt(token, expected_type=TOKEN_TYPE_ACCESS)
+
+    return payload
+
+
+def decode_refresh_token(token: str) -> dict[str, Any]:
+    """Decode and validate a refresh JWT.
+
+    Args:
+        token: Raw JWT from the refresh cookie.
+
+    Returns:
+        Verified claims dictionary.
+
+    Raises:
+        HTTPException: 401 when the token is missing, expired, or invalid.
+    """
+
+    payload = _decode_jwt(token, expected_type=TOKEN_TYPE_REFRESH)
+
+    return payload
+
+
+def _decode_jwt(token: str, *, expected_type: str) -> dict[str, Any]:
+    """Shared JWT decode with type and subject checks."""
+
+    label = "access" if expected_type == TOKEN_TYPE_ACCESS else "refresh"
+
     try:
         payload = jwt.decode(
             token,
@@ -74,18 +134,18 @@ def decode_access_token(token: str) -> dict[str, Any]:
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token has expired.",
+            detail=f"{label.capitalize()} token has expired.",
         ) from exc
     except jwt.InvalidTokenError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid access token.",
+            detail=f"Invalid {label} token.",
         ) from exc
 
-    if payload.get("type") != TOKEN_TYPE_ACCESS:
+    if payload.get("type") != expected_type:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid access token type.",
+            detail=f"Invalid {label} token type.",
         )
 
     subject = payload.get("sub")
@@ -93,7 +153,7 @@ def decode_access_token(token: str) -> dict[str, Any]:
     if not subject or not isinstance(subject, str):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid access token subject.",
+            detail=f"Invalid {label} token subject.",
         )
 
     return payload
@@ -103,6 +163,12 @@ def access_token_max_age_seconds() -> int:
     """Cookie ``Max-Age`` aligned with access-token lifetime."""
 
     return max(1, settings.jwt_access_token_expire_minutes * 60)
+
+
+def refresh_token_max_age_seconds() -> int:
+    """Cookie ``Max-Age`` aligned with refresh-token lifetime."""
+
+    return max(1, settings.jwt_refresh_token_expire_days * 24 * 60 * 60)
 
 
 def parse_user_id(claims: dict[str, Any]) -> Optional[uuid.UUID]:

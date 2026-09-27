@@ -1,4 +1,4 @@
-"""HttpOnly cookie helpers for JWT access tokens."""
+"""HttpOnly cookie helpers for JWT access and refresh tokens."""
 
 from __future__ import annotations
 
@@ -7,7 +7,10 @@ from typing import Literal
 from starlette.responses import Response
 
 from app.config import AppEnvironment, settings
-from app.utils.jwt import access_token_max_age_seconds
+from app.utils.jwt import (
+    access_token_max_age_seconds,
+    refresh_token_max_age_seconds,
+)
 
 SameSite = Literal["lax", "strict", "none"]
 
@@ -86,6 +89,34 @@ def set_access_token_cookie(response: Response, token: str) -> None:
     )
 
 
+def set_refresh_token_cookie(response: Response, token: str) -> None:
+    """Attach a long-lived refresh JWT as an HttpOnly cookie.
+
+    Uses the same security attributes as the access cookie so both
+    cookies behave consistently under the Vite proxy and production.
+
+    Args:
+        response: Outgoing HTTP response.
+        token: Encoded refresh JWT.
+    """
+
+    samesite = _cookie_samesite()
+    secure = _cookie_secure(samesite)
+    max_age = refresh_token_max_age_seconds()
+
+    response.set_cookie(
+        key=settings.jwt_refresh_cookie_name,
+        value=token,
+        max_age=max_age,
+        expires=max_age,
+        path=settings.jwt_cookie_path,
+        domain=None,
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+    )
+
+
 def clear_access_token_cookie(response: Response) -> None:
     """Remove the access-token cookie from the client.
 
@@ -94,11 +125,23 @@ def clear_access_token_cookie(response: Response) -> None:
     cookie (including when the response is proxied through Vite).
     """
 
+    _clear_cookie(response, settings.jwt_cookie_name)
+
+
+def clear_refresh_token_cookie(response: Response) -> None:
+    """Remove the refresh-token cookie from the client."""
+
+    _clear_cookie(response, settings.jwt_refresh_cookie_name)
+
+
+def _clear_cookie(response: Response, key: str) -> None:
+    """Expire a host-only auth cookie with matching security attributes."""
+
     samesite = _cookie_samesite()
     secure = _cookie_secure(samesite)
 
     response.set_cookie(
-        key=settings.jwt_cookie_name,
+        key=key,
         value="",
         max_age=0,
         expires=0,
@@ -109,7 +152,7 @@ def clear_access_token_cookie(response: Response) -> None:
         samesite=samesite,
     )
     response.delete_cookie(
-        key=settings.jwt_cookie_name,
+        key=key,
         path=settings.jwt_cookie_path,
         domain=None,
         httponly=True,

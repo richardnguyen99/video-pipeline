@@ -9,11 +9,11 @@ export const authQueryKeys = {
 };
 
 /**
- * Current session user from the HttpOnly cookie.
+ * Current session user from the HttpOnly cookies.
  *
  * Query runs through a Start server function so SSR and client both
- * forward the ``access_token`` cookie to the API (see TanStack Start
- * Query guide — privileged reads belong in server functions).
+ * forward cookies to the API. When the access token is expired, the
+ * server function attempts one refresh before returning null.
  */
 export const authMeQueryOptions = queryOptions({
   queryKey: authQueryKeys.me(),

@@ -1,9 +1,9 @@
 /**
- * Auth API helpers (registration and login).
+ * Auth API helpers (registration, login, session refresh).
  */
 
 import { ApiError, apiFetch } from "@/libs/api-client";
-import { logoutSession } from "@/server/auth.functions";
+import { logoutSession, refreshAuthSession } from "@/server/auth.functions";
 
 export type RegisterPayload = {
   username: string;
@@ -89,6 +89,7 @@ export async function registerUser(payload: RegisterPayload): Promise<UserProfil
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    skipAuthRefresh: true,
   });
 }
 
@@ -102,11 +103,33 @@ export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
       email: payload.email.trim(),
       password: payload.password,
     }),
+    skipAuthRefresh: true,
   });
 }
 
 export async function logoutUser(): Promise<void> {
   await logoutSession();
+}
+
+/**
+ * Mint a new access token from the HttpOnly refresh cookie.
+ *
+ * Prefer the Start server function on SSR; in the browser the Vite proxy
+ * path via ``apiFetch`` also works. Returns ``null`` when refresh fails.
+ */
+export async function refreshUserSession(): Promise<UserProfile | null> {
+  if (typeof window === "undefined") {
+    return refreshAuthSession();
+  }
+
+  try {
+    return await apiFetch<UserProfile>("/auth/refresh", {
+      method: "POST",
+      skipAuthRefresh: true,
+    });
+  } catch {
+    return null;
+  }
 }
 
 export async function fetchCurrentUser(): Promise<UserProfile> {

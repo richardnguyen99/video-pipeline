@@ -1,58 +1,101 @@
 """User logout endpoint."""
 
-from typing import Annotated, Optional
+from collections.abc import Callable
+from typing import Annotated, Any, Optional
 
 from fastapi import APIRouter, Cookie, HTTPException, status
 from fastapi.responses import Response
 from redis.exceptions import RedisError
 
+from app.config import settings
 from app.dependencies import AsyncRedisDep
-from app.utils.auth_cookies import clear_access_token_cookie
-from app.utils.jwt import decode_access_token, remaining_token_ttl_seconds
+from app.utils.auth_cookies import (
+    clear_access_token_cookie,
+    clear_refresh_token_cookie,
+)
+from app.utils.jwt import (
+    decode_access_token,
+    decode_refresh_token,
+    remaining_token_ttl_seconds,
+)
 from app.utils.token_denylist import revoke_access_jti
 
 router = APIRouter()
+
+DecodeFn = Callable[[str], dict[str, Any]]
 
 
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Sign out and revoke the access-token session",
+    summary="Sign out and revoke the current session tokens",
     response_class=Response,
 )
 async def logout(
     redis: AsyncRedisDep,
     access_token: Annotated[Optional[str], Cookie()] = None,
+    refresh_token: Annotated[
+        Optional[str],
+        Cookie(alias=settings.jwt_refresh_cookie_name),
+    ] = None,
 ) -> Response:
     """End the session immediately.
 
-    - Clears the HttpOnly access-token cookie on the client (always).
-    - Revokes the current access token ``jti`` in Redis for the rest of
-      its natural lifetime so a copied cookie cannot be reused.
+    - Clears the HttpOnly access and refresh cookies on the client (always).
+    - Denylists each token's ``jti`` in Redis for the rest of its natural
+      lifetime so a copied cookie cannot be reused after logout.
 
+    Database-backed refresh revocation and token rotation are not used.
     Always returns 204 so the client can clear local state even when the
-    cookie was already missing or the token was already invalid.
+    cookies were already missing or the tokens were already invalid.
     """
 
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     clear_access_token_cookie(response)
+    clear_refresh_token_cookie(response)
 
-    if access_token is not None and access_token.strip():
-        claims = None
-
-        try:
-            claims = decode_access_token(access_token)
-        except HTTPException:
-            claims = None
-
-        if claims is not None:
-            jti = claims.get("jti")
-            ttl = remaining_token_ttl_seconds(claims)
-
-            if isinstance(jti, str) and jti:
-                try:
-                    await revoke_access_jti(redis, jti, ttl)
-                except RedisError:
-                    pass
+    await _revoke_cookie_token(
+        redis,
+        raw_token=access_token,
+        decode=decode_access_token,
+    )
+    await _revoke_cookie_token(
+        redis,
+        raw_token=refresh_token,
+        decode=decode_refresh_token,
+    )
 
     return response
+
+
+async def _revoke_cookie_token(
+    redis: AsyncRedisDep,
+    *,
+    raw_token: Optional[str],
+    decode: DecodeFn,
+) -> None:
+    """Best-effort denylist of a JWT cookie; never raises to the client."""
+
+    if raw_token is None or not raw_token.strip():
+        return
+
+    claims: Optional[dict[str, Any]] = None
+
+    try:
+        claims = decode(raw_token)
+    except HTTPException:
+        claims = None
+
+    if claims is None:
+        return
+
+    jti = claims.get("jti")
+    ttl = remaining_token_ttl_seconds(claims)
+
+    if not isinstance(jti, str) or not jti:
+        return
+
+    try:
+        await revoke_access_jti(redis, jti, ttl)
+    except RedisError:
+        pass
