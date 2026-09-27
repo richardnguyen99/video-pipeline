@@ -1,8 +1,10 @@
 """Current-session user endpoint."""
 
-from fastapi import APIRouter, status
+from typing import Annotated
 
-from app.dependencies.auth import CurrentUserDep
+from fastapi import APIRouter, Depends, status
+
+from app.dependencies.auth import get_current_user
 from app.schemas.auth import UserResponse
 
 router = APIRouter()
@@ -19,7 +21,9 @@ router = APIRouter()
         },
     },
 )
-async def me(user: CurrentUserDep) -> UserResponse:
+async def me(
+    user: Annotated[UserResponse, Depends(get_current_user)],
+) -> UserResponse:
     """Return the public profile for the session cookie.
 
     Clients use this to revalidate local auth state after reload or when

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { Clapperboard, LogOut, Menu, UserRound, X } from "lucide-react";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { Clapperboard, LogOut, Menu, User2Icon, UserRound, X } from "lucide-react";
 
 import { SiteSearchBox } from "@/components/search/site-search-box";
 import { Button } from "@/components/ui/button";
@@ -30,11 +30,16 @@ const navLinks = [
   { label: "Actresses", to: "/actresses" as const },
 ];
 
+const menuItemClassName =
+  "relative flex w-full cursor-pointer select-none items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-popover-foreground outline-none hover:bg-muted/60 hover:text-foreground";
+
 export default function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { isAuthenticated, user, signOut } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -46,7 +51,9 @@ export default function SiteHeader() {
 
   async function handleSignOut() {
     setOpen(false);
+    setUserMenuOpen(false);
     await signOut();
+    await router.invalidate();
     void navigate({ to: "/" });
   }
 
@@ -84,7 +91,7 @@ export default function SiteHeader() {
           <SiteSearchBox className="hidden max-w-md flex-1 sm:block" compact enableHotkey />
 
           {isAuthenticated ? (
-            <DropdownMenu>
+            <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <DropdownMenuTrigger className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_0_16px_-4px_var(--color-primary)] transition-colors hover:bg-primary/90">
                 <UserRound className="size-4" aria-hidden />
 
@@ -105,21 +112,29 @@ export default function SiteHeader() {
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem
-                  className="cursor-pointer"
+                  className={menuItemClassName}
+                  closeOnClick={false}
+                  nativeButton
+                  render={<button type="button" />}
                   onClick={() => {
+                    setUserMenuOpen(false);
                     void navigate({ to: "/account" });
                   }}
                 >
+                  <User2Icon className="size-4 shrink-0" aria-hidden />
                   Account
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
-                  className="cursor-pointer"
+                  className={menuItemClassName}
+                  closeOnClick={false}
+                  nativeButton
+                  render={<button type="button" />}
                   onClick={() => {
                     void handleSignOut();
                   }}
                 >
-                  <LogOut className="size-4" aria-hidden />
+                  <LogOut className="size-4 shrink-0" aria-hidden />
                   Sign out
                 </DropdownMenuItem>
               </DropdownMenuContent>

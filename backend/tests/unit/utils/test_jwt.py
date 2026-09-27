@@ -16,6 +16,7 @@ from app.utils.jwt import (
     create_access_token,
     decode_access_token,
     parse_user_id,
+    remaining_token_ttl_seconds,
 )
 
 
@@ -44,6 +45,9 @@ def test_create_access_token_returns_encoded_jwt() -> None:
     assert claims["type"] == TOKEN_TYPE_ACCESS
     assert "exp" in claims
     assert "iat" in claims
+    assert "jti" in claims
+    assert isinstance(claims["jti"], str)
+    assert claims["jti"]
 
 
 def test_decode_access_token_round_trip() -> None:
@@ -62,6 +66,8 @@ def test_decode_access_token_round_trip() -> None:
     assert claims["email"] == "bob@example.com"
     assert claims["username"] == "bob_1"
     assert claims["type"] == TOKEN_TYPE_ACCESS
+    assert isinstance(claims.get("jti"), str)
+    assert claims["jti"]
 
 
 def test_decode_access_token_rejects_tampered_token() -> None:
@@ -179,3 +185,25 @@ def test_parse_user_id_returns_none_for_invalid() -> None:
     assert parse_user_id({}) is None
     assert parse_user_id({"sub": 123}) is None
     assert parse_user_id({"sub": "not-a-uuid"}) is None
+
+
+def test_remaining_token_ttl_seconds_positive() -> None:
+    """Fresh token has a positive remaining TTL within the configured window."""
+
+    token = create_access_token(
+        user_id=uuid.uuid4(),
+        email="alice@example.com",
+        username="alice_1",
+    )
+    claims = decode_access_token(token)
+    ttl = remaining_token_ttl_seconds(claims)
+    max_ttl = settings.jwt_access_token_expire_minutes * 60
+
+    assert 0 < ttl <= max_ttl
+
+
+def test_remaining_token_ttl_seconds_zero_when_missing_exp() -> None:
+    """Missing ``exp`` yields zero TTL."""
+
+    assert remaining_token_ttl_seconds({}) == 0
+    assert remaining_token_ttl_seconds({"exp": "bad"}) == 0

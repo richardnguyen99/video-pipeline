@@ -2,7 +2,21 @@ import type { QueryClient } from "@tanstack/react-query";
 
 import type { UserProfile } from "@/libs/auth";
 import { authMeQueryOptions, authQueryKeys } from "@/queries/auth";
-import { purgeLegacyAuthStorage, useAuthStore } from "@/stores/auth-store";
+import { useAuthStore } from "@/stores/auth-store";
+
+const LEGACY_AUTH_STORAGE_KEY = "velvet-auth";
+
+function purgeLegacyAuthStorage(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+  } catch {
+    // Ignore quota / privacy mode failures.
+  }
+}
 
 export type AuthRouterContext = {
   isAuthenticated: boolean;
@@ -36,11 +50,13 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
  */
 export function applyAuthSession(queryClient: QueryClient, user: UserProfile | null): void {
   void queryClient.cancelQueries({ queryKey: authQueryKeys.me() });
-  queryClient.setQueryData(authMeQueryOptions.queryKey, user);
 
   if (user !== null) {
+    queryClient.setQueryData(authMeQueryOptions.queryKey, user);
     useAuthStore.getState().setUser(user);
   } else {
+    queryClient.removeQueries({ queryKey: authQueryKeys.me() });
+    queryClient.setQueryData(authMeQueryOptions.queryKey, null);
     useAuthStore.getState().clearUser();
   }
 }

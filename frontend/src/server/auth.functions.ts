@@ -5,16 +5,30 @@ import type { UserProfile } from "@/libs/auth";
 
 const ACCESS_TOKEN_COOKIE = "access_token";
 
-function getBackendAuthMeUrl(): string {
+function getBackendOrigin(): string {
   const fromApiBase = process.env.VITE_API_BASE_URL?.trim();
 
   if (fromApiBase) {
-    return `${fromApiBase.replace(/\/$/, "")}/auth/me`;
+    return fromApiBase.replace(/\/api\/v1\/?$/, "").replace(/\/$/, "");
   }
 
-  const origin = process.env.VITE_BACKEND_ORIGIN?.trim() || "http://localhost:8000";
+  return (process.env.VITE_BACKEND_ORIGIN?.trim() || "http://localhost:8000").replace(/\/$/, "");
+}
 
-  return `${origin.replace(/\/$/, "")}/api/v1/auth/me`;
+function getBackendAuthMeUrl(): string {
+  return `${getBackendOrigin()}/api/v1/auth/me`;
+}
+
+function getBackendLogoutUrl(): string {
+  return `${getBackendOrigin()}/api/v1/auth/logout`;
+}
+
+/**
+ * Expire the access_token cookie on the Start response so the browser
+ * drops it for the app origin (works with Vite proxy and SSR RPC).
+ */
+function clearAccessTokenCookieHeader(): void {
+  setResponseHeader("Set-Cookie", `${ACCESS_TOKEN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
 }
 
 /**
@@ -50,4 +64,32 @@ export const fetchAuthMe = createServerFn({ method: "GET" }).handler(async (): P
   }
 
   return (await response.json()) as UserProfile;
+});
+
+/**
+ * End the session: revoke on the API and clear the HttpOnly cookie on
+ * this response so the browser drops it immediately.
+ */
+export const logoutSession = createServerFn({ method: "POST" }).handler(async (): Promise<null> => {
+  setResponseHeader("Cache-Control", "private, no-store");
+
+  const token = getCookie(ACCESS_TOKEN_COOKIE);
+
+  if (token != null && token.trim() !== "") {
+    try {
+      await fetch(getBackendLogoutUrl(), {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          Cookie: `${ACCESS_TOKEN_COOKIE}=${token}`,
+        },
+      });
+    } catch {
+      // Still clear the client cookie below.
+    }
+  }
+
+  clearAccessTokenCookieHeader();
+
+  return null;
 });

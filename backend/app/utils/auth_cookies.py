@@ -87,11 +87,27 @@ def set_access_token_cookie(response: Response, token: str) -> None:
 
 
 def clear_access_token_cookie(response: Response) -> None:
-    """Remove the access-token cookie from the client."""
+    """Remove the access-token cookie from the client.
+
+    Sets an empty value with ``Max-Age=0`` using the same attributes as
+    ``set_access_token_cookie`` so browsers reliably drop the host-only
+    cookie (including when the response is proxied through Vite).
+    """
 
     samesite = _cookie_samesite()
     secure = _cookie_secure(samesite)
 
+    response.set_cookie(
+        key=settings.jwt_cookie_name,
+        value="",
+        max_age=0,
+        expires=0,
+        path=settings.jwt_cookie_path,
+        domain=None,
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+    )
     response.delete_cookie(
         key=settings.jwt_cookie_name,
         path=settings.jwt_cookie_path,

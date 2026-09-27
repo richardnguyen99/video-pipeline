@@ -25,7 +25,8 @@ export function useAuth() {
     try {
       await logoutUser();
     } catch {
-      // Clear client session even if the network call fails.
+      // Always clear client session so UI reflects guest state even when
+      // the network call fails (offline, already expired cookie, etc.).
     }
 
     applyAuthSession(queryClient, null);

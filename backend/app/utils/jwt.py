@@ -40,6 +40,7 @@ def create_access_token(
         "email": email,
         "username": username,
         "type": TOKEN_TYPE_ACCESS,
+        "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": expires,
     }
@@ -116,3 +117,16 @@ def parse_user_id(claims: dict[str, Any]) -> Optional[uuid.UUID]:
         return uuid.UUID(subject)
     except ValueError:
         return None
+
+
+def remaining_token_ttl_seconds(claims: dict[str, Any]) -> int:
+    """Seconds until ``exp``, or ``0`` when already expired / missing."""
+
+    exp = claims.get("exp")
+
+    if not isinstance(exp, (int, float)):
+        return 0
+
+    remaining = int(exp) - int(datetime.now(timezone.utc).timestamp())
+
+    return max(0, remaining)

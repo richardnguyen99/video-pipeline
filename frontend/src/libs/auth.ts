@@ -3,6 +3,7 @@
  */
 
 import { ApiError, apiFetch } from "@/libs/api-client";
+import { logoutSession } from "@/server/auth.functions";
 
 export type RegisterPayload = {
   username: string;
@@ -105,9 +106,7 @@ export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
 }
 
 export async function logoutUser(): Promise<void> {
-  await apiFetch<null>("/auth/logout", {
-    method: "POST",
-  });
+  await logoutSession();
 }
 
 export async function fetchCurrentUser(): Promise<UserProfile> {

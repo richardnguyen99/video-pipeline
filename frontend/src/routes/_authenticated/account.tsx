@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,11 @@ export const Route = createFileRoute("/_authenticated/account")({
 function AccountPage() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const router = useRouter();
 
   async function handleSignOut() {
     await signOut();
+    await router.invalidate();
     void navigate({ to: "/" });
   }
 

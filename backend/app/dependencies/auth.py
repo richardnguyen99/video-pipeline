@@ -8,13 +8,16 @@ from typing import Annotated, Optional
 from fastapi import Cookie, Depends, HTTPException, status
 
 from app.config import settings
+from app.dependencies.redis import AsyncRedisDep
 from app.dependencies.services import AuthServiceDep
 from app.schemas.auth import UserResponse
 from app.utils.jwt import decode_access_token
+from app.utils.token_denylist import is_access_jti_revoked
 
 
 async def get_current_user(
     service: AuthServiceDep,
+    redis: AsyncRedisDep,
     access_token: Annotated[Optional[str], Cookie()] = None,
 ) -> UserResponse:
     """Resolve the signed-in user from the HttpOnly access-token cookie.
@@ -23,13 +26,14 @@ async def get_current_user(
 
     Args:
         service: Auth application service.
+        redis: Redis client for the access-token denylist.
         access_token: JWT from the ``access_token`` cookie.
 
     Returns:
         Public profile for the authenticated user.
 
     Raises:
-        HTTPException: 401 when the cookie is missing or invalid.
+        HTTPException: 401 when the cookie is missing, invalid, or revoked.
     """
 
     _ = settings.jwt_cookie_name
@@ -41,6 +45,15 @@ async def get_current_user(
         )
 
     claims = decode_access_token(access_token)
+    jti = claims.get("jti")
+
+    if isinstance(jti, str) and jti:
+        if await is_access_jti_revoked(redis, jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Access token has been revoked.",
+            )
+
     subject = claims["sub"]
 
     try:
