@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
+from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
 from app.services.auth import AuthService
@@ -132,6 +133,42 @@ class FakeUserRepository:
         self.login_failure_calls.append(user)
 
 
+@dataclass
+class FakeRefreshTokenRepository:
+    """Minimal allowlist stand-in (unused by register/login tests)."""
+
+    issued: list[dict[str, Any]] = field(default_factory=list)
+
+    async def issue(self, **kwargs: Any) -> object:
+        """Record issue calls for session-token tests."""
+
+        self.issued.append(kwargs)
+
+        return object()
+
+    async def get_by_token_hash(
+        self,
+        _token_hash: str,
+        *,
+        for_update: bool = False,
+    ) -> None:
+        """No rows by default."""
+
+        _ = for_update
+
+        return None
+
+    async def revoke_by_token_hash(self, _token_hash: str) -> None:
+        """No-op revoke."""
+
+        return None
+
+    def is_usable(self, _row: object) -> bool:
+        """Unused in register/login tests."""
+
+        return False
+
+
 @pytest.fixture
 def repository() -> FakeUserRepository:
     """Fresh fake repository per test."""
@@ -140,10 +177,23 @@ def repository() -> FakeUserRepository:
 
 
 @pytest.fixture
-def service(repository: FakeUserRepository) -> AuthService:
-    """``AuthService`` wired to the fake repository."""
+def refresh_tokens() -> FakeRefreshTokenRepository:
+    """Fresh fake refresh-token repository per test."""
 
-    return AuthService(repository=cast(UserRepository, repository))
+    return FakeRefreshTokenRepository()
+
+
+@pytest.fixture
+def service(
+    repository: FakeUserRepository,
+    refresh_tokens: FakeRefreshTokenRepository,
+) -> AuthService:
+    """``AuthService`` wired to fake repositories."""
+
+    return AuthService(
+        repository=cast(UserRepository, repository),
+        refresh_tokens=cast(RefreshTokenRepository, refresh_tokens),
+    )
 
 
 def _valid_payload(**overrides: Any) -> RegisterRequest:

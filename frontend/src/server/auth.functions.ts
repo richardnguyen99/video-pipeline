@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getCookie, setResponseHeader } from "@tanstack/react-start/server";
+import { getCookie, setCookie, setResponseHeader, setResponseHeaders } from "@tanstack/react-start/server";
 
 import type { UserProfile } from "@/libs/auth";
 import { HttpStatus } from "@/libs/http-status";
@@ -29,20 +29,87 @@ function getBackendRefreshUrl(): string {
   return `${getBackendOrigin()}/api/v1/auth/refresh`;
 }
 
+type ParsedSetCookie = {
+  name: string;
+  value: string;
+  maxAge?: number;
+  path?: string;
+  httpOnly?: boolean;
+  secure?: boolean;
+  sameSite?: "lax" | "strict" | "none";
+};
+
 /**
- * Expire access and refresh cookies on the Start response so the browser
- * drops them for the app origin (works with Vite proxy and SSR RPC).
- *
- * Each cookie needs its own ``Set-Cookie`` header (they cannot be merged).
+ * Parse a single ``Set-Cookie`` header value into name/value/attributes.
  */
-function clearAuthCookieHeaders(): void {
-  setResponseHeader("Set-Cookie", `${ACCESS_TOKEN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
-  setResponseHeader("Set-Cookie", `${REFRESH_TOKEN_COOKIE}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax`);
+function parseSetCookieHeader(raw: string): ParsedSetCookie | null {
+  const segments = raw.split(";").map((part) => part.trim());
+
+  if (segments.length === 0) {
+    return null;
+  }
+
+  const [nameValue, ...attributes] = segments;
+  const eq = nameValue.indexOf("=");
+
+  if (eq <= 0) {
+    return null;
+  }
+
+  const name = nameValue.slice(0, eq).trim();
+  const value = nameValue.slice(eq + 1).trim();
+
+  if (!name) {
+    return null;
+  }
+
+  const parsed: ParsedSetCookie = { name, value };
+
+  for (const attr of attributes) {
+    const lower = attr.toLowerCase();
+
+    if (lower === "httponly") {
+      parsed.httpOnly = true;
+      continue;
+    }
+
+    if (lower === "secure") {
+      parsed.secure = true;
+      continue;
+    }
+
+    if (lower.startsWith("path=")) {
+      parsed.path = attr.slice(5).trim() || "/";
+      continue;
+    }
+
+    if (lower.startsWith("max-age=")) {
+      const maxAge = Number.parseInt(attr.slice(8).trim(), 10);
+
+      if (!Number.isNaN(maxAge)) {
+        parsed.maxAge = maxAge;
+      }
+
+      continue;
+    }
+
+    if (lower.startsWith("samesite=")) {
+      const sameSite = attr.slice(9).trim().toLowerCase();
+
+      if (sameSite === "lax" || sameSite === "strict" || sameSite === "none") {
+        parsed.sameSite = sameSite;
+      }
+    }
+  }
+
+  return parsed;
 }
 
 /**
- * Forward ``Set-Cookie`` values from the backend onto the Start response so
- * the browser updates host-only cookies on the app origin.
+ * Apply backend ``Set-Cookie`` headers onto the Start response.
+ *
+ * Uses ``setCookie`` per cookie so both access and refresh survive (raw
+ * ``setResponseHeader('Set-Cookie', ...)`` overwrites previous values).
  */
 function forwardSetCookieHeaders(response: Response): void {
   const headersWithGetSetCookie = response.headers as Headers & {
@@ -52,19 +119,64 @@ function forwardSetCookieHeaders(response: Response): void {
   const setCookies =
     typeof headersWithGetSetCookie.getSetCookie === "function" ? headersWithGetSetCookie.getSetCookie() : [];
 
-  if (setCookies.length > 0) {
-    for (const cookie of setCookies) {
-      setResponseHeader("Set-Cookie", cookie);
+  const rawList =
+    setCookies.length > 0
+      ? setCookies
+      : (() => {
+          const single = response.headers.get("set-cookie");
+
+          return single != null && single.trim() !== "" ? [single] : [];
+        })();
+
+  const parsedCookies: ParsedSetCookie[] = [];
+
+  for (const raw of rawList) {
+    const parsed = parseSetCookieHeader(raw);
+
+    if (parsed !== null) {
+      parsedCookies.push(parsed);
+    }
+  }
+
+  // Apply refresh before access. TanStack Start has historically kept only
+  // the last ``setCookie`` call; the access cookie must stick so the next
+  // ``/auth/me`` does not re-enter refresh rotation.
+  parsedCookies.sort((a, b) => {
+    if (a.name === ACCESS_TOKEN_COOKIE) {
+      return 1;
     }
 
-    return;
-  }
+    if (b.name === ACCESS_TOKEN_COOKIE) {
+      return -1;
+    }
 
-  const single = response.headers.get("set-cookie");
+    return 0;
+  });
 
-  if (single != null && single.trim() !== "") {
-    setResponseHeader("Set-Cookie", single);
+  for (const parsed of parsedCookies) {
+    setCookie(parsed.name, parsed.value, {
+      path: parsed.path ?? "/",
+      maxAge: parsed.maxAge,
+      httpOnly: parsed.httpOnly ?? true,
+      secure: parsed.secure ?? false,
+      sameSite: parsed.sameSite ?? "lax",
+    });
   }
+}
+
+function clearAuthCookieHeaders(): void {
+  setCookie(ACCESS_TOKEN_COOKIE, "", {
+    path: "/",
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax",
+  });
+  setCookie(REFRESH_TOKEN_COOKIE, "", {
+    path: "/",
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax",
+  });
 }
 
 function buildCookieHeader(): string | null {
@@ -154,7 +266,11 @@ async function refreshAccessTokenFromCookie(): Promise<UserProfile | null> {
  * SSR and client navigations.
  */
 export const fetchAuthMe = createServerFn({ method: "GET" }).handler(async (): Promise<UserProfile | null> => {
-  setResponseHeader("Cache-Control", "private, no-store");
+  setResponseHeaders(
+    new Headers({
+      "Cache-Control": "private, no-store",
+    }),
+  );
 
   const access = getCookie(ACCESS_TOKEN_COOKIE);
   const refresh = getCookie(REFRESH_TOKEN_COOKIE);

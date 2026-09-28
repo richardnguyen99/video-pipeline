@@ -1,9 +1,10 @@
-"""Refresh access-token endpoint with Redis-backed rotation and grace."""
+"""Refresh access-token endpoint with DB allowlist and Redis grace."""
 
 import asyncio
+import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Cookie, HTTPException, status
+from fastapi import APIRouter, Cookie, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from redis.exceptions import RedisError
 
@@ -14,15 +15,8 @@ from app.utils.auth_cookies import (
     set_access_token_cookie,
     set_refresh_token_cookie,
 )
-from app.utils.jwt import (
-    create_access_token,
-    create_refresh_token,
-    decode_refresh_token,
-    parse_user_id,
-    remaining_token_ttl_seconds,
-)
+from app.utils.jwt import decode_refresh_token, parse_user_id
 from app.utils.token_denylist import (
-    consume_refresh_jti,
     get_refresh_rotation_grace,
     store_refresh_rotation_grace,
 )
@@ -38,7 +32,7 @@ router = APIRouter()
     responses={
         status.HTTP_401_UNAUTHORIZED: {
             "description": (
-                "Missing, expired, grace-expired reuse, or invalid "
+                "Missing, expired, revoked, or not-allowlisted "
                 "refresh token."
             ),
         },
@@ -47,25 +41,25 @@ router = APIRouter()
 async def refresh(
     service: AuthServiceDep,
     redis: AsyncRedisDep,
+    request: Request,
     refresh_token: Annotated[
         Optional[str],
         Cookie(alias=settings.jwt_refresh_cookie_name),
     ] = None,
 ) -> JSONResponse:
-    """Mint new access and refresh cookies from a valid refresh token.
+    """Mint new access and refresh cookies from an allowlisted refresh token.
 
-    Rotation (Redis):
+    Allowlist (database):
 
-    1. Validate the refresh JWT.
-    2. Atomically consume its ``jti`` (``SET NX``). The winner issues a new
-       access + refresh pair and stores that pair under a short-lived grace
-       key.
-    3. Concurrent losers that still present the *same* old refresh token
-       within ``JWT_REFRESH_ROTATION_GRACE_SECONDS`` receive the **same**
-       rotated pair (not a 401). After the grace window, reuse is rejected.
+    1. Validate the refresh JWT signature and type.
+    2. Require a matching, non-revoked, non-expired row in
+       ``refresh_token`` (hashed raw token).
+    3. Rotate: revoke the old row, insert a new allowlist entry, set both
+       cookies.
 
-    This avoids multi-tab / parallel ``apiFetch`` races treating a second
-    legitimate refresh as a token-theft breach.
+    Grace (Redis): concurrent requests that present the same old token
+    within ``JWT_REFRESH_ROTATION_GRACE_SECONDS`` receive the same rotated
+    pair instead of a hard failure after the first rotation commits.
     """
 
     if refresh_token is None or not refresh_token.strip():
@@ -75,32 +69,6 @@ async def refresh(
         )
 
     claims = decode_refresh_token(refresh_token)
-    jti = claims.get("jti")
-    ttl = remaining_token_ttl_seconds(claims)
-
-    if not isinstance(jti, str) or not jti:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token.",
-        )
-
-    if ttl <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Refresh token has expired.",
-        )
-
-    try:
-        consumed = await consume_refresh_jti(redis, jti, ttl)
-    except RedisError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unable to rotate refresh token.",
-        ) from exc
-
-    if not consumed:
-        return await _replay_grace_rotation(redis, service, jti=jti)
-
     user_id = parse_user_id(claims)
 
     if user_id is None:
@@ -109,13 +77,37 @@ async def refresh(
             detail="Invalid refresh token subject.",
         )
 
-    user = await service.get_current_user(user_id)
-    access = create_access_token(
-        user_id=user.id,
-        email=user.email,
-        username=user.username,
+    jti = claims.get("jti")
+
+    if not isinstance(jti, str) or not jti:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token.",
+        )
+
+    existing = await service.find_refresh_token_by_raw(refresh_token)
+
+    if existing is not None and existing.revoked_at is not None:
+        return await _replay_grace_rotation(
+            redis,
+            service,
+            jti=jti,
+            user_id=user_id,
+        )
+
+    current = await service.get_allowlisted_refresh_token(
+        refresh_token,
+        for_update=True,
     )
-    new_refresh = create_refresh_token(user_id=user.id)
+    user = await service.get_current_user(user_id)
+    user_agent = _client_user_agent(request)
+    ip_address = _client_ip(request)
+    access, new_refresh = await service.rotate_session_tokens(
+        current=current,
+        user=user,
+        user_agent=user_agent,
+        ip_address=ip_address,
+    )
 
     grace = max(0, settings.jwt_refresh_rotation_grace_seconds)
 
@@ -139,12 +131,9 @@ async def _replay_grace_rotation(
     service: AuthServiceDep,
     *,
     jti: str,
+    user_id: uuid.UUID,
 ) -> JSONResponse:
-    """Serve the cached rotated pair during the grace window, else 401.
-
-    Brief retries cover the race where this request lost ``SET NX`` before
-    the winner finished writing the grace cache entry.
-    """
+    """Serve the cached rotated pair during the grace window, else 401."""
 
     pair = None
     last_error: Optional[BaseException] = None
@@ -174,15 +163,6 @@ async def _replay_grace_rotation(
             detail="Refresh token has been revoked.",
         )
 
-    claims = decode_refresh_token(pair.refresh_token)
-    user_id = parse_user_id(claims)
-
-    if user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid refresh token subject.",
-        )
-
     user = await service.get_current_user(user_id)
 
     return _token_response(
@@ -209,3 +189,28 @@ def _token_response(
     set_refresh_token_cookie(response, refresh)
 
     return response
+
+
+def _client_user_agent(request: Request) -> Optional[str]:
+    """Return a truncated User-Agent for session metadata."""
+
+    value = request.headers.get("user-agent")
+
+    if value is None or not value.strip():
+        return None
+
+    return value.strip()[:255]
+
+
+def _client_ip(request: Request) -> Optional[str]:
+    """Best-effort client IP (first X-Forwarded-For hop or peer)."""
+
+    forwarded = request.headers.get("x-forwarded-for")
+
+    if forwarded is not None and forwarded.strip():
+        return forwarded.split(",")[0].strip()[:45]
+
+    if request.client is None:
+        return None
+
+    return request.client.host[:45]

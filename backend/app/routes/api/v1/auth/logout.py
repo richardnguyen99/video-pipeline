@@ -8,14 +8,13 @@ from fastapi.responses import Response
 from redis.exceptions import RedisError
 
 from app.config import settings
-from app.dependencies import AsyncRedisDep
+from app.dependencies import AsyncRedisDep, AuthServiceDep
 from app.utils.auth_cookies import (
     clear_access_token_cookie,
     clear_refresh_token_cookie,
 )
 from app.utils.jwt import (
     decode_access_token,
-    decode_refresh_token,
     remaining_token_ttl_seconds,
 )
 from app.utils.token_denylist import revoke_access_jti
@@ -33,6 +32,7 @@ DecodeFn = Callable[[str], dict[str, Any]]
 )
 async def logout(
     redis: AsyncRedisDep,
+    service: AuthServiceDep,
     access_token: Annotated[Optional[str], Cookie()] = None,
     refresh_token: Annotated[
         Optional[str],
@@ -42,9 +42,10 @@ async def logout(
     """End the session immediately.
 
     - Clears the HttpOnly access and refresh cookies on the client (always).
-    - Denylists each token's ``jti`` in Redis for the rest of its natural
-      lifetime so a copied cookie cannot be reused after logout (including
-      a refresh token that has not yet been rotated).
+    - Removes the refresh token from the database allowlist so it cannot be
+      reused after logout.
+    - Denylists the access token ``jti`` in Redis for the rest of its natural
+      lifetime.
 
     Always returns 204 so the client can clear local state even when the
     cookies were already missing or the tokens were already invalid.
@@ -54,27 +55,28 @@ async def logout(
     clear_access_token_cookie(response)
     clear_refresh_token_cookie(response)
 
-    await _revoke_cookie_token(
+    if refresh_token is not None and refresh_token.strip():
+        try:
+            await service.revoke_refresh_token(refresh_token)
+        except HTTPException:
+            pass
+
+    await _revoke_access_cookie(
         redis,
         raw_token=access_token,
         decode=decode_access_token,
-    )
-    await _revoke_cookie_token(
-        redis,
-        raw_token=refresh_token,
-        decode=decode_refresh_token,
     )
 
     return response
 
 
-async def _revoke_cookie_token(
+async def _revoke_access_cookie(
     redis: AsyncRedisDep,
     *,
     raw_token: Optional[str],
     decode: DecodeFn,
 ) -> None:
-    """Best-effort denylist of a JWT cookie; never raises to the client."""
+    """Best-effort Redis denylist of the access JWT; never raises."""
 
     if raw_token is None or not raw_token.strip():
         return

@@ -94,8 +94,16 @@ class RefreshToken(SQLModel, table=True):
     @property
     def is_active(self) -> bool:
         """Return True if the token is neither expired nor revoked."""
-        db_now = datetime.datetime.now(datetime.timezone.utc)
-        return self.revoked_at is None and self.expires_at > db_now
+
+        db_now = datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None,
+        )
+        expires = self.expires_at
+
+        if expires.tzinfo is not None:
+            expires = expires.replace(tzinfo=None)
+
+        return self.revoked_at is None and expires > db_now
 
     @classmethod
     def create(

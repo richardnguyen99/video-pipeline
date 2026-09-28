@@ -10,6 +10,7 @@ from app.repositories.director import DirectorRepository
 from app.repositories.genre import GenreRepository
 from app.repositories.label import LabelRepository
 from app.repositories.maker import MakerRepository
+from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.series import SeriesRepository
 from app.repositories.user import UserRepository
 from app.repositories.video import VideoRepository
@@ -19,6 +20,14 @@ def get_user_repository(session: SessionDep) -> UserRepository:
     """Build a request-scoped ``UserRepository``."""
 
     return UserRepository(session=session)
+
+
+def get_refresh_token_repository(
+    session: SessionDep,
+) -> RefreshTokenRepository:
+    """Build a request-scoped ``RefreshTokenRepository``."""
+
+    return RefreshTokenRepository(session=session)
 
 
 def get_actress_repository(session: SessionDep) -> ActressRepository:
@@ -94,4 +103,8 @@ DirectorRepositoryDep = Annotated[
 UserRepositoryDep = Annotated[
     UserRepository,
     Depends(get_user_repository),
+]
+RefreshTokenRepositoryDep = Annotated[
+    RefreshTokenRepository,
+    Depends(get_refresh_token_repository),
 ]

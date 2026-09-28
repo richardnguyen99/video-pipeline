@@ -12,6 +12,7 @@ from app.dependencies.repositories import (
     GenreRepositoryDep,
     LabelRepositoryDep,
     MakerRepositoryDep,
+    RefreshTokenRepositoryDep,
     SeriesRepositoryDep,
     UserRepositoryDep,
     VideoRepositoryDep,
@@ -123,10 +124,14 @@ def get_series_service(
 
 def get_auth_service(
     repository: UserRepositoryDep,
+    refresh_tokens: RefreshTokenRepositoryDep,
 ) -> AuthService:
     """Build a request-scoped ``AuthService``."""
 
-    return AuthService(repository=repository)
+    return AuthService(
+        repository=repository,
+        refresh_tokens=refresh_tokens,
+    )
 
 
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
