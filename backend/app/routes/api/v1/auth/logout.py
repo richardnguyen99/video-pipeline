@@ -43,9 +43,9 @@ async def logout(
 
     - Clears the HttpOnly access and refresh cookies on the client (always).
     - Denylists each token's ``jti`` in Redis for the rest of its natural
-      lifetime so a copied cookie cannot be reused after logout.
+      lifetime so a copied cookie cannot be reused after logout (including
+      a refresh token that has not yet been rotated).
 
-    Database-backed refresh revocation and token rotation are not used.
     Always returns 204 so the client can clear local state even when the
     cookies were already missing or the tokens were already invalid.
     """

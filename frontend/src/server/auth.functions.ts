@@ -114,7 +114,9 @@ async function fetchMeWithAccessCookie(
 
 /**
  * Call the backend refresh endpoint with the refresh cookie and forward any
- * new access-token ``Set-Cookie`` onto the Start response.
+ * rotated access/refresh ``Set-Cookie`` headers onto the Start response.
+ *
+ * The backend consumes the previous refresh ``jti`` in Redis (one-time use).
  */
 async function refreshAccessTokenFromCookie(): Promise<UserProfile | null> {
   const refresh = getCookie(REFRESH_TOKEN_COOKIE);

@@ -290,6 +290,6 @@ def test_decode_refresh_token_rejects_expired() -> None:
 def test_refresh_token_max_age_seconds_matches_settings() -> None:
     """Cookie max-age matches configured refresh TTL in seconds."""
 
-    expected = max(1, settings.jwt_refresh_token_expire_days * 24 * 60 * 60)
+    expected = max(1, settings.jwt_refresh_token_expire_minutes * 60)
 
     assert refresh_token_max_age_seconds() == expected

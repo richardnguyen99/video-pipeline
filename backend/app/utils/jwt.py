@@ -57,8 +57,9 @@ def create_refresh_token(*, user_id: uuid.UUID) -> str:
     """Create a long-lived refresh JWT for the given user.
 
     Refresh tokens only carry ``sub`` / ``type`` / ``jti`` so they can mint
-    new access tokens without embedding profile claims. Rotation and
-    database-backed revocation are intentionally not applied here.
+    new access tokens without embedding profile claims. Each successful
+    ``POST /auth/refresh`` rotates the token: the previous ``jti`` is
+    denylisted in Redis and a new refresh JWT is issued.
 
     Args:
         user_id: Authenticated user's primary key.
@@ -68,7 +69,9 @@ def create_refresh_token(*, user_id: uuid.UUID) -> str:
     """
 
     now = datetime.now(timezone.utc)
-    expires = now + timedelta(days=settings.jwt_refresh_token_expire_days)
+    expires = now + timedelta(
+        minutes=settings.jwt_refresh_token_expire_minutes,
+    )
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "type": TOKEN_TYPE_REFRESH,
@@ -168,7 +171,7 @@ def access_token_max_age_seconds() -> int:
 def refresh_token_max_age_seconds() -> int:
     """Cookie ``Max-Age`` aligned with refresh-token lifetime."""
 
-    return max(1, settings.jwt_refresh_token_expire_days * 24 * 60 * 60)
+    return max(1, settings.jwt_refresh_token_expire_minutes * 60)
 
 
 def parse_user_id(claims: dict[str, Any]) -> Optional[uuid.UUID]:

@@ -55,11 +55,12 @@ class Settings(BaseSettings):
     # Comma-separated browser origins allowed to call the API (CORS).
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
-    # JWT tokens (HttpOnly cookies). Access is short-lived; refresh is long-lived.
+    # JWT tokens (HttpOnly cookies). Durations use explicit unit suffixes.
     jwt_secret_key: str = "change-me-in-production-use-a-long-random-string"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 15
-    jwt_refresh_token_expire_days: int = 14
+    jwt_refresh_token_expire_minutes: int = 20160
+    jwt_refresh_rotation_grace_seconds: int = 30
     jwt_cookie_name: str = "access_token"
     jwt_refresh_cookie_name: str = "refresh_token"
     jwt_cookie_path: str = "/"
