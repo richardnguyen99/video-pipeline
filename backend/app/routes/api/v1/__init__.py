@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from app.routes.api.v1.actresses import router as actresses_router
 from app.routes.api.v1.auth import router as auth_router
 from app.routes.api.v1.directors import router as directors_router
+from app.routes.api.v1.email import router as email_router
 from app.routes.api.v1.genres import router as genres_router
 from app.routes.api.v1.health import router as health_router
 from app.routes.api.v1.labels import router as labels_router
@@ -26,6 +27,10 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     auth_router,
     tags=["auth"],
+)
+api_v1_router.include_router(
+    email_router,
+    tags=["email"],
 )
 api_v1_router.include_router(
     actresses_router,

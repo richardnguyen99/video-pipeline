@@ -64,6 +64,8 @@ class Settings(BaseSettings):
     jwt_cookie_name: str = "access_token"
     jwt_refresh_cookie_name: str = "refresh_token"
     jwt_cookie_path: str = "/"
+    # Refresh cookie is only sent under /api/v1/auth/ (refresh + logout).
+    # Access tokens live in memory on the client.
     jwt_refresh_cookie_path: str = "/api/v1/auth/"
     jwt_cookie_samesite: str = "lax"
 
@@ -101,6 +103,29 @@ class Settings(BaseSettings):
     elasticsearch_index_actresses: str = "actresses"
     elasticsearch_username: Optional[str] = None
     elasticsearch_password: Optional[str] = None
+
+    # Resend email (all secrets use the RESEND_ env prefix).
+    resend_api_key: Optional[str] = Field(
+        default=None,
+        description="Resend API key (env: RESEND_API_KEY).",
+    )
+    resend_from_email: Optional[str] = Field(
+        default=None,
+        description=(
+            "Default From header, e.g. 'Velvet <noreply@example.com>' "
+            "(env: RESEND_FROM_EMAIL)."
+        ),
+    )
+    resend_webhook_secret: Optional[str] = Field(
+        default=None,
+        description="Svix signing secret for Resend webhooks "
+        "(env: RESEND_WEBHOOK_SECRET).",
+    )
+    resend_audience_id: Optional[str] = Field(
+        default=None,
+        description="Optional Resend audience id for contacts "
+        "(env: RESEND_AUDIENCE_ID).",
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(_ENV_FILE) if _ENV_FILE.is_file() else None,

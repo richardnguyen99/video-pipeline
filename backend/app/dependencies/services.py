@@ -24,6 +24,7 @@ from app.search.service import VideoSearchService
 from app.services.actress import ActressService
 from app.services.auth import AuthService
 from app.services.director import DirectorService
+from app.services.email import EmailService
 from app.services.genre import GenreService
 from app.services.health import HealthService
 from app.services.label import LabelService
@@ -134,6 +135,12 @@ def get_auth_service(
     )
 
 
+def get_email_service(settings: SettingsDep) -> EmailService:
+    """Build a request-scoped ``EmailService``."""
+
+    return EmailService(settings=settings)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 VideoServiceDep = Annotated[VideoService, Depends(get_video_service)]
@@ -143,3 +150,4 @@ LabelServiceDep = Annotated[LabelService, Depends(get_label_service)]
 DirectorServiceDep = Annotated[DirectorService, Depends(get_director_service)]
 SeriesServiceDep = Annotated[SeriesService, Depends(get_series_service)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
+EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
