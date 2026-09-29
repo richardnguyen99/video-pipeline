@@ -1,18 +1,25 @@
 /**
  * HTTP client for the FastAPI backend (``/api/v1``).
  *
- * In the browser always use same-origin ``/api/v1`` so the Vite proxy
- * forwards to the backend and the HttpOnly refresh cookie stays first-party.
- * Absolute ``VITE_API_BASE_URL`` is only for SSR.
+ * Browser: same-origin ``/api/v1`` (Vite proxy) so the HttpOnly refresh
+ * cookie stays first-party. SSR: absolute ``VITE_API_BASE_URL`` when set.
  *
- * Access tokens are read from the in-memory Zustand store and sent as
- * ``Authorization: Bearer``. On hard refresh the access token is gone; a
- * silent ``POST /auth/refresh`` (cookie Path ``/api/v1/auth/``) restores it.
- * Concurrent 401s share one in-flight refresh (single-flight).
+ * Access tokens live in the Zustand store and are attached as
+ * ``Authorization: Bearer`` via a request interceptor. On 401, a response
+ * interceptor runs a single-flight ``POST /auth/refresh`` and retries.
  */
+
+import axios, { isAxiosError } from "axios";
+import type { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosRequestConfig } from "axios";
 
 import { HttpStatus } from "@/libs/http-status";
 import { getAccessToken, useAuthStore } from "@/stores/auth-store";
+
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    skipAuthRefresh?: boolean;
+  }
+}
 
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
@@ -42,9 +49,13 @@ export class ApiError extends Error {
 
 export type ApiSearchParams = Record<string, string | number | boolean | null | undefined | Array<string | number>>;
 
-export type ApiFetchInit = RequestInit & {
+export type ApiFetchInit = {
+  method?: AxiosRequestConfig["method"];
+  data?: unknown;
+  /** Alias for axios ``params`` (query string). */
   searchParams?: ApiSearchParams;
-  /** Skip the 401 → refresh → retry path (used by the refresh call itself). */
+  headers?: AxiosRequestConfig["headers"];
+  /** Skip the 401 → refresh → retry path (refresh/login/logout themselves). */
   skipAuthRefresh?: boolean;
 };
 
@@ -59,50 +70,29 @@ export type SessionPayload = {
   updated_at: string;
 };
 
-function appendSearchParams(url: URL, params?: ApiSearchParams): void {
-  if (!params) {
-    return;
+type RetryableRequestConfig = InternalAxiosRequestConfig & {
+  skipAuthRefresh?: boolean;
+  _retry?: boolean;
+};
+
+function shouldAttemptAuthRefresh(url: string | undefined): boolean {
+  if (url == null || url === "") {
+    return true;
   }
 
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null) {
-      continue;
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        url.searchParams.append(key, String(item));
-      }
-
-      continue;
-    }
-
-    url.searchParams.set(key, String(value));
-  }
-}
-
-function buildRequestUrl(path: string, searchParams?: ApiSearchParams): URL {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  const base = getApiBaseUrl().replace(/\/$/, "");
-  const absoluteBase =
-    base.startsWith("http://") || base.startsWith("https://")
-      ? base
-      : `${typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"}${base.startsWith("/") ? base : `/${base}`}`;
-  const url = new URL(`${absoluteBase}${normalized}`);
-
-  appendSearchParams(url, searchParams);
-
-  return url;
-}
-
-function shouldAttemptAuthRefresh(path: string): boolean {
+  const path = url.startsWith("http")
+    ? new URL(url).pathname.replace(/^\/api\/v1/, "")
+    : url.startsWith("/api/v1")
+      ? url.slice("/api/v1".length)
+      : url;
   const normalized = path.startsWith("/") ? path : `/${path}`;
 
   return (
     !normalized.startsWith("/auth/login") &&
     !normalized.startsWith("/auth/register") &&
     !normalized.startsWith("/auth/refresh") &&
-    !normalized.startsWith("/auth/logout")
+    !normalized.startsWith("/auth/logout") &&
+    !normalized.startsWith("/auth/change-password")
   );
 }
 
@@ -140,6 +130,50 @@ export function applySessionFromBody(body: unknown): void {
   );
 }
 
+function toApiError(status: number, body: unknown): ApiError {
+  const message =
+    typeof body === "object" && body !== null && "detail" in body && body.detail != null
+      ? String(body.detail)
+      : `Request failed with status ${status}`;
+
+  return new ApiError(message, status, body);
+}
+
+function axiosErrorToApiError(error: AxiosError): ApiError {
+  const status = error.response?.status ?? 0;
+  const body = error.response?.data ?? null;
+
+  return toApiError(status, body);
+}
+
+const api: AxiosInstance = axios.create({
+  withCredentials: true,
+  headers: {
+    Accept: "application/json",
+  },
+  // Match previous URLSearchParams behavior: repeated keys, no brackets.
+  paramsSerializer: {
+    indexes: null,
+  },
+  validateStatus: (status) => status >= 200 && status < 300,
+});
+
+api.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    config.baseURL = getApiBaseUrl();
+
+    const token = getAccessToken();
+
+    if (token != null && token.length > 0) {
+      config.headers.set("Authorization", `Bearer ${token}`);
+    }
+
+    return config;
+  },
+  (error: unknown) => Promise.reject(error),
+  { synchronous: true },
+);
+
 let refreshInFlight: Promise<SessionPayload | null> | null = null;
 
 /**
@@ -159,19 +193,17 @@ export async function silentRefreshSession(): Promise<SessionPayload | null> {
 
   refreshInFlight = (async () => {
     try {
-      const body = await apiFetchRaw<SessionPayload>("/auth/refresh", {
-        method: "POST",
-      });
+      const { data } = await api.post<SessionPayload>("/auth/refresh", undefined, { skipAuthRefresh: true });
 
-      if (!isSessionPayload(body)) {
+      if (!isSessionPayload(data)) {
         useAuthStore.getState().setAccessToken(null);
 
         return null;
       }
 
-      applySessionFromBody(body);
+      applySessionFromBody(data);
 
-      return body;
+      return data;
     } catch {
       useAuthStore.getState().setAccessToken(null);
 
@@ -205,99 +237,82 @@ export async function ensureAccessToken(): Promise<string | null> {
   return session.access_token;
 }
 
-async function parseResponseBody(response: Response): Promise<unknown> {
-  const text = await response.text();
+api.interceptors.response.use(
+  (response) => {
+    if (isSessionPayload(response.data)) {
+      applySessionFromBody(response.data);
+    }
 
-  if (!text) {
-    return null;
-  }
+    return response;
+  },
+  async (error: unknown) => {
+    if (!isAxiosError(error) || error.response == null) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
 
-  try {
-    return JSON.parse(text) as unknown;
-  } catch {
-    return text;
-  }
-}
+    const originalRequest = error.config as RetryableRequestConfig | undefined;
 
-function toApiError(status: number, body: unknown): ApiError {
-  const message =
-    typeof body === "object" && body !== null && "detail" in body && body.detail != null
-      ? String(body.detail)
-      : `Request failed with status ${status}`;
+    if (originalRequest == null) {
+      return Promise.reject(axiosErrorToApiError(error));
+    }
 
-  return new ApiError(message, status, body);
-}
+    const status = error.response.status;
+    const skipRefresh = originalRequest.skipAuthRefresh === true;
+    const alreadyRetried = originalRequest._retry === true;
+    const mayRefresh =
+      status === HttpStatus.UNAUTHORIZED &&
+      !skipRefresh &&
+      !alreadyRetried &&
+      shouldAttemptAuthRefresh(originalRequest.url);
 
-/**
- * Low-level fetch without the 401 → refresh loop (used by silent refresh).
- */
-async function apiFetchRaw<T>(path: string, init?: RequestInit & { searchParams?: ApiSearchParams }): Promise<T> {
-  const { searchParams, ...requestInit } = init ?? {};
-  const url = buildRequestUrl(path, searchParams);
-  const accessToken = getAccessToken();
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    ...(requestInit.headers as Record<string, string> | undefined),
-  };
+    if (!mayRefresh) {
+      return Promise.reject(axiosErrorToApiError(error));
+    }
 
-  if (accessToken != null && accessToken.length > 0) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
+    originalRequest._retry = true;
 
-  const response = await fetch(url, {
-    ...requestInit,
-    credentials: "include",
-    headers,
-  });
-
-  const body = await parseResponseBody(response);
-
-  if (!response.ok) {
-    throw toApiError(response.status, body);
-  }
-
-  return body as T;
-}
-
-export async function apiFetch<T>(path: string, init?: ApiFetchInit): Promise<T> {
-  const { searchParams, skipAuthRefresh, ...requestInit } = init ?? {};
-  const url = buildRequestUrl(path, searchParams);
-  const accessToken = getAccessToken();
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    ...(requestInit.headers as Record<string, string> | undefined),
-  };
-
-  if (accessToken != null && accessToken.length > 0) {
-    headers.Authorization = `Bearer ${accessToken}`;
-  }
-
-  const response = await fetch(url, {
-    ...requestInit,
-    credentials: "include",
-    headers,
-  });
-
-  const body = await parseResponseBody(response);
-
-  if (response.status === HttpStatus.UNAUTHORIZED && skipAuthRefresh !== true && shouldAttemptAuthRefresh(path)) {
     const session = await silentRefreshSession();
 
-    if (session !== null) {
-      return apiFetch<T>(path, {
-        ...init,
-        skipAuthRefresh: true,
-      });
+    if (session === null) {
+      return Promise.reject(axiosErrorToApiError(error));
     }
-  }
 
-  if (!response.ok) {
-    throw toApiError(response.status, body);
-  }
+    originalRequest.headers.set("Authorization", `Bearer ${session.access_token}`);
 
-  if (isSessionPayload(body)) {
-    applySessionFromBody(body);
-  }
+    return api.request(originalRequest);
+  },
+);
 
-  return body as T;
+/**
+ * Typed API helper used across the app. Prefer this over calling axios
+ * directly so interceptors and error mapping stay consistent.
+ */
+export async function apiFetch<T>(path: string, init?: ApiFetchInit): Promise<T> {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const method = (init?.method ?? "GET").toString().toLowerCase();
+
+  try {
+    const response = await api.request<T>({
+      url: normalized,
+      method,
+      data: init?.data,
+      params: init?.searchParams,
+      headers: init?.headers,
+      skipAuthRefresh: init?.skipAuthRefresh,
+    });
+
+    return response.data;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (isAxiosError(error)) {
+      throw axiosErrorToApiError(error);
+    }
+
+    throw error;
+  }
 }
+
+export { api as axiosApi };

@@ -100,10 +100,7 @@ export async function registerUser(payload: RegisterPayload): Promise<UserProfil
 
   return apiFetch<UserProfile>("/auth/register", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    data: body,
     skipAuthRefresh: true,
   });
 }
@@ -111,13 +108,10 @@ export async function registerUser(payload: RegisterPayload): Promise<UserProfil
 export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
   const session = await apiFetch<SessionPayload>("/auth/login", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+    data: {
       email: payload.email.trim(),
       password: payload.password,
-    }),
+    },
     skipAuthRefresh: true,
   });
 
@@ -186,13 +180,10 @@ export type ChangePasswordPayload = {
 export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
   await apiFetch<void>("/auth/change-password", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
+    data: {
       current_password: payload.current_password,
       new_password: payload.new_password,
-    }),
+    },
     skipAuthRefresh: true,
   });
 
