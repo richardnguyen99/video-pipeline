@@ -61,12 +61,12 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
         setUser(user);
 
         if (redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
-          window.location.assign(redirectTo);
+          void navigate({ to: redirectTo, replace: true });
 
           return;
         }
 
-        void navigate({ to: "/" });
+        void navigate({ to: "/", replace: true });
       } catch (error) {
         setFormError(getApiErrorMessage(error));
       }

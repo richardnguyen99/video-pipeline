@@ -37,7 +37,7 @@ export default function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { isAuthenticated, user, signOut } = useAuth();
+  const { isAuthenticated, isRestoring, user, signOut } = useAuth();
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -90,7 +90,9 @@ export default function SiteHeader() {
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           <SiteSearchBox className="hidden max-w-md flex-1 sm:block" compact enableHotkey />
 
-          {isAuthenticated ? (
+          {isRestoring ? (
+            <span className="hidden h-9 w-24 rounded-lg bg-muted/30 sm:inline-block" aria-hidden />
+          ) : isAuthenticated ? (
             <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <DropdownMenuTrigger className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_0_16px_-4px_var(--color-primary)] transition-colors hover:bg-primary/90">
                 <UserRound className="size-4" aria-hidden />
@@ -174,7 +176,7 @@ export default function SiteHeader() {
               </Link>
             ))}
 
-            {isAuthenticated ? (
+            {isRestoring ? null : isAuthenticated ? (
               <>
                 <Link
                   to="/account"

@@ -10,9 +10,9 @@ from redis.exceptions import RedisError
 
 from app.config import settings
 from app.dependencies import AsyncRedisDep, AuthServiceDep
-from app.schemas.auth import UserResponse
+from app.schemas.auth import SessionResponse, UserResponse
 from app.utils.auth_cookies import (
-    set_access_token_cookie,
+    clear_legacy_access_token_cookie,
     set_refresh_token_cookie,
 )
 from app.utils.jwt import decode_refresh_token, parse_user_id
@@ -26,7 +26,7 @@ router = APIRouter()
 
 @router.post(
     "/refresh",
-    response_model=UserResponse,
+    response_model=SessionResponse,
     status_code=status.HTTP_200_OK,
     summary="Rotate refresh token and issue a new access token",
     responses={
@@ -47,15 +47,16 @@ async def refresh(
         Cookie(alias=settings.jwt_refresh_cookie_name),
     ] = None,
 ) -> JSONResponse:
-    """Mint new access and refresh cookies from an allowlisted refresh token.
+    """Mint a new access token (body) and rotated refresh cookie.
 
     Allowlist (database):
 
     1. Validate the refresh JWT signature and type.
     2. Require a matching, non-revoked, non-expired row in
        ``refresh_token`` (hashed raw token).
-    3. Rotate: revoke the old row, insert a new allowlist entry, set both
-       cookies.
+    3. Rotate: revoke the old row, insert a new allowlist entry.
+    4. Return ``access_token`` in JSON; set only the refresh HttpOnly
+       cookie (``Path=/api/v1/auth/``).
 
     Grace (Redis): concurrent requests that present the same old token
     within ``JWT_REFRESH_ROTATION_GRACE_SECONDS`` receive the same rotated
@@ -123,7 +124,7 @@ async def refresh(
         except RedisError:
             pass
 
-    return _token_response(user, access=access, refresh=new_refresh)
+    return _session_response(user, access=access, refresh=new_refresh)
 
 
 async def _replay_grace_rotation(
@@ -165,28 +166,31 @@ async def _replay_grace_rotation(
 
     user = await service.get_current_user(user_id)
 
-    return _token_response(
+    return _session_response(
         user,
         access=pair.access_token,
         refresh=pair.refresh_token,
     )
 
 
-def _token_response(
+def _session_response(
     user: UserResponse,
     *,
     access: str,
     refresh: str,
 ) -> JSONResponse:
-    """Build the JSON body and set both auth cookies."""
+    """JSON body with access_token; only the refresh cookie is set."""
 
-    payload = user.model_dump(mode="json")
+    payload = SessionResponse(
+        **user.model_dump(),
+        access_token=access,
+    ).model_dump(mode="json")
     response = JSONResponse(
         content=payload,
         status_code=status.HTTP_200_OK,
     )
-    set_access_token_cookie(response, access)
     set_refresh_token_cookie(response, refresh)
+    clear_legacy_access_token_cookie(response)
 
     return response
 

@@ -2,15 +2,17 @@
  * HTTP client for the FastAPI backend (``/api/v1``).
  *
  * In the browser always use same-origin ``/api/v1`` so the Vite proxy
- * forwards to the backend and the HttpOnly auth cookies stay first-party.
+ * forwards to the backend and the HttpOnly refresh cookie stays first-party.
  * Absolute ``VITE_API_BASE_URL`` is only for SSR.
  *
- * On ``401``, one silent ``POST /auth/refresh`` is attempted (single-flight)
- * before failing, so short-lived access tokens do not force a re-login while
- * a valid refresh cookie remains.
+ * Access tokens are read from the in-memory Zustand store and sent as
+ * ``Authorization: Bearer``. On hard refresh the access token is gone; a
+ * silent ``POST /auth/refresh`` (cookie Path ``/api/v1/auth/``) restores it.
+ * Concurrent 401s share one in-flight refresh (single-flight).
  */
 
 import { HttpStatus } from "@/libs/http-status";
+import { getAccessToken, useAuthStore } from "@/stores/auth-store";
 
 export function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
@@ -44,6 +46,17 @@ export type ApiFetchInit = RequestInit & {
   searchParams?: ApiSearchParams;
   /** Skip the 401 → refresh → retry path (used by the refresh call itself). */
   skipAuthRefresh?: boolean;
+};
+
+export type SessionPayload = {
+  access_token: string;
+  id: string;
+  username: string;
+  email: string;
+  display_name: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 };
 
 function appendSearchParams(url: URL, params?: ApiSearchParams): void {
@@ -93,32 +106,103 @@ function shouldAttemptAuthRefresh(path: string): boolean {
   );
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
+export function isSessionPayload(body: unknown): body is SessionPayload {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "access_token" in body &&
+    typeof body.access_token === "string" &&
+    (body as { access_token: string }).access_token.length > 0 &&
+    "id" in body &&
+    typeof (body as { id: unknown }).id === "string"
+  );
+}
 
 /**
- * Single-flight refresh so concurrent 401s share one refresh request.
+ * Persist access token (and profile when present) from a session response.
  */
-async function refreshAccessTokenOnce(): Promise<boolean> {
+export function applySessionFromBody(body: unknown): void {
+  if (!isSessionPayload(body)) {
+    return;
+  }
+
+  useAuthStore.getState().setSession(
+    {
+      id: body.id,
+      username: body.username,
+      email: body.email,
+      display_name: body.display_name,
+      is_active: body.is_active,
+      created_at: body.created_at,
+      updated_at: body.updated_at,
+    },
+    body.access_token,
+  );
+}
+
+let refreshInFlight: Promise<SessionPayload | null> | null = null;
+
+/**
+ * Silent refresh: exchange the HttpOnly refresh cookie for a new access token.
+ *
+ * Single-flight so boot, 401 interceptors, and focus refetch share one call.
+ * Returns the session payload or ``null`` when the cookie is missing/invalid.
+ */
+export async function silentRefreshSession(): Promise<SessionPayload | null> {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
   if (refreshInFlight !== null) {
     return refreshInFlight;
   }
 
   refreshInFlight = (async () => {
     try {
-      await apiFetch("/auth/refresh", {
+      const body = await apiFetchRaw<SessionPayload>("/auth/refresh", {
         method: "POST",
-        skipAuthRefresh: true,
       });
 
-      return true;
+      if (!isSessionPayload(body)) {
+        useAuthStore.getState().setAccessToken(null);
+
+        return null;
+      }
+
+      applySessionFromBody(body);
+
+      return body;
     } catch {
-      return false;
+      useAuthStore.getState().setAccessToken(null);
+
+      return null;
     } finally {
       refreshInFlight = null;
     }
   })();
 
   return refreshInFlight;
+}
+
+/**
+ * Return a usable access token, silently refreshing when memory is empty.
+ *
+ * Call this on hard reload / boot before protected API requests.
+ */
+export async function ensureAccessToken(): Promise<string | null> {
+  const existing = getAccessToken();
+
+  if (existing != null && existing.length > 0) {
+    return existing;
+  }
+
+  const session = await silentRefreshSession();
+
+  if (session === null) {
+    return null;
+  }
+
+  return session.access_token;
 }
 
 async function parseResponseBody(response: Response): Promise<unknown> {
@@ -144,25 +228,62 @@ function toApiError(status: number, body: unknown): ApiError {
   return new ApiError(message, status, body);
 }
 
-export async function apiFetch<T>(path: string, init?: ApiFetchInit): Promise<T> {
-  const { searchParams, skipAuthRefresh, ...requestInit } = init ?? {};
+/**
+ * Low-level fetch without the 401 → refresh loop (used by silent refresh).
+ */
+async function apiFetchRaw<T>(path: string, init?: RequestInit & { searchParams?: ApiSearchParams }): Promise<T> {
+  const { searchParams, ...requestInit } = init ?? {};
   const url = buildRequestUrl(path, searchParams);
+  const accessToken = getAccessToken();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(requestInit.headers as Record<string, string> | undefined),
+  };
+
+  if (accessToken != null && accessToken.length > 0) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
 
   const response = await fetch(url, {
     ...requestInit,
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-      ...(requestInit.headers ?? {}),
-    },
+    headers,
+  });
+
+  const body = await parseResponseBody(response);
+
+  if (!response.ok) {
+    throw toApiError(response.status, body);
+  }
+
+  return body as T;
+}
+
+export async function apiFetch<T>(path: string, init?: ApiFetchInit): Promise<T> {
+  const { searchParams, skipAuthRefresh, ...requestInit } = init ?? {};
+  const url = buildRequestUrl(path, searchParams);
+  const accessToken = getAccessToken();
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...(requestInit.headers as Record<string, string> | undefined),
+  };
+
+  if (accessToken != null && accessToken.length > 0) {
+    headers.Authorization = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(url, {
+    ...requestInit,
+    credentials: "include",
+    headers,
   });
 
   const body = await parseResponseBody(response);
 
   if (response.status === HttpStatus.UNAUTHORIZED && skipAuthRefresh !== true && shouldAttemptAuthRefresh(path)) {
-    const refreshed = await refreshAccessTokenOnce();
+    const session = await silentRefreshSession();
 
-    if (refreshed) {
+    if (session !== null) {
       return apiFetch<T>(path, {
         ...init,
         skipAuthRefresh: true,
@@ -172,6 +293,10 @@ export async function apiFetch<T>(path: string, init?: ApiFetchInit): Promise<T>
 
   if (!response.ok) {
     throw toApiError(response.status, body);
+  }
+
+  if (isSessionPayload(body)) {
+    applySessionFromBody(body);
   }
 
   return body as T;

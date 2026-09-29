@@ -2,8 +2,11 @@
  * Auth API helpers (registration, login, session refresh).
  */
 
-import { ApiError, apiFetch } from "@/libs/api-client";
-import { logoutSession, refreshAuthSession } from "@/server/auth.functions";
+import { ApiError, apiFetch, applySessionFromBody, isSessionPayload, silentRefreshSession } from "@/libs/api-client";
+import type { SessionPayload } from "@/libs/api-client";
+import { resetAuthBootstrap } from "@/libs/auth-bootstrap";
+import { logoutSession } from "@/server/auth.functions";
+import { useAuthStore } from "@/stores/auth-store";
 
 export type RegisterPayload = {
   username: string;
@@ -26,6 +29,18 @@ export type UserProfile = {
   created_at: string;
   updated_at: string;
 };
+
+function toUserProfile(session: SessionPayload): UserProfile {
+  return {
+    id: session.id,
+    username: session.username,
+    email: session.email,
+    display_name: session.display_name,
+    is_active: session.is_active,
+    created_at: session.created_at,
+    updated_at: session.updated_at,
+  };
+}
 
 export function getApiErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
@@ -94,7 +109,7 @@ export async function registerUser(payload: RegisterPayload): Promise<UserProfil
 }
 
 export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
-  return apiFetch<UserProfile>("/auth/login", {
+  const session = await apiFetch<SessionPayload>("/auth/login", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -105,31 +120,49 @@ export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
     }),
     skipAuthRefresh: true,
   });
+
+  const user = toUserProfile(session);
+  const { markAuthBootstrapSession } = await import("@/libs/auth-bootstrap");
+
+  markAuthBootstrapSession(user, session.access_token);
+
+  return user;
 }
 
 export async function logoutUser(): Promise<void> {
-  await logoutSession();
-}
-
-/**
- * Mint a new access token from the HttpOnly refresh cookie.
- *
- * Prefer the Start server function on SSR; in the browser the Vite proxy
- * path via ``apiFetch`` also works. Returns ``null`` when refresh fails.
- */
-export async function refreshUserSession(): Promise<UserProfile | null> {
-  if (typeof window === "undefined") {
-    return refreshAuthSession();
-  }
-
   try {
-    return await apiFetch<UserProfile>("/auth/refresh", {
+    await apiFetch<void>("/auth/logout", {
       method: "POST",
       skipAuthRefresh: true,
     });
   } catch {
+    // Fall through to clear client state.
+  }
+
+  try {
+    await logoutSession();
+  } catch {
+    // Server function is best-effort when the refresh cookie path is scoped.
+  }
+
+  resetAuthBootstrap();
+  useAuthStore.getState().clearUser();
+}
+
+/**
+ * Silent refresh from the HttpOnly refresh cookie into memory.
+ * Prefer this after hard reload or when the access token is missing.
+ */
+export async function refreshUserSession(): Promise<UserProfile | null> {
+  const session = await silentRefreshSession();
+
+  if (session === null || !isSessionPayload(session)) {
     return null;
   }
+
+  applySessionFromBody(session);
+
+  return toUserProfile(session);
 }
 
 export async function fetchCurrentUser(): Promise<UserProfile> {

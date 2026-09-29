@@ -1,39 +1,35 @@
 import { useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 
-import type { UserProfile } from "@/libs/auth";
 import { logoutUser } from "@/libs/auth";
 import { applyAuthSession } from "@/libs/auth-session";
-import { authMeQueryOptions } from "@/queries/auth";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
- * Client auth mirror + logout.
+ * Client auth from Zustand (memory access token + profile).
  *
- * Session authority is TanStack Query (``authMeQueryOptions``). Zustand is a
- * synchronous mirror for UI; Query supplies the value on first paint after
- * SSR hydration so the header does not flash "Sign in".
+ * Session is established by the silent-auth interceptor (``runAuthBootstrap``)
+ * on boot and by login. Query is no longer the source of truth for the header
+ * so a dehydrated guest result cannot flash "Sign in" over a restored session.
  */
 export function useAuth() {
   const queryClient = useQueryClient();
-  const storeUser = useAuthStore((state) => state.user);
-  const { data: queryUser } = useQuery(authMeQueryOptions);
-
-  const user: UserProfile | null = storeUser ?? (queryUser === undefined ? null : queryUser);
+  const user = useAuthStore((state) => state.user);
+  const isRestoring = useAuthStore((state) => state.isRestoring);
+  const accessToken = useAuthStore((state) => state.accessToken);
 
   const signOut = useCallback(async () => {
     try {
       await logoutUser();
     } catch {
-      // Always clear client session so UI reflects guest state even when
-      // the network call fails (offline, already expired cookie, etc.).
+      // Always clear client session so UI reflects guest state.
     }
 
     applyAuthSession(queryClient, null);
   }, [queryClient]);
 
   const setAuthenticatedUser = useCallback(
-    (next: UserProfile | null) => {
+    (next: typeof user) => {
       applyAuthSession(queryClient, next);
     },
     [queryClient],
@@ -41,6 +37,8 @@ export function useAuth() {
 
   return {
     isAuthenticated: user !== null,
+    isRestoring,
+    hasAccessToken: accessToken != null && accessToken.length > 0,
     user,
     profile: user,
     signOut,

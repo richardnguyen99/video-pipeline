@@ -1,8 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { ApiError, apiFetch } from "@/libs/api-client";
+import { runAuthBootstrap } from "@/libs/auth-bootstrap";
 import type { UserProfile } from "@/libs/auth";
-import { HttpStatus } from "@/libs/http-status";
 import { fetchAuthMe } from "@/server/auth.functions";
 
 export const authQueryKeys = {
@@ -11,38 +10,18 @@ export const authQueryKeys = {
 };
 
 /**
- * Resolve the current session on the browser via the Vite ``/api`` proxy so
- * ``Set-Cookie`` from login/refresh is applied by the browser (both access
- * and refresh). ``apiFetch`` already performs a single-flight refresh on 401.
+ * Current session user.
  *
- * SSR still uses the Start server function, which forwards cookies with
- * ``setCookie`` for each token.
- */
-async function fetchAuthMeOnClient(): Promise<UserProfile | null> {
-  try {
-    return await apiFetch<UserProfile>("/auth/me", {
-      method: "GET",
-    });
-  } catch (error) {
-    if (error instanceof ApiError && error.status === HttpStatus.UNAUTHORIZED) {
-      return null;
-    }
-
-    return null;
-  }
-}
-
-/**
- * Current session user from the HttpOnly cookies.
- *
- * Browser: same-origin ``/api/v1`` (proxy) so rotated cookies stick.
- * SSR: Start server function with explicit ``setCookie`` forwarding.
+ * Browser: delegates to the silent-auth interceptor (``runAuthBootstrap``).
+ * SSR: server function (refresh cookie often absent due to Path scope).
  */
 export const authMeQueryOptions = queryOptions({
   queryKey: authQueryKeys.me(),
   queryFn: async (): Promise<UserProfile | null> => {
     if (typeof window !== "undefined") {
-      return fetchAuthMeOnClient();
+      const result = await runAuthBootstrap();
+
+      return result.user;
     }
 
     return fetchAuthMe();
@@ -51,4 +30,5 @@ export const authMeQueryOptions = queryOptions({
   gcTime: 5 * 60_000,
   retry: false,
   refetchOnWindowFocus: true,
+  refetchOnReconnect: true,
 });

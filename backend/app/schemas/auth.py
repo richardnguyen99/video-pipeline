@@ -151,3 +151,16 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+
+
+class SessionResponse(UserResponse):
+    """Authenticated session: public profile plus access JWT for the client.
+
+    The access token is returned in the body so the SPA can keep it in
+    memory only. The refresh token is delivered exclusively via an
+    HttpOnly cookie scoped to the refresh endpoint.
+    """
+
+    access_token: str = Field(
+        description="Short-lived access JWT for Authorization: Bearer.",
+    )

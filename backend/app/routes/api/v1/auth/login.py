@@ -8,9 +8,9 @@ from redis_fastapi import rate_limit
 
 from app.cache.policy import BURST_RATE, SUSTAIN_RATE
 from app.dependencies import AuthServiceDep
-from app.schemas.auth import LoginRequest, UserResponse
+from app.schemas.auth import LoginRequest, SessionResponse
 from app.utils.auth_cookies import (
-    set_access_token_cookie,
+    clear_legacy_access_token_cookie,
     set_refresh_token_cookie,
 )
 
@@ -19,7 +19,7 @@ router = APIRouter()
 
 @router.post(
     "/login",
-    response_model=UserResponse,
+    response_model=SessionResponse,
     status_code=status.HTTP_200_OK,
     summary="Sign in with email and password",
     responses={
@@ -55,13 +55,12 @@ async def login(
 ) -> JSONResponse:
     """Authenticate with email and password.
 
-    On success, returns the public user profile and sets HttpOnly cookies:
+    On success:
 
-    - short-lived access JWT
-    - long-lived refresh JWT, stored hashed in the database allowlist
-
-    Invalid credentials always yield the same 401 message to avoid account
-    enumeration.
+    - Returns the public profile and a short-lived ``access_token`` in the
+      JSON body (client stores it in memory only).
+    - Sets an HttpOnly ``refresh_token`` cookie scoped to
+      ``/api/v1/auth/``.
     """
 
     user = await service.login(body)
@@ -72,13 +71,16 @@ async def login(
         user_agent=user_agent,
         ip_address=ip_address,
     )
-    payload = user.model_dump(mode="json")
+    payload = SessionResponse(
+        **user.model_dump(),
+        access_token=access,
+    ).model_dump(mode="json")
     response = JSONResponse(
         content=payload,
         status_code=status.HTTP_200_OK,
     )
-    set_access_token_cookie(response, access)
     set_refresh_token_cookie(response, refresh)
+    clear_legacy_access_token_cookie(response)
 
     return response
 

@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     jwt_cookie_name: str = "access_token"
     jwt_refresh_cookie_name: str = "refresh_token"
     jwt_cookie_path: str = "/"
+    jwt_refresh_cookie_path: str = "/api/v1/auth/"
     jwt_cookie_samesite: str = "lax"
 
     # Default matches .env.example; overridden by DATABASE_URL in the environment.

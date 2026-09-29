@@ -1,29 +1,67 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "@tanstack/react-router";
 
+import { isAuthBootstrapComplete, runAuthBootstrap } from "@/libs/auth-bootstrap";
 import { authMeQueryOptions } from "@/queries/auth";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
- * Mirror the hydrated / live Query session into the Zustand client store.
+ * Client-only silent auth interceptor (backup when root beforeLoad did not
+ * re-run after SSR hydration).
  *
- * SSR dehydrates Query; Zustand starts empty on the client. Without this
- * sync, the header stays on "Sign in" until an incidental re-render.
+ * Runs at most once per mount. After bootstrap, invalidates the router so
+ * ``beforeLoad`` guards re-evaluate with ``isReady`` — no layout-level
+ * ``navigate`` calls.
  */
 export function AuthStoreSync() {
-  const { data } = useQuery(authMeQueryOptions);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const startedRef = useRef(false);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
-    if (data === undefined) {
+    if (typeof window === "undefined") {
       return;
     }
 
-    if (data !== null) {
-      useAuthStore.getState().setUser(data);
-    } else {
-      useAuthStore.getState().clearUser();
+    if (startedRef.current) {
+      return;
     }
-  }, [data]);
+
+    startedRef.current = true;
+    cancelledRef.current = false;
+
+    if (isAuthBootstrapComplete()) {
+      useAuthStore.getState().setRestoring(false);
+
+      return;
+    }
+
+    void (async () => {
+      try {
+        const result = await runAuthBootstrap();
+
+        if (cancelledRef.current) {
+          return;
+        }
+
+        queryClient.setQueryData(authMeQueryOptions.queryKey, result.user);
+        await router.invalidate();
+      } catch {
+        if (cancelledRef.current) {
+          return;
+        }
+
+        useAuthStore.getState().clearUser();
+        useAuthStore.getState().setRestoring(false);
+      }
+    })();
+
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [queryClient, router]);
 
   return null;
 }

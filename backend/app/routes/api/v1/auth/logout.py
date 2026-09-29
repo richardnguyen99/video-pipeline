@@ -1,16 +1,15 @@
 """User logout endpoint."""
 
-from collections.abc import Callable
-from typing import Annotated, Any, Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Cookie, HTTPException, status
+from fastapi import APIRouter, Cookie, Header, HTTPException, status
 from fastapi.responses import Response
 from redis.exceptions import RedisError
 
 from app.config import settings
 from app.dependencies import AsyncRedisDep, AuthServiceDep
 from app.utils.auth_cookies import (
-    clear_access_token_cookie,
+    clear_legacy_access_token_cookie,
     clear_refresh_token_cookie,
 )
 from app.utils.jwt import (
@@ -21,7 +20,19 @@ from app.utils.token_denylist import revoke_access_jti
 
 router = APIRouter()
 
-DecodeFn = Callable[[str], dict[str, Any]]
+
+def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
+    """Parse ``Authorization: Bearer <token>``."""
+
+    if authorization is None or not authorization.strip():
+        return None
+
+    scheme, _, credentials = authorization.strip().partition(" ")
+
+    if scheme.lower() != "bearer" or not credentials.strip():
+        return None
+
+    return credentials.strip()
 
 
 @router.post(
@@ -33,7 +44,7 @@ DecodeFn = Callable[[str], dict[str, Any]]
 async def logout(
     redis: AsyncRedisDep,
     service: AuthServiceDep,
-    access_token: Annotated[Optional[str], Cookie()] = None,
+    authorization: Annotated[Optional[str], Header()] = None,
     refresh_token: Annotated[
         Optional[str],
         Cookie(alias=settings.jwt_refresh_cookie_name),
@@ -41,19 +52,18 @@ async def logout(
 ) -> Response:
     """End the session immediately.
 
-    - Clears the HttpOnly access and refresh cookies on the client (always).
-    - Removes the refresh token from the database allowlist so it cannot be
-      reused after logout.
-    - Denylists the access token ``jti`` in Redis for the rest of its natural
-      lifetime.
+    - Clears the HttpOnly refresh cookie (and any legacy access cookie).
+    - Revokes the refresh allowlist row when the refresh cookie is present
+      (sent when Path is ``/api/v1/auth/``).
+    - Denylists the access token ``jti`` when ``Authorization: Bearer`` is
+      sent.
 
-    Always returns 204 so the client can clear local state even when the
-    cookies were already missing or the tokens were already invalid.
+    Always returns 204 so the client can clear in-memory state.
     """
 
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
-    clear_access_token_cookie(response)
     clear_refresh_token_cookie(response)
+    clear_legacy_access_token_cookie(response)
 
     if refresh_token is not None and refresh_token.strip():
         try:
@@ -61,43 +71,22 @@ async def logout(
         except HTTPException:
             pass
 
-    await _revoke_access_cookie(
-        redis,
-        raw_token=access_token,
-        decode=decode_access_token,
-    )
+    access_token = _extract_bearer_token(authorization)
+
+    if access_token is not None:
+        try:
+            claims = decode_access_token(access_token)
+        except HTTPException:
+            claims = None
+
+        if claims is not None:
+            jti = claims.get("jti")
+            ttl = remaining_token_ttl_seconds(claims)
+
+            if isinstance(jti, str) and jti:
+                try:
+                    await revoke_access_jti(redis, jti, ttl)
+                except RedisError:
+                    pass
 
     return response
-
-
-async def _revoke_access_cookie(
-    redis: AsyncRedisDep,
-    *,
-    raw_token: Optional[str],
-    decode: DecodeFn,
-) -> None:
-    """Best-effort Redis denylist of the access JWT; never raises."""
-
-    if raw_token is None or not raw_token.strip():
-        return
-
-    claims: Optional[dict[str, Any]] = None
-
-    try:
-        claims = decode(raw_token)
-    except HTTPException:
-        claims = None
-
-    if claims is None:
-        return
-
-    jti = claims.get("jti")
-    ttl = remaining_token_ttl_seconds(claims)
-
-    if not isinstance(jti, str) or not jti:
-        return
-
-    try:
-        await revoke_access_jti(redis, jti, ttl)
-    except RedisError:
-        pass

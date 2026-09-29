@@ -6,6 +6,7 @@ import { HttpStatus } from "@/libs/http-status";
 
 const ACCESS_TOKEN_COOKIE = "access_token";
 const REFRESH_TOKEN_COOKIE = "refresh_token";
+const REFRESH_COOKIE_PATH = "/api/v1/auth/";
 
 function getBackendOrigin(): string {
   const fromApiBase = process.env.VITE_API_BASE_URL?.trim();
@@ -37,6 +38,10 @@ type ParsedSetCookie = {
   httpOnly?: boolean;
   secure?: boolean;
   sameSite?: "lax" | "strict" | "none";
+};
+
+type SessionPayload = UserProfile & {
+  access_token: string;
 };
 
 /**
@@ -106,12 +111,10 @@ function parseSetCookieHeader(raw: string): ParsedSetCookie | null {
 }
 
 /**
- * Apply backend ``Set-Cookie`` headers onto the Start response.
- *
- * Uses ``setCookie`` per cookie so both access and refresh survive (raw
- * ``setResponseHeader('Set-Cookie', ...)`` overwrites previous values).
+ * Forward only the refresh ``Set-Cookie`` onto the Start response.
+ * Access tokens are never stored as cookies.
  */
-function forwardSetCookieHeaders(response: Response): void {
+function forwardRefreshSetCookie(response: Response): void {
   const headersWithGetSetCookie = response.headers as Headers & {
     getSetCookie?: () => string[];
   };
@@ -128,34 +131,19 @@ function forwardSetCookieHeaders(response: Response): void {
           return single != null && single.trim() !== "" ? [single] : [];
         })();
 
-  const parsedCookies: ParsedSetCookie[] = [];
-
   for (const raw of rawList) {
     const parsed = parseSetCookieHeader(raw);
 
-    if (parsed !== null) {
-      parsedCookies.push(parsed);
-    }
-  }
-
-  // Apply refresh before access. TanStack Start has historically kept only
-  // the last ``setCookie`` call; the access cookie must stick so the next
-  // ``/auth/me`` does not re-enter refresh rotation.
-  parsedCookies.sort((a, b) => {
-    if (a.name === ACCESS_TOKEN_COOKIE) {
-      return 1;
+    if (parsed === null) {
+      continue;
     }
 
-    if (b.name === ACCESS_TOKEN_COOKIE) {
-      return -1;
+    if (parsed.name !== REFRESH_TOKEN_COOKIE) {
+      continue;
     }
 
-    return 0;
-  });
-
-  for (const parsed of parsedCookies) {
     setCookie(parsed.name, parsed.value, {
-      path: parsed.path ?? "/",
+      path: parsed.path ?? REFRESH_COOKIE_PATH,
       maxAge: parsed.maxAge,
       httpOnly: parsed.httpOnly ?? true,
       secure: parsed.secure ?? false,
@@ -172,6 +160,12 @@ function clearAuthCookieHeaders(): void {
     sameSite: "lax",
   });
   setCookie(REFRESH_TOKEN_COOKIE, "", {
+    path: REFRESH_COOKIE_PATH,
+    maxAge: 0,
+    httpOnly: true,
+    sameSite: "lax",
+  });
+  setCookie(REFRESH_TOKEN_COOKIE, "", {
     path: "/",
     maxAge: 0,
     httpOnly: true,
@@ -179,34 +173,26 @@ function clearAuthCookieHeaders(): void {
   });
 }
 
-function buildCookieHeader(): string | null {
-  const parts: string[] = [];
-  const access = getCookie(ACCESS_TOKEN_COOKIE);
-  const refresh = getCookie(REFRESH_TOKEN_COOKIE);
-
-  if (access != null && access.trim() !== "") {
-    parts.push(`${ACCESS_TOKEN_COOKIE}=${access}`);
-  }
-
-  if (refresh != null && refresh.trim() !== "") {
-    parts.push(`${REFRESH_TOKEN_COOKIE}=${refresh}`);
-  }
-
-  if (parts.length === 0) {
-    return null;
-  }
-
-  return parts.join("; ");
+function toUserProfile(session: SessionPayload): UserProfile {
+  return {
+    id: session.id,
+    username: session.username,
+    email: session.email,
+    display_name: session.display_name,
+    is_active: session.is_active,
+    created_at: session.created_at,
+    updated_at: session.updated_at,
+  };
 }
 
-async function fetchMeWithAccessCookie(
+async function fetchMeWithBearer(
   accessToken: string,
 ): Promise<{ ok: true; user: UserProfile } | { ok: false; status: number }> {
   const response = await fetch(getBackendAuthMeUrl(), {
     method: "GET",
     headers: {
       Accept: "application/json",
-      Cookie: `${ACCESS_TOKEN_COOKIE}=${accessToken}`,
+      Authorization: `Bearer ${accessToken}`,
     },
   });
 
@@ -225,12 +211,11 @@ async function fetchMeWithAccessCookie(
 }
 
 /**
- * Call the backend refresh endpoint with the refresh cookie and forward any
- * rotated access/refresh ``Set-Cookie`` headers onto the Start response.
- *
- * The backend consumes the previous refresh ``jti`` in Redis (one-time use).
+ * Call backend refresh with the refresh cookie; forward rotated refresh
+ * cookie; return the session (including access_token in body for callers
+ * that can store it — SSR only uses the profile).
  */
-async function refreshAccessTokenFromCookie(): Promise<UserProfile | null> {
+async function refreshAccessTokenFromCookie(): Promise<SessionPayload | null> {
   const refresh = getCookie(REFRESH_TOKEN_COOKIE);
 
   if (refresh == null || refresh.trim() === "") {
@@ -253,17 +238,13 @@ async function refreshAccessTokenFromCookie(): Promise<UserProfile | null> {
     throw new Error(`Auth refresh failed with status ${response.status}`);
   }
 
-  forwardSetCookieHeaders(response);
+  forwardRefreshSetCookie(response);
 
-  return (await response.json()) as UserProfile;
+  return (await response.json()) as SessionPayload;
 }
 
 /**
- * Resolve the current user on the server using the HttpOnly access cookie.
- *
- * When the access token is missing or rejected, attempts one refresh using
- * the refresh cookie so long-lived sessions survive access expiry across
- * SSR and client navigations.
+ * Resolve the current user on the server via refresh cookie → Bearer me.
  */
 export const fetchAuthMe = createServerFn({ method: "GET" }).handler(async (): Promise<UserProfile | null> => {
   setResponseHeaders(
@@ -272,65 +253,68 @@ export const fetchAuthMe = createServerFn({ method: "GET" }).handler(async (): P
     }),
   );
 
-  const access = getCookie(ACCESS_TOKEN_COOKIE);
   const refresh = getCookie(REFRESH_TOKEN_COOKIE);
 
-  if ((access == null || access.trim() === "") && (refresh == null || refresh.trim() === "")) {
+  if (refresh == null || refresh.trim() === "") {
     return null;
   }
 
-  if (access != null && access.trim() !== "") {
-    const result = await fetchMeWithAccessCookie(access);
+  const session = await refreshAccessTokenFromCookie();
 
-    if (result.ok) {
-      return result.user;
-    }
+  if (session === null) {
+    return null;
   }
 
-  const refreshed = await refreshAccessTokenFromCookie();
+  const me = await fetchMeWithBearer(session.access_token);
 
-  if (refreshed !== null) {
-    return refreshed;
+  if (me.ok) {
+    return me.user;
   }
 
-  return null;
+  return toUserProfile(session);
 });
 
 /**
- * Explicitly refresh the access token from the refresh cookie.
- * Returns the user profile when successful, otherwise ``null``.
+ * Explicitly refresh; returns profile when successful.
  */
 export const refreshAuthSession = createServerFn({ method: "POST" }).handler(async (): Promise<UserProfile | null> => {
   setResponseHeader("Cache-Control", "private, no-store");
 
   try {
-    return await refreshAccessTokenFromCookie();
+    const session = await refreshAccessTokenFromCookie();
+
+    if (session === null) {
+      return null;
+    }
+
+    return toUserProfile(session);
   } catch {
     return null;
   }
 });
 
 /**
- * End the session: revoke on the API and clear HttpOnly cookies on
- * this response so the browser drops them immediately.
+ * End the session: revoke on the API and clear cookies on this response.
  */
 export const logoutSession = createServerFn({ method: "POST" }).handler(async (): Promise<null> => {
   setResponseHeader("Cache-Control", "private, no-store");
 
-  const cookieHeader = buildCookieHeader();
+  const refresh = getCookie(REFRESH_TOKEN_COOKIE);
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
 
-  if (cookieHeader != null) {
-    try {
-      await fetch(getBackendLogoutUrl(), {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          Cookie: cookieHeader,
-        },
-      });
-    } catch {
-      // Still clear the client cookies below.
-    }
+  if (refresh != null && refresh.trim() !== "") {
+    headers.Cookie = `${REFRESH_TOKEN_COOKIE}=${refresh}`;
+  }
+
+  try {
+    await fetch(getBackendLogoutUrl(), {
+      method: "POST",
+      headers,
+    });
+  } catch {
+    // Still clear the client cookies below.
   }
 
   clearAuthCookieHeaders();
