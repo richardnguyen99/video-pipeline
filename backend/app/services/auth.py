@@ -14,7 +14,12 @@ from app.models.credentials import UserCredential
 from app.models.refresh_token import RefreshToken
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
-from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    UserResponse,
+)
 from app.utils.jwt import create_access_token, create_refresh_token
 from app.utils.password import (
     PASSWORD_ALGORITHM,
@@ -304,6 +309,70 @@ class AuthService:
 
         token_hash = hash_refresh_token(raw_refresh_token)
         await self._refresh_tokens.revoke_by_token_hash(token_hash)
+
+    async def revoke_all_refresh_tokens(self, user_id: uuid.UUID) -> int:
+        """Revoke every active refresh token for ``user_id``.
+
+        Args:
+            user_id: Account whose sessions must end.
+
+        Returns:
+            Number of allowlist rows revoked.
+        """
+
+        return await self._refresh_tokens.revoke_all_for_user(user_id)
+
+    async def change_password(
+        self,
+        user: UserResponse,
+        payload: ChangePasswordRequest,
+    ) -> None:
+        """Verify the current password, set a new hash, revoke all sessions.
+
+        Args:
+            user: Authenticated caller from the access JWT.
+            payload: Current and new password fields.
+
+        Raises:
+            HTTPException: 400 when the new password matches the current one;
+                401 when the current password is wrong; 401 when credentials
+                are missing.
+        """
+
+        if payload.current_password == payload.new_password:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password must be different from the current password.",
+            )
+
+        credential = await UserCredential.get_by_user_id(
+            self._repository.session,
+            user.id,
+        )
+
+        if credential is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated.",
+            )
+
+        if not verify_password(
+            payload.current_password,
+            credential.password_hash,
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect.",
+            )
+
+        new_hash = hash_password(payload.new_password)
+
+        await self._repository.update_password(
+            user.id,
+            password_hash=new_hash,
+            password_algorithm=PASSWORD_ALGORITHM,
+        )
+        await self._refresh_tokens.revoke_all_for_user(user.id)
 
     async def find_refresh_token_by_raw(
         self,

@@ -6,7 +6,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import update
 from sqlmodel import col, select
 
 from app.models.refresh_token import RefreshToken
@@ -218,16 +217,22 @@ class RefreshTokenRepository(BaseRepository):
             Number of rows updated.
         """
 
-        now = _as_naive_utc(datetime.now(timezone.utc))
-        statement = (
-            update(RefreshToken)
-            .where(
-                col(RefreshToken.user_id) == user_id,
-                col(RefreshToken.revoked_at).is_(None),
-            )
-            .values(revoked_at=now)
+        statement = select(RefreshToken).where(
+            col(RefreshToken.user_id) == user_id,
+            col(RefreshToken.revoked_at).is_(None),
         )
         result = await self.session.exec(statement)
+        rows = list(result.all())
+
+        if not rows:
+            return 0
+
+        when = _as_naive_utc(datetime.now(timezone.utc))
+
+        for row in rows:
+            row.revoked_at = when
+            self.session.add(row)
+
         await self.session.commit()
 
-        return len(result.scalars().all())
+        return len(rows)

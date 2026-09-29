@@ -139,6 +139,47 @@ class LoginRequest(BaseModel):
         return result.normalized
 
 
+class ChangePasswordRequest(BaseModel):
+    """Payload for ``POST /api/v1/auth/change-password``."""
+
+    current_password: str = Field(
+        min_length=1,
+        max_length=128,
+        description="Existing account password for re-authentication.",
+    )
+    new_password: str = Field(
+        min_length=8,
+        max_length=128,
+        description=(
+            "At least 8 characters with one uppercase, one digit, "
+            "and one special character."
+        ),
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password_strength(cls, value: str) -> str:
+        """Enforce the same strength rules as registration."""
+
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+
+        if _PASSWORD_UPPER.search(value) is None:
+            raise ValueError(
+                "Password must contain at least one uppercase letter.",
+            )
+
+        if _PASSWORD_DIGIT.search(value) is None:
+            raise ValueError("Password must contain at least one number.")
+
+        if _PASSWORD_SPECIAL.search(value) is None:
+            raise ValueError(
+                "Password must contain at least one special character.",
+            )
+
+        return value
+
+
 class UserResponse(BaseModel):
     """Public user profile returned after registration or login."""
 

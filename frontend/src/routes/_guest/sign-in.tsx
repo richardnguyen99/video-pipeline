@@ -5,6 +5,7 @@ import { SignInForm } from "@/components/auth/sign-in-form";
 
 const signInSearchSchema = z.object({
   redirect: z.string().optional().catch(undefined),
+  notice: z.enum(["password-updated"]).optional().catch(undefined),
 });
 
 export const Route = createFileRoute("/_guest/sign-in")({
@@ -13,7 +14,7 @@ export const Route = createFileRoute("/_guest/sign-in")({
 });
 
 function SignInPage() {
-  const { redirect: redirectTo } = Route.useSearch();
+  const { redirect: redirectTo, notice } = Route.useSearch();
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6 pt-16 pb-16">
@@ -23,6 +24,15 @@ function SignInPage() {
 
           <p className="text-sm text-muted-foreground">Sign in with the email and password for your account.</p>
         </div>
+
+        {notice === "password-updated" ? (
+          <p
+            className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-foreground"
+            role="status"
+          >
+            Password updated successfully. Please sign in with your new credentials.
+          </p>
+        ) : null}
 
         <SignInForm redirectTo={redirectTo} />
 

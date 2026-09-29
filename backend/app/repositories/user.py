@@ -175,6 +175,42 @@ class UserRepository(BaseRepository):
 
         return user
 
+    async def update_password(
+        self,
+        user_id: uuid.UUID,
+        *,
+        password_hash: str,
+        password_algorithm: str,
+    ) -> None:
+        """Replace the stored password hash for ``user_id``.
+
+        Args:
+            user_id: Account whose credential row is updated.
+            password_hash: New bcrypt hash.
+            password_algorithm: Algorithm label stored on the credential.
+
+        Raises:
+            LookupError: When no credential row exists for the user.
+        """
+
+        credential = await UserCredential.get_by_user_id(
+            self.session,
+            user_id,
+        )
+
+        if credential is None:
+            raise LookupError(f"No credential for user {user_id}")
+
+        credential.password_hash = password_hash
+        credential.password_algorithm = password_algorithm
+        credential.password_changed_at = datetime.now(timezone.utc).replace(
+            tzinfo=None,
+        )
+        credential.failed_login_attempts = 0
+        credential.locked_until = None
+        self.session.add(credential)
+        await self.session.commit()
+
     async def record_login_success(self, user: User) -> User:
         """Reset failed-login counters and stamp ``last_login_at``.
 

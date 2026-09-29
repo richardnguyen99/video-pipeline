@@ -170,3 +170,32 @@ export async function fetchCurrentUser(): Promise<UserProfile> {
     method: "GET",
   });
 }
+
+export type ChangePasswordPayload = {
+  current_password: string;
+  new_password: string;
+};
+
+/**
+ * Change the signed-in user's password.
+ *
+ * On success the backend revokes all refresh sessions and clears the
+ * refresh cookie. The caller must wipe the in-memory access token and
+ * send the user back to sign-in.
+ */
+export async function changePassword(payload: ChangePasswordPayload): Promise<void> {
+  await apiFetch<void>("/auth/change-password", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      current_password: payload.current_password,
+      new_password: payload.new_password,
+    }),
+    skipAuthRefresh: true,
+  });
+
+  resetAuthBootstrap();
+  useAuthStore.getState().clearUser();
+}

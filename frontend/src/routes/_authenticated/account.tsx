@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 
+import { ChangePasswordForm } from "@/components/auth/change-password-form";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -20,7 +21,7 @@ function AccountPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-8 px-6 pt-24 pb-16">
+    <div className="mx-auto flex min-h-screen max-w-lg flex-col gap-10 px-6 pt-24 pb-16">
       <div className="space-y-2">
         <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
 
@@ -48,6 +49,18 @@ function AccountPage() {
           </div>
         ) : null}
       </dl>
+
+      <section className="space-y-4 rounded-xl border border-border/60 bg-card/40 p-6">
+        <div className="space-y-1">
+          <h2 className="text-base font-semibold tracking-tight">Change password</h2>
+
+          <p className="text-sm text-muted-foreground">
+            After updating, every device is signed out and you must sign in again with the new password.
+          </p>
+        </div>
+
+        <ChangePasswordForm />
+      </section>
 
       <Button
         type="button"
