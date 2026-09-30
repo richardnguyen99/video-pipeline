@@ -89,11 +89,17 @@ async def handle_resend_webhook(
         Header(alias="svix-signature"),
     ] = None,
 ) -> WebhookAckResponse:
-    """Verify and acknowledge Resend delivery events.
+    """Verify and acknowledge Resend delivery events."""
 
-    Configure the endpoint URL in the Resend dashboard. Signature
-    verification uses ``RESEND_WEBHOOK_SECRET``.
-    """
+    _logger.info(
+        "Resend webhook received path=%s has_svix_id=%s has_timestamp=%s "
+        "has_signature=%s content_length=%s",
+        request.url.path,
+        svix_id is not None,
+        svix_timestamp is not None,
+        svix_signature is not None,
+        request.headers.get("content-length"),
+    )
 
     if svix_id is None or svix_timestamp is None or svix_signature is None:
         raise HTTPException(

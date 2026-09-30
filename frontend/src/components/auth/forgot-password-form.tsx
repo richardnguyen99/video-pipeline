@@ -1,22 +1,21 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useForm } from "@tanstack/react-form";
-import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/hooks/use-auth";
-import { getApiErrorMessage, loginUser } from "@/libs/auth";
+import { ApiError } from "@/libs/api-client";
+import { getApiErrorMessage, requestPasswordReset } from "@/libs/auth";
+import { HttpStatus } from "@/libs/http-status";
 
-const signInSchema = z.object({
+const forgotPasswordSchema = z.object({
   email: z.string().trim().email("Enter a valid email address."),
-  password: z.string().min(1, "Password is required."),
 });
 
-type SignInFormValues = z.infer<typeof signInSchema>;
+type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
 function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined> {
   return errors.map((error) => {
@@ -32,42 +31,31 @@ function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined>
   });
 }
 
-type SignInFormProps = {
-  redirectTo?: string;
-};
-
-export function SignInForm({ redirectTo }: SignInFormProps) {
-  const navigate = useNavigate();
-  const { setUser } = useAuth();
+export function ForgotPasswordForm() {
   const [formError, setFormError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const form = useForm({
     defaultValues: {
       email: "",
-      password: "",
-    } satisfies SignInFormValues,
+    } satisfies ForgotPasswordFormValues,
     validators: {
-      onSubmit: signInSchema,
+      onSubmit: forgotPasswordSchema,
     },
     onSubmit: async ({ value }) => {
       setFormError(null);
+      setSuccessMessage(null);
 
       try {
-        const user = await loginUser({
-          email: value.email,
-          password: value.password,
-        });
-
-        setUser(user);
-
-        if (redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
-          void navigate({ to: redirectTo, replace: true });
+        const result = await requestPasswordReset(value.email);
+        setSuccessMessage(result.detail);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === HttpStatus.TOO_MANY_REQUESTS) {
+          setFormError(getApiErrorMessage(error));
 
           return;
         }
 
-        void navigate({ to: "/", replace: true });
-      } catch (error) {
         setFormError(getApiErrorMessage(error));
       }
     },
@@ -80,7 +68,7 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
   }
 
   return (
-    <form id="sign-in-form" onSubmit={handleSubmit} className="space-y-6" noValidate autoComplete="on">
+    <form id="forgot-password-form" onSubmit={handleSubmit} className="space-y-6" noValidate autoComplete="on">
       <FieldGroup>
         <form.Field
           name="email"
@@ -110,41 +98,13 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
             );
           }}
         />
-
-        <form.Field
-          name="password"
-          children={(field) => {
-            const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
-
-            return (
-              <Field data-invalid={isInvalid || undefined}>
-                <div className="flex items-center justify-between gap-2">
-                  <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-
-                  <Link to="/forgot-password" className="text-xs font-medium text-primary hover:text-primary-active">
-                    Forgot password?
-                  </Link>
-                </div>
-
-                <Input
-                  id={field.name}
-                  name={field.name}
-                  type="password"
-                  autoComplete="current-password"
-                  maxLength={128}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  aria-invalid={isInvalid || undefined}
-                  required
-                />
-
-                {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
-              </Field>
-            );
-          }}
-        />
       </FieldGroup>
+
+      {successMessage ? (
+        <p className="text-sm text-foreground" role="status">
+          {successMessage}
+        </p>
+      ) : null}
 
       {formError ? (
         <p className="text-sm text-destructive" role="alert">
@@ -159,10 +119,10 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
             {isSubmitting ? (
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Signing in…
+                Sending…
               </>
             ) : (
-              "Sign in"
+              "Send reset link"
             )}
           </Button>
         )}

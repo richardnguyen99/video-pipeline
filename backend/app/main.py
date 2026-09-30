@@ -207,7 +207,17 @@ async def unhandled_exception_handler(
     include_in_schema=False,
 )
 async def reject_non_api_routes(full_path: str) -> JSONResponse:
-    """Reject any path outside ``/api/v1`` with a JSON 404."""
+    """Reject unmatched paths with a JSON 404.
+
+    Paths under ``api/`` indicate a missing or not-yet-loaded API route
+    (for example the backend process needs a restart after adding routes).
+    """
+
+    if full_path.startswith("api/"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"API route not found: /{full_path}",
+        )
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,

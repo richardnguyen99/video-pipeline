@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     email_verification_expire_minutes: int = 15
     # Minimum wait before another verification email may be sent (minutes).
     email_verification_resend_cooldown_minutes: int = 5
+    # Password-reset link lifetime (minutes).
+    password_reset_expire_minutes: int = 15
+    # Minimum wait before another password-reset email may be sent (minutes).
+    password_reset_resend_cooldown_minutes: int = 5
 
     # JWT tokens (HttpOnly cookies). Durations use explicit unit suffixes.
     jwt_secret_key: str = "change-me-in-production-use-a-long-random-string"

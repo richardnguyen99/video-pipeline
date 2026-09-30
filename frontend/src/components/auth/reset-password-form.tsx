@@ -1,22 +1,31 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useForm } from "@tanstack/react-form";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/hooks/use-auth";
-import { getApiErrorMessage, loginUser } from "@/libs/auth";
+import { getApiErrorMessage, resetPasswordWithToken } from "@/libs/auth";
 
-const signInSchema = z.object({
-  email: z.string().trim().email("Enter a valid email address."),
-  password: z.string().min(1, "Password is required."),
-});
+const resetPasswordSchema = z
+  .object({
+    password: z
+      .string()
+      .min(8, "Password must be at least 8 characters.")
+      .regex(/[A-Z]/, "Password must include at least one uppercase letter.")
+      .regex(/[0-9]/, "Password must include at least one number.")
+      .regex(/[^A-Za-z0-9]/, "Password must include at least one special character."),
+    confirmPassword: z.string().min(1, "Confirm your password."),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
 
-type SignInFormValues = z.infer<typeof signInSchema>;
+type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
 function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined> {
   return errors.map((error) => {
@@ -32,41 +41,36 @@ function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined>
   });
 }
 
-type SignInFormProps = {
-  redirectTo?: string;
+type ResetPasswordFormProps = {
+  token: string;
 };
 
-export function SignInForm({ redirectTo }: SignInFormProps) {
+export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
   const navigate = useNavigate();
-  const { setUser } = useAuth();
   const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm({
     defaultValues: {
-      email: "",
       password: "",
-    } satisfies SignInFormValues,
+      confirmPassword: "",
+    } satisfies ResetPasswordFormValues,
     validators: {
-      onSubmit: signInSchema,
+      onSubmit: resetPasswordSchema,
     },
     onSubmit: async ({ value }) => {
       setFormError(null);
 
       try {
-        const user = await loginUser({
-          email: value.email,
-          password: value.password,
+        await resetPasswordWithToken({
+          token,
+          new_password: value.password,
         });
 
-        setUser(user);
-
-        if (redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")) {
-          void navigate({ to: redirectTo, replace: true });
-
-          return;
-        }
-
-        void navigate({ to: "/", replace: true });
+        void navigate({
+          to: "/sign-in",
+          search: { notice: "password-updated" },
+          replace: true,
+        });
       } catch (error) {
         setFormError(getApiErrorMessage(error));
       }
@@ -80,30 +84,33 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
   }
 
   return (
-    <form id="sign-in-form" onSubmit={handleSubmit} className="space-y-6" noValidate autoComplete="on">
+    <form id="reset-password-form" onSubmit={handleSubmit} className="space-y-6" noValidate autoComplete="on">
       <FieldGroup>
         <form.Field
-          name="email"
+          name="password"
           children={(field) => {
             const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
 
             return (
               <Field data-invalid={isInvalid || undefined}>
-                <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                <FieldLabel htmlFor={field.name}>New password</FieldLabel>
 
                 <Input
                   id={field.name}
                   name={field.name}
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  maxLength={255}
+                  type="password"
+                  autoComplete="new-password"
+                  maxLength={128}
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(event) => field.handleChange(event.target.value)}
                   aria-invalid={isInvalid || undefined}
                   required
                 />
+
+                <FieldDescription>
+                  At least 8 characters with one uppercase letter, one number, and one special character.
+                </FieldDescription>
 
                 {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
               </Field>
@@ -112,25 +119,19 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
         />
 
         <form.Field
-          name="password"
+          name="confirmPassword"
           children={(field) => {
             const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
 
             return (
               <Field data-invalid={isInvalid || undefined}>
-                <div className="flex items-center justify-between gap-2">
-                  <FieldLabel htmlFor={field.name}>Password</FieldLabel>
-
-                  <Link to="/forgot-password" className="text-xs font-medium text-primary hover:text-primary-active">
-                    Forgot password?
-                  </Link>
-                </div>
+                <FieldLabel htmlFor={field.name}>Confirm new password</FieldLabel>
 
                 <Input
                   id={field.name}
                   name={field.name}
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   maxLength={128}
                   value={field.state.value}
                   onBlur={field.handleBlur}
@@ -159,10 +160,10 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
             {isSubmitting ? (
               <>
                 <Loader2 className="size-4 animate-spin" aria-hidden />
-                Signing in…
+                Updating…
               </>
             ) : (
-              "Sign in"
+              "Update password"
             )}
           </Button>
         )}

@@ -13,9 +13,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
+import { Route as GuestForgotPasswordRouteImport } from './routes/_guest/forgot-password'
 import { Route as GuestRegisterRouteImport } from './routes/_guest/register'
 import { Route as GuestSignInRouteImport } from './routes/_guest/sign-in'
 import { Route as ActressesIndexRouteImport } from './routes/actresses/index'
@@ -41,6 +43,11 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
   path: '/verify-email',
@@ -55,6 +62,11 @@ const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
   id: '/account',
   path: '/account',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const GuestForgotPasswordRoute = GuestForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
+  getParentRoute: () => GuestRoute,
 } as any)
 const GuestRegisterRoute = GuestRegisterRouteImport.update({
   id: '/register',
@@ -91,8 +103,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/videos': typeof VideosRouteRouteWithChildren
   '/about': typeof AboutRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRoute
+  '/forgot-password': typeof GuestForgotPasswordRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
@@ -103,8 +117,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRoute
+  '/forgot-password': typeof GuestForgotPasswordRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
@@ -119,8 +135,10 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/_guest': typeof GuestRouteWithChildren
   '/about': typeof AboutRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
+  '/_guest/forgot-password': typeof GuestForgotPasswordRoute
   '/_guest/register': typeof GuestRegisterRoute
   '/_guest/sign-in': typeof GuestSignInRoute
   '/actresses/$actressId': typeof ActressesActressIdRoute
@@ -134,8 +152,10 @@ export interface FileRouteTypes {
     | '/'
     | '/videos'
     | '/about'
+    | '/reset-password'
     | '/verify-email'
     | '/account'
+    | '/forgot-password'
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
@@ -146,8 +166,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/reset-password'
     | '/verify-email'
     | '/account'
+    | '/forgot-password'
     | '/register'
     | '/sign-in'
     | '/actresses/$actressId'
@@ -161,8 +183,10 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/_guest'
     | '/about'
+    | '/reset-password'
     | '/verify-email'
     | '/_authenticated/account'
+    | '/_guest/forgot-password'
     | '/_guest/register'
     | '/_guest/sign-in'
     | '/actresses/$actressId'
@@ -177,6 +201,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   GuestRoute: typeof GuestRouteWithChildren
   AboutRoute: typeof AboutRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   ActressesActressIdRoute: typeof ActressesActressIdRoute
   ActressesIndexRoute: typeof ActressesIndexRoute
@@ -212,6 +237,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verify-email': {
       id: '/verify-email'
       path: '/verify-email'
@@ -232,6 +264,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/account'
       preLoaderRoute: typeof AuthenticatedAccountRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/_guest/forgot-password': {
+      id: '/_guest/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof GuestForgotPasswordRouteImport
+      parentRoute: typeof GuestRoute
     }
     '/_guest/register': {
       id: '/_guest/register'
@@ -305,11 +344,13 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 )
 
 interface GuestRouteChildren {
+  GuestForgotPasswordRoute: typeof GuestForgotPasswordRoute
   GuestRegisterRoute: typeof GuestRegisterRoute
   GuestSignInRoute: typeof GuestSignInRoute
 }
 
 const GuestRouteChildren: GuestRouteChildren = {
+  GuestForgotPasswordRoute: GuestForgotPasswordRoute,
   GuestRegisterRoute: GuestRegisterRoute,
   GuestSignInRoute: GuestSignInRoute,
 }
@@ -322,6 +363,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   GuestRoute: GuestRouteWithChildren,
   AboutRoute: AboutRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   ActressesActressIdRoute: ActressesActressIdRoute,
   ActressesIndexRoute: ActressesIndexRoute,

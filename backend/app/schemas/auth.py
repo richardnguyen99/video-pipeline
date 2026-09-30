@@ -223,3 +223,76 @@ class VerifyEmailResponse(BaseModel):
 
     success: bool = True
     detail: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Payload for ``POST /api/v1/auth/forgot-password``."""
+
+    email: str = Field(
+        max_length=255,
+        description="Account email address to send the reset link to.",
+    )
+
+    @field_validator("email")
+    @classmethod
+    def validate_email_rfc6531(cls, value: str) -> str:
+        """Validate email per RFC 6531 (SMTPUTF8 / internationalized)."""
+
+        try:
+            result = validate_email(
+                value,
+                allow_smtputf8=True,
+                check_deliverability=False,
+            )
+        except EmailNotValidError as exc:
+            raise ValueError(str(exc)) from exc
+
+        return result.normalized
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Generic acknowledgement after a password-reset request."""
+
+    success: bool = True
+    detail: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Payload for ``POST /api/v1/auth/reset-password``."""
+
+    token: str = Field(
+        min_length=16,
+        max_length=256,
+        description="Opaque reset token from the email link.",
+    )
+    new_password: str = Field(
+        min_length=8,
+        max_length=128,
+        description=(
+            "At least 8 characters with one uppercase, one digit, "
+            "and one special character."
+        ),
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password_strength(cls, value: str) -> str:
+        """Enforce the same strength rules as registration."""
+
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+
+        if _PASSWORD_UPPER.search(value) is None:
+            raise ValueError(
+                "Password must contain at least one uppercase letter.",
+            )
+
+        if _PASSWORD_DIGIT.search(value) is None:
+            raise ValueError("Password must contain at least one number.")
+
+        if _PASSWORD_SPECIAL.search(value) is None:
+            raise ValueError(
+                "Password must contain at least one special character.",
+            )
+
+        return value

@@ -181,6 +181,25 @@ export async function confirmEmailVerification(token: string): Promise<UserProfi
   });
 }
 
+export async function requestPasswordReset(email: string): Promise<{ detail: string }> {
+  return apiFetch<{ success: boolean; detail: string }>("/auth/forgot-password", {
+    method: "POST",
+    data: { email },
+    skipAuthRefresh: true,
+  });
+}
+
+export async function resetPasswordWithToken(payload: { token: string; new_password: string }): Promise<void> {
+  await apiFetch<void>("/auth/reset-password", {
+    method: "POST",
+    data: {
+      token: payload.token,
+      new_password: payload.new_password,
+    },
+    skipAuthRefresh: true,
+  });
+}
+
 export type ChangePasswordPayload = {
   current_password: string;
   new_password: string;

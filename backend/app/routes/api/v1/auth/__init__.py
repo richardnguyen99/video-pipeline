@@ -5,6 +5,9 @@ from fastapi import APIRouter
 from app.routes.api.v1.auth.change_password import (
     router as change_password_router,
 )
+from app.routes.api.v1.auth.forgot_password import (
+    router as forgot_password_router,
+)
 from app.routes.api.v1.auth.login import router as login_router
 from app.routes.api.v1.auth.logout import router as logout_router
 from app.routes.api.v1.auth.me import router as me_router
@@ -21,5 +24,6 @@ router.include_router(refresh_router)
 router.include_router(me_router)
 router.include_router(change_password_router)
 router.include_router(verify_router)
+router.include_router(forgot_password_router)
 
 __all__ = ["router"]
