@@ -38,12 +38,14 @@ export function getApiBaseUrl(): string {
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
+  readonly retryAfterSeconds: number | null;
 
-  constructor(message: string, status: number, body: unknown) {
+  constructor(message: string, status: number, body: unknown, retryAfterSeconds: number | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.body = body;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -132,20 +134,39 @@ export function applySessionFromBody(body: unknown): void {
   );
 }
 
-function toApiError(status: number, body: unknown): ApiError {
+function parseRetryAfterSeconds(value: string | number | undefined): number | null {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  const seconds = typeof value === "number" ? value : Number.parseInt(String(value), 10);
+
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return null;
+  }
+
+  return seconds;
+}
+
+function toApiError(status: number, body: unknown, retryAfterSeconds: number | null = null): ApiError {
   const message =
     typeof body === "object" && body !== null && "detail" in body && body.detail != null
       ? String(body.detail)
       : `Request failed with status ${status}`;
 
-  return new ApiError(message, status, body);
+  return new ApiError(message, status, body, retryAfterSeconds);
 }
 
 function axiosErrorToApiError(error: AxiosError): ApiError {
   const status = error.response?.status ?? 0;
   const body = error.response?.data ?? null;
+  const headers = error.response?.headers;
+  const retryRaw = headers == null ? undefined : (headers["retry-after"] ?? headers["Retry-After"]);
+  const retryAfterSeconds = parseRetryAfterSeconds(
+    typeof retryRaw === "string" || typeof retryRaw === "number" ? retryRaw : undefined,
+  );
 
-  return toApiError(status, body);
+  return toApiError(status, body, retryAfterSeconds);
 }
 
 const api: AxiosInstance = axios.create({

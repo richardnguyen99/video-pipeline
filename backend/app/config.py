@@ -58,6 +58,8 @@ class Settings(BaseSettings):
     frontend_base_url: str = "http://localhost:3000"
     # Email verification link lifetime (minutes).
     email_verification_expire_minutes: int = 15
+    # Minimum wait before another verification email may be sent (minutes).
+    email_verification_resend_cooldown_minutes: int = 5
 
     # JWT tokens (HttpOnly cookies). Durations use explicit unit suffixes.
     jwt_secret_key: str = "change-me-in-production-use-a-long-random-string"

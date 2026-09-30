@@ -25,6 +25,7 @@ from app.utils.email_verification import (
     AsyncKeyValueStore,
     consume_verification_token,
     generate_verification_token,
+    get_resend_cooldown_remaining,
     store_verification_token,
 )
 from app.utils.jwt import create_access_token, create_refresh_token
@@ -396,8 +397,8 @@ class AuthService:
             email_service: Resend-backed mailer.
 
         Raises:
-            HTTPException: 400 when already verified; 503 when email is
-                not configured.
+            HTTPException: 400 when already verified; 429 when the resend
+                cooldown is active; 503 when email is not configured.
         """
 
         if user.email_verified:
@@ -406,16 +407,38 @@ class AuthService:
                 detail="Email is already verified.",
             )
 
+        cooldown_remaining = await get_resend_cooldown_remaining(
+            redis,
+            user.id,
+        )
+
+        if cooldown_remaining > 0:
+            minutes = max(1, (cooldown_remaining + 59) // 60)
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=(
+                    "Please wait before requesting another verification "
+                    f"email. Try again in about {minutes} minute"
+                    f"{'s' if minutes != 1 else ''}."
+                ),
+                headers={"Retry-After": str(cooldown_remaining)},
+            )
+
         raw_token = generate_verification_token()
         ttl_seconds = max(
             60,
             settings.email_verification_expire_minutes * 60,
+        )
+        cooldown_seconds = max(
+            0,
+            settings.email_verification_resend_cooldown_minutes * 60,
         )
         await store_verification_token(
             redis,
             user_id=user.id,
             raw_token=raw_token,
             ttl_seconds=ttl_seconds,
+            cooldown_seconds=cooldown_seconds,
         )
 
         base = settings.frontend_base_url.rstrip("/")

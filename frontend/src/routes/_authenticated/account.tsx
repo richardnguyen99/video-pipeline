@@ -1,11 +1,10 @@
-import { useState } from "react";
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
-import { Loader2, LogOut, Mail } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 import { ChangePasswordForm } from "@/components/auth/change-password-form";
+import { EmailVerificationBanner } from "@/components/auth/email-verification-banner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { getApiErrorMessage, requestEmailVerification } from "@/libs/auth";
 
 export const Route = createFileRoute("/_authenticated/account")({
   component: AccountPage,
@@ -15,29 +14,11 @@ function AccountPage() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const router = useRouter();
-  const [verifyPending, setVerifyPending] = useState(false);
-  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
-  const [verifyError, setVerifyError] = useState<string | null>(null);
 
   async function handleSignOut() {
     await signOut();
     await router.invalidate();
     void navigate({ to: "/" });
-  }
-
-  async function handleRequestVerification() {
-    setVerifyPending(true);
-    setVerifyMessage(null);
-    setVerifyError(null);
-
-    try {
-      const result = await requestEmailVerification();
-      setVerifyMessage(result.detail);
-    } catch (error) {
-      setVerifyError(getApiErrorMessage(error));
-    } finally {
-      setVerifyPending(false);
-    }
   }
 
   const needsVerification = user != null && user.email_verified !== true;
@@ -50,52 +31,7 @@ function AccountPage() {
         <p className="text-sm text-muted-foreground">Signed-in profile details.</p>
       </div>
 
-      {needsVerification ? (
-        <div className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm" role="status">
-          <div className="flex items-start gap-3">
-            <Mail className="mt-0.5 size-4 shrink-0 text-amber-600" aria-hidden />
-
-            <div className="space-y-1">
-              <p className="font-medium text-foreground">Verify your email</p>
-
-              <p className="text-muted-foreground">
-                Confirm <span className="font-medium text-foreground">{user.email}</span> to secure your account. The
-                link expires in 15 minutes.
-              </p>
-            </div>
-          </div>
-
-          {verifyMessage ? (
-            <p className="text-foreground" role="status">
-              {verifyMessage}
-            </p>
-          ) : null}
-
-          {verifyError ? (
-            <p className="text-destructive" role="alert">
-              {verifyError}
-            </p>
-          ) : null}
-
-          <Button
-            type="button"
-            size="sm"
-            disabled={verifyPending}
-            onClick={() => {
-              void handleRequestVerification();
-            }}
-          >
-            {verifyPending ? (
-              <>
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-                Sending…
-              </>
-            ) : (
-              "Send verification email"
-            )}
-          </Button>
-        </div>
-      ) : null}
+      {needsVerification ? <EmailVerificationBanner key={user.id} user={user} /> : null}
 
       <dl className="space-y-4 rounded-xl border border-border/60 bg-card/40 p-6 text-sm">
         <div className="space-y-1">

@@ -32,6 +32,9 @@ router = APIRouter()
         status.HTTP_401_UNAUTHORIZED: {
             "description": "Missing or invalid access token.",
         },
+        status.HTTP_429_TOO_MANY_REQUESTS: {
+            "description": "Resend cooldown is still active (default 5 minutes).",
+        },
         status.HTTP_503_SERVICE_UNAVAILABLE: {
             "description": "Email service is not configured.",
         },
