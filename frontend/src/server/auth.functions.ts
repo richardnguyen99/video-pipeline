@@ -180,6 +180,7 @@ function toUserProfile(session: SessionPayload): UserProfile {
     email: session.email,
     display_name: session.display_name,
     is_active: session.is_active,
+    email_verified: session.email_verified === true,
     created_at: session.created_at,
     updated_at: session.updated_at,
   };
