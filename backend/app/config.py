@@ -54,6 +54,10 @@ class Settings(BaseSettings):
 
     # Comma-separated browser origins allowed to call the API (CORS).
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
+    # Public SPA origin used in email verification links.
+    frontend_base_url: str = "http://localhost:3000"
+    # Email verification link lifetime (minutes).
+    email_verification_expire_minutes: int = 15
 
     # JWT tokens (HttpOnly cookies). Durations use explicit unit suffixes.
     jwt_secret_key: str = "change-me-in-production-use-a-long-random-string"

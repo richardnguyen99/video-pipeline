@@ -94,6 +94,7 @@ class UserRepository(BaseRepository):
             username=username,
             email=email,
             display_name=display_name,
+            email_verified=False,
         )
         self.session.add(user)
         await self.session.flush()
@@ -171,6 +172,30 @@ class UserRepository(BaseRepository):
             await self.session.rollback()
             raise
 
+        await self.session.refresh(user)
+
+        return user
+
+    async def mark_email_verified(self, user_id: uuid.UUID) -> Optional[User]:
+        """Set ``email_verified`` for ``user_id`` and return the user.
+
+        Args:
+            user_id: Account whose email was confirmed.
+
+        Returns:
+            The refreshed user, or ``None`` when the id is unknown.
+        """
+
+        user = await self.get_by_id(user_id)
+
+        if user is None:
+            return None
+
+        user.email_verified = True
+        user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.session.add(user)
+
+        await self.session.commit()
         await self.session.refresh(user)
 
         return user

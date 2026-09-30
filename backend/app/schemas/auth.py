@@ -190,6 +190,7 @@ class UserResponse(BaseModel):
     email: str
     display_name: Optional[str] = None
     is_active: bool
+    email_verified: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -205,3 +206,20 @@ class SessionResponse(UserResponse):
     access_token: str = Field(
         description="Short-lived access JWT for Authorization: Bearer.",
     )
+
+
+class VerifyEmailRequest(BaseModel):
+    """Payload for ``POST /api/v1/auth/verify/confirm``."""
+
+    token: str = Field(
+        min_length=16,
+        max_length=256,
+        description="Opaque verification token from the email link.",
+    )
+
+
+class VerifyEmailResponse(BaseModel):
+    """Result after requesting or confirming email verification."""
+
+    success: bool = True
+    detail: str

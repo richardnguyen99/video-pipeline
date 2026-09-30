@@ -10,6 +10,7 @@ from app.routes.api.v1.auth.logout import router as logout_router
 from app.routes.api.v1.auth.me import router as me_router
 from app.routes.api.v1.auth.refresh import router as refresh_router
 from app.routes.api.v1.auth.register import router as register_router
+from app.routes.api.v1.auth.verify import router as verify_router
 
 router = APIRouter(prefix="/auth")
 
@@ -19,5 +20,6 @@ router.include_router(logout_router)
 router.include_router(refresh_router)
 router.include_router(me_router)
 router.include_router(change_password_router)
+router.include_router(verify_router)
 
 __all__ = ["router"]

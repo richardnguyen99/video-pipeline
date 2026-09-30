@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as GuestRegisterRouteImport } from './routes/_guest/register'
@@ -38,6 +39,11 @@ const GuestRoute = GuestRouteImport.update({
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailRoute = VerifyEmailRouteImport.update({
+  id: '/verify-email',
+  path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VideosRouteRoute = VideosRouteRouteImport.update({
@@ -85,6 +91,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/videos': typeof VideosRouteRouteWithChildren
   '/about': typeof AboutRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
@@ -96,6 +103,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/account': typeof AuthenticatedAccountRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
@@ -111,6 +119,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/_guest': typeof GuestRouteWithChildren
   '/about': typeof AboutRoute
+  '/verify-email': typeof VerifyEmailRoute
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_guest/register': typeof GuestRegisterRoute
   '/_guest/sign-in': typeof GuestSignInRoute
@@ -125,6 +134,7 @@ export interface FileRouteTypes {
     | '/'
     | '/videos'
     | '/about'
+    | '/verify-email'
     | '/account'
     | '/register'
     | '/sign-in'
@@ -136,6 +146,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/verify-email'
     | '/account'
     | '/register'
     | '/sign-in'
@@ -150,6 +161,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/_guest'
     | '/about'
+    | '/verify-email'
     | '/_authenticated/account'
     | '/_guest/register'
     | '/_guest/sign-in'
@@ -165,6 +177,7 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   GuestRoute: typeof GuestRouteWithChildren
   AboutRoute: typeof AboutRoute
+  VerifyEmailRoute: typeof VerifyEmailRoute
   ActressesActressIdRoute: typeof ActressesActressIdRoute
   ActressesIndexRoute: typeof ActressesIndexRoute
 }
@@ -197,6 +210,13 @@ declare module '@tanstack/react-router' {
       path: '/about'
       fullPath: '/about'
       preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email': {
+      id: '/verify-email'
+      path: '/verify-email'
+      fullPath: '/verify-email'
+      preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/videos': {
@@ -302,6 +322,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   GuestRoute: GuestRouteWithChildren,
   AboutRoute: AboutRoute,
+  VerifyEmailRoute: VerifyEmailRoute,
   ActressesActressIdRoute: ActressesActressIdRoute,
   ActressesIndexRoute: ActressesIndexRoute,
 }

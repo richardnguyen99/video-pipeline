@@ -26,6 +26,7 @@ export type UserProfile = {
   email: string;
   display_name: string | null;
   is_active: boolean;
+  email_verified: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -37,6 +38,7 @@ function toUserProfile(session: SessionPayload): UserProfile {
     email: session.email,
     display_name: session.display_name,
     is_active: session.is_active,
+    email_verified: session.email_verified === true,
     created_at: session.created_at,
     updated_at: session.updated_at,
   };
@@ -162,6 +164,20 @@ export async function refreshUserSession(): Promise<UserProfile | null> {
 export async function fetchCurrentUser(): Promise<UserProfile> {
   return apiFetch<UserProfile>("/auth/me", {
     method: "GET",
+  });
+}
+
+export async function requestEmailVerification(): Promise<{ detail: string }> {
+  return apiFetch<{ success: boolean; detail: string }>("/auth/verify", {
+    method: "POST",
+  });
+}
+
+export async function confirmEmailVerification(token: string): Promise<UserProfile> {
+  return apiFetch<UserProfile>("/auth/verify/confirm", {
+    method: "POST",
+    data: { token },
+    skipAuthRefresh: true,
   });
 }
 

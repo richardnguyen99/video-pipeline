@@ -20,6 +20,13 @@ from app.schemas.auth import (
     RegisterRequest,
     UserResponse,
 )
+from app.services.email import EmailService
+from app.utils.email_verification import (
+    AsyncKeyValueStore,
+    consume_verification_token,
+    generate_verification_token,
+    store_verification_token,
+)
 from app.utils.jwt import create_access_token, create_refresh_token
 from app.utils.password import (
     PASSWORD_ALGORITHM,
@@ -373,6 +380,104 @@ class AuthService:
             password_algorithm=PASSWORD_ALGORITHM,
         )
         await self._refresh_tokens.revoke_all_for_user(user.id)
+
+    async def request_email_verification(
+        self,
+        user: UserResponse,
+        *,
+        redis: AsyncKeyValueStore,
+        email_service: EmailService,
+    ) -> None:
+        """Issue a short-lived verification link and email it to ``user``.
+
+        Args:
+            user: Authenticated caller.
+            redis: Redis client for the hashed token allowlist.
+            email_service: Resend-backed mailer.
+
+        Raises:
+            HTTPException: 400 when already verified; 503 when email is
+                not configured.
+        """
+
+        if user.email_verified:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email is already verified.",
+            )
+
+        raw_token = generate_verification_token()
+        ttl_seconds = max(
+            60,
+            settings.email_verification_expire_minutes * 60,
+        )
+        await store_verification_token(
+            redis,
+            user_id=user.id,
+            raw_token=raw_token,
+            ttl_seconds=ttl_seconds,
+        )
+
+        base = settings.frontend_base_url.rstrip("/")
+        verify_url = f"{base}/verify-email?token={raw_token}"
+        minutes = settings.email_verification_expire_minutes
+        html = (
+            "<div style=\"font-family:sans-serif;padding:24px;\">"
+            f"<h1>Verify your email</h1>"
+            f"<p>Hi {user.username},</p>"
+            "<p>Confirm your Velvet account email by opening this link "
+            f"(expires in {minutes} minutes):</p>"
+            f'<p><a href="{verify_url}">{verify_url}</a></p>'
+            "<p>If you did not create an account, ignore this message.</p>"
+            "</div>"
+        )
+        text = (
+            f"Verify your Velvet email (expires in {minutes} minutes):\n"
+            f"{verify_url}\n"
+        )
+        email_service.send_email(
+            to=[user.email],
+            subject="Verify your Velvet email",
+            html=html,
+            text=text,
+        )
+
+    async def confirm_email_verification(
+        self,
+        raw_token: str,
+        *,
+        redis: AsyncKeyValueStore,
+    ) -> UserResponse:
+        """Consume a verification token and mark the account verified.
+
+        Args:
+            raw_token: Opaque token from the email link.
+            redis: Redis client holding the hashed token.
+
+        Returns:
+            Updated public profile.
+
+        Raises:
+            HTTPException: 400 when the token is missing, expired, or invalid.
+        """
+
+        user_id = await consume_verification_token(redis, raw_token)
+
+        if user_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verification link is invalid or has expired.",
+            )
+
+        user = await self._repository.mark_email_verified(user_id)
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Verification link is invalid or has expired.",
+            )
+
+        return UserResponse.model_validate(user)
 
     async def find_refresh_token_by_raw(
         self,

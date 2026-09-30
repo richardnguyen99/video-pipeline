@@ -32,6 +32,7 @@ class FakeUser:
     email: str
     display_name: Optional[str]
     is_active: bool = True
+    email_verified: bool = False
     created_at: datetime.datetime = field(
         default_factory=lambda: datetime.datetime(
             2026,
@@ -224,6 +225,7 @@ async def test_register_returns_user_response(
     assert result.email == "alice@example.com"
     assert result.display_name == "Alice"
     assert result.is_active is True
+    assert result.email_verified is False
     assert len(repository.create_calls) == 1
 
 
