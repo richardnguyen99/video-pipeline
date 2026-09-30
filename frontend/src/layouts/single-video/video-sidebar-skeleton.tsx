@@ -1,4 +1,4 @@
-import { SidebarSkeleton } from "@/components/video/sidebar-skeleton";
+import { SidebarSkeleton } from "@/layouts/single-video/sidebar-skeleton";
 
 const SKELETON_COUNT = 6;
 

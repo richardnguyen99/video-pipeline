@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 
-import { EntityTag } from "@/components/video/entity-tag";
+import { EntityTag } from "@/layouts/single-video/entity-tag";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { actressDisplayName, normalizeVideoEntities, pickActressImageUrl, videoDisplayTitle } from "@/mocks/videos";
 import type { ActressRef, NamedEntity, Video } from "@/mocks/videos";

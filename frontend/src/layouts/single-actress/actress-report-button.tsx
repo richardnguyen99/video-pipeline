@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Flag } from "lucide-react";
 
-import { ActressReportDialog } from "@/components/actress/actress-report-dialog";
+import { ActressReportDialog } from "@/layouts/single-actress/actress-report-dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/libs/utils";
 

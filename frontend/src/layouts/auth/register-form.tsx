@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/auth/password-input";
 import { getApiErrorMessage, registerUser } from "@/libs/auth";
 
 const registerSchema = z
@@ -192,10 +193,9 @@ export function RegisterForm() {
               <Field data-invalid={isInvalid || undefined}>
                 <FieldLabel htmlFor={field.name}>Password</FieldLabel>
 
-                <Input
+                <PasswordInput
                   id={field.name}
                   name={field.name}
-                  type="password"
                   autoComplete="new-password"
                   maxLength={128}
                   value={field.state.value}
@@ -224,10 +224,9 @@ export function RegisterForm() {
               <Field data-invalid={isInvalid || undefined}>
                 <FieldLabel htmlFor={field.name}>Confirm password</FieldLabel>
 
-                <Input
+                <PasswordInput
                   id={field.name}
                   name={field.name}
-                  type="password"
                   autoComplete="new-password"
                   maxLength={128}
                   value={field.state.value}

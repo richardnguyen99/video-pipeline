@@ -1,7 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { Clapperboard } from "lucide-react";
 
-const footerLinks = [
+import { useAuth } from "@/hooks/use-auth";
+
+const baseFooterLinks = [
   { label: "About", to: "/about" as const },
   { label: "Videos", to: "/videos" as const },
   {
@@ -15,10 +17,11 @@ const footerLinks = [
     search: { sort: "latest" as const },
   },
   { label: "Actresses", to: "/actresses" as const },
-  { label: "Sign in", to: "/sign-in" as const },
 ] as const;
 
 export default function Footer() {
+  const { isAuthenticated } = useAuth();
+
   return (
     <footer className="border-t border-border/60">
       <div className="flex w-full flex-col items-center justify-between gap-6 px-6 py-10 sm:flex-row sm:px-10 lg:px-16">
@@ -26,11 +29,12 @@ export default function Footer() {
           <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Clapperboard className="size-4" />
           </span>
+
           <span className="text-lg font-semibold tracking-tight">Velvet</span>
         </Link>
 
         <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
-          {footerLinks.map((link) => (
+          {baseFooterLinks.map((link) => (
             <Link
               key={link.label}
               to={link.to}
@@ -40,6 +44,16 @@ export default function Footer() {
               {link.label}
             </Link>
           ))}
+
+          {isAuthenticated ? (
+            <Link to="/account" className="transition-colors hover:text-foreground">
+              Account
+            </Link>
+          ) : (
+            <Link to="/sign-in" className="transition-colors hover:text-foreground">
+              Sign in
+            </Link>
+          )}
         </nav>
 
         <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} Velvet Media</p>

@@ -4,8 +4,8 @@ import { createRootRouteWithContext } from "@tanstack/react-router";
 import appCss from "../styles/styles.css?url";
 import { AuthPendingShell } from "@/components/auth/auth-pending-shell";
 import { NotFoundPage } from "@/components/not-found/not-found-page";
-import RootComponent from "@/components/root-component";
-import RootDocument from "@/components/root-document";
+import RootComponent from "@/layouts/root/root-component";
+import RootDocument from "@/layouts/root/root-document";
 import type { AuthRouterContext } from "@/libs/auth-session";
 import { loadAuthSession } from "@/libs/auth-session";
 

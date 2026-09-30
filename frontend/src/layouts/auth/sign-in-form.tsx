@@ -8,6 +8,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/auth/password-input";
 import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage, loginUser } from "@/libs/auth";
 
@@ -126,10 +127,9 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
                   </Link>
                 </div>
 
-                <Input
+                <PasswordInput
                   id={field.name}
                   name={field.name}
-                  type="password"
                   autoComplete="current-password"
                   maxLength={128}
                   value={field.state.value}

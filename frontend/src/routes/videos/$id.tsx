@@ -2,8 +2,8 @@ import { Suspense, useEffect } from "react";
 import { useQueryErrorResetBoundary, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
-import { VideoComments } from "@/components/video/comment";
-import { VideoPlayer, DEMO_HLS_SRC } from "@/components/video/player";
+import { VideoComments } from "@/layouts/single-video/comment";
+import { VideoPlayer, DEMO_HLS_SRC } from "@/layouts/single-video/player";
 import { VideoInfo } from "@/layouts/single-video/video-info";
 import { VideoMetadata } from "@/layouts/single-video/video-metadata";
 import { VideoReviewImages } from "@/layouts/single-video/video-review-images";

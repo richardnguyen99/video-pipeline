@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 
-import { ChangePasswordForm } from "@/components/auth/change-password-form";
-import { EmailVerificationBanner } from "@/components/auth/email-verification-banner";
+import { ChangePasswordForm } from "@/layouts/auth/change-password-form";
+import { EmailVerificationBanner } from "@/layouts/auth/email-verification-banner";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 

@@ -1,8 +1,8 @@
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { Outlet } from "@tanstack/react-router";
 
-import { AuthStoreSync } from "@/components/auth/auth-store-sync";
-import Header from "@/components/site-header";
+import { AuthStoreSync } from "@/layouts/auth/auth-store-sync";
+import Header from "@/layouts/root/site-header";
 
 export default function RootComponent() {
   return (

@@ -1,9 +1,9 @@
 import { Suspense, useState } from "react";
-import { SidebarSkeleton } from "@/components/video/sidebar-skeleton";
+import { SidebarSkeleton } from "@/layouts/single-video/sidebar-skeleton";
 import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
-import { VideoSidebarCard } from "@/components/video/video-sidebar-card";
+import { VideoSidebarCard } from "@/layouts/single-video/video-sidebar-card";
 import type { Video } from "@/mocks/videos";
 import {
   DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,

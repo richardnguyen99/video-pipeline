@@ -1,5 +1,5 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { VideoToolbarActions } from "@/components/video/video-toolbar-action";
+import { VideoToolbarActions } from "@/layouts/single-video/video-toolbar-action";
 import { videoDisplayTitle } from "@/mocks/videos";
 import type { Video } from "@/mocks/videos";
 import { formatCompactNumber, formatRelativeDate } from "@/libs/utils";

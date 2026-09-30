@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Clapperboard, Eye, UserPlus } from "lucide-react";
 
-import { ActressReportButton } from "@/components/actress/actress-report-button";
-import { ActressStat } from "@/components/actress/actress-stat";
+import { ActressReportButton } from "@/layouts/single-actress/actress-report-button";
+import { ActressStat } from "@/layouts/single-actress/actress-stat";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import type { ActressSummary } from "@/libs/actresses";
