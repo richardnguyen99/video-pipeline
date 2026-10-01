@@ -9,7 +9,7 @@ import { cn } from "@/libs/utils";
 export type ActressReportReason =
   "wrong_avatar" | "wrong_name" | "wrong_ruby" | "wrong_measurement" | "illegal_age" | "dmca" | "abusive";
 
-const REPORT_REASONS: { id: ActressReportReason; label: string; group?: string }[] = [
+const REPORT_REASONS: Array<{ id: ActressReportReason; label: string; group?: string }> = [
   { id: "wrong_avatar", label: "Wrong avatar image" },
   { id: "wrong_name", label: "Wrong actress name" },
   { id: "wrong_ruby", label: "Wrong ruby name" },

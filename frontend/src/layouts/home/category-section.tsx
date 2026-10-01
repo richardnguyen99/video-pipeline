@@ -8,17 +8,17 @@ import type { VideoSort } from "@/libs/discover-videos";
 import type { Video } from "@/mocks/videos";
 import { mockVideos } from "@/mocks/videos";
 
-type CategoryMoreLink = { to: "/videos"; search?: { sort?: VideoSort; genre?: number[] } };
+type CategoryMoreLink = { to: "/videos"; search?: { sort?: VideoSort; genre?: Array<number> } };
 
 interface CategoryCollection {
   id: string;
   name: string;
   blurb: string;
   more: CategoryMoreLink;
-  videos: Video[];
+  videos: Array<Video>;
 }
 
-function sortByReleaseDesc(videos: Video[]): Video[] {
+function sortByReleaseDesc(videos: Array<Video>): Array<Video> {
   return [...videos].sort((a, b) => {
     const da = a.release_date ? Date.parse(a.release_date) : 0;
     const db = b.release_date ? Date.parse(b.release_date) : 0;
@@ -26,11 +26,11 @@ function sortByReleaseDesc(videos: Video[]): Video[] {
   });
 }
 
-function buildCategoryCollections(videos: Video[]): CategoryCollection[] {
+function buildCategoryCollections(videos: Array<Video>): Array<CategoryCollection> {
   const latest = sortByReleaseDesc(videos);
   const forYou = [...videos].sort((a, b) => a.id - b.id);
 
-  const genreMap = new Map<string, { id: number; name: string; videos: Video[] }>();
+  const genreMap = new Map<string, { id: number; name: string; videos: Array<Video> }>();
   for (const video of videos) {
     for (const genre of video.genres ?? []) {
       const entry = genreMap.get(genre.name) ?? {

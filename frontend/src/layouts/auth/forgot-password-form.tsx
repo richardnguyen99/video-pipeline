@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
@@ -12,12 +12,12 @@ import { getApiErrorMessage, requestPasswordReset } from "@/libs/auth";
 import { HttpStatus } from "@/libs/http-status";
 
 const forgotPasswordSchema = z.object({
-  email: z.string().trim().email("Enter a valid email address."),
+  email: z.email("Enter a valid email address."),
 });
 
 type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 
-function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined> {
+function fieldErrors(errors: Array<unknown>): Array<{ message?: string } | undefined> {
   return errors.map((error) => {
     if (typeof error === "string") {
       return { message: error };
@@ -61,7 +61,7 @@ export function ForgotPasswordForm() {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();

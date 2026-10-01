@@ -21,7 +21,7 @@ interface UseHlsPlayerResult {
   currentTime: number;
   duration: number;
   buffered: number;
-  qualities: HlsQuality[];
+  qualities: Array<HlsQuality>;
   currentQuality: number;
   isLoading: boolean;
   hasStarted: boolean;
@@ -56,7 +56,7 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
-  const [qualities, setQualities] = useState<HlsQuality[]>([]);
+  const [qualities, setQualities] = useState<Array<HlsQuality>>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +123,7 @@ export function useHlsPlayer({ src, autoPlay = false }: UseHlsPlayerOptions): Us
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, (_event, data) => {
-        const levels: HlsQuality[] = data.levels.map((level, index) => ({
+        const levels: Array<HlsQuality> = data.levels.map((level, index) => ({
           index,
           height: level.height,
           label: formatQualityLabel(level),

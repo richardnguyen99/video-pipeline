@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { Clapperboard, LogOut, Menu, User2Icon, UserRound, X } from "lucide-react";
 
-import { SiteSearchBox } from "@/components/search/site-search-box";
+import { SiteSearchBox } from "@/components/search";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

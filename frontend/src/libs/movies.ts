@@ -7,7 +7,7 @@ export type FeaturedMovie = {
   rating: string;
   duration: string;
   match: number;
-  genres: string[];
+  genres: Array<string>;
   image: string;
 };
 
@@ -18,7 +18,7 @@ export type Genre = {
   image: string;
 };
 
-export const featuredMovies: FeaturedMovie[] = [
+export const featuredMovies: Array<FeaturedMovie> = [
   {
     id: "crimson-veil",
     title: "MIRD-150",
@@ -60,7 +60,7 @@ export const featuredMovies: FeaturedMovie[] = [
   },
 ];
 
-export const genres: Genre[] = [
+export const genres: Array<Genre> = [
   {
     id: "action",
     name: "Action",
@@ -111,10 +111,10 @@ export type GenreCollection = {
   id: string;
   name: string;
   blurb: string;
-  movies: GenreMovie[];
+  movies: Array<GenreMovie>;
 };
 
-export const genreCollections: GenreCollection[] = [
+export const genreCollections: Array<GenreCollection> = [
   {
     id: "trending",
     name: "Trending",

@@ -13,7 +13,7 @@ import {
 
 interface VideoSidebarProps {
   videoId: string;
-  videos: Video[];
+  videos: Array<Video>;
 }
 
 const MORE_SKELETON_COUNT = 4;
@@ -30,7 +30,7 @@ function sidebarCardBadge(index: number): "recommended" | "new" | undefined {
   return undefined;
 }
 
-function SidebarCardList({ videos, startIndex = 0 }: { videos: Video[]; startIndex?: number }) {
+function SidebarCardList({ videos, startIndex = 0 }: { videos: Array<Video>; startIndex?: number }) {
   return (
     <>
       {videos.map((video, index) => {

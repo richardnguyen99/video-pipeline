@@ -51,7 +51,7 @@ export function ActressesShell({ sort, filters, q, totalSlot, total, children }:
 }
 
 interface ActressesGridProps {
-  actresses: ActressSummary[];
+  actresses: Array<ActressSummary>;
   page: number;
   totalPages: number;
   sort: ActressSort;
@@ -59,7 +59,7 @@ interface ActressesGridProps {
   q?: string;
 }
 
-function buildPageNumbers(page: number, totalPages: number): number[] {
+function buildPageNumbers(page: number, totalPages: number): Array<number> {
   const pages = new Set<number>([1, totalPages]);
 
   for (let p = page - 2; p <= page + 2; p++) {
@@ -213,7 +213,7 @@ export function ActressesIndex({
   sort,
   filters,
 }: {
-  actresses: ActressSummary[];
+  actresses: Array<ActressSummary>;
   page: number;
   totalPages: number;
   total: number;

@@ -13,7 +13,7 @@ function getCode(video: Video): string {
 interface CategoryBrowseProps {
   title: string;
   description?: string;
-  videos: Video[];
+  videos: Array<Video>;
 }
 
 export function CategoryBrowse({ title, description, videos }: CategoryBrowseProps) {

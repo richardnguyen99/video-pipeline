@@ -33,12 +33,12 @@ export type ActressListItemApi = {
   like_cnt?: number;
   comment_cnt?: number;
   aka?: ActressAkaApi | null;
-  image?: ActressImageApi[] | null;
+  image?: Array<ActressImageApi> | null;
   banner?: { id: number; url: string } | null;
 };
 
 export type ActressListApiResponse = {
-  items: ActressListItemApi[];
+  items: Array<ActressListItemApi>;
   total: number;
   limit: number;
   offset: number;
@@ -50,12 +50,12 @@ export type ActressListQueryParams = {
   page?: number;
   q?: string;
   sort?: number;
-  cups?: string[];
-  genres?: number[];
-  series?: number[];
-  makers?: number[];
-  labels?: number[];
-  directors?: number[];
+  cups?: Array<string>;
+  genres?: Array<number>;
+  series?: Array<number>;
+  makers?: Array<number>;
+  labels?: Array<number>;
+  directors?: Array<number>;
   bustMin?: number;
   bustMax?: number;
   waistMin?: number;
@@ -117,7 +117,7 @@ export function mapActressToNamedEntity(item: ActressListItemApi): NamedEntity {
   };
 }
 
-function pickImageUrl(images: ActressImageApi[] | null | undefined): string | undefined {
+function pickImageUrl(images: Array<ActressImageApi> | null | undefined): string | undefined {
   if (images == null || images.length === 0) {
     return undefined;
   }
@@ -313,7 +313,7 @@ export function actressListQueryOptions(input: {
  * (OR across ``+`` terms, score by name relevancy × video count). Genre-only
  * terms simply contribute zero hits and do not distort the order.
  */
-export async function fetchRelatedSearchActresses(q: string, limit = 5): Promise<ActressSummary[]> {
+export async function fetchRelatedSearchActresses(q: string, limit = 5): Promise<Array<ActressSummary>> {
   const normalized = q.trim();
 
   if (!normalized) {
@@ -351,7 +351,7 @@ export async function fetchActressFilterPage(params: {
   });
 }
 
-export async function fetchActressFilterOptions(): Promise<NamedEntity[]> {
+export async function fetchActressFilterOptions(): Promise<Array<NamedEntity>> {
   const response = await fetchActressFilterPage({ offset: 0 });
 
   return response.items.map(mapActressToNamedEntity);
@@ -381,13 +381,13 @@ export function actressFilterInfiniteOptions(q?: string) {
   });
 }
 
-export function flattenActressFilterPages(pages: ActressListApiResponse[] | undefined): NamedEntity[] {
+export function flattenActressFilterPages(pages: Array<ActressListApiResponse> | undefined): Array<NamedEntity> {
   if (pages == null) {
     return [];
   }
 
   const seen = new Set<number>();
-  const result: NamedEntity[] = [];
+  const result: Array<NamedEntity> = [];
 
   for (const page of pages) {
     for (const item of page.items) {

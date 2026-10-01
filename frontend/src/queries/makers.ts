@@ -16,7 +16,7 @@ export type MakerListItemApi = {
 };
 
 export type MakerListApiResponse = {
-  items: MakerListItemApi[];
+  items: Array<MakerListItemApi>;
   total: number;
   limit: number;
   offset: number;
@@ -37,7 +37,7 @@ export type MakerDetailApi = {
   dmmId: string;
   createdAt: string;
   updatedAt: string;
-  akas: MakerDetailAkaApi[];
+  akas: Array<MakerDetailAkaApi>;
 };
 
 export type MakerListQueryParams = {
@@ -114,13 +114,13 @@ export function makerFilterInfiniteOptions(q?: string, locale: string = DEFAULT_
   });
 }
 
-export function flattenMakerFilterPages(pages: MakerListApiResponse[] | undefined): NamedEntity[] {
+export function flattenMakerFilterPages(pages: Array<MakerListApiResponse> | undefined): Array<NamedEntity> {
   if (pages == null) {
     return [];
   }
 
   const seen = new Set<number>();
-  const result: NamedEntity[] = [];
+  const result: Array<NamedEntity> = [];
 
   for (const page of pages) {
     for (const item of page.items) {

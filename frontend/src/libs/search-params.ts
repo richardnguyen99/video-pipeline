@@ -38,7 +38,7 @@ export function encodeSearchQuery(q: string): string {
 }
 
 export function stringifySearch(search: Record<string, unknown>): string {
-  const parts: string[] = [];
+  const parts: Array<string> = [];
 
   for (const [key, value] of Object.entries(search)) {
     if (key.startsWith("_")) continue;

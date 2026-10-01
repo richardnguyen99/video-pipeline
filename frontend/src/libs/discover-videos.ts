@@ -42,11 +42,11 @@ export const DEFAULT_VIDEO_FILTERS: VideoDiscoverFilters = {
   genres: [],
 };
 
-export const VIDEO_SORT_OPTIONS: {
+export const VIDEO_SORT_OPTIONS: Array<{
   value: VideoSort;
   label: string;
   group?: string;
-}[] = [
+}> = [
   { value: "trending-week", label: "This week", group: "Trending" },
   { value: "trending-month", label: "This month", group: "Trending" },
   { value: "trending-all", label: "All time", group: "Trending" },
@@ -130,7 +130,7 @@ const optionalFeaturesCntQuerySchema = z.optional(
 
 /**
  * URL search schema (FastAPI-compatible keys).
- * - `actress` / `genre`: repeated unsigned ints → number[]
+ * - `actress` / `genre`: repeated unsigned ints → Array<number>
  * - `maker` / `label` / `director` / `series`: single unsigned int
  * - `features_cnt`: "2" | "3," | "1,3"
  *
@@ -150,8 +150,8 @@ export const videoDiscoverSearchSchema = z
   .transform((data) => {
     const result: {
       sort?: VideoSort;
-      actress?: number[];
-      genre?: number[];
+      actress?: Array<number>;
+      genre?: Array<number>;
       maker?: number;
       label?: number;
       director?: number;
@@ -198,8 +198,8 @@ export const videoDiscoverSearchSchema = z
 export type VideoDiscoverSearchParams = {
   sort?: VideoSort;
   page?: number;
-  actress?: number[];
-  genre?: number[];
+  actress?: Array<number>;
+  genre?: Array<number>;
   maker?: number;
   label?: number;
   director?: number;
@@ -207,7 +207,7 @@ export type VideoDiscoverSearchParams = {
   features_cnt?: string;
   q?: string;
   /** Internal: validation issues; never written to the URL. */
-  _searchIssues?: VideoDiscoverSearchIssue[];
+  _searchIssues?: Array<VideoDiscoverSearchIssue>;
 };
 
 export type VideoDiscoverSearchIssue = {
@@ -220,10 +220,10 @@ export type VideoDiscoverSearchParseResult =
   | {
       success: false;
       error: z.ZodError;
-      issues: VideoDiscoverSearchIssue[];
+      issues: Array<VideoDiscoverSearchIssue>;
     };
 
-export function formatVideoDiscoverSearchIssues(error: z.ZodError): VideoDiscoverSearchIssue[] {
+export function formatVideoDiscoverSearchIssues(error: z.ZodError): Array<VideoDiscoverSearchIssue> {
   return error.issues.map((issue) => ({
     path: issue.path.length > 0 ? issue.path.join(".") : "(root)",
     message: issue.message,
@@ -235,7 +235,7 @@ function issuesFromResult(
   result: { success: false; error: z.ZodError },
   value?: unknown,
   expected?: string,
-): VideoDiscoverSearchIssue[] {
+): Array<VideoDiscoverSearchIssue> {
   if (expected !== undefined) {
     return [
       {
@@ -257,11 +257,11 @@ function issuesFromResult(
  */
 export function softParseVideoDiscoverSearch(search: unknown): {
   data: VideoDiscoverSearchParams;
-  issues: VideoDiscoverSearchIssue[];
+  issues: Array<VideoDiscoverSearchIssue>;
 } {
   const input = typeof search === "object" && search !== null ? (search as Record<string, unknown>) : {};
 
-  const issues: VideoDiscoverSearchIssue[] = [];
+  const issues: Array<VideoDiscoverSearchIssue> = [];
   const data: VideoDiscoverSearchParams = {};
 
   if (input.sort != null && input.sort !== "") {
@@ -363,13 +363,17 @@ export function softParseVideoDiscoverSearch(search: unknown): {
   return { data, issues };
 }
 
-function softParseIdList(path: string, raw: unknown, issues: VideoDiscoverSearchIssue[]): number[] | undefined {
+function softParseIdList(
+  path: string,
+  raw: unknown,
+  issues: Array<VideoDiscoverSearchIssue>,
+): Array<number> | undefined {
   if (raw == null || raw === "") {
     return undefined;
   }
 
   const values = Array.isArray(raw) ? raw : [raw];
-  const ids: number[] = [];
+  const ids: Array<number> = [];
 
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
@@ -499,7 +503,7 @@ function withinLastDays(video: Video, days: number): boolean {
   return Date.now() - t <= days * 24 * 60 * 60 * 1000;
 }
 
-export function filterDiscoverVideos(videos: Video[], filters: VideoDiscoverFilters): Video[] {
+export function filterDiscoverVideos(videos: Array<Video>, filters: VideoDiscoverFilters): Array<Video> {
   return videos.filter((video) => {
     if (filters.actresses.length > 0) {
       const ids = (video.actresses ?? []).map((a) => a.id);
@@ -529,7 +533,7 @@ export function filterDiscoverVideos(videos: Video[], filters: VideoDiscoverFilt
   });
 }
 
-export function sortDiscoverVideos(videos: Video[], sort: VideoSort): Video[] {
+export function sortDiscoverVideos(videos: Array<Video>, sort: VideoSort): Array<Video> {
   const list = [...videos];
 
   switch (sort) {
@@ -572,7 +576,7 @@ export function sortDiscoverVideos(videos: Video[], sort: VideoSort): Video[] {
 }
 
 export type VideoDiscoverResult = {
-  videos: Video[];
+  videos: Array<Video>;
   total: number;
   page: number;
   totalPages: number;
@@ -581,15 +585,15 @@ export type VideoDiscoverResult = {
   filters: VideoDiscoverFilters;
 };
 
-export async function getDiscoverVideos(
+export function getDiscoverVideos(
   options: {
     sort?: VideoSort;
     page?: number;
     filters?: VideoDiscoverFilters;
-    videos?: Video[];
+    videos?: Array<Video>;
     pageSize?: number;
   } = {},
-): Promise<VideoDiscoverResult> {
+): VideoDiscoverResult {
   const sort = options.sort ?? DEFAULT_VIDEO_SORT;
   const filters = options.filters ?? DEFAULT_VIDEO_FILTERS;
   const pageSize = options.pageSize ?? VIDEO_DISCOVER_PAGE_SIZE;
@@ -613,9 +617,9 @@ export async function getDiscoverVideos(
 }
 
 function collectNamed(
-  videos: Video[],
-  pick: (video: Video) => NamedEntity | NamedEntity[] | null | undefined,
-): NamedEntity[] {
+  videos: Array<Video>,
+  pick: (video: Video) => NamedEntity | Array<NamedEntity> | null | undefined,
+): Array<NamedEntity> {
   const map = new Map<number, string>();
   for (const video of videos) {
     const value = pick(video);
@@ -628,26 +632,26 @@ function collectNamed(
   return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getAvailableDiscoverActresses(videos: Video[] = mockVideos): NamedEntity[] {
+export function getAvailableDiscoverActresses(videos: Array<Video> = mockVideos): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.actresses ?? []);
 }
 
-export function getAvailableDiscoverGenres(videos: Video[] = mockVideos): NamedEntity[] {
+export function getAvailableDiscoverGenres(videos: Array<Video> = mockVideos): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.genres ?? []);
 }
 
-export function getAvailableDiscoverMakers(videos: Video[] = mockVideos): NamedEntity[] {
+export function getAvailableDiscoverMakers(videos: Array<Video> = mockVideos): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.maker ?? null);
 }
 
-export function getAvailableDiscoverLabels(videos: Video[] = mockVideos): NamedEntity[] {
+export function getAvailableDiscoverLabels(videos: Array<Video> = mockVideos): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.label ?? null);
 }
 
-export function getAvailableDiscoverDirectors(videos: Video[] = mockVideos): NamedEntity[] {
+export function getAvailableDiscoverDirectors(videos: Array<Video> = mockVideos): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.director ?? null);
 }
 
-export function getAvailableDiscoverSeries(videos: Video[] = mockVideos): NamedEntity[] {
+export function getAvailableDiscoverSeries(videos: Array<Video> = mockVideos): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.series ?? null);
 }

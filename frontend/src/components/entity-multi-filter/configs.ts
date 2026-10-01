@@ -62,7 +62,7 @@ export const genreMultiFilterConfig: EntityMultiFilterConfig<GenreDetailApi> = {
   searchPlaceholder: "Search genres…",
   locale: DEFAULT_GENRE_LOCALE,
   infiniteOptions: genreFilterInfiniteOptions,
-  flattenPages: (pages) => flattenGenreFilterPages(pages as GenreListApiResponse[] | undefined),
+  flattenPages: (pages) => flattenGenreFilterPages(pages as Array<GenreListApiResponse> | undefined),
   detailQueryOptions: genreDetailQueryOptions,
   mapDetailToNamedEntity: mapGenreDetailToNamedEntity,
 };
@@ -72,7 +72,7 @@ export const seriesMultiFilterConfig: EntityMultiFilterConfig<SeriesDetailApi> =
   searchPlaceholder: "Search series…",
   locale: DEFAULT_SERIES_LOCALE,
   infiniteOptions: seriesFilterInfiniteOptions,
-  flattenPages: (pages) => flattenSeriesFilterPages(pages as SeriesListApiResponse[] | undefined),
+  flattenPages: (pages) => flattenSeriesFilterPages(pages as Array<SeriesListApiResponse> | undefined),
   detailQueryOptions: seriesDetailQueryOptions,
   mapDetailToNamedEntity: mapSeriesDetailToNamedEntity,
 };
@@ -82,7 +82,7 @@ export const makerMultiFilterConfig: EntityMultiFilterConfig<MakerDetailApi> = {
   searchPlaceholder: "Search makers…",
   locale: DEFAULT_MAKER_LOCALE,
   infiniteOptions: makerFilterInfiniteOptions,
-  flattenPages: (pages) => flattenMakerFilterPages(pages as MakerListApiResponse[] | undefined),
+  flattenPages: (pages) => flattenMakerFilterPages(pages as Array<MakerListApiResponse> | undefined),
   detailQueryOptions: makerDetailQueryOptions,
   mapDetailToNamedEntity: mapMakerDetailToNamedEntity,
 };
@@ -92,7 +92,7 @@ export const labelMultiFilterConfig: EntityMultiFilterConfig<LabelDetailApi> = {
   searchPlaceholder: "Search labels…",
   locale: DEFAULT_LABEL_LOCALE,
   infiniteOptions: labelFilterInfiniteOptions,
-  flattenPages: (pages) => flattenLabelFilterPages(pages as LabelListApiResponse[] | undefined),
+  flattenPages: (pages) => flattenLabelFilterPages(pages as Array<LabelListApiResponse> | undefined),
   detailQueryOptions: labelDetailQueryOptions,
   mapDetailToNamedEntity: mapLabelDetailToNamedEntity,
 };
@@ -102,7 +102,7 @@ export const directorMultiFilterConfig: EntityMultiFilterConfig<DirectorDetailAp
   searchPlaceholder: "Search directors…",
   locale: DEFAULT_DIRECTOR_LOCALE,
   infiniteOptions: directorFilterInfiniteOptions,
-  flattenPages: (pages) => flattenDirectorFilterPages(pages as DirectorListApiResponse[] | undefined),
+  flattenPages: (pages) => flattenDirectorFilterPages(pages as Array<DirectorListApiResponse> | undefined),
   detailQueryOptions: directorDetailQueryOptions,
   mapDetailToNamedEntity: mapDirectorDetailToNamedEntity,
 };

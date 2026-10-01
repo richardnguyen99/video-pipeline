@@ -18,7 +18,7 @@ import { cn } from "@/libs/utils";
 
 export type ReportReason = "illegal" | "stream" | "dmca" | "wrong_video" | "metadata";
 
-const REPORT_REASONS: { id: ReportReason; label: string }[] = [
+const REPORT_REASONS: Array<{ id: ReportReason; label: string }> = [
   { id: "illegal", label: "Illegal content" },
   { id: "stream", label: "Stream not working" },
   { id: "dmca", label: "DMCA / Copyright content" },
@@ -45,7 +45,7 @@ const MULTI_VALUE_FIELDS = new Set(["genres", "actresses"]);
 type VideoField = (typeof VIDEO_FIELDS)[number];
 type Action = "add" | "remove" | "modify";
 
-function getActionsForField(field: VideoField): Action[] {
+function getActionsForField(field: VideoField): Array<Action> {
   if (MULTI_VALUE_FIELDS.has(field)) {
     return ["add", "remove", "modify"];
   }
@@ -68,12 +68,12 @@ interface ReportDialogProps {
   onBack: () => void;
 }
 
-function createDefaultRows(): MetadataRow[] {
+function createDefaultRows(): Array<MetadataRow> {
   return [{ field: "title", action: "modify", newValue: "", oldValue: "" }];
 }
 
 export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack }: ReportDialogProps) {
-  const [rows, setRows] = useState<MetadataRow[]>(createDefaultRows);
+  const [rows, setRows] = useState<Array<MetadataRow>>(createDefaultRows);
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {

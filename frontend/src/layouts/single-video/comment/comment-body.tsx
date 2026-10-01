@@ -8,7 +8,7 @@ interface CommentBodyProps {
   className?: string;
 }
 
-function renderWithMentions(content: string): ReactNode[] {
+function renderWithMentions(content: string): Array<ReactNode> {
   const parts = content.split(/(@[a-zA-Z0-9_]+)/g);
   return parts.map((part, i) => {
     if (/^@[a-zA-Z0-9_]+$/.test(part)) {

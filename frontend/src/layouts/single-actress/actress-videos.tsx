@@ -39,7 +39,7 @@ export function ActressVideosShell({ sort, filters, children, className }: Actre
 }
 
 interface ActressVideosGridProps {
-  videos: Video[];
+  videos: Array<Video>;
   total: number;
   page: number;
   totalPages: number;
@@ -47,7 +47,7 @@ interface ActressVideosGridProps {
   filters: ActressVideoFilters;
 }
 
-function buildPageNumbers(page: number, totalPages: number): number[] {
+function buildPageNumbers(page: number, totalPages: number): Array<number> {
   const pages = new Set<number>([1, totalPages]);
 
   for (let p = page - 2; p <= page + 2; p++) {
@@ -213,7 +213,7 @@ export function ActressVideos({
   filters,
   className,
 }: {
-  videos: Video[];
+  videos: Array<Video>;
   total: number;
   page: number;
   totalPages: number;

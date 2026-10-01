@@ -6,7 +6,7 @@ import type { Video } from "@/mocks/videos";
 
 interface ActressDetailProps {
   actress: ActressSummary;
-  videos: Video[];
+  videos: Array<Video>;
 }
 
 export function ActressDetail({ actress, videos }: ActressDetailProps) {

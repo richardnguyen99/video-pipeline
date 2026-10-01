@@ -13,9 +13,9 @@ import { makerFilterInfiniteOptions } from "@/queries/makers";
 import { seriesFilterInfiniteOptions } from "@/queries/series";
 import { videoListQueryOptions } from "@/queries/videos";
 
-const SORT_VALUES: ActressVideoSort[] = ["latest", "most-viewed", "most-liked", "most-comments", "title"];
+const SORT_VALUES: Array<ActressVideoSort> = ["latest", "most-viewed", "most-liked", "most-comments", "title"];
 
-function asIdArray(value: unknown): number[] | undefined {
+function asIdArray(value: unknown): Array<number> | undefined {
   if (Array.isArray(value)) {
     const list = value
       .map((v) => (typeof v === "number" ? v : Number(v)))
@@ -89,7 +89,10 @@ export const Route = createFileRoute("/actresses/$actressId")({
     let actress;
 
     try {
-      actress = await context.queryClient.ensureQueryData(actressSummaryQueryOptions(id));
+      actress = await context.queryClient.query({
+        ...actressSummaryQueryOptions(id),
+        staleTime: "static",
+      });
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         throw notFound();
@@ -108,16 +111,32 @@ export const Route = createFileRoute("/actresses/$actressId")({
     const sort = deps.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
     const page = deps.page ?? 1;
 
-    const pagePromise = context.queryClient.ensureQueryData(
-      videoListQueryOptions(actressVideoListQueryParams(id, { page, sort, filters })),
-    );
+    const pagePromise = context.queryClient.query({
+      ...videoListQueryOptions(actressVideoListQueryParams(id, { page, sort, filters })),
+      staleTime: "static",
+    });
 
     await Promise.all([
-      context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(labelFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(directorFilterInfiniteOptions()),
+      context.queryClient.infiniteQuery({
+        ...genreFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...seriesFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...makerFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...labelFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...directorFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
     ]);
 
     return {

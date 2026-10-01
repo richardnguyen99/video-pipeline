@@ -5,7 +5,7 @@ import { CommentComposer } from "./comment-composer";
 import { CommentItem } from "./comment-item";
 
 interface VideoCommentsProps {
-  comments: VideoComment[];
+  comments: Array<VideoComment>;
   videoId: string;
 }
 

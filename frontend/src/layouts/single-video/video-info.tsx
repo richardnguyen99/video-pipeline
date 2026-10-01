@@ -28,7 +28,7 @@ function CollapsibleEntityList<T extends NamedEntity>({
   renderItem,
   emptyLabel = "—",
 }: {
-  items: T[];
+  items: Array<T>;
   renderItem: (item: T) => ReactNode;
   emptyLabel?: string;
 }) {
@@ -81,7 +81,7 @@ function CollapsibleEntityList<T extends NamedEntity>({
 
 export function VideoInfo({ video }: VideoInfoProps) {
   const code = video.cid ?? video.video_id;
-  const actresses: ActressRef[] = video.actresses ?? [];
+  const actresses: Array<ActressRef> = video.actresses ?? [];
   const genres = video.genres ?? [];
   const makers = normalizeVideoEntities(video.makers, video.maker);
   const labels = normalizeVideoEntities(video.labels, video.label);

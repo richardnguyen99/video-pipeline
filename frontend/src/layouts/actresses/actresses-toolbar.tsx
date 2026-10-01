@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ArrowUpDown, Check, ChevronDown, ListFilter, Search, X } from "lucide-react";
 
@@ -102,7 +102,7 @@ export function ActressesToolbar({ sort, filters, q = "" }: ActressesToolbarProp
     });
   }
 
-  function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSearchSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);

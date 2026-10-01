@@ -33,7 +33,7 @@ export type SearchResult = {
 };
 
 export type SearchResponseState = {
-  results: SearchResult[];
+  results: Array<SearchResult>;
   totalResults: number;
   totalPages: number;
   resultSearchTerm?: string;
@@ -44,8 +44,8 @@ export type AutocompleteSuggestion = {
 };
 
 export type AutocompleteResponseState = {
-  autocompletedResults: SearchResult[];
-  autocompletedSuggestions: Record<string, AutocompleteSuggestion[]>;
+  autocompletedResults: Array<SearchResult>;
+  autocompletedSuggestions: Record<string, Array<AutocompleteSuggestion>>;
 };
 
 type ProxyBody = {

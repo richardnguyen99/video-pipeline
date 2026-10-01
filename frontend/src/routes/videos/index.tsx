@@ -81,41 +81,83 @@ export const Route = createFileRoute("/videos/")({
   loader: async ({ context, location }) => {
     const { queryParams, searchIssues } = buildVideoListParams(location.searchStr);
 
-    const detailPrefetches: Promise<unknown>[] = [];
+    const detailPrefetches: Array<Promise<unknown>> = [];
 
     if (queryParams.maker != null) {
-      detailPrefetches.push(context.queryClient.ensureQueryData(makerDetailQueryOptions(queryParams.maker)));
+      detailPrefetches.push(
+        context.queryClient.query({
+          ...makerDetailQueryOptions(queryParams.maker),
+          staleTime: "static",
+        }),
+      );
     }
 
     if (queryParams.label != null) {
-      detailPrefetches.push(context.queryClient.ensureQueryData(labelDetailQueryOptions(queryParams.label)));
+      detailPrefetches.push(
+        context.queryClient.query({
+          ...labelDetailQueryOptions(queryParams.label),
+          staleTime: "static",
+        }),
+      );
     }
 
     if (queryParams.director != null) {
-      detailPrefetches.push(context.queryClient.ensureQueryData(directorDetailQueryOptions(queryParams.director)));
+      detailPrefetches.push(
+        context.queryClient.query({
+          ...directorDetailQueryOptions(queryParams.director),
+          staleTime: "static",
+        }),
+      );
     }
 
     if (queryParams.series != null) {
-      detailPrefetches.push(context.queryClient.ensureQueryData(seriesDetailQueryOptions(queryParams.series)));
+      detailPrefetches.push(
+        context.queryClient.query({
+          ...seriesDetailQueryOptions(queryParams.series),
+          staleTime: "static",
+        }),
+      );
     }
 
     const searchQ = queryParams.q?.trim();
     const relatedActressesPrefetch =
       searchQ != null && searchQ !== ""
-        ? context.queryClient.ensureQueryData(
-            relatedSearchActressesQueryOptions(searchQ, RELATED_SEARCH_ACTRESSES_LIMIT),
-          )
+        ? context.queryClient.query({
+            ...relatedSearchActressesQueryOptions(searchQ, RELATED_SEARCH_ACTRESSES_LIMIT),
+            staleTime: "static",
+          })
         : Promise.resolve();
 
     await Promise.all([
-      context.queryClient.ensureQueryData(videoListQueryOptions(queryParams)),
+      context.queryClient.query({
+        ...videoListQueryOptions(queryParams),
+        staleTime: "static",
+      }),
       relatedActressesPrefetch,
-      context.queryClient.ensureInfiniteQueryData(actressFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(labelFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(directorFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
+      context.queryClient.infiniteQuery({
+        ...actressFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...genreFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...makerFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...labelFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...directorFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...seriesFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
       ...detailPrefetches,
     ]);
 

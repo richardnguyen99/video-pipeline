@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -13,13 +13,20 @@ import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage, loginUser } from "@/libs/auth";
 
 const signInSchema = z.object({
-  email: z.string().trim().email("Enter a valid email address."),
+  email: z.email("Enter a valid email address."),
   password: z.string().min(1, "Password is required."),
+  rememberMe: z.boolean(),
 });
 
 type SignInFormValues = z.infer<typeof signInSchema>;
 
-function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined> {
+const signInDefaultValues: SignInFormValues = {
+  email: "",
+  password: "",
+  rememberMe: false,
+};
+
+function fieldErrors(errors: Array<unknown>): Array<{ message?: string } | undefined> {
   return errors.map((error) => {
     if (typeof error === "string") {
       return { message: error };
@@ -43,10 +50,7 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm({
-    defaultValues: {
-      email: "",
-      password: "",
-    } satisfies SignInFormValues,
+    defaultValues: signInDefaultValues,
     validators: {
       onSubmit: signInSchema,
     },
@@ -57,6 +61,7 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
         const user = await loginUser({
           email: value.email,
           password: value.password,
+          remember_me: value.rememberMe,
         });
 
         setUser(user);
@@ -74,7 +79,7 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();
@@ -143,6 +148,27 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
               </Field>
             );
           }}
+        />
+
+        <form.Field
+          name="rememberMe"
+          children={(field) => (
+            <Field orientation="horizontal" className="items-center gap-2">
+              <input
+                id={field.name}
+                name={field.name}
+                type="checkbox"
+                className="size-4 shrink-0 rounded border border-input accent-primary"
+                checked={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.checked)}
+              />
+
+              <FieldLabel htmlFor={field.name} className="font-normal">
+                Remember me
+              </FieldLabel>
+            </Field>
+          )}
         />
       </FieldGroup>
 

@@ -13,7 +13,7 @@ import { makerFilterInfiniteOptions } from "@/queries/makers";
 import { seriesFilterInfiniteOptions } from "@/queries/series";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const SORT_VALUES: ActressSort[] = [
+const SORT_VALUES: Array<ActressSort> = [
   "trending-year",
   "trending-month",
   "trending-week",
@@ -23,7 +23,7 @@ const SORT_VALUES: ActressSort[] = [
   "most-likes",
 ];
 
-function asIdArray(value: unknown): number[] | undefined {
+function asIdArray(value: unknown): Array<number> | undefined {
   if (Array.isArray(value)) {
     const list = value
       .map((v) => (typeof v === "number" ? v : Number(v)))
@@ -43,7 +43,7 @@ function asIdArray(value: unknown): number[] | undefined {
   return undefined;
 }
 
-function asStringArray(value: unknown): string[] | undefined {
+function asStringArray(value: unknown): Array<string> | undefined {
   if (Array.isArray(value)) {
     const list = value.filter((v): v is string => typeof v === "string");
 
@@ -166,14 +166,32 @@ export const Route = createFileRoute("/actresses/")({
     const page = deps.page ?? 1;
     const q = deps.q?.trim() ? deps.q.trim() : undefined;
 
-    const pagePromise = context.queryClient.ensureQueryData(actressListQueryOptions({ page, sort, filters, q }));
+    const pagePromise = context.queryClient.query({
+      ...actressListQueryOptions({ page, sort, filters, q }),
+      staleTime: "static",
+    });
 
     await Promise.all([
-      context.queryClient.ensureInfiniteQueryData(genreFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(seriesFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(makerFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(labelFilterInfiniteOptions()),
-      context.queryClient.ensureInfiniteQueryData(directorFilterInfiniteOptions()),
+      context.queryClient.infiniteQuery({
+        ...genreFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...seriesFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...makerFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...labelFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
+      context.queryClient.infiniteQuery({
+        ...directorFilterInfiniteOptions(),
+        staleTime: "static",
+      }),
     ]);
 
     return {

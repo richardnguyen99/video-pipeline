@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,7 +8,6 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/auth/password-input";
 import { changePassword, getApiErrorMessage } from "@/libs/auth";
 import { applyAuthSession } from "@/libs/auth-session";
@@ -36,7 +35,7 @@ const changePasswordSchema = z
 
 type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
 
-function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined> {
+function fieldErrors(errors: Array<unknown>): Array<{ message?: string } | undefined> {
   return errors.map((error) => {
     if (typeof error === "string") {
       return { message: error };
@@ -89,7 +88,7 @@ export function ChangePasswordForm() {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();

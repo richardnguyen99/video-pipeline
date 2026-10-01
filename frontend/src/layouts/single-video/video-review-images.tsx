@@ -34,7 +34,7 @@ export function VideoReviewImages({ video, className }: VideoReviewImagesProps) 
 
   const getChildren = useCallback(() => {
     const el = scrollerRef.current;
-    if (!el) return [] as HTMLElement[];
+    if (!el) return [] as Array<HTMLElement>;
     return Array.from(el.querySelectorAll<HTMLElement>("[data-sample-index]"));
   }, []);
 

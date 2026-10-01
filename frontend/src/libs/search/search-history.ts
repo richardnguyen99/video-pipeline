@@ -22,8 +22,8 @@ export type RecentVideo = {
 };
 
 export type SearchHistoryState = {
-  queries: RecentQuery[];
-  videos: RecentVideo[];
+  queries: Array<RecentQuery>;
+  videos: Array<RecentVideo>;
 };
 
 const EMPTY: SearchHistoryState = {
@@ -79,9 +79,9 @@ function parseRecentQuery(value: unknown): RecentQuery | null {
 }
 
 /** Favorites first (stable within each group), then non-favorites. */
-function sortQueries(queries: RecentQuery[]): RecentQuery[] {
-  const favorites: RecentQuery[] = [];
-  const rest: RecentQuery[] = [];
+function sortQueries(queries: Array<RecentQuery>): Array<RecentQuery> {
+  const favorites: Array<RecentQuery> = [];
+  const rest: Array<RecentQuery> = [];
 
   for (const entry of queries) {
     if (entry.favorite) {
@@ -94,9 +94,9 @@ function sortQueries(queries: RecentQuery[]): RecentQuery[] {
   return [...favorites, ...rest];
 }
 
-function dedupeQueries(queries: RecentQuery[]): RecentQuery[] {
+function dedupeQueries(queries: Array<RecentQuery>): Array<RecentQuery> {
   const seen = new Set<string>();
-  const result: RecentQuery[] = [];
+  const result: Array<RecentQuery> = [];
 
   for (const entry of queries) {
     if (seen.has(entry.query)) {
@@ -299,10 +299,10 @@ export function recentVideoToSearchResult(video: RecentVideo): SearchResult {
  * `julia+sweat` must not surface a `julia+squirt`-only recent item).
  */
 export function mergeRecentVideosOnTop(
-  results: SearchResult[],
-  recent: RecentVideo[],
+  results: Array<SearchResult>,
+  recent: Array<RecentVideo>,
   _term: string,
-): { results: SearchResult[]; recentIds: Set<string> } {
+): { results: Array<SearchResult>; recentIds: Set<string> } {
   const allRecentIds = new Set(recent.map((video) => video.id));
   const pinned = results.filter((result) => allRecentIds.has(result.id.raw));
   const rest = results.filter((result) => !allRecentIds.has(result.id.raw));

@@ -16,7 +16,7 @@ export type LabelListItemApi = {
 };
 
 export type LabelListApiResponse = {
-  items: LabelListItemApi[];
+  items: Array<LabelListItemApi>;
   total: number;
   limit: number;
   offset: number;
@@ -37,7 +37,7 @@ export type LabelDetailApi = {
   dmmId: string;
   createdAt: string;
   updatedAt: string;
-  akas: LabelDetailAkaApi[];
+  akas: Array<LabelDetailAkaApi>;
 };
 
 export type LabelListQueryParams = {
@@ -114,13 +114,13 @@ export function labelFilterInfiniteOptions(q?: string, locale: string = DEFAULT_
   });
 }
 
-export function flattenLabelFilterPages(pages: LabelListApiResponse[] | undefined): NamedEntity[] {
+export function flattenLabelFilterPages(pages: Array<LabelListApiResponse> | undefined): Array<NamedEntity> {
   if (pages == null) {
     return [];
   }
 
   const seen = new Set<number>();
-  const result: NamedEntity[] = [];
+  const result: Array<NamedEntity> = [];
 
   for (const page of pages) {
     for (const item of page.items) {

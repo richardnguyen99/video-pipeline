@@ -30,7 +30,7 @@ export type ActressSearchResult = {
 };
 
 export type ActressSearchResponseState = {
-  results: ActressSearchResult[];
+  results: Array<ActressSearchResult>;
   totalResults: number;
   totalPages: number;
   resultSearchTerm?: string;
@@ -41,8 +41,8 @@ export type ActressAutocompleteSuggestion = {
 };
 
 export type ActressAutocompleteResponseState = {
-  autocompletedResults: ActressSearchResult[];
-  autocompletedSuggestions: Record<string, ActressAutocompleteSuggestion[]>;
+  autocompletedResults: Array<ActressSearchResult>;
+  autocompletedSuggestions: Record<string, Array<ActressAutocompleteSuggestion>>;
 };
 
 type ProxyBody = {

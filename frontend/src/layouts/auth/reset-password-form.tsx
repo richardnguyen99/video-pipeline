@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -7,7 +7,6 @@ import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/auth/password-input";
 import { getApiErrorMessage, resetPasswordWithToken } from "@/libs/auth";
 
@@ -28,7 +27,7 @@ const resetPasswordSchema = z
 
 type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 
-function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined> {
+function fieldErrors(errors: Array<unknown>): Array<{ message?: string } | undefined> {
   return errors.map((error) => {
     if (typeof error === "string") {
       return { message: error };
@@ -78,7 +77,7 @@ export function ResetPasswordForm({ token }: ResetPasswordFormProps) {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();

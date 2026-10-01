@@ -8,10 +8,10 @@ export const ACTRESS_VIDEO_PAGE_SIZE = 16;
 export type ActressVideoSort = "latest" | "most-viewed" | "most-liked" | "most-comments" | "title";
 
 export interface ActressVideoFilters {
-  labels: number[];
-  genres: number[];
-  makers: number[];
-  directors: number[];
+  labels: Array<number>;
+  genres: Array<number>;
+  makers: Array<number>;
+  directors: Array<number>;
   series?: number;
 }
 
@@ -24,10 +24,10 @@ export const DEFAULT_ACTRESS_VIDEO_FILTERS: ActressVideoFilters = {
   directors: [],
 };
 
-export const ACTRESS_VIDEO_SORT_OPTIONS: {
+export const ACTRESS_VIDEO_SORT_OPTIONS: Array<{
   value: ActressVideoSort;
   label: string;
-}[] = [
+}> = [
   { value: "latest", label: "Latest" },
   { value: "most-viewed", label: "Most viewed" },
   { value: "most-liked", label: "Most liked" },
@@ -38,10 +38,10 @@ export const ACTRESS_VIDEO_SORT_OPTIONS: {
 export type ActressVideoSearchParams = {
   page?: number;
   sort?: ActressVideoSort;
-  labels?: number[];
-  genres?: number[];
-  makers?: number[];
-  directors?: number[];
+  labels?: Array<number>;
+  genres?: Array<number>;
+  makers?: Array<number>;
+  directors?: Array<number>;
   series?: number;
 };
 
@@ -69,9 +69,9 @@ export function buildActressVideoSearch(input: {
 }
 
 function collectEntities(
-  videos: Video[],
-  pick: (video: Video) => NamedEntity | NamedEntity[] | null | undefined,
-): NamedEntity[] {
+  videos: Array<Video>,
+  pick: (video: Video) => NamedEntity | Array<NamedEntity> | null | undefined,
+): Array<NamedEntity> {
   const map = new Map<number, string>();
   for (const video of videos) {
     const value = pick(video);
@@ -84,19 +84,19 @@ function collectEntities(
   return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getAvailableVideoLabels(videos: Video[]): NamedEntity[] {
+export function getAvailableVideoLabels(videos: Array<Video>): Array<NamedEntity> {
   return collectEntities(videos, (v) => v.label ?? null);
 }
 
-export function getAvailableVideoGenres(videos: Video[]): NamedEntity[] {
+export function getAvailableVideoGenres(videos: Array<Video>): Array<NamedEntity> {
   return collectEntities(videos, (v) => v.genres ?? []);
 }
 
-export function getAvailableVideoMakers(videos: Video[]): NamedEntity[] {
+export function getAvailableVideoMakers(videos: Array<Video>): Array<NamedEntity> {
   return collectEntities(videos, (v) => v.maker ?? null);
 }
 
-export function filterActressVideos(videos: Video[], filters: ActressVideoFilters): Video[] {
+export function filterActressVideos(videos: Array<Video>, filters: ActressVideoFilters): Array<Video> {
   return videos.filter((video) => {
     if (filters.labels.length > 0) {
       if (!video.label || !filters.labels.includes(video.label.id)) return false;
@@ -117,7 +117,7 @@ export function filterActressVideos(videos: Video[], filters: ActressVideoFilter
   });
 }
 
-export function sortActressVideos(videos: Video[], sort: ActressVideoSort): Video[] {
+export function sortActressVideos(videos: Array<Video>, sort: ActressVideoSort): Array<Video> {
   const list = [...videos];
 
   switch (sort) {
@@ -141,13 +141,13 @@ export function sortActressVideos(videos: Video[], sort: ActressVideoSort): Vide
 }
 
 export type ActressVideoPageResult = {
-  videos: Video[];
+  videos: Array<Video>;
   total: number;
   page: number;
   totalPages: number;
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
-  allVideos: Video[];
+  allVideos: Array<Video>;
 };
 
 export function actressVideoSortToApi(sort: ActressVideoSort): VideoSort {
@@ -173,7 +173,7 @@ export async function getActressVideoPage(
     page?: number;
     sort?: ActressVideoSort;
     filters?: ActressVideoFilters;
-    allVideos?: Video[];
+    allVideos?: Array<Video>;
   } = {},
 ): Promise<ActressVideoPageResult> {
   const { fetchVideoList } = await import("@/queries/videos");

@@ -1,11 +1,11 @@
 import type { Video } from "@/mocks/videos";
 import { mockVideos } from "@/mocks/videos";
 
-export function getTrendingVideos(): Video[] {
+export function getTrendingVideos(): Array<Video> {
   return [...mockVideos].reverse();
 }
 
-export function getLatestVideos(): Video[] {
+export function getLatestVideos(): Array<Video> {
   return [...mockVideos].sort((a, b) => {
     const da = a.release_date ? Date.parse(a.release_date) : 0;
     const db = b.release_date ? Date.parse(b.release_date) : 0;
@@ -13,11 +13,11 @@ export function getLatestVideos(): Video[] {
   });
 }
 
-export function getForYouVideos(): Video[] {
+export function getForYouVideos(): Array<Video> {
   return [...mockVideos].sort((a, b) => a.id - b.id);
 }
 
-export function getAllGenres(): { id: number; name: string; slug: string; count: number }[] {
+export function getAllGenres(): Array<{ id: number; name: string; slug: string; count: number }> {
   const map = new Map<string, { id: number; name: string; count: number }>();
   for (const video of mockVideos) {
     for (const genre of video.genres ?? []) {
@@ -34,7 +34,7 @@ export function getAllGenres(): { id: number; name: string; slug: string; count:
     }));
 }
 
-export function getVideosByGenreSlug(slug: string): Video[] {
+export function getVideosByGenreSlug(slug: string): Array<Video> {
   const normalized = slug.toLowerCase().replace(/-/g, " ");
   return mockVideos.filter((video) =>
     (video.genres ?? []).some(

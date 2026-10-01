@@ -116,7 +116,7 @@ function parseSetCookieHeader(raw: string): ParsedSetCookie | null {
  */
 function forwardRefreshSetCookie(response: Response): void {
   const headersWithGetSetCookie = response.headers as Headers & {
-    getSetCookie?: () => string[];
+    getSetCookie?: () => Array<string>;
   };
 
   const setCookies =

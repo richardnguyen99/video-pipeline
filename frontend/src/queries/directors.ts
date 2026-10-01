@@ -16,7 +16,7 @@ export type DirectorListItemApi = {
 };
 
 export type DirectorListApiResponse = {
-  items: DirectorListItemApi[];
+  items: Array<DirectorListItemApi>;
   total: number;
   limit: number;
   offset: number;
@@ -37,7 +37,7 @@ export type DirectorDetailApi = {
   dmmId: string;
   createdAt: string;
   updatedAt: string;
-  akas: DirectorDetailAkaApi[];
+  akas: Array<DirectorDetailAkaApi>;
 };
 
 export type DirectorListQueryParams = {
@@ -114,13 +114,13 @@ export function directorFilterInfiniteOptions(q?: string, locale: string = DEFAU
   });
 }
 
-export function flattenDirectorFilterPages(pages: DirectorListApiResponse[] | undefined): NamedEntity[] {
+export function flattenDirectorFilterPages(pages: Array<DirectorListApiResponse> | undefined): Array<NamedEntity> {
   if (pages == null) {
     return [];
   }
 
   const seen = new Set<number>();
-  const result: NamedEntity[] = [];
+  const result: Array<NamedEntity> = [];
 
   for (const page of pages) {
     for (const item of page.items) {

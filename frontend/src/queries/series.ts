@@ -16,7 +16,7 @@ export type SeriesListItemApi = {
 };
 
 export type SeriesListApiResponse = {
-  items: SeriesListItemApi[];
+  items: Array<SeriesListItemApi>;
   total: number;
   limit: number;
   offset: number;
@@ -37,7 +37,7 @@ export type SeriesDetailApi = {
   dmmId: string;
   createdAt: string;
   updatedAt: string;
-  akas: SeriesDetailAkaApi[];
+  akas: Array<SeriesDetailAkaApi>;
 };
 
 export type SeriesListQueryParams = {
@@ -114,13 +114,13 @@ export function seriesFilterInfiniteOptions(q?: string, locale: string = DEFAULT
   });
 }
 
-export function flattenSeriesFilterPages(pages: SeriesListApiResponse[] | undefined): NamedEntity[] {
+export function flattenSeriesFilterPages(pages: Array<SeriesListApiResponse> | undefined): Array<NamedEntity> {
   if (pages == null) {
     return [];
   }
 
   const seen = new Set<number>();
-  const result: NamedEntity[] = [];
+  const result: Array<NamedEntity> = [];
 
   for (const page of pages) {
     for (const item of page.items) {

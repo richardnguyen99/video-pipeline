@@ -25,7 +25,10 @@ export const Route = createFileRoute("/videos/$id")({
     const videoId = params.id;
 
     try {
-      await context.queryClient.ensureQueryData(videoDetailQueryOptions(videoId));
+      await context.queryClient.query({
+        ...videoDetailQueryOptions(videoId),
+        staleTime: "static",
+      });
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         throw notFound();
@@ -34,9 +37,9 @@ export const Route = createFileRoute("/videos/$id")({
       throw error;
     }
 
-    void context.queryClient.prefetchQuery(
-      videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT),
-    );
+    void context.queryClient
+      .query(videoRecommendationsQueryOptions(videoId, DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT))
+      .catch(() => undefined);
 
     return { videoId };
   },

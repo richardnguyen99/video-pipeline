@@ -14,12 +14,12 @@ export type ActressSort =
   | "most-likes";
 
 export interface ActressFilters {
-  labels: number[];
-  genres: number[];
-  makers: number[];
-  series: number[];
-  directors: number[];
-  cups: string[];
+  labels: Array<number>;
+  genres: Array<number>;
+  makers: Array<number>;
+  series: Array<number>;
+  directors: Array<number>;
+  cups: Array<string>;
   bustMin?: number;
   bustMax?: number;
   waistMin?: number;
@@ -64,13 +64,13 @@ export interface ActressSummary extends ActressRef {
   viewsYear: number;
   viewsMonth: number;
   viewsWeek: number;
-  labels: NamedEntity[];
-  genres: NamedEntity[];
-  makers: NamedEntity[];
+  labels: Array<NamedEntity>;
+  genres: Array<NamedEntity>;
+  makers: Array<NamedEntity>;
   banner?: ActressBannerRef | null;
 }
 
-function engagementFromVideos(videos: Video[]): Map<
+function engagementFromVideos(videos: Array<Video>): Map<
   number,
   {
     videoCount: number;
@@ -119,7 +119,7 @@ function engagementFromVideos(videos: Video[]): Map<
   return map;
 }
 
-const LABEL_POOL: NamedEntity[] = [
+const LABEL_POOL: Array<NamedEntity> = [
   { id: 1, name: "Velvet Soft" },
   { id: 2, name: "Night Pulse" },
   { id: 3, name: "Cherry Line" },
@@ -127,7 +127,7 @@ const LABEL_POOL: NamedEntity[] = [
   { id: 5, name: "Urban Glow" },
 ];
 
-const GENRE_POOL: NamedEntity[] = [
+const GENRE_POOL: Array<NamedEntity> = [
   { id: 1, name: "Drama" },
   { id: 2, name: "Romance" },
   { id: 3, name: "Thriller" },
@@ -142,7 +142,7 @@ const GENRE_POOL: NamedEntity[] = [
   { id: 12, name: "Action" },
 ];
 
-const MAKER_POOL: NamedEntity[] = [
+const MAKER_POOL: Array<NamedEntity> = [
   { id: 1, name: "STUDIO-A" },
   { id: 2, name: "DREAM-STUDIO" },
   { id: 3, name: "HORIZON-FILMS" },
@@ -156,23 +156,23 @@ const MAKER_POOL: NamedEntity[] = [
 
 export const CUP_SIZES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"] as const;
 
-export function getAvailableActressLabels(): NamedEntity[] {
+export function getAvailableActressLabels(): Array<NamedEntity> {
   return [...LABEL_POOL].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getAvailableActressGenres(): NamedEntity[] {
+export function getAvailableActressGenres(): Array<NamedEntity> {
   return [...GENRE_POOL].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getAvailableActressMakers(): NamedEntity[] {
+export function getAvailableActressMakers(): Array<NamedEntity> {
   return [...MAKER_POOL].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getAvailableCupSizes(): string[] {
+export function getAvailableCupSizes(): Array<string> {
   return [...CUP_SIZES];
 }
 
-export function getActressSummaries(videos: Video[] = mockVideos): ActressSummary[] {
+export function getActressSummaries(videos: Array<Video> = mockVideos): Array<ActressSummary> {
   const engagement = engagementFromVideos(videos);
 
   return mockActressCatalog.map((profile, index) => {
@@ -222,11 +222,11 @@ export function getActressSummaries(videos: Video[] = mockVideos): ActressSummar
   });
 }
 
-export async function getActressById(id: number, videos: Video[] = mockVideos): Promise<ActressSummary | undefined> {
+export function getActressById(id: number, videos: Array<Video> = mockVideos): ActressSummary | undefined {
   return getActressSummaries(videos).find((a) => a.id === id);
 }
 
-export function getVideosByActressId(id: number, videos: Video[] = mockVideos): Video[] {
+export function getVideosByActressId(id: number, videos: Array<Video> = mockVideos): Array<Video> {
   const matched = videos.filter((v) => (v.actresses ?? []).some((a) => a.id === id));
 
   const actress = mockActressCatalog.find((a) => a.id === id);
@@ -239,7 +239,7 @@ export function getVideosByActressId(id: number, videos: Video[] = mockVideos): 
 
   const pool = matched.length > 0 ? matched : videos;
   const start = (id * 5) % pool.length;
-  const result: Video[] = [];
+  const result: Array<Video> = [];
 
   for (let i = 0; result.length < targetCount; i += 1) {
     const base = pool[(start + i) % pool.length];
@@ -290,7 +290,7 @@ export function formatBirthdayLabel(birthday?: string | null): string | null {
 }
 
 export function formatMeasurements(actress: ActressSummary): string | null {
-  const parts: string[] = [];
+  const parts: Array<string> = [];
   if (actress.bust != null) {
     parts.push(actress.cup ? `B${actress.bust}${actress.cup}` : `B${actress.bust}`);
   } else if (actress.cup) {
@@ -309,7 +309,7 @@ function inRange(value: number | null | undefined, min?: number, max?: number): 
   return true;
 }
 
-export function filterActresses(actresses: ActressSummary[], filters: ActressFilters): ActressSummary[] {
+export function filterActresses(actresses: Array<ActressSummary>, filters: ActressFilters): Array<ActressSummary> {
   return actresses.filter((a) => {
     if (filters.labels.length > 0) {
       if (!filters.labels.some((id) => a.labels.some((l) => l.id === id))) return false;
@@ -337,7 +337,7 @@ export function filterActresses(actresses: ActressSummary[], filters: ActressFil
   });
 }
 
-export function sortActresses(actresses: ActressSummary[], sort: ActressSort): ActressSummary[] {
+export function sortActresses(actresses: Array<ActressSummary>, sort: ActressSort): Array<ActressSummary> {
   const list = [...actresses];
   const byNumber = (getter: (a: ActressSummary) => number) =>
     list.sort((a, b) => getter(b) - getter(a) || a.name.localeCompare(b.name));
@@ -363,7 +363,7 @@ export function sortActresses(actresses: ActressSummary[], sort: ActressSort): A
 }
 
 export type ActressPageResult = {
-  items: ActressSummary[];
+  items: Array<ActressSummary>;
   page: number;
   pageSize: number;
   total: number;
@@ -378,7 +378,7 @@ export async function getActressPage(
     pageSize?: number;
     sort?: ActressSort;
     filters?: ActressFilters;
-    videos?: Video[];
+    videos?: Array<Video>;
   } = {},
 ): Promise<ActressPageResult> {
   const { fetchActressPage } = await import("@/queries/actresses");
@@ -391,11 +391,11 @@ export async function getActressPage(
   });
 }
 
-export const ACTRESS_SORT_OPTIONS: {
+export const ACTRESS_SORT_OPTIONS: Array<{
   value: ActressSort;
   label: string;
   group?: string;
-}[] = [
+}> = [
   { value: "trending-year", label: "This year", group: "Trending" },
   { value: "trending-month", label: "This month", group: "Trending" },
   { value: "trending-week", label: "This week", group: "Trending" },
@@ -406,15 +406,15 @@ export const ACTRESS_SORT_OPTIONS: {
 ];
 
 export type ActressesSearchParams = {
-  series?: number[];
+  series?: Array<number>;
   page?: number;
   sort?: ActressSort;
   q?: string;
-  labels?: number[];
-  genres?: number[];
-  makers?: number[];
-  directors?: number[];
-  cups?: string[];
+  labels?: Array<number>;
+  genres?: Array<number>;
+  makers?: Array<number>;
+  directors?: Array<number>;
+  cups?: Array<string>;
   bustMin?: number;
   bustMax?: number;
   waistMin?: number;

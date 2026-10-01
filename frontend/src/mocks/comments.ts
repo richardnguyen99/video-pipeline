@@ -18,7 +18,7 @@ export interface VideoComment {
   likes: number;
   dislikes: number;
   viewer_vote?: "like" | "dislike" | null;
-  replies?: VideoComment[];
+  replies?: Array<VideoComment>;
 }
 
 export const mockCurrentUser: CommentUser = {
@@ -28,7 +28,7 @@ export const mockCurrentUser: CommentUser = {
   avatar_url: "https://picsum.photos/id/64/72/72",
 };
 
-export const mockCommentsByVideoId: Record<string, VideoComment[]> = {
+export const mockCommentsByVideoId: Record<string, Array<VideoComment>> = {
   ABCD100: [
     {
       id: "c-ABCD100-1",
@@ -1351,10 +1351,10 @@ export const mockCommentsByVideoId: Record<string, VideoComment[]> = {
   ],
 };
 
-export function getMockComments(videoId: string): VideoComment[] {
+export function getMockComments(videoId: string): Array<VideoComment> {
   return mockCommentsByVideoId[videoId] ?? [];
 }
 
-export function countComments(comments: VideoComment[]): number {
+export function countComments(comments: Array<VideoComment>): number {
   return comments.reduce((sum, c) => sum + 1 + countComments(c.replies ?? []), 0);
 }

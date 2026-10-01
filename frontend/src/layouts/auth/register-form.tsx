@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { FormEvent } from "react";
+import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
@@ -19,7 +19,7 @@ const registerSchema = z
       .min(3, "Username must be at least 3 characters.")
       .max(50, "Username must be at most 50 characters.")
       .regex(/^[A-Za-z0-9_]+$/, "Username may only contain letters, digits, and underscores."),
-    email: z.string().trim().email("Enter a valid email address."),
+    email: z.email("Enter a valid email address."),
     displayName: z.string().trim().max(100, "Display name must be at most 100 characters."),
     password: z
       .string()
@@ -36,7 +36,7 @@ const registerSchema = z
 
 type RegisterFormValues = z.infer<typeof registerSchema>;
 
-function fieldErrors(errors: unknown[]): Array<{ message?: string } | undefined> {
+function fieldErrors(errors: Array<unknown>): Array<{ message?: string } | undefined> {
   return errors.map((error) => {
     if (typeof error === "string") {
       return { message: error };
@@ -83,7 +83,7 @@ export function RegisterForm() {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     event.stopPropagation();
     void form.handleSubmit();

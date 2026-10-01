@@ -27,7 +27,7 @@ type EntityInfiniteOptions = UseInfiniteQueryOptions<
   EntityMultiFilterPage,
   Error,
   InfiniteData<EntityMultiFilterPage, number>,
-  readonly unknown[],
+  ReadonlyArray<unknown>,
   number
 >;
 

@@ -16,7 +16,7 @@ export type GenreListItemApi = {
 };
 
 export type GenreListApiResponse = {
-  items: GenreListItemApi[];
+  items: Array<GenreListItemApi>;
   total: number;
   limit: number;
   offset: number;
@@ -37,7 +37,7 @@ export type GenreDetailApi = {
   dmmId: string;
   createdAt: string;
   updatedAt: string;
-  akas: GenreDetailAkaApi[];
+  akas: Array<GenreDetailAkaApi>;
 };
 
 export type GenreListQueryParams = {
@@ -114,13 +114,13 @@ export function genreFilterInfiniteOptions(q?: string, locale: string = DEFAULT_
   });
 }
 
-export function flattenGenreFilterPages(pages: GenreListApiResponse[] | undefined): NamedEntity[] {
+export function flattenGenreFilterPages(pages: Array<GenreListApiResponse> | undefined): Array<NamedEntity> {
   if (pages == null) {
     return [];
   }
 
   const seen = new Set<number>();
-  const result: NamedEntity[] = [];
+  const result: Array<NamedEntity> = [];
 
   for (const page of pages) {
     for (const item of page.items) {

@@ -6,7 +6,7 @@ import { DEFAULT_VIDEO_SORT, VIDEO_DISCOVER_PAGE_SIZE, stringifyFeaturesCnt } fr
 import type { Video } from "@/mocks/videos";
 
 export type VideoListApiResponse = {
-  items: Video[];
+  items: Array<Video>;
   total: number;
   limit: number;
   offset: number;
@@ -18,8 +18,8 @@ export type VideoListQueryParams = {
   limit?: number;
   q?: string;
   locale?: string;
-  actress?: number[];
-  genre?: number[];
+  actress?: Array<number>;
+  genre?: Array<number>;
   maker?: number;
   label?: number;
   director?: number;
@@ -28,7 +28,7 @@ export type VideoListQueryParams = {
 };
 
 export type VideoListPage = {
-  videos: Video[];
+  videos: Array<Video>;
   total: number;
   page: number;
   totalPages: number;
@@ -142,7 +142,7 @@ export const VIDEO_RECOMMENDATIONS_EXPANDED_LIMIT = Math.min(
 export async function fetchVideoRecommendations(
   videoId: string | number,
   limit: number = DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
-): Promise<Video[]> {
+): Promise<Array<Video>> {
   const response = await apiFetch<VideoListApiResponse>(`/videos/${videoId}/recommendations`, {
     searchParams: { limit },
   });

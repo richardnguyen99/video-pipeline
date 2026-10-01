@@ -12,7 +12,7 @@ const CURVE_R = 10;
 const BRANCH_W = 16;
 
 interface CommentReplyThreadProps {
-  replies: VideoComment[];
+  replies: Array<VideoComment>;
   currentUser: CommentUser;
   depth?: number;
 }

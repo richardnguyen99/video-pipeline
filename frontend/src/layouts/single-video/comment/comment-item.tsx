@@ -157,6 +157,6 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
   );
 }
 
-function countReplies(replies: VideoComment[]): number {
+function countReplies(replies: Array<VideoComment>): number {
   return replies.reduce((sum, r) => sum + 1 + countReplies(r.replies ?? []), 0);
 }

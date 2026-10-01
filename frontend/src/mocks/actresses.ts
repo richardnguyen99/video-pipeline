@@ -11,7 +11,7 @@ export interface MockActressProfile {
   height?: number | null;
 }
 
-export const mockActressCatalog: MockActressProfile[] = [
+export const mockActressCatalog: Array<MockActressProfile> = [
   {
     id: 1,
     name: "Aoi Tsukasa",

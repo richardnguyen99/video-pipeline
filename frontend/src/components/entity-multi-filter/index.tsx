@@ -35,7 +35,7 @@ type EntityInfiniteOptions = UseInfiniteQueryOptions<
   EntityMultiFilterPage,
   Error,
   InfiniteData<EntityMultiFilterPage, number>,
-  readonly unknown[],
+  ReadonlyArray<unknown>,
   number
 >;
 
@@ -46,14 +46,14 @@ export type EntityMultiFilterConfig<TDetail = unknown> = {
   menuLabel?: string;
   locale: string;
   infiniteOptions: (q?: string, locale?: string) => object;
-  flattenPages: (pages: EntityMultiFilterPage[] | undefined) => NamedEntity[];
+  flattenPages: (pages: Array<EntityMultiFilterPage> | undefined) => Array<NamedEntity>;
   detailQueryOptions: (id: number) => object;
   mapDetailToNamedEntity: (detail: TDetail, locale: string) => NamedEntity;
 };
 
 export interface EntityMultiFilterProps<TDetail = unknown> {
-  selected: number[];
-  onChange: (ids: number[]) => void;
+  selected: Array<number>;
+  onChange: (ids: Array<number>) => void;
   config: EntityMultiFilterConfig<TDetail>;
   container?: HTMLElement | null;
   triggerClassName?: (active?: boolean) => string;
@@ -72,7 +72,7 @@ export function EntityMultiFilter<TDetail = unknown>({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [draft, setDraft] = useState<number[]>(selected);
+  const [draft, setDraft] = useState<Array<number>>(selected);
   const [sessionNames, setSessionNames] = useState<NameMap>({});
 
   useEffect(() => {
@@ -141,13 +141,13 @@ export function EntityMultiFilter<TDetail = unknown>({
   }
 
   const draftSet = new Set(draft);
-  const draftItems: NamedEntity[] = draft.map((id) => ({
+  const draftItems: Array<NamedEntity> = draft.map((id) => ({
     id,
     name: resolveName(id),
   }));
   const available = options.filter((item) => !draftSet.has(item.id));
 
-  function selectionChanged(next: number[]): boolean {
+  function selectionChanged(next: Array<number>): boolean {
     if (next.length !== selected.length) {
       return true;
     }

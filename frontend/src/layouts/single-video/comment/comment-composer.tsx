@@ -30,7 +30,7 @@ export function CommentComposer({
   const [value, setValue] = useState(initialValue);
   const initial = (currentUser.display_name ?? currentUser.username).slice(0, 1).toUpperCase();
 
-  function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     const trimmed = value.trim();
     if (!trimmed) return;

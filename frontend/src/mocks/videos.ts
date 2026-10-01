@@ -38,7 +38,7 @@ export interface ActressAka {
 
 export interface ActressRef extends NamedEntity {
   image_url?: string;
-  actress_image?: ActressImage[];
+  actress_image?: Array<ActressImage>;
   actress_aka?: ActressAka | null;
   ruby?: string | null;
   dmm_id?: string | null;
@@ -58,7 +58,7 @@ const ACTRESS_IMAGE_ATTRIBUTE_PRIORITY = ["default", "avatar"] as const;
 
 export function pickActressImageUrl(
   items: Array<{ url: string; attribute?: string | null }> | undefined,
-  priority: readonly string[] = ACTRESS_IMAGE_ATTRIBUTE_PRIORITY,
+  priority: ReadonlyArray<string> = ACTRESS_IMAGE_ATTRIBUTE_PRIORITY,
 ): string | undefined {
   if (items == null || items.length === 0) {
     return undefined;
@@ -87,7 +87,7 @@ const VIDEO_IMAGE_TYPE_PRIORITY = ["large", "small", "list"] as const;
 
 export function pickVideoImageUrl(
   items: Array<{ url: string; type?: string | null }> | undefined,
-  priority: readonly string[] = VIDEO_IMAGE_TYPE_PRIORITY,
+  priority: ReadonlyArray<string> = VIDEO_IMAGE_TYPE_PRIORITY,
 ): string | undefined {
   if (items == null || items.length === 0) {
     return undefined;
@@ -107,9 +107,9 @@ export function pickVideoImageUrl(
 const VIDEO_SAMPLE_IMAGE_TYPE_PRIORITY = ["sample_l", "sample_gen", "sample_s"] as const;
 
 export function pickVideoSampleImages<T extends { url: string; type?: string | null }>(
-  items: T[] | undefined,
-  priority: readonly string[] = VIDEO_SAMPLE_IMAGE_TYPE_PRIORITY,
-): T[] {
+  items: Array<T> | undefined,
+  priority: ReadonlyArray<string> = VIDEO_SAMPLE_IMAGE_TYPE_PRIORITY,
+): Array<T> {
   if (items == null || items.length === 0) {
     return [];
   }
@@ -156,30 +156,30 @@ export interface Video {
   jancode?: string;
   maker_product?: string;
   floor_code?: string;
-  image_urls?: string[];
-  video_image_url?: VideoImageUrl[];
-  sample_image_url?: VideoVideoSampleImageUrlUrl[];
-  video_sample_image_url?: VideoVideoSampleImageUrlUrl[];
-  sample_movie_url?: VideoSampleMovieUrl[];
+  image_urls?: Array<string>;
+  video_image_url?: Array<VideoImageUrl>;
+  sample_image_url?: Array<VideoVideoSampleImageUrlUrl>;
+  video_sample_image_url?: Array<VideoVideoSampleImageUrlUrl>;
+  sample_movie_url?: Array<VideoSampleMovieUrl>;
   m3u8_url?: string | null;
-  m3u8_urls?: string[];
+  m3u8_urls?: Array<string>;
   views?: number;
   likes?: number;
   dislikes?: number;
   /** Detail payloads: comment tree. List payloads: aggregate count. */
-  comments?: number | VideoComment[];
-  makers?: NamedEntity[];
-  labels?: NamedEntity[];
-  directors?: NamedEntity[];
-  series?: NamedEntity[] | NamedEntity | null;
+  comments?: number | Array<VideoComment>;
+  makers?: Array<NamedEntity>;
+  labels?: Array<NamedEntity>;
+  directors?: Array<NamedEntity>;
+  series?: Array<NamedEntity> | NamedEntity | null;
   maker?: NamedEntity | null;
   label?: NamedEntity | null;
   director?: NamedEntity | null;
-  actresses?: ActressRef[];
-  genres?: NamedEntity[];
+  actresses?: Array<ActressRef>;
+  genres?: Array<NamedEntity>;
 }
 
-export function videoCommentList(video: Pick<Video, "comments">): VideoComment[] {
+export function videoCommentList(video: Pick<Video, "comments">): Array<VideoComment> {
   return Array.isArray(video.comments) ? video.comments : [];
 }
 
@@ -202,9 +202,9 @@ export function videoDisplayTitle(video: Pick<Video, "title" | "video_aka">): st
 }
 
 export function normalizeVideoEntities(
-  items: NamedEntity[] | NamedEntity | null | undefined,
+  items: Array<NamedEntity> | NamedEntity | null | undefined,
   fallback?: NamedEntity | null,
-): NamedEntity[] {
+): Array<NamedEntity> {
   if (Array.isArray(items)) {
     return items;
   }
@@ -220,7 +220,7 @@ export function normalizeVideoEntities(
   return [];
 }
 
-export const mockVideos: Video[] = [
+export const mockVideos: Array<Video> = [
   {
     id: 1,
     video_id: "ABCD100",
@@ -2721,6 +2721,6 @@ export function getMockVideoById(videoId: string): Video | undefined {
   return undefined;
 }
 
-export function getMockRelatedVideos(excludeVideoId: string, limit = 12): Video[] {
+export function getMockRelatedVideos(excludeVideoId: string, limit = 12): Array<Video> {
   return mockVideos.filter((v) => v.video_id !== excludeVideoId).slice(0, limit);
 }

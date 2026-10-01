@@ -52,13 +52,13 @@ import { cn, restoreScrollPosition } from "@/libs/utils";
 interface VideoBrowseProps {
   title?: string;
   description?: string;
-  videos: Video[];
+  videos: Array<Video>;
   total: number;
   page: number;
   totalPages: number;
   sort: VideoSort;
   filters: VideoDiscoverFilters;
-  searchIssues?: VideoDiscoverSearchIssue[];
+  searchIssues?: Array<VideoDiscoverSearchIssue>;
   q?: string;
   className?: string;
 }
@@ -84,7 +84,7 @@ function featuresCntLabel(range: FeaturesCountRange | undefined): string {
   return `${range.min}–${range.max}`;
 }
 
-function buildPageNumbers(page: number, totalPages: number): number[] {
+function buildPageNumbers(page: number, totalPages: number): Array<number> {
   const pages = new Set<number>([1, totalPages]);
 
   for (let p = page - 2; p <= page + 2; p++) {

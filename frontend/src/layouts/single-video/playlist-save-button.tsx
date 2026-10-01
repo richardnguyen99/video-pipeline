@@ -25,7 +25,7 @@ export interface PlaylistOption {
   inPlaylist: boolean;
 }
 
-const DEFAULT_PLAYLISTS: PlaylistOption[] = [
+const DEFAULT_PLAYLISTS: Array<PlaylistOption> = [
   {
     id: 1,
     name: "Favorites",
@@ -58,7 +58,7 @@ const DEFAULT_PLAYLISTS: PlaylistOption[] = [
 
 interface PlaylistSaveButtonProps {
   isAuthenticated: boolean;
-  playlists?: PlaylistOption[];
+  playlists?: Array<PlaylistOption>;
   mobileOpen?: boolean;
   onMobileOpenChange?: (open: boolean) => void;
 }
@@ -69,7 +69,7 @@ export function PlaylistSaveButton({
   mobileOpen,
   onMobileOpenChange,
 }: PlaylistSaveButtonProps) {
-  const [playlists, setPlaylists] = useState<PlaylistOption[]>(initialPlaylists);
+  const [playlists, setPlaylists] = useState<Array<PlaylistOption>>(initialPlaylists);
   const [desktopOpen, setDesktopOpen] = useState(false);
 
   const isMobileInstance = mobileOpen !== undefined && onMobileOpenChange !== undefined;

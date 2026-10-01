@@ -18,6 +18,7 @@ export type RegisterPayload = {
 export type LoginPayload = {
   email: string;
   password: string;
+  remember_me?: boolean;
 };
 
 export type UserProfile = {
@@ -113,6 +114,7 @@ export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
     data: {
       email: payload.email.trim(),
       password: payload.password,
+      remember_me: payload.remember_me === true,
     },
     skipAuthRefresh: true,
   });
