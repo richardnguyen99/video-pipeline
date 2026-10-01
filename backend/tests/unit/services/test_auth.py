@@ -14,7 +14,12 @@ from sqlalchemy.exc import IntegrityError
 
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
-from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
+from app.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    UserResponse,
+)
 from app.services.auth import AuthService
 from app.utils.password import (
     PASSWORD_ALGORITHM,
@@ -72,6 +77,7 @@ class FakeUserRepository:
     session: object = field(default_factory=object)
     login_success_calls: list[FakeUser] = field(default_factory=list)
     login_failure_calls: list[FakeUser] = field(default_factory=list)
+    update_password_calls: list[dict[str, Any]] = field(default_factory=list)
 
     async def get_by_username(self, username: str) -> Optional[FakeUser]:
         """Return a user keyed by username, if present."""
@@ -133,41 +139,105 @@ class FakeUserRepository:
 
         self.login_failure_calls.append(user)
 
+    async def update_password(
+        self,
+        user_id: uuid.UUID,
+        *,
+        password_hash: str,
+        password_algorithm: str,
+    ) -> None:
+        """Record password updates for change-password tests."""
+
+        self.update_password_calls.append(
+            {
+                "user_id": user_id,
+                "password_hash": password_hash,
+                "password_algorithm": password_algorithm,
+            },
+        )
+
+
+@dataclass
+class FakeRefreshTokenRow:
+    """Minimal allowlist row for multi-session tests."""
+
+    token_hash: str
+    user_id: uuid.UUID
+    revoked_at: Optional[datetime.datetime] = None
+
 
 @dataclass
 class FakeRefreshTokenRepository:
-    """Minimal allowlist stand-in (unused by register/login tests)."""
+    """Allowlist stand-in that tracks issued and revoked session hashes."""
 
     issued: list[dict[str, Any]] = field(default_factory=list)
+    rows: dict[str, FakeRefreshTokenRow] = field(default_factory=dict)
+    revoked_hashes: list[str] = field(default_factory=list)
 
-    async def issue(self, **kwargs: Any) -> object:
-        """Record issue calls for session-token tests."""
+    async def issue(self, **kwargs: Any) -> FakeRefreshTokenRow:
+        """Record issue calls and store an active row by token hash."""
 
         self.issued.append(kwargs)
+        token_hash = str(kwargs["token_hash"])
+        user_id = kwargs["user_id"]
+        row = FakeRefreshTokenRow(token_hash=token_hash, user_id=user_id)
+        self.rows[token_hash] = row
 
-        return object()
+        return row
 
     async def get_by_token_hash(
         self,
-        _token_hash: str,
+        token_hash: str,
         *,
         for_update: bool = False,
-    ) -> None:
-        """No rows by default."""
+    ) -> Optional[FakeRefreshTokenRow]:
+        """Return the stored row when present."""
 
         _ = for_update
 
-        return None
+        return self.rows.get(token_hash)
 
-    async def revoke_by_token_hash(self, _token_hash: str) -> None:
-        """No-op revoke."""
+    async def revoke_by_token_hash(
+        self, token_hash: str
+    ) -> Optional[FakeRefreshTokenRow]:
+        """Revoke only the matching row (single-session logout)."""
 
-        return None
+        row = self.rows.get(token_hash)
 
-    def is_usable(self, _row: object) -> bool:
-        """Unused in register/login tests."""
+        if row is None:
+            return None
 
-        return False
+        row.revoked_at = datetime.datetime.now(datetime.timezone.utc)
+        self.revoked_hashes.append(token_hash)
+
+        return row
+
+    async def revoke_all_for_user(self, user_id: uuid.UUID) -> int:
+        """Revoke every active row for ``user_id``."""
+
+        count = 0
+
+        for row in self.rows.values():
+            if row.user_id == user_id and row.revoked_at is None:
+                row.revoked_at = datetime.datetime.now(datetime.timezone.utc)
+                self.revoked_hashes.append(row.token_hash)
+                count += 1
+
+        return count
+
+    def is_usable(self, row: FakeRefreshTokenRow) -> bool:
+        """Row is usable when not revoked."""
+
+        return row.revoked_at is None
+
+    def active_hashes_for(self, user_id: uuid.UUID) -> list[str]:
+        """Return non-revoked token hashes for ``user_id``."""
+
+        return [
+            row.token_hash
+            for row in self.rows.values()
+            if row.user_id == user_id and row.revoked_at is None
+        ]
 
 
 @pytest.fixture
@@ -518,3 +588,198 @@ async def test_login_expired_lock_allows_success(
 
     assert result.username == "alice_1"
     assert repository.login_success_calls == [user]
+
+
+@pytest.mark.asyncio
+async def test_issue_session_tokens_allows_concurrent_sessions(
+    service: AuthService,
+    refresh_tokens: FakeRefreshTokenRepository,
+) -> None:
+    """Two logins for the same user create two independent allowlist rows."""
+
+    user = UserResponse(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+        is_active=True,
+        email_verified=True,
+        created_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+    )
+
+    with (
+        patch(
+            "app.services.auth.create_access_token", return_value="access-a"
+        ),
+        patch(
+            "app.services.auth.create_refresh_token",
+            side_effect=["refresh-device-a", "refresh-device-b"],
+        ),
+        patch(
+            "app.services.auth.hash_refresh_token",
+            side_effect=lambda raw: f"hash:{raw}",
+        ),
+    ):
+        access_a, refresh_a = await service.issue_session_tokens(
+            user,
+            user_agent="Browser-A",
+            ip_address="1.1.1.1",
+        )
+        access_b, refresh_b = await service.issue_session_tokens(
+            user,
+            user_agent="Browser-B",
+            ip_address="2.2.2.2",
+        )
+
+    assert access_a == "access-a"
+    assert access_b == "access-a"
+    assert refresh_a == "refresh-device-a"
+    assert refresh_b == "refresh-device-b"
+    assert len(refresh_tokens.issued) == 2
+    assert refresh_tokens.active_hashes_for(user.id) == [
+        "hash:refresh-device-a",
+        "hash:refresh-device-b",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_revoke_refresh_token_does_not_affect_other_sessions(
+    service: AuthService,
+    refresh_tokens: FakeRefreshTokenRepository,
+) -> None:
+    """Logging out one device leaves other device sessions active."""
+
+    user_id = uuid.uuid4()
+    await refresh_tokens.issue(
+        user_id=user_id,
+        token_hash="hash:device-a",
+        expires_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+    await refresh_tokens.issue(
+        user_id=user_id,
+        token_hash="hash:device-b",
+        expires_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+
+    with patch(
+        "app.services.auth.hash_refresh_token",
+        side_effect=lambda raw: f"hash:{raw}",
+    ):
+        await service.revoke_refresh_token("device-a")
+
+    assert refresh_tokens.revoked_hashes == ["hash:device-a"]
+    assert refresh_tokens.active_hashes_for(user_id) == ["hash:device-b"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_access_token_not_superseded_rejects_stale_iat(
+    service: AuthService,
+) -> None:
+    """Access tokens issued before password_changed_at are rejected."""
+
+    user_id = uuid.uuid4()
+    changed = datetime.datetime(
+        2026, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
+    )
+    credential = type(
+        "Cred",
+        (),
+        {"password_changed_at": changed.replace(tzinfo=None)},
+    )()
+
+    claims = {
+        "iat": int(
+            datetime.datetime(
+                2026, 5, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
+            ).timestamp()
+        ),
+    }
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new=AsyncMock(return_value=credential),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.ensure_access_token_not_superseded(user_id, claims)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+
+
+@pytest.mark.asyncio
+async def test_ensure_access_token_not_superseded_accepts_fresh_iat(
+    service: AuthService,
+) -> None:
+    """Access tokens issued after password_changed_at remain valid."""
+
+    user_id = uuid.uuid4()
+    changed = datetime.datetime(
+        2026, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
+    )
+    credential = type(
+        "Cred",
+        (),
+        {"password_changed_at": changed.replace(tzinfo=None)},
+    )()
+
+    claims = {
+        "iat": int(
+            datetime.datetime(
+                2026, 6, 2, 12, 0, 0, tzinfo=datetime.timezone.utc
+            ).timestamp()
+        ),
+    }
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new=AsyncMock(return_value=credential),
+    ):
+        await service.ensure_access_token_not_superseded(user_id, claims)
+
+
+@pytest.mark.asyncio
+async def test_change_password_revokes_all_refresh_tokens(
+    service: AuthService,
+    repository: FakeUserRepository,
+    refresh_tokens: FakeRefreshTokenRepository,
+) -> None:
+    """Changing password updates the hash and clears every session."""
+
+    user = FakeUser(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    plain = "OldPass1!"
+    credential = FakeCredential(
+        password_hash=hash_password(plain),
+    )
+
+    profile = UserResponse.model_validate(user)
+    payload = ChangePasswordRequest(
+        current_password=plain,
+        new_password="NewPass1!",
+    )
+
+    await refresh_tokens.issue(
+        user_id=user.id,
+        token_hash="hash:a",
+        expires_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+    await refresh_tokens.issue(
+        user_id=user.id,
+        token_hash="hash:b",
+        expires_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new=AsyncMock(return_value=credential),
+    ):
+        await service.change_password(profile, payload)
+
+    assert len(repository.update_password_calls) == 1
+    assert repository.update_password_calls[0]["user_id"] == user.id
+    assert refresh_tokens.active_hashes_for(user.id) == []
+    assert set(refresh_tokens.revoked_hashes) == {"hash:a", "hash:b"}

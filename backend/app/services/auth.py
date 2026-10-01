@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -196,6 +196,71 @@ class AuthService:
 
         return UserResponse.model_validate(user)
 
+    async def ensure_access_token_not_superseded(
+        self,
+        user_id: uuid.UUID,
+        claims: dict[str, Any],
+    ) -> None:
+        """Reject access tokens issued before the last password change.
+
+        After ``change_password`` / password reset, every refresh token is
+        revoked. Short-lived access tokens on other devices may still be
+        valid until expiry; comparing ``iat`` to ``password_changed_at``
+        ends those sessions immediately without storing access JTIs.
+
+        Args:
+            user_id: Subject from the access JWT.
+            claims: Verified access-token claims (must include ``iat``).
+
+        Raises:
+            HTTPException: 401 when the token predates the password change.
+        """
+
+        credential = await UserCredential.get_by_user_id(
+            self._repository.session,
+            user_id,
+        )
+
+        if credential is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        changed_at = credential.password_changed_at
+
+        if changed_at is None:
+            return
+
+        if changed_at.tzinfo is None:
+            changed_at = changed_at.replace(tzinfo=timezone.utc)
+        else:
+            changed_at = changed_at.astimezone(timezone.utc)
+
+        iat = claims.get("iat")
+
+        if iat is None:
+            return
+
+        if isinstance(iat, datetime):
+            issued_at = (
+                iat
+                if iat.tzinfo is not None
+                else iat.replace(
+                    tzinfo=timezone.utc,
+                )
+            )
+        else:
+            issued_at = datetime.fromtimestamp(int(iat), tz=timezone.utc)
+
+        if issued_at.astimezone(timezone.utc) < changed_at:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Access token has been revoked.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     async def issue_session_tokens(
         self,
         user: UserResponse,
@@ -205,6 +270,9 @@ class AuthService:
         ip_address: Optional[str] = None,
     ) -> tuple[str, str]:
         """Mint access + refresh JWTs and allowlist the refresh token.
+
+        Each call creates a new independent session. Other active refresh
+        tokens for the same user (other browsers/devices) remain valid.
 
         Args:
             user: Authenticated public profile.
@@ -328,8 +396,9 @@ class AuthService:
         return access, new_refresh
 
     async def revoke_refresh_token(self, raw_refresh_token: str) -> None:
-        """Remove a refresh token from the allowlist (logout).
+        """Revoke a single refresh token (one device session logout).
 
+        Does not affect other concurrent sessions for the same user.
         Missing rows are ignored so logout stays idempotent.
         """
 
@@ -398,7 +467,7 @@ class AuthService:
             password_hash=new_hash,
             password_algorithm=PASSWORD_ALGORITHM,
         )
-        await self._refresh_tokens.revoke_all_for_user(user.id)
+        await self.revoke_all_refresh_tokens(user.id)
 
     async def request_email_verification(
         self,
@@ -651,7 +720,7 @@ class AuthService:
             password_hash=new_hash,
             password_algorithm=PASSWORD_ALGORITHM,
         )
-        await self._refresh_tokens.revoke_all_for_user(user_id)
+        await self.revoke_all_refresh_tokens(user_id)
 
     async def find_refresh_token_by_raw(
         self,

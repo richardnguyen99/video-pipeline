@@ -128,6 +128,7 @@ export async function loginUser(payload: LoginPayload): Promise<UserProfile> {
 }
 
 export async function logoutUser(): Promise<void> {
+  // Revokes only this device session on the API (other browsers stay signed in).
   try {
     await apiFetch<void>("/auth/logout", {
       method: "POST",

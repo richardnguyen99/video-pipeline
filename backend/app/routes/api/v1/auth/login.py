@@ -62,6 +62,8 @@ async def login(
     - Sets an HttpOnly ``refresh_token`` cookie scoped to
       ``/api/v1/auth/``. When ``remember_me`` is true the cookie includes
       ``Max-Age``; otherwise it is a browser session cookie.
+    - Issues a new independent session (new refresh allowlist row).
+      Existing sessions on other browsers or devices are not revoked.
     """
 
     user = await service.login(body)

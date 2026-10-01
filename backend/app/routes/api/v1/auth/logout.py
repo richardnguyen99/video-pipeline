@@ -38,7 +38,7 @@ def _extract_bearer_token(authorization: Optional[str]) -> Optional[str]:
 @router.post(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Sign out and revoke the current session tokens",
+    summary="Sign out and revoke only the current device session",
     response_class=Response,
 )
 async def logout(
@@ -50,13 +50,16 @@ async def logout(
         Cookie(alias=settings.jwt_refresh_cookie_name),
     ] = None,
 ) -> Response:
-    """End the session immediately.
+    """End **this** browser/device session only.
 
-    - Clears the HttpOnly refresh cookie (and any legacy access cookie).
-    - Revokes the refresh allowlist row when the refresh cookie is present
-      (sent when Path is ``/api/v1/auth/``).
-    - Denylists the access token ``jti`` when ``Authorization: Bearer`` is
-      sent.
+    Concurrent sessions on other browsers or devices stay valid.
+
+    - Clears the HttpOnly refresh cookie on this response (and any legacy
+      access cookie).
+    - Revokes only the refresh allowlist row for the presented refresh
+      cookie (Path ``/api/v1/auth/``). Other devices' rows are untouched.
+    - Denylists only this access token ``jti`` when ``Authorization:
+      Bearer`` is sent.
 
     Always returns 204 so the client can clear in-memory state.
     """

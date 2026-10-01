@@ -81,6 +81,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
+    await service.ensure_access_token_not_superseded(user_id, claims)
+
     return await service.get_current_user(user_id)
 
 

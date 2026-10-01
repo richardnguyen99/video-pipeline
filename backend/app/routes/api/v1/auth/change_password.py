@@ -58,11 +58,15 @@ async def change_password(
 
     1. Verify the access JWT (via ``CurrentUserDep``).
     2. Verify ``current_password`` against the stored bcrypt hash.
-    3. Persist the new hash and mark ``password_changed_at``.
-    4. Revoke every refresh-token allowlist row for the user.
-    5. Clear the refresh cookie and denylist the current access ``jti``.
+    3. Persist the new hash and stamp ``password_changed_at``.
+    4. Revoke **every** refresh-token allowlist row for the user (all
+       browsers and devices).
+    5. Clear this response's refresh cookie and denylist the current
+       access ``jti``.
+    6. Access tokens on other devices are rejected because their ``iat``
+       predates ``password_changed_at``.
 
-    The client must clear its in-memory access token and re-authenticate.
+    The client must clear its in-memory access token and sign in again.
     """
 
     await service.change_password(current_user, payload)
