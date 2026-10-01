@@ -200,6 +200,7 @@ class AuthService:
         self,
         user: UserResponse,
         *,
+        remember_me: bool = False,
         user_agent: Optional[str] = None,
         ip_address: Optional[str] = None,
     ) -> tuple[str, str]:
@@ -207,6 +208,7 @@ class AuthService:
 
         Args:
             user: Authenticated public profile.
+            remember_me: Persist the refresh cookie across browser restarts.
             user_agent: Optional client user-agent for the session row.
             ip_address: Optional client IP for the session row.
 
@@ -219,7 +221,10 @@ class AuthService:
             email=user.email,
             username=user.username,
         )
-        refresh = create_refresh_token(user_id=user.id)
+        refresh = create_refresh_token(
+            user_id=user.id,
+            remember_me=remember_me,
+        )
         expires_at = datetime.now(timezone.utc) + timedelta(
             minutes=settings.jwt_refresh_token_expire_minutes,
         )
@@ -283,6 +288,7 @@ class AuthService:
         *,
         current: RefreshToken,
         user: UserResponse,
+        remember_me: bool = False,
         user_agent: Optional[str] = None,
         ip_address: Optional[str] = None,
     ) -> tuple[str, str]:
@@ -291,6 +297,7 @@ class AuthService:
         Args:
             current: Locked allowlist row for the presented refresh token.
             user: Public profile for the session owner.
+            remember_me: Carry the original login cookie persistence policy.
             user_agent: Optional client user-agent.
             ip_address: Optional client IP.
 
@@ -303,7 +310,10 @@ class AuthService:
             email=user.email,
             username=user.username,
         )
-        new_refresh = create_refresh_token(user_id=user.id)
+        new_refresh = create_refresh_token(
+            user_id=user.id,
+            remember_me=remember_me,
+        )
         expires_at = datetime.now(timezone.utc) + timedelta(
             minutes=settings.jwt_refresh_token_expire_minutes,
         )

@@ -60,7 +60,8 @@ async def login(
     - Returns the public profile and a short-lived ``access_token`` in the
       JSON body (client stores it in memory only).
     - Sets an HttpOnly ``refresh_token`` cookie scoped to
-      ``/api/v1/auth/``.
+      ``/api/v1/auth/``. When ``remember_me`` is true the cookie includes
+      ``Max-Age``; otherwise it is a browser session cookie.
     """
 
     user = await service.login(body)
@@ -68,6 +69,7 @@ async def login(
     ip_address = _client_ip(request)
     access, refresh = await service.issue_session_tokens(
         user,
+        remember_me=body.remember_me,
         user_agent=user_agent,
         ip_address=ip_address,
     )
@@ -79,7 +81,11 @@ async def login(
         content=payload,
         status_code=status.HTTP_200_OK,
     )
-    set_refresh_token_cookie(response, refresh)
+    set_refresh_token_cookie(
+        response,
+        refresh,
+        remember_me=body.remember_me,
+    )
     clear_legacy_access_token_cookie(response)
 
     return response

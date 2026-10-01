@@ -53,16 +53,23 @@ def create_access_token(
     )
 
 
-def create_refresh_token(*, user_id: uuid.UUID) -> str:
+def create_refresh_token(
+    *,
+    user_id: uuid.UUID,
+    remember_me: bool = False,
+) -> str:
     """Create a long-lived refresh JWT for the given user.
 
-    Refresh tokens only carry ``sub`` / ``type`` / ``jti`` so they can mint
-    new access tokens without embedding profile claims. Each successful
-    ``POST /auth/refresh`` rotates the token: the previous ``jti`` is
-    denylisted in Redis and a new refresh JWT is issued.
+    Refresh tokens carry ``sub`` / ``type`` / ``jti`` and a ``remember_me``
+    flag so rotated cookies keep the same persistence policy. Each issued
+    refresh token is stored hashed in the database allowlist; successful
+    refresh rotates the row and Redis may cache the new pair for a short
+    grace window.
 
     Args:
         user_id: Authenticated user's primary key.
+        remember_me: When true, clients should persist the cookie; when
+            false, the cookie is session-scoped.
 
     Returns:
         Encoded JWT string.
@@ -78,6 +85,7 @@ def create_refresh_token(*, user_id: uuid.UUID) -> str:
         "jti": str(uuid.uuid4()),
         "iat": now,
         "exp": expires,
+        "remember_me": bool(remember_me),
     }
 
     return jwt.encode(

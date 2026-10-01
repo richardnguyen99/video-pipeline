@@ -71,6 +71,7 @@ async def refresh(
 
     claims = decode_refresh_token(refresh_token)
     user_id = parse_user_id(claims)
+    remember_me = claims.get("remember_me") is True
 
     if user_id is None:
         raise HTTPException(
@@ -94,6 +95,7 @@ async def refresh(
             service,
             jti=jti,
             user_id=user_id,
+            remember_me=remember_me,
         )
 
     current = await service.get_allowlisted_refresh_token(
@@ -106,6 +108,7 @@ async def refresh(
     access, new_refresh = await service.rotate_session_tokens(
         current=current,
         user=user,
+        remember_me=remember_me,
         user_agent=user_agent,
         ip_address=ip_address,
     )
@@ -124,7 +127,12 @@ async def refresh(
         except RedisError:
             pass
 
-    return _session_response(user, access=access, refresh=new_refresh)
+    return _session_response(
+        user,
+        access=access,
+        refresh=new_refresh,
+        remember_me=remember_me,
+    )
 
 
 async def _replay_grace_rotation(
@@ -133,6 +141,7 @@ async def _replay_grace_rotation(
     *,
     jti: str,
     user_id: uuid.UUID,
+    remember_me: bool = False,
 ) -> JSONResponse:
     """Serve the cached rotated pair during the grace window, else 401."""
 
@@ -165,11 +174,19 @@ async def _replay_grace_rotation(
         )
 
     user = await service.get_current_user(user_id)
+    rotated_remember_me = remember_me
+
+    try:
+        rotated_claims = decode_refresh_token(pair.refresh_token)
+        rotated_remember_me = rotated_claims.get("remember_me") is True
+    except HTTPException:
+        rotated_remember_me = remember_me
 
     return _session_response(
         user,
         access=pair.access_token,
         refresh=pair.refresh_token,
+        remember_me=rotated_remember_me,
     )
 
 
@@ -178,6 +195,7 @@ def _session_response(
     *,
     access: str,
     refresh: str,
+    remember_me: bool = False,
 ) -> JSONResponse:
     """JSON body with access_token; only the refresh cookie is set."""
 
@@ -189,7 +207,11 @@ def _session_response(
         content=payload,
         status_code=status.HTTP_200_OK,
     )
-    set_refresh_token_cookie(response, refresh)
+    set_refresh_token_cookie(
+        response,
+        refresh,
+        remember_me=remember_me,
+    )
     clear_legacy_access_token_cookie(response)
 
     return response

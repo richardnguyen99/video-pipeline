@@ -121,6 +121,13 @@ class LoginRequest(BaseModel):
         max_length=128,
         description="Account password.",
     )
+    remember_me: bool = Field(
+        default=False,
+        description=(
+            "When true, the refresh cookie is persistent (Max-Age). "
+            "When false, it is a browser session cookie."
+        ),
+    )
 
     @field_validator("email")
     @classmethod

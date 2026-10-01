@@ -5,10 +5,11 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
 
+import { PasswordInput } from "@/components/auth/password-input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/auth/password-input";
 import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage, loginUser } from "@/libs/auth";
 
@@ -154,14 +155,12 @@ export function SignInForm({ redirectTo }: SignInFormProps) {
           name="rememberMe"
           children={(field) => (
             <Field orientation="horizontal" className="items-center gap-2">
-              <input
+              <Checkbox
                 id={field.name}
                 name={field.name}
-                type="checkbox"
-                className="size-4 shrink-0 rounded border border-input accent-primary"
                 checked={field.state.value}
+                onCheckedChange={(checked) => field.handleChange(checked === true)}
                 onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.target.checked)}
               />
 
               <FieldLabel htmlFor={field.name} className="font-normal">

@@ -73,7 +73,7 @@ function createDefaultRows(): Array<MetadataRow> {
 }
 
 export function ReportDialog({ open, onOpenChange, step, onSelectReason, onBack }: ReportDialogProps) {
-  const [rows, setRows] = useState<Array<MetadataRow>>(createDefaultRows);
+  const [rows, setRows] = useState<Array<MetadataRow>>(createDefaultRows());
 
   function handleOpenChange(nextOpen: boolean) {
     if (!nextOpen) {

@@ -46,8 +46,13 @@ def _cookie_secure(samesite: SameSite) -> bool:
     return settings.jwt_cookie_secure
 
 
-def set_refresh_token_cookie(response: Response, token: str) -> None:
-    """Attach a long-lived refresh JWT as an HttpOnly cookie.
+def set_refresh_token_cookie(
+    response: Response,
+    token: str,
+    *,
+    remember_me: bool = False,
+) -> None:
+    """Attach a refresh JWT as an HttpOnly cookie.
 
     ``Path`` is limited to ``settings.jwt_refresh_cookie_path`` (default
     ``/api/v1/auth/``) so the browser only attaches the cookie on auth
@@ -56,12 +61,15 @@ def set_refresh_token_cookie(response: Response, token: str) -> None:
     Args:
         response: Outgoing HTTP response.
         token: Encoded refresh JWT.
+        remember_me: When true, set ``Max-Age`` to the configured refresh
+            lifetime. When false, omit ``Max-Age`` so the browser treats
+            the cookie as a session cookie.
     """
 
     samesite = _cookie_samesite()
     secure = _cookie_secure(samesite)
-    max_age = refresh_token_max_age_seconds()
     path = settings.jwt_refresh_cookie_path
+    max_age = refresh_token_max_age_seconds() if remember_me else None
 
     response.set_cookie(
         key=settings.jwt_refresh_cookie_name,
