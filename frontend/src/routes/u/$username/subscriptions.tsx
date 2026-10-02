@@ -7,7 +7,10 @@ import { userFollowedCreatorsQueryOptions } from "@/queries/user-profile";
 
 export const Route = createFileRoute("/u/$username/subscriptions")({
   loader: async ({ context, params }) => {
-    const creators = await context.queryClient.ensureQueryData(userFollowedCreatorsQueryOptions(params.username));
+    const creators = await context.queryClient.query({
+      ...userFollowedCreatorsQueryOptions(params.username),
+      staleTime: "static",
+    });
 
     return { creators };
   },

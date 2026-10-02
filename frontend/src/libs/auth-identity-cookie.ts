@@ -20,7 +20,7 @@ export function readIdentityUsername(): string | null {
 
   const raw = document.cookie;
 
-  if (raw == null || raw.trim() === "") {
+  if (raw.trim() === "") {
     return null;
   }
 
@@ -75,9 +75,7 @@ export function clearIdentityUsername(): void {
 }
 
 /** Parse identity username from a raw Cookie header (SSR). */
-export function parseIdentityUsernameFromHeader(
-  cookieHeader: string | null | undefined,
-): string | null {
+export function parseIdentityUsernameFromHeader(cookieHeader: string | null | undefined): string | null {
   if (cookieHeader == null || cookieHeader.trim() === "") {
     return null;
   }

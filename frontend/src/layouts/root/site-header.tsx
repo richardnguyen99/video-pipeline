@@ -42,7 +42,7 @@ export default function SiteHeader() {
     from: "__root__",
     select: (ctx) => ctx.auth,
   });
-  const user = storeUser ?? routeAuth?.user ?? null;
+  const user = storeUser ?? routeAuth.user ?? null;
   const isAuthenticated = user != null;
   const showAuthPlaceholder = !isAuthenticated && isRestoring;
   const navigate = useNavigate();
@@ -102,16 +102,16 @@ export default function SiteHeader() {
               <DropdownMenuTrigger className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_0_16px_-4px_var(--color-primary)] transition-colors hover:bg-primary/90">
                 <UserRound className="size-4" aria-hidden />
 
-                <span className="max-w-28 truncate">{user?.username}</span>
+                <span className="max-w-28 truncate">{user.username}</span>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end" className="min-w-44">
                 <DropdownMenuGroup>
                   <DropdownMenuLabel className="font-normal">
                     <div className="flex flex-col gap-0.5">
-                      <span className="font-medium">{user?.username}</span>
+                      <span className="font-medium">{user.username}</span>
 
-                      <span className="text-xs text-muted-foreground">{user?.email}</span>
+                      <span className="text-xs text-muted-foreground">{user.email}</span>
                     </div>
                   </DropdownMenuLabel>
                 </DropdownMenuGroup>
@@ -126,7 +126,7 @@ export default function SiteHeader() {
                   onClick={() => {
                     setUserMenuOpen(false);
 
-                    if (user?.username) {
+                    if (user.username) {
                       void navigate({
                         to: "/u/$username",
                         params: { username: user.username },
@@ -191,7 +191,7 @@ export default function SiteHeader() {
 
             {isAuthenticated ? (
               <>
-                {user?.username ? (
+                {user.username ? (
                   <Link
                     to="/u/$username"
                     params={{ username: user.username }}

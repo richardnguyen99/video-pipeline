@@ -32,12 +32,13 @@ export function getRouter() {
 
     dehydrate: () => {
       return {
-        queryClientState: dehydrate(queryClient),
+        queryClientState: JSON.stringify(dehydrate(queryClient)),
       };
     },
+
     hydrate: (dehydrated) => {
-      if (dehydrated?.queryClientState != null) {
-        hydrate(queryClient, dehydrated.queryClientState);
+      if (dehydrated.queryClientState.length > 0) {
+        hydrate(queryClient, JSON.parse(dehydrated.queryClientState));
 
         const ssrUser = queryClient.getQueryData<UserProfile | null>(authMeQueryOptions.queryKey);
 

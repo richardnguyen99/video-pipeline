@@ -95,7 +95,7 @@ function buildPublicProfile(username: string): PublicUserProfile {
 export function publicUserProfileQueryOptions(username: string) {
   return queryOptions({
     queryKey: ["user-profile", username] as const,
-    queryFn: async (): Promise<PublicUserProfile> => buildPublicProfile(username),
+    queryFn: (): PublicUserProfile => buildPublicProfile(username),
     staleTime: 60_000,
   });
 }
@@ -103,7 +103,7 @@ export function publicUserProfileQueryOptions(username: string) {
 export function userFollowedCreatorsQueryOptions(username: string) {
   return queryOptions({
     queryKey: ["user-followed", username] as const,
-    queryFn: async (): Promise<Array<FollowedCreator>> => DEMO_FOLLOWED,
+    queryFn: (): Array<FollowedCreator> => DEMO_FOLLOWED,
     staleTime: 60_000,
   });
 }
@@ -111,7 +111,7 @@ export function userFollowedCreatorsQueryOptions(username: string) {
 export function userBlockedAccountsQueryOptions(username: string) {
   return queryOptions({
     queryKey: ["user-blocked", username] as const,
-    queryFn: async (): Promise<Array<BlockedAccount>> => DEMO_BLOCKED,
+    queryFn: (): Array<BlockedAccount> => DEMO_BLOCKED,
     staleTime: 60_000,
   });
 }
@@ -119,7 +119,7 @@ export function userBlockedAccountsQueryOptions(username: string) {
 export function userVideosQueryOptions(username: string) {
   return queryOptions({
     queryKey: ["user-videos", username] as const,
-    queryFn: async (): Promise<Array<UserVideoItem>> => DEMO_VIDEOS,
+    queryFn: (): Array<UserVideoItem> => DEMO_VIDEOS,
     staleTime: 60_000,
   });
 }
@@ -127,7 +127,7 @@ export function userVideosQueryOptions(username: string) {
 export function userPlaylistsQueryOptions(username: string) {
   return queryOptions({
     queryKey: ["user-playlists", username] as const,
-    queryFn: async (): Promise<Array<UserPlaylistItem>> => DEMO_PLAYLISTS,
+    queryFn: (): Array<UserPlaylistItem> => DEMO_PLAYLISTS,
     staleTime: 60_000,
   });
 }

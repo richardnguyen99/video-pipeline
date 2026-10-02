@@ -8,8 +8,14 @@ import { userPlaylistsQueryOptions, userVideosQueryOptions } from "@/queries/use
 export const Route = createFileRoute("/u/$username/videos")({
   loader: async ({ context, params }) => {
     const [videos, playlists] = await Promise.all([
-      context.queryClient.ensureQueryData(userVideosQueryOptions(params.username)),
-      context.queryClient.ensureQueryData(userPlaylistsQueryOptions(params.username)),
+      context.queryClient.query({
+        ...userVideosQueryOptions(params.username),
+        staleTime: "static",
+      }),
+      context.queryClient.query({
+        ...userPlaylistsQueryOptions(params.username),
+        staleTime: "static",
+      }),
     ]);
 
     return { videos, playlists };

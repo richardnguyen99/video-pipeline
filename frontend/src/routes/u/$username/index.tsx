@@ -7,7 +7,10 @@ import { publicUserProfileQueryOptions } from "@/queries/user-profile";
 
 export const Route = createFileRoute("/u/$username/")({
   loader: async ({ context, params }) => {
-    const profile = await context.queryClient.ensureQueryData(publicUserProfileQueryOptions(params.username));
+    const profile = await context.queryClient.query({
+      ...publicUserProfileQueryOptions(params.username),
+      staleTime: "static",
+    });
 
     return { profile };
   },

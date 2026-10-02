@@ -11,10 +11,8 @@
  * 8. Router invalidate only when identity changed.
  */
 
-import {
-  silentRefreshSessionDetailed,
-  type SessionPayload,
-} from "@/libs/api-client";
+import { silentRefreshSessionDetailed } from "@/libs/api-client";
+import type { SessionPayload } from "@/libs/api-client";
 import type { UserProfile } from "@/libs/auth";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -54,11 +52,7 @@ export async function runAuthBootstrap(): Promise<AuthBootstrapResult> {
 
   const store = useAuthStore.getState();
 
-  if (
-    store.user !== null &&
-    store.accessToken != null &&
-    store.accessToken.length > 0
-  ) {
+  if (store.user !== null && store.accessToken != null && store.accessToken.length > 0) {
     lastResult = { user: store.user, accessToken: store.accessToken };
     bootstrapCompleted = true;
     store.setRestoring(false);
@@ -126,10 +120,7 @@ export async function runAuthBootstrap(): Promise<AuthBootstrapResult> {
  * Record a known session (login) so later bootstrap/loadAuthSession calls
  * do not overwrite it with a stale guest result.
  */
-export function markAuthBootstrapSession(
-  user: UserProfile,
-  accessToken: string,
-): void {
+export function markAuthBootstrapSession(user: UserProfile, accessToken: string): void {
   lastResult = { user, accessToken };
   bootstrapCompleted = true;
   bootstrapInFlight = null;
