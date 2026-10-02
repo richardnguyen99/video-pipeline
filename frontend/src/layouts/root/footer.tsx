@@ -20,7 +20,8 @@ const baseFooterLinks = [
 ] as const;
 
 export default function Footer() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isRestoring, user } = useAuth();
+  const showAuthPlaceholder = !isAuthenticated && isRestoring;
 
   return (
     <footer className="border-t border-border/60">
@@ -45,10 +46,16 @@ export default function Footer() {
             </Link>
           ))}
 
-          {isAuthenticated ? (
-            <Link to="/account" className="transition-colors hover:text-foreground">
+          {isAuthenticated && user?.username ? (
+            <Link
+              to="/u/$username"
+              params={{ username: user.username }}
+              className="transition-colors hover:text-foreground"
+            >
               Account
             </Link>
+          ) : showAuthPlaceholder ? (
+            <span className="inline-block h-4 w-14 animate-pulse rounded bg-muted/60" aria-hidden />
           ) : (
             <Link to="/sign-in" className="transition-colors hover:text-foreground">
               Sign in

@@ -1,21 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
-import { useOwnerFollowed, useUserSettingsContext } from "@/layouts/user-profile/use-user-settings";
+import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
 import { SubscriptionsPanel } from "@/layouts/user-profile/subscriptions-panel";
+import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
+import { userFollowedCreatorsQueryOptions } from "@/queries/user-profile";
 
 export const Route = createFileRoute("/u/$username/subscriptions")({
+  loader: async ({ context, params }) => {
+    const creators = await context.queryClient.ensureQueryData(userFollowedCreatorsQueryOptions(params.username));
+
+    return { creators };
+  },
   component: UserSubscriptionsPage,
 });
 
 function UserSubscriptionsPage() {
   const { username } = Route.useParams();
-  const { isOwner } = useUserSettingsContext(username);
-  const followedQuery = useOwnerFollowed(username);
-
-  if (followedQuery.isLoading) {
-    return <SettingsContentSkeleton />;
-  }
+  const { creators } = Route.useLoaderData();
+  const { isOwner } = useResolvedOwner(username);
 
   return (
     <>
@@ -25,7 +27,7 @@ function UserSubscriptionsPage() {
         description="Fine-tune your experience and keep your account feeling like yours."
       />
 
-      <SubscriptionsPanel creators={followedQuery.data ?? []} isOwner={isOwner} />
+      <SubscriptionsPanel creators={creators} isOwner={isOwner} />
     </>
   );
 }

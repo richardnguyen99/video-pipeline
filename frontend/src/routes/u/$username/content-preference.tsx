@@ -1,37 +1,19 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
 import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
 import { TagEditor } from "@/layouts/user-profile/tag-editor";
-import { useUserSettingsContext } from "@/layouts/user-profile/use-user-settings";
-import { useAuthStore } from "@/stores/auth-store";
+import { requireOwnerBeforeLoad, useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 
 export const Route = createFileRoute("/u/$username/content-preference")({
-  beforeLoad: ({ params }) => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const { user, isRestoring } = useAuthStore.getState();
-
-    if (isRestoring) {
-      return;
-    }
-
-    if (user == null || user.username !== params.username) {
-      throw redirect({
-        to: "/u/$username",
-        params: { username: params.username },
-      });
-    }
-  },
+  beforeLoad: requireOwnerBeforeLoad,
   component: ContentPreferencePage,
 });
 
 function ContentPreferencePage() {
   const { username } = Route.useParams();
-  const { isOwner, isRestoring } = useUserSettingsContext(username);
+  const { isOwner } = useResolvedOwner(username);
 
-  if (isRestoring || !isOwner) {
+  if (!isOwner) {
     return <SettingsContentSkeleton />;
   }
 

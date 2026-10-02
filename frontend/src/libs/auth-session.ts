@@ -1,8 +1,13 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { runAuthBootstrap, resetAuthBootstrap, markAuthBootstrapSession } from "@/libs/auth-bootstrap";
+import {
+  resetAuthBootstrap,
+  markAuthBootstrapSession,
+} from "@/libs/auth-bootstrap";
 import type { UserProfile } from "@/libs/auth";
+import { readIdentityUsername } from "@/libs/auth-identity-cookie";
 import { authMeQueryOptions, authQueryKeys } from "@/queries/auth";
+import { fetchAuthMe } from "@/server/auth.functions";
 import { useAuthStore } from "@/stores/auth-store";
 
 const LEGACY_AUTH_STORAGE_KEY = "velvet-auth";
@@ -23,36 +28,56 @@ export type AuthRouterContext = {
   isAuthenticated: boolean;
   user: UserProfile | null;
   /**
-   * False until the client silent-refresh interceptor finishes.
-   * SSR is never authoritative (path-scoped refresh cookie is invisible).
+   * Always true after ``loadAuthSession`` returns. Client token refresh runs
+   * in the background via ``AuthStoreSync`` and must not block routing.
    */
   isReady: boolean;
 };
 
 /**
- * Root ``beforeLoad`` session loader — implements the hard-reload workflow.
+ * Root ``beforeLoad`` session loader.
  *
- * Browser:
- *   1. If Zustand already has accessToken → use it (post-login).
- *   2. Else runAuthBootstrap → POST /auth/refresh → hydrate store.
- * SSR:
- *   Always guest + isReady false so client beforeLoad / AuthStoreSync
- *   complete the interceptor before guards redirect.
+ * SSR: resolve the user from the HttpOnly refresh cookie so owner vs guest
+ * chrome is correct in the first HTML payload.
+ *
+ * Browser: synchronous only — read Zustand / dehydrated query cache. Never
+ * await network here; a hung ``/auth/refresh`` must not block navigations or
+ * keep content suspended. Access-token bootstrap belongs in ``AuthStoreSync``.
  */
-export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRouterContext> {
+export async function loadAuthSession(
+  queryClient: QueryClient,
+): Promise<AuthRouterContext> {
   purgeLegacyAuthStorage();
 
   if (typeof window === "undefined") {
-    return {
-      isAuthenticated: false,
-      user: null,
-      isReady: false,
-    };
+    try {
+      const user = await fetchAuthMe();
+
+      if (user != null) {
+        queryClient.setQueryData(authMeQueryOptions.queryKey, user);
+      }
+
+      return {
+        isAuthenticated: user != null,
+        user,
+        isReady: true,
+      };
+    } catch {
+      return {
+        isAuthenticated: false,
+        user: null,
+        isReady: true,
+      };
+    }
   }
 
   const store = useAuthStore.getState();
 
-  if (store.user !== null && store.accessToken != null && store.accessToken.length > 0) {
+  if (
+    store.user !== null &&
+    store.accessToken != null &&
+    store.accessToken.length > 0
+  ) {
     queryClient.setQueryData(authMeQueryOptions.queryKey, store.user);
     store.setRestoring(false);
 
@@ -63,31 +88,60 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
     };
   }
 
-  const result = await runAuthBootstrap();
+  const cachedUser = queryClient.getQueryData<UserProfile | null>(
+    authMeQueryOptions.queryKey,
+  );
 
-  queryClient.setQueryData(authMeQueryOptions.queryKey, result.user);
-
-  if (result.user !== null && result.accessToken != null) {
-    useAuthStore.getState().setSession(result.user, result.accessToken);
-  } else {
-    const stillLive = useAuthStore.getState();
-
-    if (stillLive.user !== null && stillLive.accessToken != null && stillLive.accessToken.length > 0) {
-      queryClient.setQueryData(authMeQueryOptions.queryKey, stillLive.user);
-
-      return {
-        isAuthenticated: true,
-        user: stillLive.user,
-        isReady: true,
-      };
+  if (cachedUser != null) {
+    if (store.user == null) {
+      store.setUser(cachedUser);
     }
 
-    useAuthStore.getState().clearUser();
+    return {
+      isAuthenticated: true,
+      user: cachedUser,
+      isReady: true,
+    };
   }
 
+  if (store.user !== null) {
+    queryClient.setQueryData(authMeQueryOptions.queryKey, store.user);
+
+    return {
+      isAuthenticated: true,
+      user: store.user,
+      isReady: true,
+    };
+  }
+
+  const identityUsername = readIdentityUsername();
+
+  if (identityUsername != null && identityUsername.length > 0) {
+    const hintUser: UserProfile = {
+      id: "",
+      username: identityUsername,
+      email: "",
+      display_name: null,
+      is_active: true,
+      email_verified: false,
+      created_at: "",
+      updated_at: "",
+    };
+
+    store.setUser(hintUser);
+
+    return {
+      isAuthenticated: true,
+      user: hintUser,
+      isReady: true,
+    };
+  }
+
+  // Guest for routing, but keep isRestoring true so the header does not
+  // flash "Sign in" until AuthStoreSync finishes the silent refresh.
   return {
-    isAuthenticated: result.user !== null,
-    user: result.user,
+    isAuthenticated: false,
+    user: null,
     isReady: true,
   };
 }

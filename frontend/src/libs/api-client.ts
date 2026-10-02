@@ -40,7 +40,12 @@ export class ApiError extends Error {
   readonly body: unknown;
   readonly retryAfterSeconds: number | null;
 
-  constructor(message: string, status: number, body: unknown, retryAfterSeconds: number | null = null) {
+  constructor(
+    message: string,
+    status: number,
+    body: unknown,
+    retryAfterSeconds: number | null = null,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -148,7 +153,11 @@ function parseRetryAfterSeconds(value: string | number | undefined): number | nu
   return seconds;
 }
 
-function toApiError(status: number, body: unknown, retryAfterSeconds: number | null = null): ApiError {
+function toApiError(
+  status: number,
+  body: unknown,
+  retryAfterSeconds: number | null = null,
+): ApiError {
   const message =
     typeof body === "object" && body !== null && "detail" in body && body.detail != null
       ? String(body.detail)
@@ -161,9 +170,14 @@ function axiosErrorToApiError(error: AxiosError): ApiError {
   const status = error.response?.status ?? 0;
   const body = error.response?.data ?? null;
   const headers = error.response?.headers;
-  const retryRaw = headers == null ? undefined : (headers["retry-after"] ?? headers["Retry-After"]);
+  const retryRaw =
+    headers == null
+      ? undefined
+      : (headers["retry-after"] ?? headers["Retry-After"]);
   const retryAfterSeconds = parseRetryAfterSeconds(
-    typeof retryRaw === "string" || typeof retryRaw === "number" ? retryRaw : undefined,
+    typeof retryRaw === "string" || typeof retryRaw === "number"
+      ? retryRaw
+      : undefined,
   );
 
   return toApiError(status, body, retryAfterSeconds);
@@ -197,46 +211,79 @@ api.interceptors.request.use(
   { synchronous: true },
 );
 
-let refreshInFlight: Promise<SessionPayload | null> | null = null;
+/**
+ * Silent refresh result.
+ *
+ * - ``session``: rotated access token + profile
+ * - ``unauthorized``: cookie missing/invalid (true logout)
+ * - ``transient``: network / timeout — keep any SSR-seeded profile
+ */
+export type SilentRefreshResult =
+  | { status: "ok"; session: SessionPayload }
+  | { status: "unauthorized" }
+  | { status: "transient" };
+
+const SILENT_REFRESH_TIMEOUT_MS = 5_000;
+
+let refreshInFlightResult: Promise<SilentRefreshResult> | null = null;
 
 /**
  * Silent refresh: exchange the HttpOnly refresh cookie for a new access token.
  *
  * Single-flight so boot, 401 interceptors, and focus refetch share one call.
- * Returns the session payload or ``null`` when the cookie is missing/invalid.
  */
 export async function silentRefreshSession(): Promise<SessionPayload | null> {
+  const result = await silentRefreshSessionDetailed();
+
+  return result.status === "ok" ? result.session : null;
+}
+
+export async function silentRefreshSessionDetailed(): Promise<SilentRefreshResult> {
   if (typeof window === "undefined") {
-    return null;
+    return { status: "unauthorized" };
   }
 
-  if (refreshInFlight !== null) {
-    return refreshInFlight;
+  if (refreshInFlightResult !== null) {
+    return refreshInFlightResult;
   }
 
-  refreshInFlight = (async () => {
+  refreshInFlightResult = (async (): Promise<SilentRefreshResult> => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      controller.abort();
+    }, SILENT_REFRESH_TIMEOUT_MS);
+
     try {
-      const { data } = await api.post<SessionPayload>("/auth/refresh", undefined, { skipAuthRefresh: true });
+      const { data } = await api.post<SessionPayload>("/auth/refresh", undefined, {
+        skipAuthRefresh: true,
+        signal: controller.signal,
+        timeout: SILENT_REFRESH_TIMEOUT_MS,
+      });
 
       if (!isSessionPayload(data)) {
         useAuthStore.getState().setAccessToken(null);
 
-        return null;
+        return { status: "unauthorized" };
       }
 
       applySessionFromBody(data);
 
-      return data;
-    } catch {
+      return { status: "ok", session: data };
+    } catch (error: unknown) {
       useAuthStore.getState().setAccessToken(null);
 
-      return null;
+      if (isAxiosError(error) && error.response?.status === HttpStatus.UNAUTHORIZED) {
+        return { status: "unauthorized" };
+      }
+
+      return { status: "transient" };
     } finally {
-      refreshInFlight = null;
+      window.clearTimeout(timer);
+      refreshInFlightResult = null;
     }
   })();
 
-  return refreshInFlight;
+  return refreshInFlightResult;
 }
 
 /**

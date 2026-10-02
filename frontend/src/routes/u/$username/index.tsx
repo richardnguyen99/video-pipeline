@@ -1,20 +1,23 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { ProfilePanel } from "@/layouts/user-profile/profile-panel";
-import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
-import { useUserSettingsContext } from "@/layouts/user-profile/use-user-settings";
+import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
+import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
+import { publicUserProfileQueryOptions } from "@/queries/user-profile";
 
 export const Route = createFileRoute("/u/$username/")({
+  loader: async ({ context, params }) => {
+    const profile = await context.queryClient.ensureQueryData(publicUserProfileQueryOptions(params.username));
+
+    return { profile };
+  },
   component: UserProfilePage,
 });
 
 function UserProfilePage() {
   const { username } = Route.useParams();
-  const { isOwner, user, profile, profileQuery } = useUserSettingsContext(username);
-
-  if (profileQuery.isLoading || profile == null) {
-    return <SettingsContentSkeleton />;
-  }
+  const { profile } = Route.useLoaderData();
+  const { isOwner, authUser } = useResolvedOwner(username);
 
   return (
     <>
@@ -28,7 +31,7 @@ function UserProfilePage() {
         }
       />
 
-      <ProfilePanel profile={profile} isOwner={isOwner} authUser={user} />
+      <ProfilePanel profile={profile} isOwner={isOwner} authUser={authUser} />
     </>
   );
 }

@@ -13,7 +13,8 @@ export const authQueryKeys = {
  * Current session user.
  *
  * Browser: delegates to the silent-auth interceptor (``runAuthBootstrap``).
- * SSR: server function (refresh cookie often absent due to Path scope).
+ * SSR: server function reads the HttpOnly refresh cookie (Path=/) and
+ * resolves the profile so owner vs guest chrome can paint without a flash.
  */
 export const authMeQueryOptions = queryOptions({
   queryKey: authQueryKeys.me(),

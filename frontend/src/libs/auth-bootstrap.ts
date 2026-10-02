@@ -3,16 +3,18 @@
  *
  * Workflow on F5:
  * 1. Memory wiped — accessToken gone.
- * 2. Router beforeLoad / AuthStoreSync calls runAuthBootstrap.
+ * 2. AuthStoreSync calls runAuthBootstrap (background; does not block routes).
  * 3. If Zustand already has accessToken → skip.
  * 4. Else POST /api/v1/auth/refresh (HttpOnly refresh cookie attached).
  * 5–6. Backend validates + rotates; returns { access_token, ...user }.
  * 7. Hydrate Zustand from the response body.
- * 8. Route guards resolve; UI mounts without a login flash.
+ * 8. Router invalidate only when identity changed.
  */
 
-import { silentRefreshSession } from "@/libs/api-client";
-import type { SessionPayload } from "@/libs/api-client";
+import {
+  silentRefreshSessionDetailed,
+  type SessionPayload,
+} from "@/libs/api-client";
 import type { UserProfile } from "@/libs/auth";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -39,9 +41,11 @@ function sessionToUser(session: SessionPayload): UserProfile {
 }
 
 /**
- * Run once per page lifetime (shared by root beforeLoad and AuthStoreSync).
+ * Run once per page lifetime (shared by AuthStoreSync).
  *
  * Live Zustand sessions (e.g. just after login) win over a stale guest cache.
+ * Transient network failures keep any already-seeded profile (SSR / prior
+ * bootstrap) so the header does not flash back to "Sign in".
  */
 export async function runAuthBootstrap(): Promise<AuthBootstrapResult> {
   if (typeof window === "undefined") {
@@ -50,7 +54,11 @@ export async function runAuthBootstrap(): Promise<AuthBootstrapResult> {
 
   const store = useAuthStore.getState();
 
-  if (store.user !== null && store.accessToken != null && store.accessToken.length > 0) {
+  if (
+    store.user !== null &&
+    store.accessToken != null &&
+    store.accessToken.length > 0
+  ) {
     lastResult = { user: store.user, accessToken: store.accessToken };
     bootstrapCompleted = true;
     store.setRestoring(false);
@@ -69,23 +77,39 @@ export async function runAuthBootstrap(): Promise<AuthBootstrapResult> {
   }
 
   bootstrapInFlight = (async (): Promise<AuthBootstrapResult> => {
-    useAuthStore.getState().setRestoring(true);
+    const seededUser = useAuthStore.getState().user;
 
     try {
-      const session = await silentRefreshSession();
+      const refresh = await silentRefreshSessionDetailed();
 
-      if (session === null) {
-        lastResult = { user: null, accessToken: null };
-        useAuthStore.getState().clearUser();
+      if (refresh.status === "ok") {
+        const user = sessionToUser(refresh.session);
+        const accessToken = refresh.session.access_token;
+
+        useAuthStore.getState().setSession(user, accessToken);
+        lastResult = { user, accessToken };
 
         return lastResult;
       }
 
-      const user = sessionToUser(session);
-      const accessToken = session.access_token;
+      if (refresh.status === "transient") {
+        lastResult = {
+          user: seededUser,
+          accessToken: useAuthStore.getState().accessToken,
+        };
 
-      useAuthStore.getState().setSession(user, accessToken);
-      lastResult = { user, accessToken };
+        return lastResult;
+      }
+
+      lastResult = { user: null, accessToken: null };
+      useAuthStore.getState().clearUser();
+
+      return lastResult;
+    } catch {
+      lastResult = {
+        user: seededUser,
+        accessToken: useAuthStore.getState().accessToken,
+      };
 
       return lastResult;
     } finally {
@@ -102,7 +126,10 @@ export async function runAuthBootstrap(): Promise<AuthBootstrapResult> {
  * Record a known session (login) so later bootstrap/loadAuthSession calls
  * do not overwrite it with a stale guest result.
  */
-export function markAuthBootstrapSession(user: UserProfile, accessToken: string): void {
+export function markAuthBootstrapSession(
+  user: UserProfile,
+  accessToken: string,
+): void {
   lastResult = { user, accessToken };
   bootstrapCompleted = true;
   bootstrapInFlight = null;

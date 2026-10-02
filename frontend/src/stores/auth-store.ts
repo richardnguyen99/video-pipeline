@@ -1,6 +1,10 @@
 import { create } from "zustand";
 
 import type { UserProfile } from "@/libs/auth";
+import {
+  clearIdentityUsername,
+  writeIdentityUsername,
+} from "@/libs/auth-identity-cookie";
 
 type AuthState = {
   user: UserProfile | null;
@@ -22,24 +26,39 @@ type AuthState = {
  * Synchronous client auth state for UI and API Authorization headers.
  * Access token lives only in process memory. Refresh token is HttpOnly.
  * Never persists to localStorage or sessionStorage.
+ *
+ * ``isRestoring`` starts true so the header/footer never flash "Sign in"
+ * before the silent-refresh interceptor finishes on a hard reload. SSR
+ * hydrate and AuthStoreSync clear the flag once the session is known.
  */
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   accessToken: null,
   isRestoring: true,
   setUser: (user) => {
+    if (user?.username) {
+      writeIdentityUsername(user.username);
+    }
+
     set({ user });
   },
   setAccessToken: (accessToken) => {
     set({ accessToken });
   },
   setSession: (user, accessToken) => {
-    set({ user, accessToken });
+    if (user?.username) {
+      writeIdentityUsername(user.username);
+    } else {
+      clearIdentityUsername();
+    }
+
+    set({ user, accessToken, isRestoring: false });
   },
   setRestoring: (isRestoring) => {
     set({ isRestoring });
   },
   clearUser: () => {
+    clearIdentityUsername();
     set({ user: null, accessToken: null, isRestoring: false });
   },
 }));

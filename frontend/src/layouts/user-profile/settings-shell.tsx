@@ -73,6 +73,52 @@ export function SettingsContentSkeleton() {
   );
 }
 
+/**
+ * Two-column chrome while the session is still resolving.
+ * Keeps the left sidebar slot mounted so auth settle does not collapse the layout.
+ */
+export function SettingsShellPending() {
+  return (
+    <div
+      className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pt-24 pb-16"
+      aria-busy="true"
+      aria-label="Loading account"
+    >
+      <div className="flex flex-col gap-1">
+        <Skeleton className="h-3 w-28" />
+
+        <Skeleton className="h-9 w-40" />
+
+        <Skeleton className="h-4 w-72 max-w-full" />
+      </div>
+
+      <div className="flex flex-col gap-10 lg:flex-row lg:items-start">
+        <aside className="flex w-full flex-col gap-6 lg:w-56 lg:shrink-0">
+          <div className="flex flex-col gap-1">
+            <Skeleton className="mx-3 h-3 w-16" />
+
+            <div className="flex flex-col gap-1">
+              {Array.from({ length: 8 }).map((_, index) => (
+                <Skeleton key={index} className="h-9 w-full rounded-lg" />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Skeleton className="mx-3 h-3 w-20" />
+
+            <Skeleton className="h-9 w-full rounded-lg" />
+          </div>
+        </aside>
+
+        <section className="min-w-0 flex-1">
+          <SettingsContentSkeleton />
+        </section>
+      </div>
+    </div>
+  );
+}
+
 type SettingsCardProps = {
   title: string;
   description?: string;

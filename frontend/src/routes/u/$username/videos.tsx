@@ -1,22 +1,26 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
-import { useOwnerPlaylists, useOwnerVideos, useUserSettingsContext } from "@/layouts/user-profile/use-user-settings";
+import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
+import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { VideosPanel } from "@/layouts/user-profile/videos-panel";
+import { userPlaylistsQueryOptions, userVideosQueryOptions } from "@/queries/user-profile";
 
 export const Route = createFileRoute("/u/$username/videos")({
+  loader: async ({ context, params }) => {
+    const [videos, playlists] = await Promise.all([
+      context.queryClient.ensureQueryData(userVideosQueryOptions(params.username)),
+      context.queryClient.ensureQueryData(userPlaylistsQueryOptions(params.username)),
+    ]);
+
+    return { videos, playlists };
+  },
   component: UserVideosPage,
 });
 
 function UserVideosPage() {
   const { username } = Route.useParams();
-  const { isOwner } = useUserSettingsContext(username);
-  const videosQuery = useOwnerVideos(username);
-  const playlistsQuery = useOwnerPlaylists(username);
-
-  if (videosQuery.isLoading || playlistsQuery.isLoading) {
-    return <SettingsContentSkeleton />;
-  }
+  const { videos, playlists } = Route.useLoaderData();
+  const { isOwner } = useResolvedOwner(username);
 
   return (
     <>
@@ -26,7 +30,7 @@ function UserVideosPage() {
         description="Watch, revisit, and discover thoughtful moving images."
       />
 
-      <VideosPanel videos={videosQuery.data ?? []} playlists={playlistsQuery.data ?? []} isOwner={isOwner} />
+      <VideosPanel videos={videos} playlists={playlists} isOwner={isOwner} />
     </>
   );
 }

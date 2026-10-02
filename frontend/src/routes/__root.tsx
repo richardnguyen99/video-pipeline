@@ -17,6 +17,9 @@ export type RouterAppContext = {
 };
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
+  headers: () => ({
+    "Cache-Control": "private, no-store",
+  }),
   beforeLoad: async ({ context }): Promise<{ auth: AuthRouterContext }> => {
     const auth = await loadAuthSession(context.queryClient);
 

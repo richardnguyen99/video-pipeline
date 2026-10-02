@@ -1,37 +1,19 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
 import { SecurityPanel } from "@/layouts/user-profile/security-panel";
 import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
-import { useUserSettingsContext } from "@/layouts/user-profile/use-user-settings";
-import { useAuthStore } from "@/stores/auth-store";
+import { requireOwnerBeforeLoad, useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 
 export const Route = createFileRoute("/u/$username/security")({
-  beforeLoad: ({ params }) => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const { user, isRestoring } = useAuthStore.getState();
-
-    if (isRestoring) {
-      return;
-    }
-
-    if (user == null || user.username !== params.username) {
-      throw redirect({
-        to: "/u/$username",
-        params: { username: params.username },
-      });
-    }
-  },
+  beforeLoad: requireOwnerBeforeLoad,
   component: UserSecurityPage,
 });
 
 function UserSecurityPage() {
   const { username } = Route.useParams();
-  const { isOwner, user, isRestoring } = useUserSettingsContext(username);
+  const { isOwner, authUser } = useResolvedOwner(username);
 
-  if (isRestoring || user == null || !isOwner) {
+  if (!isOwner || authUser == null) {
     return <SettingsContentSkeleton />;
   }
 
@@ -43,7 +25,7 @@ function UserSecurityPage() {
         description="Fine-tune your experience and keep your account feeling like yours."
       />
 
-      <SecurityPanel user={user} />
+      <SecurityPanel user={authUser} />
     </>
   );
 }

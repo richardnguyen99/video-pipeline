@@ -1,12 +1,126 @@
-import { createServerFn } from "@tanstack/react-start";
-import { getCookie, setCookie, setResponseHeader, setResponseHeaders } from "@tanstack/react-start/server";
+import { createMiddleware, createServerFn } from "@tanstack/react-start";
+import {
+  getCookie,
+  getRequest,
+  getRequestHeader,
+  setCookie,
+  setResponseHeader,
+  setResponseHeaders,
+} from "@tanstack/react-start/server";
 
 import type { UserProfile } from "@/libs/auth";
+import {
+  IDENTITY_COOKIE,
+  parseIdentityUsernameFromHeader,
+} from "@/libs/auth-identity-cookie";
 import { HttpStatus } from "@/libs/http-status";
 
 const ACCESS_TOKEN_COOKIE = "access_token";
 const REFRESH_TOKEN_COOKIE = "refresh_token";
-const REFRESH_COOKIE_PATH = "/api/v1/auth/";
+const REFRESH_COOKIE_PATH = "/";
+
+
+/**
+ * Read the refresh token from the incoming request.
+ * Prefer ``getCookie``; fall back to parsing the raw Cookie header when
+ * Start's cookie map is empty during SSR document handling.
+ */
+function parseRefreshTokenFromCookieHeader(raw: string | null | undefined): string | null {
+  if (raw == null || raw.trim() === "") {
+    return null;
+  }
+
+  for (const part of raw.split(/;\s*/)) {
+    const eq = part.indexOf("=");
+
+    if (eq <= 0) {
+      continue;
+    }
+
+    const name = part.slice(0, eq).trim();
+
+    if (name !== REFRESH_TOKEN_COOKIE) {
+      continue;
+    }
+
+    const value = part.slice(eq + 1).trim();
+
+    return value.length > 0 ? value : null;
+  }
+
+  return null;
+}
+
+/**
+ * Read the refresh token from the incoming request.
+ * Prefer ``getCookie``; fall back to the raw Cookie header (via getRequestHeader
+ * or an explicit header passed from request middleware).
+ */
+function readRawCookieHeader(cookieHeader?: string | null): string | null {
+  if (cookieHeader != null && cookieHeader.trim() !== "") {
+    return cookieHeader;
+  }
+
+  try {
+    const request = getRequest();
+    const fromRequest = request.headers.get("cookie");
+
+    if (fromRequest != null && fromRequest.trim() !== "") {
+      return fromRequest;
+    }
+  } catch {
+    // getRequest() may throw outside a request context.
+  }
+
+  const fromHeader = getRequestHeader("cookie");
+
+  if (fromHeader != null && fromHeader.trim() !== "") {
+    return fromHeader;
+  }
+
+  return null;
+}
+
+function readRefreshTokenFromRequest(cookieHeader?: string | null): string | null {
+  const fromHelper = getCookie(REFRESH_TOKEN_COOKIE);
+
+  if (fromHelper != null && fromHelper.trim() !== "") {
+    return fromHelper.trim();
+  }
+
+  const raw = readRawCookieHeader(cookieHeader);
+
+  return parseRefreshTokenFromCookieHeader(raw);
+}
+
+function readIdentityUsernameFromRequest(
+  cookieHeader?: string | null,
+): string | null {
+  const fromHelper = getCookie(IDENTITY_COOKIE);
+
+  if (fromHelper != null && fromHelper.trim() !== "") {
+    return fromHelper.trim();
+  }
+
+  return parseIdentityUsernameFromHeader(readRawCookieHeader(cookieHeader));
+}
+
+/**
+ * Attach the raw Cookie header from the real Request onto server-fn context.
+ * Works around cases where getCookie/getRequestHeader are empty during SSR.
+ */
+const forwardRequestCookieMiddleware = createMiddleware({ type: "function" }).server(
+  async ({ next, request }) => {
+    const cookieHeader = request.headers.get("cookie");
+
+    return next({
+      context: {
+        cookieHeader: cookieHeader ?? null,
+      },
+    });
+  },
+);
+
 
 function getBackendOrigin(): string {
   const fromApiBase = process.env.VITE_API_BASE_URL?.trim();
@@ -186,10 +300,31 @@ function toUserProfile(session: SessionPayload): UserProfile {
   };
 }
 
+const BACKEND_FETCH_TIMEOUT_MS = 5_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, BACKEND_FETCH_TIMEOUT_MS);
+
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function fetchMeWithBearer(
   accessToken: string,
 ): Promise<{ ok: true; user: UserProfile } | { ok: false; status: number }> {
-  const response = await fetch(getBackendAuthMeUrl(), {
+  const response = await fetchWithTimeout(getBackendAuthMeUrl(), {
     method: "GET",
     headers: {
       Accept: "application/json",
@@ -216,14 +351,16 @@ async function fetchMeWithBearer(
  * cookie; return the session (including access_token in body for callers
  * that can store it — SSR only uses the profile).
  */
-async function refreshAccessTokenFromCookie(): Promise<SessionPayload | null> {
-  const refresh = getCookie(REFRESH_TOKEN_COOKIE);
+async function refreshAccessTokenFromCookie(
+  cookieHeader?: string | null,
+): Promise<SessionPayload | null> {
+  const refresh = readRefreshTokenFromRequest(cookieHeader);
 
   if (refresh == null || refresh.trim() === "") {
     return null;
   }
 
-  const response = await fetch(getBackendRefreshUrl(), {
+  const response = await fetchWithTimeout(getBackendRefreshUrl(), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -246,43 +383,67 @@ async function refreshAccessTokenFromCookie(): Promise<SessionPayload | null> {
 
 /**
  * Resolve the current user on the server via refresh cookie → Bearer me.
+ * Falls back to a non-HttpOnly identity username cookie when the refresh
+ * cookie is invisible so owner chrome can still paint on first HTML.
  */
-export const fetchAuthMe = createServerFn({ method: "GET" }).handler(async (): Promise<UserProfile | null> => {
+export const fetchAuthMe = createServerFn({ method: "GET" })
+  .middleware([forwardRequestCookieMiddleware])
+  .handler(async ({ context }): Promise<UserProfile | null> => {
   setResponseHeaders(
     new Headers({
       "Cache-Control": "private, no-store",
     }),
   );
 
-  const refresh = getCookie(REFRESH_TOKEN_COOKIE);
+  const cookieHeader = context.cookieHeader ?? readRawCookieHeader() ?? null;
+  const refresh = readRefreshTokenFromRequest(cookieHeader);
 
-  if (refresh == null || refresh.trim() === "") {
-    return null;
+  if (refresh != null && refresh.trim() !== "") {
+    try {
+      const session = await refreshAccessTokenFromCookie(cookieHeader);
+
+      if (session !== null) {
+        const me = await fetchMeWithBearer(session.access_token);
+
+        if (me.ok) {
+          return me.user;
+        }
+
+        return toUserProfile(session);
+      }
+    } catch {
+      // Fall through to identity hint.
+    }
   }
 
-  const session = await refreshAccessTokenFromCookie();
+  const identityUsername = readIdentityUsernameFromRequest(cookieHeader);
 
-  if (session === null) {
-    return null;
+  if (identityUsername != null && identityUsername.length > 0) {
+    return {
+      id: "",
+      username: identityUsername,
+      email: "",
+      display_name: null,
+      is_active: true,
+      email_verified: false,
+      created_at: "",
+      updated_at: "",
+    };
   }
 
-  const me = await fetchMeWithBearer(session.access_token);
-
-  if (me.ok) {
-    return me.user;
-  }
-
-  return toUserProfile(session);
+  return null;
 });
 
 /**
  * Explicitly refresh; returns profile when successful.
  */
-export const refreshAuthSession = createServerFn({ method: "POST" }).handler(async (): Promise<UserProfile | null> => {
+export const refreshAuthSession = createServerFn({ method: "POST" })
+  .middleware([forwardRequestCookieMiddleware])
+  .handler(async ({ context }): Promise<UserProfile | null> => {
   setResponseHeader("Cache-Control", "private, no-store");
 
   try {
-    const session = await refreshAccessTokenFromCookie();
+    const session = await refreshAccessTokenFromCookie(context.cookieHeader ?? null);
 
     if (session === null) {
       return null;
@@ -297,10 +458,12 @@ export const refreshAuthSession = createServerFn({ method: "POST" }).handler(asy
 /**
  * End the session: revoke on the API and clear cookies on this response.
  */
-export const logoutSession = createServerFn({ method: "POST" }).handler(async (): Promise<null> => {
+export const logoutSession = createServerFn({ method: "POST" })
+  .middleware([forwardRequestCookieMiddleware])
+  .handler(async ({ context }): Promise<null> => {
   setResponseHeader("Cache-Control", "private, no-store");
 
-  const refresh = getCookie(REFRESH_TOKEN_COOKIE);
+  const refresh = readRefreshTokenFromRequest(context.cookieHeader ?? null);
   const headers: Record<string, string> = {
     Accept: "application/json",
   };

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter, useRouteContext } from "@tanstack/react-router";
 import { Clapperboard, LogOut, Menu, User2Icon, UserRound, X } from "lucide-react";
 
 import { SiteSearchBox } from "@/components/search";
@@ -37,7 +37,14 @@ export default function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const { isAuthenticated, isRestoring, user, signOut } = useAuth();
+  const { user: storeUser, isRestoring, signOut } = useAuth();
+  const routeAuth = useRouteContext({
+    from: "__root__",
+    select: (ctx) => ctx.auth,
+  });
+  const user = storeUser ?? routeAuth?.user ?? null;
+  const isAuthenticated = user != null;
+  const showAuthPlaceholder = !isAuthenticated && isRestoring;
   const navigate = useNavigate();
   const router = useRouter();
 
@@ -90,9 +97,7 @@ export default function SiteHeader() {
         <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
           <SiteSearchBox className="hidden max-w-md flex-1 sm:block" compact enableHotkey />
 
-          {isRestoring ? (
-            <span className="hidden h-9 w-24 rounded-lg bg-muted/30 sm:inline-block" aria-hidden />
-          ) : isAuthenticated ? (
+          {isAuthenticated ? (
             <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
               <DropdownMenuTrigger className="hidden sm:inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_0_16px_-4px_var(--color-primary)] transition-colors hover:bg-primary/90">
                 <UserRound className="size-4" aria-hidden />
@@ -120,7 +125,13 @@ export default function SiteHeader() {
                   render={<button type="button" />}
                   onClick={() => {
                     setUserMenuOpen(false);
-                    void navigate({ to: "/account" });
+
+                    if (user?.username) {
+                      void navigate({
+                        to: "/u/$username",
+                        params: { username: user.username },
+                      });
+                    }
                   }}
                 >
                   <User2Icon className="size-4 shrink-0" aria-hidden />
@@ -141,6 +152,8 @@ export default function SiteHeader() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          ) : showAuthPlaceholder ? (
+            <div className="hidden h-8 w-28 animate-pulse rounded-lg bg-muted/60 sm:block" aria-hidden />
           ) : (
             <Button size="sm" className="hidden sm:inline-flex" nativeButton={false} render={<Link to="/sign-in" />}>
               Sign in
@@ -176,15 +189,18 @@ export default function SiteHeader() {
               </Link>
             ))}
 
-            {isRestoring ? null : isAuthenticated ? (
+            {isAuthenticated ? (
               <>
-                <Link
-                  to="/account"
-                  onClick={() => setOpen(false)}
-                  className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  Account
-                </Link>
+                {user?.username ? (
+                  <Link
+                    to="/u/$username"
+                    params={{ username: user.username }}
+                    onClick={() => setOpen(false)}
+                    className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    Account
+                  </Link>
+                ) : null}
 
                 <Button
                   size="sm"
@@ -197,6 +213,8 @@ export default function SiteHeader() {
                   Sign out
                 </Button>
               </>
+            ) : showAuthPlaceholder ? (
+              <div className="mt-2 h-8 w-24 animate-pulse rounded-lg bg-muted/60" aria-hidden />
             ) : (
               <Button
                 size="sm"
