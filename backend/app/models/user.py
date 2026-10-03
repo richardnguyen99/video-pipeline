@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.playlist import Playlist, PlaylistShare
     from app.models.refresh_token import RefreshToken
     from app.models.user_actress_subscribe import UserActressSubscribe
+    from app.models.user_bio import UserBio
     from app.models.video_reaction import VideoReaction
     from app.models.video_view import VideoView
 
@@ -27,6 +28,7 @@ class User(SQLModel, table=True):
         username: Unique handle used for login/display.
         email: Unique contact address.
         display_name: Optional human-friendly name.
+        role: Application role label (e.g. ``user``, ``creator``, ``admin``).
         is_active: Soft-disable flag; false blocks login without
             deleting the row.
         email_verified: Whether the contact email has been confirmed.
@@ -58,6 +60,11 @@ class User(SQLModel, table=True):
         max_length=100,
         sa_type=AutoString,
     )
+    role: str = Field(
+        default="user",
+        max_length=32,
+        sa_type=AutoString,
+    )
     is_active: bool = Field(default=True)
     email_verified: bool = Field(default=False)
     created_at: datetime.datetime = Field(
@@ -69,6 +76,10 @@ class User(SQLModel, table=True):
     )
 
     credential: Optional["UserCredential"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"uselist": False},
+    )
+    bio: Optional["UserBio"] = Relationship(
         back_populates="user",
         sa_relationship_kwargs={"uselist": False},
     )

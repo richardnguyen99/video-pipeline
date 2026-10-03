@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional, Union
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import col, select
 
 from app.models.credentials import UserCredential
 from app.models.user import User
+from app.models.user_bio import UserBio
 from app.repositories.base import BaseRepository
 
 _MAX_FAILED_LOGINS = 5
@@ -194,7 +195,6 @@ class UserRepository(BaseRepository):
         user.email_verified = True
         user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.session.add(user)
-
         await self.session.commit()
         await self.session.refresh(user)
 
@@ -290,3 +290,84 @@ class UserRepository(BaseRepository):
 
         self.session.add(credential)
         await self.session.commit()
+
+    async def get_bio_by_user_id(
+        self, user_id: uuid.UUID
+    ) -> Optional[UserBio]:
+        """Return the biography row for ``user_id``, if any.
+
+        Args:
+            user_id: Owning user's UUID.
+
+        Returns:
+            Matching ``UserBio`` or ``None``.
+        """
+
+        return await UserBio.get_by_user_id(self.session, user_id)
+
+    async def upsert_bio(
+        self,
+        user_id: uuid.UUID,
+        *,
+        full_name: Optional[str] = None,
+        date_of_birth: Optional[Union[date, datetime]] = None,
+        country: Optional[str] = None,
+        gender: Optional[str] = None,
+        biography: Optional[str] = None,
+        link: Optional[str] = None,
+        fields_set: Optional[set[str]] = None,
+    ) -> UserBio:
+        """Create or update the biography for ``user_id``.
+
+        When ``fields_set`` is provided, only those attribute names are
+        written (partial update). When omitted, every argument is applied.
+
+        Args:
+            user_id: Owning user's UUID.
+            full_name: Legal or preferred full name.
+            date_of_birth: Date of birth (date or datetime).
+            country: Country or region label.
+            gender: Gender label.
+            biography: Free-text biography.
+            link: Single associated URL.
+            fields_set: Optional set of field names present in the request.
+
+        Returns:
+            The persisted ``UserBio`` row.
+        """
+
+        bio = await UserBio.get_by_user_id(self.session, user_id)
+        apply_all = fields_set is None
+
+        if bio is None:
+            bio = UserBio.create(user_id=user_id)
+            apply_all = True
+
+        if apply_all or "full_name" in (fields_set or set()):
+            bio.full_name = full_name
+
+        if apply_all or "date_of_birth" in (fields_set or set()):
+            if date_of_birth is None:
+                bio.date_of_birth = None
+            elif isinstance(date_of_birth, datetime):
+                bio.date_of_birth = date_of_birth.date()
+            else:
+                bio.date_of_birth = date_of_birth
+
+        if apply_all or "country" in (fields_set or set()):
+            bio.country = country
+
+        if apply_all or "gender" in (fields_set or set()):
+            bio.gender = gender
+
+        if apply_all or "biography" in (fields_set or set()):
+            bio.biography = biography
+
+        if apply_all or "link" in (fields_set or set()):
+            bio.link = link
+
+        self.session.add(bio)
+        await self.session.commit()
+        await self.session.refresh(bio)
+
+        return bio

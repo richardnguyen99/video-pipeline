@@ -42,6 +42,12 @@
       "sourceType": "github",
       "skillPath": "plugins/python-development/skills/python-testing-patterns/SKILL.md",
       "computedHash": "a0c0cd2841eb80fc082b360ebbee1ad69275234229e525a6da1baaee3f5a52bd"
+    },
+    "sqlmodel": {
+      "source": "fastapi/sqlmodel",
+      "sourceType": "github",
+      "skillPath": "sqlmodel/.agents/skills/sqlmodel/SKILL.md",
+      "computedHash": "43c500e763a5557e224ae01bf3d776aa158cee2d71cdf245b945ef5206294e18"
     }
   }
 }

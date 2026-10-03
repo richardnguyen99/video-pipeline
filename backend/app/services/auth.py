@@ -22,6 +22,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     UserResponse,
 )
+from app.schemas.user_bio import UserBioResponse, UserBioUpdateRequest
 from app.services.email import EmailService
 from app.utils.email_verification import (
     AsyncKeyValueStore,
@@ -195,6 +196,54 @@ class AuthService:
             )
 
         return UserResponse.model_validate(user)
+
+    async def get_bio(self, user: UserResponse) -> UserBioResponse:
+        """Return the biography for the authenticated user.
+
+        When no bio row exists, every field is null.
+
+        Args:
+            user: Authenticated public profile.
+
+        Returns:
+            Biography response (possibly all-null).
+        """
+
+        bio = await self._repository.get_bio_by_user_id(user.id)
+
+        if bio is None:
+            return UserBioResponse()
+
+        return UserBioResponse.model_validate(bio)
+
+    async def update_bio(
+        self,
+        user: UserResponse,
+        payload: UserBioUpdateRequest,
+    ) -> UserBioResponse:
+        """Create or partially update the biography for the authenticated user.
+
+        Args:
+            user: Authenticated public profile.
+            payload: Validated biography fields (all optional).
+
+        Returns:
+            Updated biography response.
+        """
+
+        fields_set = set(payload.model_fields_set)
+        bio = await self._repository.upsert_bio(
+            user.id,
+            full_name=payload.full_name,
+            date_of_birth=payload.date_of_birth,
+            country=payload.country,
+            gender=payload.gender,
+            biography=payload.biography,
+            link=payload.link,
+            fields_set=fields_set,
+        )
+
+        return UserBioResponse.model_validate(bio)
 
     async def ensure_access_token_not_superseded(
         self,

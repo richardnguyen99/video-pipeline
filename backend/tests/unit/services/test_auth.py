@@ -20,6 +20,7 @@ from app.schemas.auth import (
     RegisterRequest,
     UserResponse,
 )
+from app.schemas.user_bio import UserBioUpdateRequest
 from app.services.auth import AuthService
 from app.utils.password import (
     PASSWORD_ALGORITHM,
@@ -36,6 +37,7 @@ class FakeUser:
     username: str
     email: str
     display_name: Optional[str]
+    role: str = "user"
     is_active: bool = True
     email_verified: bool = False
     created_at: datetime.datetime = field(
@@ -54,6 +56,20 @@ class FakeUser:
             tzinfo=datetime.timezone.utc,
         ),
     )
+
+
+@dataclass
+class FakeUserBio:
+    """Minimal biography stand-in for bio get/update tests."""
+
+    user_id: uuid.UUID
+    full_name: Optional[str] = None
+    date_of_birth: Optional[datetime.date] = None
+    country: Optional[str] = None
+    gender: Optional[str] = None
+    biography: Optional[str] = None
+    link: Optional[str] = None
+    updated_at: Optional[datetime.datetime] = None
 
 
 @dataclass
@@ -78,6 +94,8 @@ class FakeUserRepository:
     login_success_calls: list[FakeUser] = field(default_factory=list)
     login_failure_calls: list[FakeUser] = field(default_factory=list)
     update_password_calls: list[dict[str, Any]] = field(default_factory=list)
+    bios: dict[uuid.UUID, FakeUserBio] = field(default_factory=dict)
+    upsert_bio_calls: list[dict[str, Any]] = field(default_factory=list)
 
     async def get_by_username(self, username: str) -> Optional[FakeUser]:
         """Return a user keyed by username, if present."""
@@ -155,6 +173,81 @@ class FakeUserRepository:
                 "password_algorithm": password_algorithm,
             },
         )
+
+    async def get_bio_by_user_id(
+        self,
+        user_id: uuid.UUID,
+    ) -> Optional[FakeUserBio]:
+        """Return a stored biography row, if any."""
+
+        return self.bios.get(user_id)
+
+    async def upsert_bio(
+        self,
+        user_id: uuid.UUID,
+        *,
+        full_name: Optional[str] = None,
+        date_of_birth: Optional[Any] = None,
+        country: Optional[str] = None,
+        gender: Optional[str] = None,
+        biography: Optional[str] = None,
+        link: Optional[str] = None,
+        fields_set: Optional[set[str]] = None,
+    ) -> FakeUserBio:
+        """Create or partially update a biography row in memory."""
+
+        self.upsert_bio_calls.append(
+            {
+                "user_id": user_id,
+                "full_name": full_name,
+                "date_of_birth": date_of_birth,
+                "country": country,
+                "gender": gender,
+                "biography": biography,
+                "link": link,
+                "fields_set": fields_set,
+            },
+        )
+
+        bio = self.bios.get(user_id)
+        apply_all = fields_set is None
+
+        if bio is None:
+            bio = FakeUserBio(user_id=user_id)
+            apply_all = True
+
+        if apply_all or "full_name" in (fields_set or set()):
+            bio.full_name = full_name
+
+        if apply_all or "date_of_birth" in (fields_set or set()):
+            if date_of_birth is None:
+                bio.date_of_birth = None
+            elif isinstance(date_of_birth, datetime.datetime):
+                bio.date_of_birth = date_of_birth.date()
+            else:
+                bio.date_of_birth = date_of_birth
+
+        if apply_all or "country" in (fields_set or set()):
+            bio.country = country
+
+        if apply_all or "gender" in (fields_set or set()):
+            bio.gender = gender
+
+        if apply_all or "biography" in (fields_set or set()):
+            bio.biography = biography
+
+        if apply_all or "link" in (fields_set or set()):
+            bio.link = link
+
+        bio.updated_at = datetime.datetime(
+            2026,
+            3,
+            1,
+            tzinfo=datetime.timezone.utc,
+        )
+        self.bios[user_id] = bio
+
+        return bio
 
 
 @dataclass
@@ -783,3 +876,163 @@ async def test_change_password_revokes_all_refresh_tokens(
     assert repository.update_password_calls[0]["user_id"] == user.id
     assert refresh_tokens.active_hashes_for(user.id) == []
     assert set(refresh_tokens.revoked_hashes) == {"hash:a", "hash:b"}
+
+
+@pytest.mark.asyncio
+async def test_get_bio_returns_empty_when_missing(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Users without a bio row receive an all-null response."""
+
+    user = FakeUser(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    profile = UserResponse.model_validate(user)
+
+    result = await service.get_bio(profile)
+
+    assert result.full_name is None
+    assert result.date_of_birth is None
+    assert result.country is None
+    assert result.gender is None
+    assert result.biography is None
+    assert result.link is None
+    assert user.id not in repository.bios
+
+
+@pytest.mark.asyncio
+async def test_get_bio_returns_existing_row(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Existing biography fields are returned as-is."""
+
+    user_id = uuid.uuid4()
+    user = FakeUser(
+        id=user_id,
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    repository.bios[user_id] = FakeUserBio(
+        user_id=user_id,
+        full_name="Alice Example",
+        country="Japan",
+        biography="Editor.",
+        link="https://example.com",
+        updated_at=datetime.datetime(2026, 2, 1, tzinfo=datetime.timezone.utc),
+    )
+    profile = UserResponse.model_validate(user)
+
+    result = await service.get_bio(profile)
+
+    assert result.full_name == "Alice Example"
+    assert result.country == "Japan"
+    assert result.biography == "Editor."
+    assert result.link == "https://example.com"
+    assert result.gender is None
+
+
+@pytest.mark.asyncio
+async def test_update_bio_creates_row_on_first_write(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """First update creates a biography row with the provided fields."""
+
+    user = FakeUser(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    profile = UserResponse.model_validate(user)
+    payload = UserBioUpdateRequest(
+        full_name="Alice Example",
+        country="United States",
+        biography="Director.",
+        link="https://example.com/alice",
+    )
+
+    result = await service.update_bio(profile, payload)
+
+    assert result.full_name == "Alice Example"
+    assert result.country == "United States"
+    assert result.biography == "Director."
+    assert result.link == "https://example.com/alice"
+    assert len(repository.upsert_bio_calls) == 1
+    assert repository.upsert_bio_calls[0]["user_id"] == user.id
+    assert user.id in repository.bios
+
+
+@pytest.mark.asyncio
+async def test_update_bio_partial_preserves_unspecified_fields(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Omitted fields are left unchanged on subsequent updates."""
+
+    user_id = uuid.uuid4()
+    user = FakeUser(
+        id=user_id,
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    repository.bios[user_id] = FakeUserBio(
+        user_id=user_id,
+        full_name="Alice Example",
+        country="Japan",
+        gender="female",
+        biography="Editor.",
+        link="https://example.com",
+    )
+    profile = UserResponse.model_validate(user)
+    payload = UserBioUpdateRequest(biography="Director and editor.")
+
+    result = await service.update_bio(profile, payload)
+
+    assert result.biography == "Director and editor."
+    assert result.full_name == "Alice Example"
+    assert result.country == "Japan"
+    assert result.gender == "female"
+    assert result.link == "https://example.com"
+    assert "biography" in (
+        repository.upsert_bio_calls[0]["fields_set"] or set()
+    )
+    assert "full_name" not in (
+        repository.upsert_bio_calls[0]["fields_set"] or set()
+    )
+
+
+@pytest.mark.asyncio
+async def test_update_bio_null_clears_field(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Explicit null in the payload clears the corresponding field."""
+
+    user_id = uuid.uuid4()
+    user = FakeUser(
+        id=user_id,
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    repository.bios[user_id] = FakeUserBio(
+        user_id=user_id,
+        full_name="Alice Example",
+        link="https://example.com",
+    )
+    profile = UserResponse.model_validate(user)
+    payload = UserBioUpdateRequest.model_validate({"link": None})
+
+    result = await service.update_bio(profile, payload)
+
+    assert result.link is None
+    assert result.full_name == "Alice Example"
+    assert "link" in (repository.upsert_bio_calls[0]["fields_set"] or set())

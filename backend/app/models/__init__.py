@@ -36,6 +36,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.series import Series, SeriesAka
 from app.models.user import User
 from app.models.user_actress_subscribe import UserActressSubscribe
+from app.models.user_bio import UserBio
 from app.models.video import (
     Video,
     VideoAka,

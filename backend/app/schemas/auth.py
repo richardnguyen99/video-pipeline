@@ -196,6 +196,7 @@ class UserResponse(BaseModel):
     username: str
     email: str
     display_name: Optional[str] = None
+    role: str = "user"
     is_active: bool
     email_verified: bool = False
     created_at: datetime
