@@ -25,7 +25,7 @@ class UserBio(SQLModel, table=True):
         full_name: Legal or preferred full name.
         date_of_birth: Calendar date of birth (no time component).
         country: Free-form country or region label.
-        gender: Free-form gender label.
+        gender: Gender label (restricted set of allowed values).
         biography: Longer free-text about the user.
         link: Single associated URL (portfolio, social, etc.).
         created_at: UTC timestamp set on creation.
@@ -73,10 +73,7 @@ class UserBio(SQLModel, table=True):
         sa_type=AutoString,
     )
     created_at: datetime.datetime = Field(default_factory=now)
-    updated_at: datetime.datetime = Field(
-        default_factory=now,
-        sa_column_kwargs={"onupdate": now},
-    )
+    updated_at: datetime.datetime = Field(default_factory=now)
 
     user: User = Relationship(back_populates="bio")
 

@@ -987,7 +987,7 @@ async def test_update_bio_partial_preserves_unspecified_fields(
         user_id=user_id,
         full_name="Alice Example",
         country="Japan",
-        gender="female",
+        gender="Female",
         biography="Editor.",
         link="https://example.com",
     )
@@ -999,7 +999,7 @@ async def test_update_bio_partial_preserves_unspecified_fields(
     assert result.biography == "Director and editor."
     assert result.full_name == "Alice Example"
     assert result.country == "Japan"
-    assert result.gender == "female"
+    assert result.gender == "Female"
     assert result.link == "https://example.com"
     assert "biography" in (
         repository.upsert_bio_calls[0]["fields_set"] or set()
@@ -1007,6 +1007,52 @@ async def test_update_bio_partial_preserves_unspecified_fields(
     assert "full_name" not in (
         repository.upsert_bio_calls[0]["fields_set"] or set()
     )
+
+
+@pytest.mark.asyncio
+async def test_update_bio_rejects_unsupported_gender(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Unsupported gender values are rejected with HTTP 400."""
+
+    user = FakeUser(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    profile = UserResponse.model_validate(user)
+    payload = UserBioUpdateRequest(gender="NotAGender")
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.update_bio(profile, payload)
+
+    assert exc_info.value.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Unsupported gender" in str(exc_info.value.detail)
+    assert repository.upsert_bio_calls == []
+
+
+@pytest.mark.asyncio
+async def test_update_bio_accepts_supported_gender(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Supported gender enum values are stored on update."""
+
+    user = FakeUser(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    profile = UserResponse.model_validate(user)
+    payload = UserBioUpdateRequest(gender="Queer")
+
+    result = await service.update_bio(profile, payload)
+
+    assert result.gender == "Queer"
+    assert repository.upsert_bio_calls[0]["gender"] == "Queer"
 
 
 @pytest.mark.asyncio

@@ -30,7 +30,22 @@ const COUNTRY_OPTIONS = countries.all
   }))
   .sort((a, b) => a.name.localeCompare(b.name));
 
-const EMPTY_COUNTRY = "__none__";
+const EMPTY_COUNTRY = "(None)";
+
+const EMPTY_GENDER = "(None)";
+
+const GENDER_OPTIONS = [
+  "Male",
+  "Female",
+  "Lesbian",
+  "Gay",
+  "Bi-sexual",
+  "Transgender",
+  "Queer",
+  "Intersex",
+  "Agender",
+  "Unknown",
+] as const;
 
 const bioFormSchema = z.object({
   full_name: z.string().max(200),
@@ -342,19 +357,45 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                     name="gender"
                     children={(field) => {
                       const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                      const selectValue = field.state.value || EMPTY_GENDER;
 
                       return (
                         <Field data-invalid={isInvalid || undefined}>
                           <FieldLabel htmlFor={field.name}>Gender</FieldLabel>
 
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                            aria-invalid={isInvalid || undefined}
-                          />
+                          <Select
+                            value={selectValue}
+                            onValueChange={(value) => {
+                              if (value == null || value === EMPTY_GENDER) {
+                                field.handleChange("");
+
+                                return;
+                              }
+
+                              field.handleChange(value);
+                            }}
+                          >
+                            <SelectTrigger
+                              id={field.name}
+                              className="w-full min-w-0"
+                              aria-invalid={isInvalid || undefined}
+                              onBlur={field.handleBlur}
+                            >
+                              <SelectValue placeholder="Select a gender" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value={EMPTY_GENDER}>None</SelectItem>
+
+                                {GENDER_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
 
                           {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
                         </Field>

@@ -4,13 +4,28 @@ from __future__ import annotations
 
 import re
 from datetime import date, datetime
+from enum import StrEnum
 from typing import Optional
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-_GENDER_PATTERN = re.compile(r"^[\w\s\-']{1,50}$", re.UNICODE)
 _COUNTRY_PATTERN = re.compile(r"^[\w\s\-.',()]{1,100}$", re.UNICODE)
+
+
+class Gender(StrEnum):
+    """Allowed gender labels for user biography."""
+
+    MALE = "Male"
+    FEMALE = "Female"
+    LESBIAN = "Lesbian"
+    GAY = "Gay"
+    BI_SEXUAL = "Bi-sexual"
+    TRANSGENDER = "Transgender"
+    QUEER = "Queer"
+    INTERSEX = "Intersex"
+    AGENDER = "Agender"
+    UNKNOWN = "Unknown"
 
 
 class UserBioUpdateRequest(BaseModel):
@@ -38,7 +53,11 @@ class UserBioUpdateRequest(BaseModel):
     gender: Optional[str] = Field(
         default=None,
         max_length=50,
-        description="Gender label.",
+        description=(
+            "Gender label. Allowed values: "
+            + ", ".join(item.value for item in Gender)
+            + "."
+        ),
     )
     biography: Optional[str] = Field(
         default=None,
@@ -94,23 +113,23 @@ class UserBioUpdateRequest(BaseModel):
 
         return trimmed
 
-    @field_validator("gender")
+    @field_validator("gender", mode="before")
     @classmethod
-    def normalize_gender(cls, value: Optional[str]) -> Optional[str]:
-        """Trim gender; empty becomes None; soft character check."""
+    def normalize_gender(cls, value: object) -> object:
+        """Trim gender; empty becomes None. Enum membership is enforced in the service."""
 
         if value is None:
             return None
 
+        if isinstance(value, Gender):
+            return value.value
+
+        if not isinstance(value, str):
+            raise ValueError("Gender must be a string.")
+
         trimmed = value.strip()
 
-        if not trimmed:
-            return None
-
-        if not _GENDER_PATTERN.fullmatch(trimmed):
-            raise ValueError("Gender contains unsupported characters.")
-
-        return trimmed
+        return trimmed or None
 
     @field_validator("biography")
     @classmethod

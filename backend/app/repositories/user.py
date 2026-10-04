@@ -366,6 +366,8 @@ class UserRepository(BaseRepository):
         if apply_all or "link" in (fields_set or set()):
             bio.link = link
 
+        bio.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
         self.session.add(bio)
         await self.session.commit()
         await self.session.refresh(bio)

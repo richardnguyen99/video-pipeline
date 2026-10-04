@@ -17,7 +17,7 @@ def test_update_request_accepts_full_payload() -> None:
         full_name="Alice Example",
         date_of_birth=date(1990, 5, 15),
         country="United States",
-        gender="female",
+        gender="Female",
         biography="Director and editor.",
         link="https://example.com/alice",
     )
@@ -25,7 +25,7 @@ def test_update_request_accepts_full_payload() -> None:
     assert payload.full_name == "Alice Example"
     assert payload.date_of_birth == date(1990, 5, 15)
     assert payload.country == "United States"
-    assert payload.gender == "female"
+    assert payload.gender == "Female"
     assert payload.biography == "Director and editor."
     assert payload.link == "https://example.com/alice"
 
@@ -98,6 +98,17 @@ def test_update_request_rejects_overlong_biography() -> None:
 
     with pytest.raises(ValidationError):
         UserBioUpdateRequest(biography="x" * 5001)
+
+
+def test_update_request_accepts_supported_gender_values() -> None:
+    """Each frontend gender option is accepted by the request schema."""
+
+    from app.schemas.user_bio import Gender
+
+    for value in Gender:
+        payload = UserBioUpdateRequest(gender=value.value)
+
+        assert payload.gender == value.value
 
 
 def test_response_defaults_all_null() -> None:

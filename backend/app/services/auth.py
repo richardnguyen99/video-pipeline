@@ -22,7 +22,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     UserResponse,
 )
-from app.schemas.user_bio import UserBioResponse, UserBioUpdateRequest
+from app.schemas.user_bio import Gender, UserBioResponse, UserBioUpdateRequest
 from app.services.email import EmailService
 from app.utils.email_verification import (
     AsyncKeyValueStore,
@@ -229,15 +229,33 @@ class AuthService:
 
         Returns:
             Updated biography response.
+
+        Raises:
+            HTTPException: 400 when ``gender`` is set to an unsupported value.
         """
 
         fields_set = set(payload.model_fields_set)
+        gender = payload.gender
+
+        if "gender" in fields_set and gender is not None:
+            try:
+                gender = Gender(gender).value
+            except ValueError as exc:
+                allowed = ", ".join(item.value for item in Gender)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        "Unsupported gender value. "
+                        f"Allowed values: {allowed}."
+                    ),
+                ) from exc
+
         bio = await self._repository.upsert_bio(
             user.id,
             full_name=payload.full_name,
             date_of_birth=payload.date_of_birth,
             country=payload.country,
-            gender=payload.gender,
+            gender=gender,
             biography=payload.biography,
             link=payload.link,
             fields_set=fields_set,
