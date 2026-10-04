@@ -2,16 +2,34 @@ import { useMemo, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { format, parse } from "date-fns";
+import { countries } from "country-data-list";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { getApiErrorMessage } from "@/libs/auth";
-import { updateMyUserBio, userBioQueryKeys } from "@/queries/user-bio";
-import type { UserBio } from "@/queries/user-bio";
+import { buttonVariants } from "@/libs/shadcn_variants";
+import { cn } from "@/libs/utils";
+import { type UserBio, updateMyUserBio, userBioQueryKeys } from "@/queries/user-bio";
+
+const COUNTRY_OPTIONS = countries.all
+  .filter((country) => country.status === "assigned" && Boolean(country.name))
+  .map((country) => ({
+    code: country.alpha2,
+    name: country.name,
+    emoji: country.emoji ?? "",
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+
+const EMPTY_COUNTRY = "__none__";
 
 const bioFormSchema = z.object({
   full_name: z.string().max(200),
@@ -95,6 +113,24 @@ function fieldErrors(errors: Array<unknown>): Array<{ message?: string } | undef
   });
 }
 
+function parseIsoDate(value: string): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = parse(value, "yyyy-MM-dd", new Date());
+
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function formatIsoDate(date: Date): string {
+  return format(date, "yyyy-MM-dd");
+}
+
 type ProfileBioFormProps = {
   bio: UserBio;
   username: string;
@@ -103,6 +139,7 @@ type ProfileBioFormProps = {
 export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
   const queryClient = useQueryClient();
   const [formError, setFormError] = useState<string | null>(null);
+  const [dobOpen, setDobOpen] = useState(false);
   const baseline = useMemo(() => toFormValues(bio), [bio]);
 
   const mutation = useMutation({
@@ -192,21 +229,46 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                     name="date_of_birth"
                     children={(field) => {
                       const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                      const selected = parseIsoDate(field.state.value);
 
                       return (
                         <Field data-invalid={isInvalid || undefined}>
                           <FieldLabel htmlFor={field.name}>Date of birth</FieldLabel>
 
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            type="date"
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                            autoComplete="bday"
-                            aria-invalid={isInvalid || undefined}
-                          />
+                          <Popover open={dobOpen} onOpenChange={setDobOpen} modal>
+                            <PopoverTrigger
+                              id={field.name}
+                              type="button"
+                              className={cn(
+                                buttonVariants({ variant: "outline" }),
+                                "w-full justify-between font-normal",
+                                !selected && "text-muted-foreground",
+                              )}
+                              aria-invalid={isInvalid || undefined}
+                              onBlur={field.handleBlur}
+                            >
+                              <span className="truncate text-left">
+                                {selected ? format(selected, "PPP") : "Pick a date"}
+                              </span>
+
+                              <CalendarIcon className="size-4 shrink-0 opacity-50" aria-hidden />
+                            </PopoverTrigger>
+
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                captionLayout="dropdown"
+                                selected={selected}
+                                defaultMonth={selected}
+                                disabled={{ after: new Date() }}
+                                startMonth={new Date(1900, 0)}
+                                endMonth={new Date()}
+                                onSelect={(date) => {
+                                  field.handleChange(date ? formatIsoDate(date) : "");
+                                }}
+                              />
+                            </PopoverContent>
+                          </Popover>
 
                           {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
                         </Field>
@@ -218,20 +280,46 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                     name="country"
                     children={(field) => {
                       const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                      const selectValue = field.state.value || EMPTY_COUNTRY;
 
                       return (
                         <Field data-invalid={isInvalid || undefined}>
                           <FieldLabel htmlFor={field.name}>Country</FieldLabel>
 
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(event) => field.handleChange(event.target.value)}
-                            autoComplete="country-name"
-                            aria-invalid={isInvalid || undefined}
-                          />
+                          <Select
+                            value={selectValue}
+                            onValueChange={(value) => {
+                              if (value == null || value === EMPTY_COUNTRY) {
+                                field.handleChange("");
+
+                                return;
+                              }
+
+                              field.handleChange(value);
+                            }}
+                          >
+                            <SelectTrigger
+                              id={field.name}
+                              className="w-full min-w-0"
+                              aria-invalid={isInvalid || undefined}
+                              onBlur={field.handleBlur}
+                            >
+                              <SelectValue placeholder="Select a country" />
+                            </SelectTrigger>
+
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value={EMPTY_COUNTRY}>None</SelectItem>
+
+                                {COUNTRY_OPTIONS.map((country) => (
+                                  <SelectItem key={country.code} value={country.name}>
+                                    {country.emoji ? `${country.emoji} ` : ""}
+                                    {country.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
 
                           {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
                         </Field>
@@ -299,7 +387,7 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                         <Field data-invalid={isInvalid || undefined} className="sm:col-span-2">
                           <FieldLabel htmlFor={field.name}>Biography</FieldLabel>
 
-                          <textarea
+                          <Textarea
                             id={field.name}
                             name={field.name}
                             rows={4}
@@ -307,7 +395,6 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                             onBlur={field.handleBlur}
                             onChange={(event) => field.handleChange(event.target.value)}
                             aria-invalid={isInvalid || undefined}
-                            className="border-input bg-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex w-full rounded-lg border px-3 py-2 text-sm outline-none focus-visible:ring-3"
                           />
 
                           {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
