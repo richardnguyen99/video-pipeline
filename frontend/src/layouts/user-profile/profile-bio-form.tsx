@@ -18,7 +18,8 @@ import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { getApiErrorMessage } from "@/libs/auth";
 import { buttonVariants } from "@/libs/shadcn_variants";
 import { cn } from "@/libs/utils";
-import { type UserBio, updateMyUserBio, userBioQueryKeys } from "@/queries/user-bio";
+import { updateMyUserBio, userBioQueryKeys } from "@/queries/user-bio";
+import type { UserBio } from "@/queries/user-bio";
 
 const COUNTRY_OPTIONS = countries.all
   .filter((country) => country.status === "assigned" && Boolean(country.name))
@@ -141,6 +142,7 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [dobOpen, setDobOpen] = useState(false);
   const baseline = useMemo(() => toFormValues(bio), [bio]);
+  const baselineDob = useMemo(() => parseIsoDate(baseline.date_of_birth), [baseline.date_of_birth]);
 
   const mutation = useMutation({
     mutationFn: updateMyUserBio,
@@ -242,19 +244,25 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                               className={cn(
                                 buttonVariants({ variant: "outline" }),
                                 "w-full justify-between font-normal",
-                                !selected && "text-muted-foreground",
                               )}
                               aria-invalid={isInvalid || undefined}
                               onBlur={field.handleBlur}
                             >
-                              <span className="truncate text-left">
+                              <span
+                                className={cn(
+                                  "truncate text-left transition-opacity",
+                                  selected
+                                    ? "text-muted-foreground opacity-80 hover:opacity-100"
+                                    : "text-muted-foreground/70 opacity-80 hover:opacity-100",
+                                )}
+                              >
                                 {selected ? format(selected, "PPP") : "Pick a date"}
                               </span>
 
-                              <CalendarIcon className="size-4 shrink-0 opacity-50" aria-hidden />
+                              <CalendarIcon className="size-4 shrink-0 text-muted-foreground opacity-80" aria-hidden />
                             </PopoverTrigger>
 
-                            <PopoverContent className="w-auto p-0" align="start">
+                            <PopoverContent className="w-auto p-0" side="bottom" align="end" sideOffset={4}>
                               <Calendar
                                 mode="single"
                                 captionLayout="dropdown"
@@ -263,6 +271,9 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                                 disabled={{ after: new Date() }}
                                 startMonth={new Date(1900, 0)}
                                 endMonth={new Date()}
+                                modifiers={{
+                                  old: baselineDob ? [baselineDob] : [],
+                                }}
                                 onSelect={(date) => {
                                   field.handleChange(date ? formatIsoDate(date) : "");
                                 }}
