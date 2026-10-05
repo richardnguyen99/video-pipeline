@@ -46,6 +46,8 @@ const GENDER_OPTIONS = [
   "Unknown",
 ] as const;
 
+const BIOGRAPHY_MAX_LENGTH = 500;
+
 const bioFormSchema = z.object({
   full_name: z.string().max(200),
   date_of_birth: z
@@ -63,7 +65,7 @@ const bioFormSchema = z.object({
     .max(3)
     .refine((value) => value === "" || /^[A-Z]{3}$/.test(value), "Country must be a 3-letter ISO alpha-3 code."),
   gender: z.string().max(50),
-  biography: z.string().max(5000),
+  biography: z.string().max(BIOGRAPHY_MAX_LENGTH),
   link: z
     .string()
     .max(2048)
@@ -90,7 +92,7 @@ function toFormValues(bio: UserBio): BioFormValues {
     date_of_birth: bio.date_of_birth ?? "",
     country: bio.country ?? "",
     gender: bio.gender ?? "",
-    biography: bio.biography ?? "",
+    biography: (bio.biography ?? "").replace(/[\r\n]+/g, " "),
     link: bio.link ?? "",
   };
 }
@@ -101,7 +103,7 @@ function toUpdatePayload(values: BioFormValues) {
     date_of_birth: values.date_of_birth.trim() || null,
     country: values.country.trim() || null,
     gender: values.gender.trim() || null,
-    biography: values.biography.trim() || null,
+    biography: values.biography.replace(/[\r\n]+/g, " ").trim() || null,
     link: values.link.trim() || null,
   };
 }
@@ -444,13 +446,32 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                             id={field.name}
                             name={field.name}
                             rows={4}
+                            maxLength={BIOGRAPHY_MAX_LENGTH}
                             value={field.state.value}
                             onBlur={field.handleBlur}
-                            onChange={(event) => field.handleChange(event.target.value)}
+                            onChange={(event) => {
+                              field.handleChange(event.target.value.replace(/[\r\n]+/g, " "));
+                            }}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter") {
+                                event.preventDefault();
+                              }
+                            }}
                             aria-invalid={isInvalid || undefined}
                           />
 
-                          {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
+                          <div className="flex items-center justify-between gap-2">
+                            {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : <span />}
+
+                            <p
+                              className={cn(
+                                "text-xs tabular-nums text-muted-foreground",
+                                field.state.value.length >= BIOGRAPHY_MAX_LENGTH && "text-destructive",
+                              )}
+                            >
+                              {field.state.value.length}/{BIOGRAPHY_MAX_LENGTH}
+                            </p>
+                          </div>
                         </Field>
                       );
                     }}
@@ -537,7 +558,7 @@ export function ProfileBioPublic({ bio }: ProfileBioPublicProps) {
           </dl>
         ) : null}
 
-        {bio.biography ? <p className="text-sm whitespace-pre-wrap text-foreground/90">{bio.biography}</p> : null}
+        {bio.biography ? <p className="text-sm text-foreground/90">{bio.biography.replace(/[\r\n]+/g, " ")}</p> : null}
       </div>
     </SettingsCard>
   );

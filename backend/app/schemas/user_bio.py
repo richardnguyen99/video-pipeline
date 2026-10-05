@@ -62,8 +62,8 @@ class UserBioUpdateRequest(BaseModel):
     )
     biography: Optional[str] = Field(
         default=None,
-        max_length=5000,
-        description="Free-text biography.",
+        max_length=500,
+        description="Free-text biography (max 500 characters).",
     )
     link: Optional[str] = Field(
         default=None,

@@ -94,10 +94,10 @@ def test_update_request_accepts_https_link() -> None:
 
 
 def test_update_request_rejects_overlong_biography() -> None:
-    """Biography longer than 5000 characters is rejected."""
+    """Biography longer than 500 characters is rejected."""
 
     with pytest.raises(ValidationError):
-        UserBioUpdateRequest(biography="x" * 5001)
+        UserBioUpdateRequest(biography="x" * 501)
 
 
 def test_update_request_normalizes_country_to_uppercase_alpha3() -> None:
