@@ -24,7 +24,7 @@ class UserBio(SQLModel, table=True):
         user_id: One-to-one foreign key to ``User.id``.
         full_name: Legal or preferred full name.
         date_of_birth: Calendar date of birth (no time component).
-        country: Free-form country or region label.
+        country: ISO 3166-1 alpha-3 country code.
         gender: Gender label (restricted set of allowed values).
         biography: Longer free-text about the user.
         link: Single associated URL (portfolio, social, etc.).
@@ -55,7 +55,7 @@ class UserBio(SQLModel, table=True):
     )
     country: Optional[str] = Field(
         default=None,
-        max_length=100,
+        max_length=3,
         sa_type=AutoString,
     )
     gender: Optional[str] = Field(

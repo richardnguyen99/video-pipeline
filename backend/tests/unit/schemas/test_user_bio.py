@@ -16,7 +16,7 @@ def test_update_request_accepts_full_payload() -> None:
     payload = UserBioUpdateRequest(
         full_name="Alice Example",
         date_of_birth=date(1990, 5, 15),
-        country="United States",
+        country="USA",
         gender="Female",
         biography="Director and editor.",
         link="https://example.com/alice",
@@ -24,7 +24,7 @@ def test_update_request_accepts_full_payload() -> None:
 
     assert payload.full_name == "Alice Example"
     assert payload.date_of_birth == date(1990, 5, 15)
-    assert payload.country == "United States"
+    assert payload.country == "USA"
     assert payload.gender == "Female"
     assert payload.biography == "Director and editor."
     assert payload.link == "https://example.com/alice"
@@ -98,6 +98,27 @@ def test_update_request_rejects_overlong_biography() -> None:
 
     with pytest.raises(ValidationError):
         UserBioUpdateRequest(biography="x" * 5001)
+
+
+def test_update_request_normalizes_country_to_uppercase_alpha3() -> None:
+    """Country codes are uppercased and validated as ISO alpha-3."""
+
+    payload = UserBioUpdateRequest(country="vnm")
+
+    assert payload.country == "VNM"
+
+
+def test_update_request_rejects_non_alpha3_country() -> None:
+    """Full country names and invalid codes are rejected."""
+
+    with pytest.raises(ValidationError):
+        UserBioUpdateRequest(country="United States")
+
+    with pytest.raises(ValidationError):
+        UserBioUpdateRequest(country="VN")
+
+    with pytest.raises(ValidationError):
+        UserBioUpdateRequest(country="VIET")
 
 
 def test_update_request_accepts_supported_gender_values() -> None:

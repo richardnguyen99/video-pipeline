@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-_COUNTRY_PATTERN = re.compile(r"^[\w\s\-.',()]{1,100}$", re.UNICODE)
+_COUNTRY_ALPHA3_PATTERN = re.compile(r"^[A-Z]{3}$")
 
 
 class Gender(StrEnum):
@@ -47,8 +47,9 @@ class UserBioUpdateRequest(BaseModel):
     )
     country: Optional[str] = Field(
         default=None,
-        max_length=100,
-        description="Country or region label.",
+        max_length=3,
+        min_length=3,
+        description="ISO 3166-1 alpha-3 country code (e.g. USA, VNM).",
     )
     gender: Optional[str] = Field(
         default=None,
@@ -95,21 +96,26 @@ class UserBioUpdateRequest(BaseModel):
 
         return value
 
-    @field_validator("country")
+    @field_validator("country", mode="before")
     @classmethod
-    def normalize_country(cls, value: Optional[str]) -> Optional[str]:
-        """Trim country; empty becomes None; soft character check."""
+    def normalize_country(cls, value: object) -> object:
+        """Normalize to uppercase ISO alpha-3; empty becomes None."""
 
         if value is None:
             return None
 
-        trimmed = value.strip()
+        if not isinstance(value, str):
+            raise ValueError("Country must be a string.")
+
+        trimmed = value.strip().upper()
 
         if not trimmed:
             return None
 
-        if not _COUNTRY_PATTERN.fullmatch(trimmed):
-            raise ValueError("Country contains unsupported characters.")
+        if not _COUNTRY_ALPHA3_PATTERN.fullmatch(trimmed):
+            raise ValueError(
+                "Country must be a 3-letter ISO 3166-1 alpha-3 code.",
+            )
 
         return trimmed
 

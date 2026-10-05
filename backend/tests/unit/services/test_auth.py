@@ -921,7 +921,7 @@ async def test_get_bio_returns_existing_row(
     repository.bios[user_id] = FakeUserBio(
         user_id=user_id,
         full_name="Alice Example",
-        country="Japan",
+        country="JPN",
         biography="Editor.",
         link="https://example.com",
         updated_at=datetime.datetime(2026, 2, 1, tzinfo=datetime.timezone.utc),
@@ -931,7 +931,7 @@ async def test_get_bio_returns_existing_row(
     result = await service.get_bio(profile)
 
     assert result.full_name == "Alice Example"
-    assert result.country == "Japan"
+    assert result.country == "JPN"
     assert result.biography == "Editor."
     assert result.link == "https://example.com"
     assert result.gender is None
@@ -953,7 +953,7 @@ async def test_update_bio_creates_row_on_first_write(
     profile = UserResponse.model_validate(user)
     payload = UserBioUpdateRequest(
         full_name="Alice Example",
-        country="United States",
+        country="USA",
         biography="Director.",
         link="https://example.com/alice",
     )
@@ -961,7 +961,7 @@ async def test_update_bio_creates_row_on_first_write(
     result = await service.update_bio(profile, payload)
 
     assert result.full_name == "Alice Example"
-    assert result.country == "United States"
+    assert result.country == "USA"
     assert result.biography == "Director."
     assert result.link == "https://example.com/alice"
     assert len(repository.upsert_bio_calls) == 1
@@ -986,7 +986,7 @@ async def test_update_bio_partial_preserves_unspecified_fields(
     repository.bios[user_id] = FakeUserBio(
         user_id=user_id,
         full_name="Alice Example",
-        country="Japan",
+        country="JPN",
         gender="Female",
         biography="Editor.",
         link="https://example.com",
@@ -998,7 +998,7 @@ async def test_update_bio_partial_preserves_unspecified_fields(
 
     assert result.biography == "Director and editor."
     assert result.full_name == "Alice Example"
-    assert result.country == "Japan"
+    assert result.country == "JPN"
     assert result.gender == "Female"
     assert result.link == "https://example.com"
     assert "biography" in (

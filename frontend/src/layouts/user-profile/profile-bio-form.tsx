@@ -3,36 +3,35 @@ import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format, parse } from "date-fns";
-import { countries } from "country-data-list";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { z } from "zod";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { getApiErrorMessage } from "@/libs/auth";
+import {
+  COUNTRY_ALPHA3_BY_LABEL,
+  COUNTRY_LABEL_BY_ALPHA3,
+  COUNTRY_LABELS,
+  resolveCountryDisplay,
+} from "@/libs/country";
 import { buttonVariants } from "@/libs/shadcn_variants";
 import { cn } from "@/libs/utils";
 import { updateMyUserBio, userBioQueryKeys } from "@/queries/user-bio";
 import type { UserBio } from "@/queries/user-bio";
-
-const COUNTRY_OPTIONS = countries.all
-  .filter((country) => country.status === "assigned" && Boolean(country.name))
-  .map((country) => ({
-    code: country.alpha2,
-    name: country.name,
-    emoji: country.emoji ?? "",
-  }))
-  .sort((a, b) => a.name.localeCompare(b.name));
-
-const EMPTY_COUNTRY = "(None)";
-
-const EMPTY_GENDER = "(None)";
 
 const GENDER_OPTIONS = [
   "Male",
@@ -59,7 +58,10 @@ const bioFormSchema = z.object({
 
       return new Date(value) <= new Date();
     }, "Date of birth cannot be in the future."),
-  country: z.string().max(100),
+  country: z
+    .string()
+    .max(3)
+    .refine((value) => value === "" || /^[A-Z]{3}$/.test(value), "Country must be a 3-letter ISO alpha-3 code."),
   gender: z.string().max(50),
   biography: z.string().max(5000),
   link: z
@@ -306,46 +308,48 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                     name="country"
                     children={(field) => {
                       const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
-                      const selectValue = field.state.value || EMPTY_COUNTRY;
+                      const selectedLabel =
+                        (field.state.value ? COUNTRY_LABEL_BY_ALPHA3.get(field.state.value) : null) ?? null;
 
                       return (
                         <Field data-invalid={isInvalid || undefined}>
                           <FieldLabel htmlFor={field.name}>Country</FieldLabel>
 
-                          <Select
-                            value={selectValue}
-                            onValueChange={(value) => {
-                              if (value == null || value === EMPTY_COUNTRY) {
+                          <Combobox
+                            items={COUNTRY_LABELS}
+                            value={selectedLabel}
+                            onValueChange={(label) => {
+                              if (label == null) {
                                 field.handleChange("");
 
                                 return;
                               }
 
-                              field.handleChange(value);
+                              field.handleChange(COUNTRY_ALPHA3_BY_LABEL.get(label) ?? "");
                             }}
+                            autoHighlight
                           >
-                            <SelectTrigger
+                            <ComboboxInput
                               id={field.name}
-                              className="w-full min-w-0"
+                              placeholder="Search country..."
+                              showClear
                               aria-invalid={isInvalid || undefined}
                               onBlur={field.handleBlur}
-                            >
-                              <SelectValue placeholder="Select a country" />
-                            </SelectTrigger>
+                              className="w-full min-w-0"
+                            />
 
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectItem value={EMPTY_COUNTRY}>None</SelectItem>
+                            <ComboboxContent>
+                              <ComboboxEmpty>No country found.</ComboboxEmpty>
 
-                                {COUNTRY_OPTIONS.map((country) => (
-                                  <SelectItem key={country.code} value={country.name}>
-                                    {country.emoji ? `${country.emoji} ` : ""}
-                                    {country.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
+                              <ComboboxList>
+                                {(label) => (
+                                  <ComboboxItem key={label} value={label}>
+                                    {label}
+                                  </ComboboxItem>
+                                )}
+                              </ComboboxList>
+                            </ComboboxContent>
+                          </Combobox>
 
                           {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
                         </Field>
@@ -357,45 +361,42 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
                     name="gender"
                     children={(field) => {
                       const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
-                      const selectValue = field.state.value || EMPTY_GENDER;
+                      const genderItems = [...GENDER_OPTIONS];
+                      const selectedGender = genderItems.find((option) => option === field.state.value) ?? null;
 
                       return (
                         <Field data-invalid={isInvalid || undefined}>
                           <FieldLabel htmlFor={field.name}>Gender</FieldLabel>
 
-                          <Select
-                            value={selectValue}
+                          <Combobox
+                            items={genderItems}
+                            value={selectedGender}
                             onValueChange={(value) => {
-                              if (value == null || value === EMPTY_GENDER) {
-                                field.handleChange("");
-
-                                return;
-                              }
-
-                              field.handleChange(value);
+                              field.handleChange(value ?? "");
                             }}
+                            autoHighlight
                           >
-                            <SelectTrigger
+                            <ComboboxInput
                               id={field.name}
-                              className="w-full min-w-0"
+                              placeholder="Search gender..."
+                              showClear
                               aria-invalid={isInvalid || undefined}
                               onBlur={field.handleBlur}
-                            >
-                              <SelectValue placeholder="Select a gender" />
-                            </SelectTrigger>
+                              className="w-full min-w-0"
+                            />
 
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectItem value={EMPTY_GENDER}>None</SelectItem>
+                            <ComboboxContent>
+                              <ComboboxEmpty>No gender found.</ComboboxEmpty>
 
-                                {GENDER_OPTIONS.map((option) => (
-                                  <SelectItem key={option} value={option}>
+                              <ComboboxList>
+                                {(option) => (
+                                  <ComboboxItem key={option} value={option}>
                                     {option}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
+                                  </ComboboxItem>
+                                )}
+                              </ComboboxList>
+                            </ComboboxContent>
+                          </Combobox>
 
                           {isInvalid ? <FieldError errors={fieldErrors(field.state.meta.errors)} /> : null}
                         </Field>
@@ -482,7 +483,10 @@ export function ProfileBioPublic({ bio }: ProfileBioPublicProps) {
   }
 
   if (bio.country) {
-    rows.push({ label: "Country", value: bio.country });
+    rows.push({
+      label: "Country",
+      value: resolveCountryDisplay(bio.country) ?? bio.country,
+    });
   }
 
   if (bio.gender) {

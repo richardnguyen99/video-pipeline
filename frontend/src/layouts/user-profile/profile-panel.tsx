@@ -3,6 +3,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { AtSign, Link as LinkIcon } from "lucide-react";
 
 import { ProfileBioFallback, ProfileBioForm } from "@/layouts/user-profile/profile-bio-form";
+import { resolveCountryDisplay } from "@/libs/country";
 import type { PublicUserProfile } from "@/queries/user-profile";
 import { publicUserBioQueryOptions } from "@/queries/user-bio";
 import type { UserBio } from "@/queries/user-bio";
@@ -58,7 +59,8 @@ function buildMetaLine(bio: UserBio, username: string): string {
   }
 
   if (bio.country) {
-    parts.push(bio.country);
+    const countryLabel = resolveCountryDisplay(bio.country) ?? bio.country;
+    parts.push(countryLabel);
   }
 
   if (parts.length === 0) {
