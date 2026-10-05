@@ -25,3 +25,4 @@ email-validator>=2.2.0
 PyJWT==2.15.0
 Faker==0.7.4
 resend>=2.48.0
+aio-pika>=9.4.0

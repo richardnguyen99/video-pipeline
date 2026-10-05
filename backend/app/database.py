@@ -27,3 +27,9 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
     async with AsyncSession(engine) as session:
         yield session
+
+
+def async_session_factory() -> AsyncSession:
+    """Return a new async session context manager for background workers."""
+
+    return AsyncSession(engine)

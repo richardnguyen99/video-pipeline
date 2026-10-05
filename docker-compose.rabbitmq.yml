@@ -1,0 +1,30 @@
+# Isolated RabbitMQ for this project.
+#
+#   cp .env.rabbitmq.example .env.rabbitmq
+#   docker compose --env-file .env.rabbitmq -f docker-compose.rabbitmq.yml up -d
+#
+# Management UI: http://localhost:${RABBITMQ_MANAGEMENT_PORT:-15672}
+# AMQP: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@localhost:${RABBITMQ_PORT:-5672}/
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    container_name: video-pipeline-rabbitmq
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?RABBITMQ_USER must be set}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-/}
+    volumes:
+      - ${RABBITMQ_DATA_DIR:-rabbitmq_data}:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  rabbitmq_data:

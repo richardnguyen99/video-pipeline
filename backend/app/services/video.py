@@ -4,6 +4,7 @@
 
 import logging
 from typing import TYPE_CHECKING, Optional
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import inspect as sa_inspect
@@ -11,6 +12,8 @@ from sqlalchemy.exc import NoInspectionAvailable
 
 from app.config import settings
 from app.models.video import Video
+from app.models.video_view import VideoView
+from app.models.video_watch_progress import VideoWatchProgress
 from app.repositories.video import VideoRepository
 from app.schemas.video import (
     CommentUserResponse,
@@ -28,6 +31,11 @@ from app.schemas.video_filters import (
     VideoListFilters,
     VideoSort,
     parse_features_cnt,
+)
+from app.schemas.video_watch import (
+    RecordWatchResponse,
+    VideoWatchProgressListResponse,
+    VideoWatchProgressResponse,
 )
 
 if TYPE_CHECKING:
@@ -602,4 +610,179 @@ class VideoService:
             comments=list(comments),
             m3u8_url=master_m3u8,
             locale=locale,
+        )
+
+    async def record_watch(
+        self,
+        video_id: int,
+        *,
+        user_id: UUID,
+        position_seconds: float = 0.0,
+    ) -> RecordWatchResponse:
+        """Record a watch event (counts as a repeated view) and update progress.
+
+        Each call inserts a ``video_view`` row (global view count) and
+        increments the user's ``watch_count`` for this video while storing
+        the current playback position for seek / resume.
+
+        Args:
+            video_id: Target video primary key.
+            user_id: Authenticated user id.
+            position_seconds: Playback position in seconds (>= 0).
+
+        Returns:
+            Watch recording summary including total views and user watch count.
+
+        Raises:
+            HTTPException: 404 when the video does not exist.
+        """
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        session = self._repository.session
+        view = VideoView.create(video_id=video_id, user_id=user_id)
+        session.add(view)
+        await session.commit()
+        await session.refresh(view)
+
+        progress = await VideoWatchProgress.upsert_progress(
+            session,
+            user_id=user_id,
+            video_id=video_id,
+            position_seconds=position_seconds,
+            increment_watch=True,
+        )
+        total_views = await VideoView.count_for_video(session, video_id)
+
+        return RecordWatchResponse(
+            video_id=video_id,
+            view_id=view.id,
+            position_seconds=progress.position_seconds,
+            watch_count=progress.watch_count,
+            total_views=total_views,
+        )
+
+    async def update_watch_progress(
+        self,
+        video_id: int,
+        *,
+        user_id: UUID,
+        position_seconds: float,
+    ) -> VideoWatchProgressResponse:
+        """Update seek / resume position without counting a new watch.
+
+        Args:
+            video_id: Target video primary key.
+            user_id: Authenticated user id.
+            position_seconds: Playback position in seconds (>= 0).
+
+        Returns:
+            Updated progress for the user/video pair.
+
+        Raises:
+            HTTPException: 404 when the video does not exist.
+        """
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        if position_seconds < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="position_seconds must be >= 0.",
+            )
+
+        progress = await VideoWatchProgress.upsert_progress(
+            self._repository.session,
+            user_id=user_id,
+            video_id=video_id,
+            position_seconds=position_seconds,
+            increment_watch=False,
+        )
+
+        return VideoWatchProgressResponse.model_validate(progress)
+
+    async def get_watch_progress(
+        self,
+        video_id: int,
+        *,
+        user_id: UUID,
+    ) -> VideoWatchProgressResponse:
+        """Return the user's watch progress for a video.
+
+        Args:
+            video_id: Target video primary key.
+            user_id: Authenticated user id.
+
+        Returns:
+            Progress with zero defaults when the user has never watched.
+
+        Raises:
+            HTTPException: 404 when the video does not exist.
+        """
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        progress = await VideoWatchProgress.get_for_user_video(
+            self._repository.session,
+            user_id=user_id,
+            video_id=video_id,
+        )
+
+        if progress is None:
+            return VideoWatchProgressResponse(
+                video_id=video_id,
+                position_seconds=0.0,
+                watch_count=0,
+                last_watched_at=None,
+                updated_at=None,
+            )
+
+        return VideoWatchProgressResponse.model_validate(progress)
+
+    async def list_watch_progress(
+        self,
+        *,
+        user_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> VideoWatchProgressListResponse:
+        """List a user's watched videos progress (newest first).
+
+        Args:
+            user_id: Authenticated user id.
+            limit: Page size (1–100).
+            offset: Row offset.
+
+        Returns:
+            Paginated progress rows.
+        """
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        items = await VideoWatchProgress.list_for_user(
+            self._repository.session,
+            user_id=user_id,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+
+        return VideoWatchProgressListResponse(
+            items=[
+                VideoWatchProgressResponse.model_validate(row) for row in items
+            ],
+            total=len(items),
+            limit=safe_limit,
+            offset=safe_offset,
         )

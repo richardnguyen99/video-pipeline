@@ -40,6 +40,7 @@ from app.dependencies.services import (
     MakerServiceDep,
     SeriesServiceDep,
     VideoServiceDep,
+    WatchServiceDep,
     get_actress_service,
     get_auth_service,
     get_director_service,
@@ -50,6 +51,7 @@ from app.dependencies.services import (
     get_maker_service,
     get_series_service,
     get_video_service,
+    get_watch_service,
 )
 from app.dependencies.settings import SettingsDep, get_settings
 from app.dependencies.storage import ObjectStorageDep, get_storage
@@ -77,6 +79,7 @@ __all__ = [
     "UserRepositoryDep",
     "VideoRepositoryDep",
     "VideoServiceDep",
+    "WatchServiceDep",
     "get_current_user",
     "get_actress_repository",
     "get_actress_service",
@@ -101,6 +104,7 @@ __all__ = [
     "get_storage",
     "get_video_repository",
     "get_video_service",
+    "get_watch_service",
     "AsyncRedisDep",
     "CacheBackendDep",
     "RateLimitBackendDep",

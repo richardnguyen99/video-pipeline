@@ -2,9 +2,10 @@
 
 # pylint: disable=too-many-positional-arguments
 
-from typing import List, Optional
+from typing import List, Optional, cast
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
+from redis.asyncio import Redis
 from redis_fastapi import cache, rate_limit
 
 from app.cache.policy import (
@@ -12,9 +13,22 @@ from app.cache.policy import (
     CACHE_TTL_SECONDS,
     SUSTAIN_RATE,
 )
-from app.dependencies import VideoServiceDep
+from app.dependencies import (
+    AsyncRedisDep,
+    CurrentUserDep,
+    VideoServiceDep,
+    WatchServiceDep,
+)
 from app.schemas.video import VideoDetailResponse, VideoListResponse
 from app.schemas.video_filters import VideoSort
+from app.schemas.video_watch import (
+    HeartbeatRequest,
+    HeartbeatResponse,
+    PlayStartRequest,
+    PlayStartResponse,
+    VideoWatchProgressListResponse,
+    VideoWatchProgressResponse,
+)
 
 router = APIRouter()
 
@@ -96,6 +110,32 @@ async def list_videos(
         features_cnt=features_cnt,
         q=q,
         locale=locale,
+    )
+
+
+@router.get(
+    "/videos/watched",
+    response_model=VideoWatchProgressListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List watched videos progress for the current user",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def list_watched_videos(
+    watch: WatchServiceDep,
+    current_user: CurrentUserDep,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> VideoWatchProgressListResponse:
+    """Return the current user's watch progress rows, newest first."""
+
+    return await watch.list_progress(
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -198,4 +238,106 @@ async def list_video_recommendations(
     return await service.list_recommended_videos(
         video_id=video_id,
         limit=limit,
+    )
+
+
+@router.post(
+    "/videos/{video_id}/play",
+    response_model=PlayStartResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Start a playback session",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video not found",
+        },
+    },
+)
+async def start_video_play(
+    watch: WatchServiceDep,
+    current_user: CurrentUserDep,
+    redis: AsyncRedisDep,
+    background_tasks: BackgroundTasks,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+    payload: Optional[PlayStartRequest] = None,
+) -> PlayStartResponse:
+    """Start play: Redis cooldown eligibility + enqueue play_start event.
+
+    The client should send heartbeats about every 10 seconds. A countable
+    view is recorded only after the eligible threshold is met.
+    """
+
+    body = payload or PlayStartRequest()
+
+    return await watch.start_play(
+        video_id,
+        user_id=current_user.id,
+        redis=cast(Redis, redis),
+        background_tasks=background_tasks,
+        playback_session_id=body.playback_session_id,
+        position_seconds=body.position_seconds,
+    )
+
+
+@router.post(
+    "/videos/{video_id}/play/heartbeat",
+    response_model=HeartbeatResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Playback heartbeat (~10s)",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video not found",
+        },
+    },
+)
+async def video_play_heartbeat(
+    watch: WatchServiceDep,
+    current_user: CurrentUserDep,
+    redis: AsyncRedisDep,
+    background_tasks: BackgroundTasks,
+    payload: HeartbeatRequest,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+) -> HeartbeatResponse:
+    """Enqueue a heartbeat for seek position and watched-time aggregation."""
+
+    return await watch.heartbeat(
+        video_id,
+        user_id=current_user.id,
+        redis=cast(Redis, redis),
+        background_tasks=background_tasks,
+        playback_session_id=payload.playback_session_id,
+        position_seconds=payload.position_seconds,
+        watched_seconds_delta=payload.watched_seconds_delta,
+    )
+
+
+@router.get(
+    "/videos/{video_id}/watch/progress",
+    response_model=VideoWatchProgressResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get video seek / resume position",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video not found",
+        },
+    },
+)
+async def get_video_watch_progress(
+    watch: WatchServiceDep,
+    current_user: CurrentUserDep,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+) -> VideoWatchProgressResponse:
+    """Return the authenticated user's progress for a video (zeros if none)."""
+
+    return await watch.get_progress(
+        video_id,
+        user_id=current_user.id,
     )

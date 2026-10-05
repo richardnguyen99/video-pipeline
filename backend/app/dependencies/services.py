@@ -31,6 +31,7 @@ from app.services.label import LabelService
 from app.services.maker import MakerService
 from app.services.series import SeriesService
 from app.services.video import VideoService
+from app.services.video_watch import WatchService
 
 _logger = logging.getLogger("uvicorn.error")
 
@@ -141,9 +142,18 @@ def get_email_service(settings: SettingsDep) -> EmailService:
     return EmailService(settings=settings)
 
 
+def get_watch_service(
+    repository: VideoRepositoryDep,
+) -> WatchService:
+    """Build a request-scoped ``WatchService``."""
+
+    return WatchService(repository=repository)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 VideoServiceDep = Annotated[VideoService, Depends(get_video_service)]
+WatchServiceDep = Annotated[WatchService, Depends(get_watch_service)]
 GenreServiceDep = Annotated[GenreService, Depends(get_genre_service)]
 MakerServiceDep = Annotated[MakerService, Depends(get_maker_service)]
 LabelServiceDep = Annotated[LabelService, Depends(get_label_service)]

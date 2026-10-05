@@ -37,6 +37,7 @@ from app.models.series import Series, SeriesAka
 from app.models.user import User
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.models.user_bio import UserBio
+from app.models.user_watch_history import UserWatchHistory
 from app.models.video import (
     Video,
     VideoAka,
@@ -48,3 +49,5 @@ from app.models.video import (
 from app.models.video_reaction import VideoReaction
 from app.models.video_recommendation import VideoRecommendation
 from app.models.video_view import VideoView
+from app.models.video_watch_progress import VideoWatchProgress
+from app.models.watch_event import WatchEvent

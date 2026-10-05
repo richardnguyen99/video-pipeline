@@ -74,9 +74,10 @@ class Settings(BaseSettings):
     jwt_cookie_name: str = "access_token"
     jwt_refresh_cookie_name: str = "refresh_token"
     jwt_cookie_path: str = "/"
-    # Refresh cookie is only sent under /api/v1/auth/ (refresh + logout).
-    # Access tokens live in memory on the client.
-    jwt_refresh_cookie_path: str = "/api/v1/auth/"
+    # Path=/ so document requests include the cookie and TanStack Start SSR
+    # can resolve the session for owner vs guest chrome (e.g. /u/$username).
+    # Access tokens still live only in client memory; cookie remains HttpOnly.
+    jwt_refresh_cookie_path: str = "/"
     jwt_cookie_samesite: str = "lax"
 
     # Default matches .env.example; overridden by DATABASE_URL in the environment.
@@ -88,6 +89,18 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_password: str = "something-secret"
+
+    # RabbitMQ (watch event pipeline).
+    rabbitmq_url: str = (
+        "amqp://velvet:change-me-strong-rabbitmq@localhost:5672/"
+    )
+    rabbitmq_watch_queue: str = "watch.events"
+    rabbitmq_enabled: bool = True
+
+    # Watch / play pipeline.
+    watch_cooldown_seconds: int = 1800
+    watch_eligible_threshold_seconds: float = 30.0
+    watch_heartbeat_interval_seconds: int = 10
 
     # Object storage (MinIO locally, S3/CDN in production).
     object_storage_provider: ObjectStorageProvider = (
