@@ -1,4 +1,4 @@
-"""Stream processing for watch heartbeats (tier-1 log + tier-2 count)."""
+"""Stream processing for watch heartbeats (archive + tier-2 count)."""
 
 from __future__ import annotations
 
@@ -9,14 +9,27 @@ from typing import Any, Optional
 from app.config import settings
 from app.database import async_session_factory
 from app.messaging.redis_client import get_redis_client
+from app.messaging.watch_event_archive import buffer_watch_event
 from app.models.user_watch_history import UserWatchHistory
-from app.models.video_view import VideoView
-from app.models.watch_event import WatchEvent
 
 _logger = logging.getLogger("uvicorn.error")
 
 _SESSION_SECONDS_KEY = "watch:session:{session_id}:seconds"
 _SESSION_COUNTED_KEY = "watch:session:{session_id}:counted"
+_COOLDOWN_KEY = "watch:cooldown:{user_id}:{video_id}"
+
+
+def _session_ttl_seconds() -> int:
+    """TTL for per-session Redis keys used by the watch pipeline."""
+
+    cooldown_seconds = max(0, int(settings.watch_cooldown_seconds))
+
+    if cooldown_seconds > 0:
+        return cooldown_seconds * 2
+
+    heartbeat_seconds = max(1, int(settings.watch_heartbeat_interval_seconds))
+
+    return max(heartbeat_seconds * 12, 120)
 
 
 def _parse_uuid(value: object) -> Optional[uuid.UUID]:
@@ -30,16 +43,16 @@ def _parse_uuid(value: object) -> Optional[uuid.UUID]:
 
 
 async def process_watch_message(payload: dict[str, Any]) -> None:
-    """Handle one queue message: always log; count view when eligible.
+    """Handle one queue message; update history after threshold.
 
     Steps:
-    1. Append a ``watch_event`` row (tier 1, never updated).
+    1. Buffer the raw event in-memory for periodic archive upload.
     2. Accumulate watched seconds for the playback session in Redis.
-    3. When cumulative seconds >= threshold and ``is_eligible``, insert a
-       ``video_view`` (global counter) and upsert ``user_watch_history``.
+    3. Upsert ``user_watch_history`` seek state on each event.
+    4. When cumulative seconds >= threshold and ``is_eligible``, increment
+       ``user_watch_history.total_view_count`` once per session.
     """
 
-    event_type = str(payload.get("event_type") or "heartbeat")
     video_id = int(payload["video_id"])
     position_seconds = float(payload.get("position_seconds") or 0.0)
     is_eligible = bool(payload.get("is_eligible"))
@@ -54,17 +67,7 @@ async def process_watch_message(payload: dict[str, Any]) -> None:
 
         return
 
-    async with async_session_factory() as session:
-        event = WatchEvent.create(
-            playback_session_id=session_id,
-            video_id=video_id,
-            event_type=event_type,
-            position_seconds=position_seconds,
-            user_id=user_id,
-            is_eligible=is_eligible,
-        )
-        session.add(event)
-        await session.commit()
+    await buffer_watch_event(payload)
 
     redis = await get_redis_client()
     seconds_key = _SESSION_SECONDS_KEY.format(session_id=session_id)
@@ -72,7 +75,7 @@ async def process_watch_message(payload: dict[str, Any]) -> None:
 
     if delta > 0:
         total = await redis.incrbyfloat(seconds_key, delta)
-        await redis.expire(seconds_key, settings.watch_cooldown_seconds * 2)
+        await redis.expire(seconds_key, _session_ttl_seconds())
     else:
         raw = await redis.get(seconds_key)
         total = float(raw) if raw is not None else 0.0
@@ -98,25 +101,46 @@ async def process_watch_message(payload: dict[str, Any]) -> None:
     if already is not None:
         return
 
+    cooldown_seconds = max(0, int(settings.watch_cooldown_seconds))
+
+    if user_id is not None and cooldown_seconds > 0:
+        cooldown_key = _COOLDOWN_KEY.format(
+            user_id=user_id,
+            video_id=video_id,
+        )
+        cooldown_acquired = await redis.set(
+            cooldown_key,
+            "1",
+            nx=True,
+            ex=cooldown_seconds,
+        )
+
+        if not cooldown_acquired:
+            await redis.set(
+                counted_key,
+                "1",
+                ex=_session_ttl_seconds(),
+            )
+
+            return
+
     await redis.set(
         counted_key,
         "1",
-        ex=settings.watch_cooldown_seconds * 2,
+        ex=_session_ttl_seconds(),
     )
 
-    async with async_session_factory() as session:
-        view = VideoView.create(video_id=video_id, user_id=user_id)
-        session.add(view)
-        await session.commit()
+    if user_id is None:
+        return
 
-        if user_id is not None:
-            await UserWatchHistory.upsert(
-                session,
-                user_id=user_id,
-                video_id=video_id,
-                position_seconds=position_seconds,
-                increment_view=True,
-            )
+    async with async_session_factory() as session:
+        await UserWatchHistory.upsert(
+            session,
+            user_id=user_id,
+            video_id=video_id,
+            position_seconds=position_seconds,
+            increment_view=True,
+        )
 
     _logger.info(
         "Eligible view counted video_id=%s user_id=%s session=%s total_s=%.1f",

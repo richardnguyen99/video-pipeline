@@ -23,6 +23,54 @@ from app.schemas.video_watch import (
 _COOLDOWN_KEY = "watch:cooldown:{user_id}:{video_id}"
 
 
+def _cooldown_seconds() -> int:
+    """Return normalized per-user/video cooldown seconds."""
+
+    return max(0, int(settings.watch_cooldown_seconds))
+
+
+def _session_ttl_seconds() -> int:
+    """TTL for per-session Redis keys used by the watch pipeline."""
+
+    cooldown_seconds = _cooldown_seconds()
+
+    if cooldown_seconds > 0:
+        return cooldown_seconds * 2
+
+    heartbeat_seconds = max(1, int(settings.watch_heartbeat_interval_seconds))
+
+    return max(heartbeat_seconds * 12, 120)
+
+
+def _redis_flag_is_true(value: object) -> bool:
+    """Normalize Redis values into booleans.
+
+    ``redis-py`` may return bytes or strings depending on client
+    configuration (``decode_responses``). Watch eligibility uses ``"1"``
+    markers, so both ``"1"`` and ``b"1"`` must be treated as true.
+    """
+
+    if value is None:
+        return False
+
+    if isinstance(value, bytes):
+        try:
+            value = value.decode("utf-8")
+        except UnicodeDecodeError:
+            return False
+
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, (int, float)):
+        return value != 0
+
+    return False
+
+
 class WatchService:
     """Start play sessions, accept heartbeats, and expose progress."""
 
@@ -41,9 +89,11 @@ class WatchService:
     ) -> PlayStartResponse:
         """Start a playback session with Redis cooldown eligibility.
 
-        When the cooldown key is missing, the watch is eligible to count and
-        a 30-minute TTL key is set. A play_start message is published to the
-        watch queue via a FastAPI background task.
+        Cooldown is evaluated from prior counted views. This endpoint does
+        not create the cooldown lock itself; the worker sets it only when a
+        view is actually counted after the eligible threshold is reached.
+        A play_start message is published to the watch queue via a FastAPI
+        background task.
         """
 
         if not await self._repository.exists_by_id(video_id):
@@ -57,17 +107,17 @@ class WatchService:
             user_id=user_id,
             video_id=video_id,
         )
-        was_set = await redis.set(
-            cooldown_key,
-            "1",
-            nx=True,
-            ex=settings.watch_cooldown_seconds,
-        )
-        is_eligible = bool(was_set)
+        cooldown_seconds = _cooldown_seconds()
+
+        if cooldown_seconds > 0:
+            is_eligible = await redis.exists(cooldown_key) == 0
+        else:
+            is_eligible = True
+
         await redis.set(
             f"watch:session:{session_id}:eligible",
             "1" if is_eligible else "0",
-            ex=settings.watch_cooldown_seconds * 2,
+            ex=_session_ttl_seconds(),
         )
 
         payload = {
@@ -98,7 +148,7 @@ class WatchService:
             total_view_count=(
                 history.total_view_count if history is not None else 0
             ),
-            cooldown_seconds=settings.watch_cooldown_seconds,
+            cooldown_seconds=cooldown_seconds,
             heartbeat_interval_seconds=settings.watch_heartbeat_interval_seconds,
             eligible_threshold_seconds=settings.watch_eligible_threshold_seconds,
         )
@@ -125,7 +175,7 @@ class WatchService:
         eligible_raw = await redis.get(
             f"watch:session:{playback_session_id}:eligible"
         )
-        is_eligible = eligible_raw == "1"
+        is_eligible = _redis_flag_is_true(eligible_raw)
         delta = (
             float(watched_seconds_delta)
             if watched_seconds_delta is not None

@@ -17,6 +17,12 @@ from starlette.responses import Response
 import app.models  # pylint: disable=unused-import
 from app.config import _ENV_FILE, AppEnvironment, settings
 from app.database import create_db_and_tables
+from app.messaging import (
+    close_rabbitmq,
+    start_watch_consumer,
+    start_watch_event_archiver,
+    stop_watch_event_archiver,
+)
 from app.routes import api_v1_router
 from app.search.client import close_elasticsearch
 
@@ -29,6 +35,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     """Handle application startup and shutdown events."""
 
     await create_db_and_tables()
+    await start_watch_event_archiver()
+    await start_watch_consumer()
 
     logger = logging.getLogger("uvicorn.error")
 
@@ -53,7 +61,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         yield
     finally:
-
+        await close_rabbitmq()
+        await stop_watch_event_archiver()
         await close_elasticsearch()
 
 

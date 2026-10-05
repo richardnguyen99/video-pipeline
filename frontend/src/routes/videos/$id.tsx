@@ -63,7 +63,12 @@ function VideoPage() {
     <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <div className="min-w-0 flex-1">
-          <VideoPlayer src={streamSrc} poster={poster} title={videoDisplayTitle(video)} />
+          <VideoPlayer
+            src={streamSrc}
+            poster={poster}
+            title={videoDisplayTitle(video)}
+            videoId={typeof video.id === "number" ? video.id : Number(videoId)}
+          />
 
           <div className="mt-5 sm:mt-6">
             <VideoMetadata video={video} />

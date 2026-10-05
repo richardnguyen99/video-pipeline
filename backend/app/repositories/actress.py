@@ -25,8 +25,8 @@ from app.models.associations import (
 )
 from app.models.comments import Comment
 from app.models.user_actress_subscribe import UserActressSubscribe
+from app.models.user_watch_history import UserWatchHistory
 from app.models.video_reaction import VideoReaction
-from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
 from app.schemas.actress_filters import ActressListFilters, ActressSort
 from app.utils import query_col, relationship_attr
@@ -318,11 +318,17 @@ class ActressRepository(BaseRepository):
                 .scalar_subquery()
             ),
             ActressSort.VIEW_CNT: (
-                sa_select(func.count())
+                sa_select(
+                    func.coalesce(
+                        func.sum(col(UserWatchHistory.total_view_count)),
+                        0,
+                    ),
+                )
                 .select_from(t_video_actress)
                 .join(
-                    VideoView,
-                    col(VideoView.video_id) == t_video_actress.c.video_id,
+                    UserWatchHistory,
+                    col(UserWatchHistory.video_id)
+                    == t_video_actress.c.video_id,
                 )
                 .where(t_video_actress.c.fk_id == Actress.id)
                 .correlate(Actress)
@@ -543,7 +549,8 @@ class ActressRepository(BaseRepository):
 
         * ``video_cnt`` — rows in ``video_actress`` for the actress
         * ``sub_cnt`` — rows in ``user_actress_subscribe``
-        * ``view_cnt`` — ``video_view`` events on videos featuring the actress
+        * ``view_cnt`` — summed ``user_watch_history.total_view_count``
+          on videos featuring the actress
         * ``like_cnt`` — likes on those videos (``video_reaction.is_like``)
         * ``comment_cnt`` — non-deleted comments on those videos
 
@@ -603,12 +610,15 @@ class ActressRepository(BaseRepository):
         view_stmt = (
             sa_select(
                 t_video_actress.c.fk_id,
-                func.count().label("cnt"),
+                func.coalesce(
+                    func.sum(col(UserWatchHistory.total_view_count)),
+                    0,
+                ).label("cnt"),
             )
             .select_from(t_video_actress)
             .join(
-                VideoView,
-                col(VideoView.video_id) == t_video_actress.c.video_id,
+                UserWatchHistory,
+                col(UserWatchHistory.video_id) == t_video_actress.c.video_id,
             )
             .where(t_video_actress.c.fk_id.in_(actress_ids))
             .group_by(t_video_actress.c.fk_id)

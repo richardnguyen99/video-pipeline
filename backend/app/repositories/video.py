@@ -28,6 +28,7 @@ from app.models.genre import Genre, GenreAka
 from app.models.label import Label, LabelAka
 from app.models.maker import Maker, MakerAka
 from app.models.series import Series, SeriesAka
+from app.models.user_watch_history import UserWatchHistory
 from app.models.video import (
     Video,
     VideoImageUrl,
@@ -35,7 +36,6 @@ from app.models.video import (
 )
 from app.models.video_reaction import VideoReaction
 from app.models.video_recommendation import VideoRecommendation
-from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
 from app.schemas.video import VideoEngagementCounts
 from app.schemas.video_filters import VideoListFilters
@@ -829,9 +829,12 @@ class VideoRepository(BaseRepository):
         }
 
         view_statement = (
-            select(col(VideoView.video_id), func.count())
-            .where(col(VideoView.video_id).in_(unique_ids))
-            .group_by(col(VideoView.video_id))
+            select(
+                col(UserWatchHistory.video_id),
+                func.sum(col(UserWatchHistory.total_view_count)),
+            )
+            .where(col(UserWatchHistory.video_id).in_(unique_ids))
+            .group_by(col(UserWatchHistory.video_id))
         )
         view_result = await self.session.exec(view_statement)
 

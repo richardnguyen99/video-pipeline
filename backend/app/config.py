@@ -101,6 +101,8 @@ class Settings(BaseSettings):
     watch_cooldown_seconds: int = 1800
     watch_eligible_threshold_seconds: float = 30.0
     watch_heartbeat_interval_seconds: int = 10
+    watch_events_flush_interval_seconds: int = 1800
+    watch_events_object_prefix: str = "watch-events"
 
     # Object storage (MinIO locally, S3/CDN in production).
     object_storage_provider: ObjectStorageProvider = (

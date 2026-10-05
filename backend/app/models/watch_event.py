@@ -1,9 +1,4 @@
-"""Tier-1 append-only watch analytics log.
-
-Every play start and heartbeat is recorded here. Rows are never updated.
-Eligible view counting is handled separately via ``video_view`` and
-``user_watch_history``.
-"""
+"""Legacy tier-1 watch event model (no longer written in active pipeline)."""
 
 from __future__ import annotations
 

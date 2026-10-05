@@ -37,8 +37,41 @@ class _FakeRedis:
 
         return True
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> Optional[str | bytes]:
         return self._store.get(key)
+
+    async def exists(self, key: str) -> int:
+        return 1 if key in self._store else 0
+
+
+class _FakeRedisBytes:
+    """Redis stand-in returning raw bytes (decode_responses=False style)."""
+
+    def __init__(self) -> None:
+        self._store: dict[str, str] = {}
+
+    async def set(
+        self,
+        key: str,
+        value: str,
+        *,
+        nx: bool = False,
+        ex: Optional[int] = None,
+    ) -> Optional[bool]:
+        if nx and key in self._store:
+            return None
+
+        self._store[key] = value
+
+        return True
+
+    async def get(self, key: str) -> Optional[str | bytes]:
+        value = self._store.get(key)
+
+        if value is None:
+            return None
+
+        return value.encode("utf-8")
 
     async def exists(self, key: str) -> int:
         return 1 if key in self._store else 0
@@ -126,7 +159,75 @@ async def test_start_play_marks_first_session_eligible(
 async def test_start_play_second_call_not_eligible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A second start while the cooldown key exists is not eligible."""
+    """Starts remain eligible until a cooldown key exists from a count."""
+
+    monkeypatch.setattr(
+        "app.services.video_watch.settings.watch_cooldown_seconds",
+        1800,
+    )
+
+    async def _noop_publish(_payload: dict) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.services.video_watch.publish_watch_message",
+        _noop_publish,
+    )
+
+    async def _no_history(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        "app.services.video_watch.UserWatchHistory.get_for_user_video",
+        _no_history,
+    )
+
+    service = WatchService(
+        repository=cast(VideoRepository, _FakeVideoRepository(exists=True))
+    )
+    redis = _FakeRedis()
+    background_tasks = BackgroundTasks()
+    user_id = uuid.uuid4()
+
+    first = await service.start_play(
+        7,
+        user_id=user_id,
+        redis=redis,  # type: ignore[arg-type]
+        background_tasks=background_tasks,
+    )
+    second = await service.start_play(
+        7,
+        user_id=user_id,
+        redis=redis,  # type: ignore[arg-type]
+        background_tasks=background_tasks,
+    )
+    await redis.set(
+        f"watch:cooldown:{user_id}:7",
+        "1",
+        ex=1800,
+    )
+    third = await service.start_play(
+        7,
+        user_id=user_id,
+        redis=redis,  # type: ignore[arg-type]
+        background_tasks=background_tasks,
+    )
+
+    assert first.is_eligible is True
+    assert second.is_eligible is True
+    assert third.is_eligible is False
+
+
+@pytest.mark.asyncio
+async def test_start_play_second_call_can_be_eligible_when_cooldown_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With cooldown disabled, each start can become an eligible session."""
+
+    monkeypatch.setattr(
+        "app.services.video_watch.settings.watch_cooldown_seconds",
+        0,
+    )
 
     async def _noop_publish(_payload: dict) -> None:
         return None
@@ -165,7 +266,9 @@ async def test_start_play_second_call_not_eligible(
     )
 
     assert first.is_eligible is True
-    assert second.is_eligible is False
+    assert second.is_eligible is True
+    assert first.cooldown_seconds == 0
+    assert second.cooldown_seconds == 0
 
 
 @pytest.mark.asyncio
@@ -226,6 +329,64 @@ async def test_heartbeat_accepts_position(
     assert result.video_id == 3
     assert result.position_seconds == 40.0
     assert result.playback_session_id == session_id
+
+
+@pytest.mark.asyncio
+async def test_heartbeat_keeps_eligibility_when_redis_returns_bytes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Byte-valued Redis eligibility markers still count as eligible."""
+
+    published_payloads: list[dict] = []
+
+    async def _capture_publish(payload: dict) -> None:
+        published_payloads.append(payload)
+
+    monkeypatch.setattr(
+        "app.services.video_watch.publish_watch_message",
+        _capture_publish,
+    )
+
+    async def _no_history(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        "app.services.video_watch.UserWatchHistory.get_for_user_video",
+        _no_history,
+    )
+
+    service = WatchService(
+        repository=cast(VideoRepository, _FakeVideoRepository(exists=True))
+    )
+    redis = _FakeRedisBytes()
+    background_tasks = BackgroundTasks()
+    user_id = uuid.uuid4()
+
+    play = await service.start_play(
+        17,
+        user_id=user_id,
+        redis=redis,  # type: ignore[arg-type]
+        background_tasks=background_tasks,
+    )
+
+    await service.heartbeat(
+        17,
+        user_id=user_id,
+        redis=redis,  # type: ignore[arg-type]
+        background_tasks=background_tasks,
+        playback_session_id=play.playback_session_id,
+        position_seconds=31.0,
+        watched_seconds_delta=10.0,
+    )
+
+    for task in background_tasks.tasks:
+        await task()
+
+    assert len(published_payloads) == 2
+    assert published_payloads[0]["event_type"] == "play_start"
+    assert published_payloads[0]["is_eligible"] is True
+    assert published_payloads[1]["event_type"] == "heartbeat"
+    assert published_payloads[1]["is_eligible"] is True
 
 
 @pytest.mark.asyncio

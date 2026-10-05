@@ -12,6 +12,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/libs/utils";
+import { useVideoWatchTracking } from "@/layouts/single-video/use-video-watch-tracking";
 
 import { formatPlayerTime } from "./format-time";
 import { useHlsPlayer } from "./use-hls-player";
@@ -26,9 +27,11 @@ interface VideoPlayerProps {
   poster?: string;
   title?: string;
   className?: string;
+  /** Backend video primary key; enables authenticated watch / view tracking. */
+  videoId?: number | null;
 }
 
-export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: VideoPlayerProps) {
+export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className, videoId = null }: VideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -54,6 +57,14 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className }: Vi
     toggleMute,
     setQuality,
   } = useHlsPlayer({ src, autoPlay: false });
+
+  useVideoWatchTracking({
+    videoId,
+    isPlaying,
+    currentTime,
+    seek,
+    hasStarted,
+  });
 
   const scheduleHideControls = useCallback(() => {
     if (hideTimerRef.current) {

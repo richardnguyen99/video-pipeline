@@ -2,7 +2,7 @@
 
 Tracks the latest playback position (for seek / resume) and how many
 times the authenticated user has started a watch on a given video.
-Global public view totals remain on ``video_view`` (one row per event).
+Global view counts are aggregated from ``user_watch_history``.
 """
 
 from __future__ import annotations
