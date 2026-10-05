@@ -20,6 +20,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/components/ui/toast";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { getApiErrorMessage } from "@/libs/auth";
 import {
@@ -182,6 +183,11 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
       try {
         const next = await mutation.mutateAsync(toUpdatePayload(value));
         form.reset(toFormValues(next));
+        toast.add({
+          type: "success",
+          title: "Profile updated",
+          timeout: 4000,
+        });
       } catch (error) {
         setFormError(getApiErrorMessage(error));
       }
@@ -207,16 +213,32 @@ export function ProfileBioForm({ bio, username }: ProfileBioFormProps) {
               title="Biography"
               description="These details are public on your profile. Leave any field blank to hide it."
               action={
-                <Button type="submit" size="sm" form="profile-bio-form" disabled={!isDirty || isPending}>
-                  {isPending ? (
-                    <>
-                      <Loader2 className="size-4 animate-spin" aria-hidden />
-                      Saving
-                    </>
-                  ) : (
-                    "Save changes"
-                  )}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!isDirty || isPending}
+                    onClick={() => {
+                      form.reset(baseline);
+                      setFormError(null);
+                      setDobOpen(false);
+                    }}
+                  >
+                    Reset
+                  </Button>
+
+                  <Button type="submit" size="sm" form="profile-bio-form" disabled={!isDirty || isPending}>
+                    {isPending ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" aria-hidden />
+                        Saving
+                      </>
+                    ) : (
+                      "Save changes"
+                    )}
+                  </Button>
+                </div>
               }
             >
               <FieldGroup>
