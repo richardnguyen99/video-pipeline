@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { ProfilePanel } from "@/layouts/user-profile/profile-panel";
+import { Panel as ProfilePanel } from "@/layouts/user-profile/profile";
 import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
 import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { publicUserProfileQueryOptions } from "@/queries/user-profile";
