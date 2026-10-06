@@ -93,6 +93,12 @@ export async function fetchWatchedVideos(options?: { limit?: number; offset?: nu
   });
 }
 
+export async function removeWatchedVideo(videoId: number): Promise<void> {
+  await apiFetch<void>(`/videos/watched/${videoId}`, {
+    method: "DELETE",
+  });
+}
+
 export const watchedVideoQueryKeys = {
   all: ["videos", "watched"] as const,
   list: (limit: number, offset: number) => [...watchedVideoQueryKeys.all, { limit, offset }] as const,

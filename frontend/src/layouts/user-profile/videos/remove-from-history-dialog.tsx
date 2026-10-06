@@ -5,9 +5,15 @@ type RemoveFromHistoryDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
+  isPending?: boolean;
 };
 
-export function RemoveFromHistoryDialog({ open, onOpenChange, onConfirm }: RemoveFromHistoryDialogProps) {
+export function RemoveFromHistoryDialog({
+  open,
+  onOpenChange,
+  onConfirm,
+  isPending = false,
+}: RemoveFromHistoryDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md gap-0">
@@ -27,6 +33,7 @@ export function RemoveFromHistoryDialog({ open, onOpenChange, onConfirm }: Remov
               type="button"
               variant="outline"
               size="sm"
+              disabled={isPending}
               onClick={() => {
                 onOpenChange(false);
               }}
@@ -34,15 +41,7 @@ export function RemoveFromHistoryDialog({ open, onOpenChange, onConfirm }: Remov
               Cancel
             </Button>
 
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                onConfirm();
-                onOpenChange(false);
-              }}
-            >
+            <Button type="button" variant="destructive" size="sm" disabled={isPending} onClick={onConfirm}>
               Confirm
             </Button>
           </div>

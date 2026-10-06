@@ -439,3 +439,70 @@ async def test_list_progress_returns_empty(
     assert result.items == []
     assert result.limit == 10
     assert result.offset == 0
+
+
+@pytest.mark.asyncio
+async def test_remove_from_history_deletes_existing_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Successful delete does not raise when a history row exists."""
+
+    calls: list[tuple[uuid.UUID, int]] = []
+
+    async def _delete(
+        _session: object,
+        *,
+        user_id: uuid.UUID,
+        video_id: int,
+    ) -> bool:
+        calls.append((user_id, video_id))
+
+        return True
+
+    monkeypatch.setattr(
+        "app.services.video_watch.UserWatchHistory.delete_for_user_video",
+        _delete,
+    )
+
+    service = WatchService(
+        repository=cast(VideoRepository, _FakeVideoRepository(exists=True))
+    )
+    user_id = uuid.uuid4()
+    video_id = 41994
+
+    await service.remove_from_history(user_id=user_id, video_id=video_id)
+
+    assert calls == [(user_id, video_id)]
+
+
+@pytest.mark.asyncio
+async def test_remove_from_history_raises_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing history rows yield HTTP 404."""
+
+    async def _delete(
+        _session: object,
+        *,
+        user_id: uuid.UUID,
+        video_id: int,
+    ) -> bool:
+        return False
+
+    monkeypatch.setattr(
+        "app.services.video_watch.UserWatchHistory.delete_for_user_video",
+        _delete,
+    )
+
+    service = WatchService(
+        repository=cast(VideoRepository, _FakeVideoRepository(exists=True))
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.remove_from_history(
+            user_id=uuid.uuid4(),
+            video_id=999,
+        )
+
+    assert exc_info.value.status_code == 404
+    assert "not found" in str(exc_info.value.detail).lower()

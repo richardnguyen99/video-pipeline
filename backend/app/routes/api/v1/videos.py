@@ -139,6 +139,32 @@ async def list_watched_videos(
     )
 
 
+@router.delete(
+    "/videos/watched/{video_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a video from the current user's watch history",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Watch history entry not found",
+        },
+    },
+)
+async def remove_watched_video(
+    video_id: int,
+    watch: WatchServiceDep,
+    current_user: CurrentUserDep,
+) -> None:
+    """Delete the authenticated user's watch history row for a video."""
+
+    await watch.remove_from_history(
+        user_id=current_user.id,
+        video_id=video_id,
+    )
+
+
 @router.get(
     "/videos/{video_id}",
     response_model=VideoDetailResponse,

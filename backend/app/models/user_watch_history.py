@@ -135,3 +135,26 @@ class UserWatchHistory(SQLModel, table=True):
         await session.refresh(row)
 
         return row
+
+    @staticmethod
+    async def delete_for_user_video(
+        session: AsyncSession,
+        *,
+        user_id: uuid.UUID,
+        video_id: int,
+    ) -> bool:
+        """Delete history for a user/video pair. Returns True if a row was removed."""
+
+        row = await UserWatchHistory.get_for_user_video(
+            session,
+            user_id=user_id,
+            video_id=video_id,
+        )
+
+        if row is None:
+            return False
+
+        await session.delete(row)
+        await session.commit()
+
+        return True

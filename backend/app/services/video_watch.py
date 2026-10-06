@@ -312,3 +312,23 @@ class WatchService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def remove_from_history(
+        self,
+        *,
+        user_id: uuid.UUID,
+        video_id: int,
+    ) -> None:
+        """Remove a video from the user's watch history."""
+
+        deleted = await UserWatchHistory.delete_for_user_video(
+            self._repository.session,
+            user_id=user_id,
+            video_id=video_id,
+        )
+
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Watch history entry not found.",
+            )
