@@ -1,6 +1,7 @@
+import type { Video } from "@/mocks/videos";
 import type { WatchedVideo } from "@/queries/video-watch";
 
-export function watchedThumbnail(video: WatchedVideo): string {
+export function watchedThumbnail(video: Video): string {
   const images = video.video_image_url ?? [];
   const largeImages = images.filter((item) => typeof item.type === "string" && item.type.toLowerCase() === "large");
   const candidates =
@@ -18,7 +19,7 @@ export function watchedThumbnail(video: WatchedVideo): string {
   return "https://placehold.co/1280x720?text=No+Thumbnail";
 }
 
-export function commentCount(video: WatchedVideo): number {
+export function commentCount(video: Video): number {
   if (typeof video.comments === "number") {
     return video.comments;
   }

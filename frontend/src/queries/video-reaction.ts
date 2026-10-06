@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
+import type { Video } from "@/mocks/videos";
 
 export type VideoReactionResponse = {
   video_id: number;
@@ -9,9 +10,17 @@ export type VideoReactionResponse = {
   dislikes: number;
 };
 
+export type LikedVideosPage = {
+  items: Array<Video>;
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export const videoReactionQueryKeys = {
   all: ["video-reaction"] as const,
   byVideo: (videoId: number) => [...videoReactionQueryKeys.all, videoId] as const,
+  liked: (limit: number, offset: number) => [...videoReactionQueryKeys.all, "liked", { limit, offset }] as const,
 };
 
 export async function fetchVideoReaction(videoId: number): Promise<VideoReactionResponse> {
@@ -31,11 +40,31 @@ export async function clearVideoReaction(videoId: number): Promise<VideoReaction
   });
 }
 
+export async function fetchLikedVideos(options?: { limit?: number; offset?: number }): Promise<LikedVideosPage> {
+  const limit = options?.limit ?? 12;
+  const offset = options?.offset ?? 0;
+
+  return apiFetch<LikedVideosPage>("/videos/liked", {
+    searchParams: { limit, offset },
+  });
+}
+
 export function videoReactionQueryOptions(videoId: number) {
   return queryOptions({
     queryKey: videoReactionQueryKeys.byVideo(videoId),
     queryFn: () => fetchVideoReaction(videoId),
     staleTime: 30_000,
     gcTime: 5 * 60_000,
+  });
+}
+
+export function likedVideosQueryOptions(options?: { limit?: number; offset?: number }) {
+  const limit = options?.limit ?? 12;
+  const offset = options?.offset ?? 0;
+
+  return queryOptions({
+    queryKey: videoReactionQueryKeys.liked(limit, offset),
+    queryFn: () => fetchLikedVideos({ limit, offset }),
+    staleTime: 30_000,
   });
 }

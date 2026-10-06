@@ -143,6 +143,32 @@ async def list_watched_videos(
     )
 
 
+@router.get(
+    "/videos/liked",
+    response_model=VideoListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List liked videos for the current user",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def list_liked_videos(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> VideoListResponse:
+    """Return full video cards for the current user's likes (newest first)."""
+
+    return await service.list_liked_videos(
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+
+
 @router.delete(
     "/videos/watched/{video_id}",
     status_code=status.HTTP_204_NO_CONTENT,

@@ -135,6 +135,25 @@ class VideoReaction(SQLModel, table=True):
         return int(result.one())
 
     @staticmethod
+    async def count_liked_for_user(
+        session: AsyncSession,
+        user_id: uuid.UUID,
+    ) -> int:
+        """Return how many videos the user has liked."""
+
+        statement = (
+            select(count())
+            .select_from(VideoReaction)
+            .where(
+                VideoReaction.user_id == user_id,
+                col(VideoReaction.is_like).is_(True),
+            )
+        )
+        result = await session.exec(statement)
+
+        return int(result.one())
+
+    @staticmethod
     async def list_liked_by_user(
         session: AsyncSession,
         user_id: uuid.UUID,

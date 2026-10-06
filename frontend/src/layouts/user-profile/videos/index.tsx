@@ -1,5 +1,6 @@
 import { LibrarySection } from "@/layouts/user-profile/videos/library-section";
 import { librarySections } from "@/layouts/user-profile/videos/section-config";
+import type { Video } from "@/mocks/videos";
 import type { WatchedVideo } from "@/queries/video-watch";
 import type { UserPlaylistItem, UserVideoItem } from "@/queries/user-profile";
 
@@ -8,11 +9,22 @@ type PanelProps = {
   playlists: Array<UserPlaylistItem>;
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading?: boolean;
+  likedVideos: Array<Video>;
+  isLikedLoading?: boolean;
   isOwner: boolean;
   username: string;
 };
 
-export function Panel({ videos, playlists, watchedVideos, isWatchedLoading = false, isOwner, username }: PanelProps) {
+export function Panel({
+  videos,
+  playlists,
+  watchedVideos,
+  isWatchedLoading = false,
+  likedVideos,
+  isLikedLoading = false,
+  isOwner,
+  username,
+}: PanelProps) {
   const sections = librarySections(isOwner);
 
   return (
@@ -25,6 +37,8 @@ export function Panel({ videos, playlists, watchedVideos, isWatchedLoading = fal
           playlists={playlists}
           watchedVideos={watchedVideos}
           isWatchedLoading={isWatchedLoading}
+          likedVideos={likedVideos}
+          isLikedLoading={isLikedLoading}
           isOwner={isOwner}
           username={username}
         />

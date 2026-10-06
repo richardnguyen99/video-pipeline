@@ -1,4 +1,4 @@
-export type LibrarySectionKind = "watched" | "videos" | "playlists";
+export type LibrarySectionKind = "watched" | "liked" | "videos" | "playlists";
 
 export type LibrarySection = {
   title: string;
@@ -17,7 +17,7 @@ export function librarySections(isOwner: boolean): Array<LibrarySection> {
       {
         title: "Liked videos",
         subtitle: "Videos you want to revisit",
-        kind: "videos",
+        kind: "liked",
       },
       {
         title: "Private playlists",

@@ -951,3 +951,43 @@ class VideoService:
             likes=likes,
             dislikes=dislikes,
         )
+
+    async def list_liked_videos(
+        self,
+        *,
+        user_id: UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> VideoListResponse:
+        """Return full video cards for the user's likes (newest first).
+
+        Args:
+            user_id: Authenticated user id.
+            limit: Page size (1–100).
+            offset: Row offset.
+
+        Returns:
+            Paginated list of liked videos.
+        """
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        reactions = await VideoReaction.list_liked_by_user(
+            self._repository.session,
+            user_id,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+        video_ids = [int(row.video_id) for row in reactions]
+        videos = await self.list_by_ids(video_ids)
+        total = await VideoReaction.count_liked_for_user(
+            self._repository.session,
+            user_id,
+        )
+
+        return VideoListResponse(
+            items=videos,
+            total=total,
+            limit=safe_limit,
+            offset=safe_offset,
+        )

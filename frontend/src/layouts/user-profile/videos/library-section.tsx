@@ -1,8 +1,10 @@
 import { LibraryVideoCard } from "@/layouts/user-profile/videos/library-video-card";
+import { LikedSection } from "@/layouts/user-profile/videos/liked-section";
 import { PlaylistCard } from "@/layouts/user-profile/videos/playlist-card";
 import { SectionHeader } from "@/layouts/user-profile/videos/section-header";
 import type { LibrarySection as LibrarySectionConfig } from "@/layouts/user-profile/videos/section-config";
 import { WatchedSection } from "@/layouts/user-profile/videos/watched-section";
+import type { Video } from "@/mocks/videos";
 import type { WatchedVideo } from "@/queries/video-watch";
 import type { UserPlaylistItem, UserVideoItem } from "@/queries/user-profile";
 
@@ -12,6 +14,8 @@ type LibrarySectionProps = {
   playlists: Array<UserPlaylistItem>;
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading: boolean;
+  likedVideos: Array<Video>;
+  isLikedLoading: boolean;
   isOwner: boolean;
   username: string;
 };
@@ -22,6 +26,8 @@ export function LibrarySection({
   playlists,
   watchedVideos,
   isWatchedLoading,
+  likedVideos,
+  isLikedLoading,
   isOwner,
   username,
 }: LibrarySectionProps) {
@@ -35,6 +41,8 @@ export function LibrarySection({
       />
 
       {section.kind === "watched" ? <WatchedSection videos={watchedVideos} isLoading={isWatchedLoading} /> : null}
+
+      {section.kind === "liked" ? <LikedSection videos={likedVideos} isLoading={isLikedLoading} /> : null}
 
       {section.kind === "videos" ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

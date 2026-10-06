@@ -5,10 +5,11 @@ import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
 import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { Panel as VideosPanel } from "@/layouts/user-profile/videos";
 import { userPlaylistsQueryOptions, userVideosQueryOptions } from "@/queries/user-profile";
+import { likedVideosQueryOptions } from "@/queries/video-reaction";
 import { watchedVideosQueryOptions } from "@/queries/video-watch";
 import { useAuthStore } from "@/stores/auth-store";
 
-const WATCHED_PREVIEW_LIMIT = 6;
+const PREVIEW_LIMIT = 6;
 
 function noop(): void {
   return;
@@ -30,14 +31,24 @@ export const Route = createFileRoute("/u/$username/videos/")({
     const accessToken = useAuthStore.getState().accessToken;
 
     if (typeof window !== "undefined" && accessToken != null && accessToken.length > 0) {
-      await context.queryClient
-        .query(
-          watchedVideosQueryOptions({
-            limit: WATCHED_PREVIEW_LIMIT,
-            offset: 0,
-          }),
-        )
-        .catch(noop);
+      await Promise.all([
+        context.queryClient
+          .query(
+            watchedVideosQueryOptions({
+              limit: PREVIEW_LIMIT,
+              offset: 0,
+            }),
+          )
+          .catch(noop),
+        context.queryClient
+          .query(
+            likedVideosQueryOptions({
+              limit: PREVIEW_LIMIT,
+              offset: 0,
+            }),
+          )
+          .catch(noop),
+      ]);
     }
 
     return { videos, playlists };
@@ -52,18 +63,29 @@ function UserVideosPage() {
   const accessToken = useAuthStore((state) => state.accessToken);
   const isRestoring = useAuthStore((state) => state.isRestoring);
 
-  const canFetchWatched = isOwner && !isRestoring && accessToken != null && accessToken.length > 0;
+  const canFetchOwnerLists = isOwner && !isRestoring && accessToken != null && accessToken.length > 0;
 
   const watchedQuery = useQuery({
     ...watchedVideosQueryOptions({
-      limit: WATCHED_PREVIEW_LIMIT,
+      limit: PREVIEW_LIMIT,
       offset: 0,
     }),
-    enabled: canFetchWatched,
+    enabled: canFetchOwnerLists,
   });
 
-  const watchedVideos = isOwner ? (watchedQuery.data?.items ?? []).slice(0, WATCHED_PREVIEW_LIMIT) : [];
-  const isWatchedLoading = isOwner && (isRestoring || (canFetchWatched && watchedQuery.isPending));
+  const likedQuery = useQuery({
+    ...likedVideosQueryOptions({
+      limit: PREVIEW_LIMIT,
+      offset: 0,
+    }),
+    enabled: canFetchOwnerLists,
+  });
+
+  const watchedVideos = isOwner ? (watchedQuery.data?.items ?? []).slice(0, PREVIEW_LIMIT) : [];
+  const isWatchedLoading = isOwner && (isRestoring || (canFetchOwnerLists && watchedQuery.isPending));
+
+  const likedVideos = isOwner ? (likedQuery.data?.items ?? []).slice(0, PREVIEW_LIMIT) : [];
+  const isLikedLoading = isOwner && (isRestoring || (canFetchOwnerLists && likedQuery.isPending));
 
   return (
     <>
@@ -78,6 +100,8 @@ function UserVideosPage() {
         playlists={playlists}
         watchedVideos={watchedVideos}
         isWatchedLoading={isWatchedLoading}
+        likedVideos={likedVideos}
+        isLikedLoading={isLikedLoading}
         isOwner={isOwner}
         username={username}
       />
