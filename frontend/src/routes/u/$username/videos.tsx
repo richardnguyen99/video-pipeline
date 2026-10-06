@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
 import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
-import { VideosPanel } from "@/layouts/user-profile/videos-panel";
+import { Panel as VideosPanel } from "@/layouts/user-profile/videos";
 import { userPlaylistsQueryOptions, userVideosQueryOptions } from "@/queries/user-profile";
 import { watchedVideosQueryOptions } from "@/queries/video-watch";
 import { useAuthStore } from "@/stores/auth-store";
