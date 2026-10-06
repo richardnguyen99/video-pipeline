@@ -53,6 +53,7 @@ async def process_watch_message(payload: dict[str, Any]) -> None:
        ``user_watch_history.total_view_count`` once per session.
     """
 
+    event_type = str(payload.get("event_type") or "heartbeat")
     video_id = int(payload["video_id"])
     position_seconds = float(payload.get("position_seconds") or 0.0)
     is_eligible = bool(payload.get("is_eligible"))
@@ -80,7 +81,14 @@ async def process_watch_message(payload: dict[str, Any]) -> None:
         raw = await redis.get(seconds_key)
         total = float(raw) if raw is not None else 0.0
 
-    if user_id is not None:
+    # play_start often arrives with position_seconds=0 from the client.
+    # Never overwrite the saved seek position on session open — only
+    # heartbeats (and positive positions) may update resume state.
+    should_update_position = event_type != "play_start" and (
+        position_seconds > 0 or event_type == "heartbeat"
+    )
+
+    if user_id is not None and should_update_position:
         async with async_session_factory() as session:
             await UserWatchHistory.upsert(
                 session,

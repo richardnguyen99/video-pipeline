@@ -33,12 +33,20 @@ export async function startVideoPlay(
     position_seconds?: number;
   },
 ): Promise<PlayStartResponse> {
+  const data: {
+    playback_session_id?: string | null;
+    position_seconds?: number;
+  } = {
+    playback_session_id: options?.playback_session_id ?? null,
+  };
+
+  if (options?.position_seconds != null && Number.isFinite(options.position_seconds) && options.position_seconds > 0) {
+    data.position_seconds = options.position_seconds;
+  }
+
   return apiFetch<PlayStartResponse>(`/videos/${videoId}/play`, {
     method: "POST",
-    data: {
-      playback_session_id: options?.playback_session_id ?? null,
-      position_seconds: options?.position_seconds ?? 0,
-    },
+    data,
   });
 }
 

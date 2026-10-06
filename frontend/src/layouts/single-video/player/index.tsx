@@ -12,6 +12,8 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/libs/utils";
+
+import { ResumeWatchDialog } from "@/layouts/single-video/resume-watch-dialog";
 import { useVideoWatchTracking } from "@/layouts/single-video/use-video-watch-tracking";
 
 import { formatPlayerTime } from "./format-time";
@@ -58,13 +60,13 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className, vide
     setQuality,
   } = useHlsPlayer({ src, autoPlay: false });
 
-  useVideoWatchTracking({
-    videoId,
-    isPlaying,
-    currentTime,
-    seek,
-    hasStarted,
-  });
+  const { resumeDialogOpen, resumePositionSeconds, onResume, onStartOver, onDismissResumeDialog } =
+    useVideoWatchTracking({
+      videoId,
+      isPlaying,
+      currentTime,
+      seek,
+    });
 
   const scheduleHideControls = useCallback(() => {
     if (hideTimerRef.current) {
@@ -397,6 +399,18 @@ export function VideoPlayer({ src = DEMO_HLS_SRC, poster, title, className, vide
           </div>
         </div>
       </div>
+
+      <ResumeWatchDialog
+        open={resumeDialogOpen}
+        positionSeconds={resumePositionSeconds}
+        onResume={onResume}
+        onStartOver={onStartOver}
+        onOpenChange={(open) => {
+          if (!open) {
+            onDismissResumeDialog();
+          }
+        }}
+      />
     </div>
   );
 }
