@@ -305,10 +305,14 @@ class WatchService:
             )
             for video in videos
         ]
+        total = await UserWatchHistory.count_for_user(
+            self._repository.session,
+            user_id=user_id,
+        )
 
         return WatchedVideoListResponse(
             items=items,
-            total=len(items),
+            total=total,
             limit=safe_limit,
             offset=safe_offset,
         )

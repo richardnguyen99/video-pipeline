@@ -10,7 +10,7 @@ import datetime
 import uuid
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, func
 from sqlalchemy.sql.functions import now
 from sqlmodel import Field, SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -88,6 +88,24 @@ class UserWatchHistory(SQLModel, table=True):
         result = await session.exec(statement)
 
         return list(result.all())
+
+    @staticmethod
+    async def count_for_user(
+        session: AsyncSession,
+        *,
+        user_id: uuid.UUID,
+    ) -> int:
+        """Return the number of watch-history rows for a user."""
+
+        statement = (
+            select(func.count())
+            .select_from(UserWatchHistory)
+            .where(col(UserWatchHistory.user_id) == user_id)
+        )
+        result = await session.exec(statement)
+        value = result.one()
+
+        return int(value)
 
     @staticmethod
     async def upsert(

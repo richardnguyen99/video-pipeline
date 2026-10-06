@@ -33,7 +33,9 @@ import { Route as UUsernameNotificationsRouteImport } from './routes/u/$username
 import { Route as UUsernamePrivacyRouteImport } from './routes/u/$username/privacy'
 import { Route as UUsernameSecurityRouteImport } from './routes/u/$username/security'
 import { Route as UUsernameSubscriptionsRouteImport } from './routes/u/$username/subscriptions'
-import { Route as UUsernameVideosRouteImport } from './routes/u/$username/videos'
+import { Route as UUsernameVideosRouteRouteImport } from './routes/u/$username/videos/route'
+import { Route as UUsernameVideosIndexRouteImport } from './routes/u/$username/videos/index'
+import { Route as UUsernameVideosHistoryRouteImport } from './routes/u/$username/videos/history'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -155,10 +157,20 @@ const UUsernameSubscriptionsRoute = UUsernameSubscriptionsRouteImport.update({
   path: '/subscriptions',
   getParentRoute: () => UUsernameRouteRoute,
 } as any)
-const UUsernameVideosRoute = UUsernameVideosRouteImport.update({
+const UUsernameVideosRouteRoute = UUsernameVideosRouteRouteImport.update({
   id: '/videos',
   path: '/videos',
   getParentRoute: () => UUsernameRouteRoute,
+} as any)
+const UUsernameVideosIndexRoute = UUsernameVideosIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => UUsernameVideosRouteRoute,
+} as any)
+const UUsernameVideosHistoryRoute = UUsernameVideosHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => UUsernameVideosRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -176,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
   '/videos/': typeof VideosIndexRoute
+  '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -183,8 +196,9 @@ export interface FileRoutesByFullPath {
   '/u/$username/privacy': typeof UUsernamePrivacyRoute
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
-  '/u/$username/videos': typeof UUsernameVideosRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
+  '/u/$username/videos/': typeof UUsernameVideosIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -206,8 +220,9 @@ export interface FileRoutesByTo {
   '/u/$username/privacy': typeof UUsernamePrivacyRoute
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
-  '/u/$username/videos': typeof UUsernameVideosRoute
   '/u/$username': typeof UUsernameIndexRoute
+  '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
+  '/u/$username/videos': typeof UUsernameVideosIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -227,6 +242,7 @@ export interface FileRoutesById {
   '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
   '/videos/': typeof VideosIndexRoute
+  '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -234,8 +250,9 @@ export interface FileRoutesById {
   '/u/$username/privacy': typeof UUsernamePrivacyRoute
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
-  '/u/$username/videos': typeof UUsernameVideosRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
+  '/u/$username/videos/': typeof UUsernameVideosIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -254,6 +271,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/actresses/'
     | '/videos/'
+    | '/u/$username/videos'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -261,8 +279,9 @@ export interface FileRouteTypes {
     | '/u/$username/privacy'
     | '/u/$username/security'
     | '/u/$username/subscriptions'
-    | '/u/$username/videos'
     | '/u/$username/'
+    | '/u/$username/videos/history'
+    | '/u/$username/videos/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -284,8 +303,9 @@ export interface FileRouteTypes {
     | '/u/$username/privacy'
     | '/u/$username/security'
     | '/u/$username/subscriptions'
-    | '/u/$username/videos'
     | '/u/$username'
+    | '/u/$username/videos/history'
+    | '/u/$username/videos'
   id:
     | '__root__'
     | '/'
@@ -304,6 +324,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/actresses/'
     | '/videos/'
+    | '/u/$username/videos'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -311,8 +332,9 @@ export interface FileRouteTypes {
     | '/u/$username/privacy'
     | '/u/$username/security'
     | '/u/$username/subscriptions'
-    | '/u/$username/videos'
     | '/u/$username/'
+    | '/u/$username/videos/history'
+    | '/u/$username/videos/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -502,8 +524,22 @@ declare module '@tanstack/react-router' {
       id: '/u/$username/videos'
       path: '/videos'
       fullPath: '/u/$username/videos'
-      preLoaderRoute: typeof UUsernameVideosRouteImport
+      preLoaderRoute: typeof UUsernameVideosRouteRouteImport
       parentRoute: typeof UUsernameRouteRoute
+    }
+    '/u/$username/videos/': {
+      id: '/u/$username/videos/'
+      path: '/'
+      fullPath: '/u/$username/videos/'
+      preLoaderRoute: typeof UUsernameVideosIndexRouteImport
+      parentRoute: typeof UUsernameVideosRouteRoute
+    }
+    '/u/$username/videos/history': {
+      id: '/u/$username/videos/history'
+      path: '/history'
+      fullPath: '/u/$username/videos/history'
+      preLoaderRoute: typeof UUsernameVideosHistoryRouteImport
+      parentRoute: typeof UUsernameVideosRouteRoute
     }
   }
 }
@@ -548,7 +584,21 @@ const GuestRouteChildren: GuestRouteChildren = {
 
 const GuestRouteWithChildren = GuestRoute._addFileChildren(GuestRouteChildren)
 
+interface UUsernameVideosRouteRouteChildren {
+  UUsernameVideosHistoryRoute: typeof UUsernameVideosHistoryRoute
+  UUsernameVideosIndexRoute: typeof UUsernameVideosIndexRoute
+}
+
+const UUsernameVideosRouteRouteChildren: UUsernameVideosRouteRouteChildren = {
+  UUsernameVideosHistoryRoute: UUsernameVideosHistoryRoute,
+  UUsernameVideosIndexRoute: UUsernameVideosIndexRoute,
+}
+
+const UUsernameVideosRouteRouteWithChildren =
+  UUsernameVideosRouteRoute._addFileChildren(UUsernameVideosRouteRouteChildren)
+
 interface UUsernameRouteRouteChildren {
+  UUsernameVideosRouteRoute: typeof UUsernameVideosRouteRouteWithChildren
   UUsernameBlockedAccountsRoute: typeof UUsernameBlockedAccountsRoute
   UUsernameContentPreferenceRoute: typeof UUsernameContentPreferenceRoute
   UUsernameDeactivateRoute: typeof UUsernameDeactivateRoute
@@ -556,11 +606,11 @@ interface UUsernameRouteRouteChildren {
   UUsernamePrivacyRoute: typeof UUsernamePrivacyRoute
   UUsernameSecurityRoute: typeof UUsernameSecurityRoute
   UUsernameSubscriptionsRoute: typeof UUsernameSubscriptionsRoute
-  UUsernameVideosRoute: typeof UUsernameVideosRoute
   UUsernameIndexRoute: typeof UUsernameIndexRoute
 }
 
 const UUsernameRouteRouteChildren: UUsernameRouteRouteChildren = {
+  UUsernameVideosRouteRoute: UUsernameVideosRouteRouteWithChildren,
   UUsernameBlockedAccountsRoute: UUsernameBlockedAccountsRoute,
   UUsernameContentPreferenceRoute: UUsernameContentPreferenceRoute,
   UUsernameDeactivateRoute: UUsernameDeactivateRoute,
@@ -568,7 +618,6 @@ const UUsernameRouteRouteChildren: UUsernameRouteRouteChildren = {
   UUsernamePrivacyRoute: UUsernamePrivacyRoute,
   UUsernameSecurityRoute: UUsernameSecurityRoute,
   UUsernameSubscriptionsRoute: UUsernameSubscriptionsRoute,
-  UUsernameVideosRoute: UUsernameVideosRoute,
   UUsernameIndexRoute: UUsernameIndexRoute,
 }
 

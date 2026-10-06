@@ -13,6 +13,7 @@ type LibrarySectionProps = {
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading: boolean;
   isOwner: boolean;
+  username: string;
 };
 
 export function LibrarySection({
@@ -22,10 +23,16 @@ export function LibrarySection({
   watchedVideos,
   isWatchedLoading,
   isOwner,
+  username,
 }: LibrarySectionProps) {
   return (
     <section className="flex flex-col gap-3">
-      <SectionHeader title={section.title} subtitle={section.subtitle} />
+      <SectionHeader
+        title={section.title}
+        subtitle={section.subtitle}
+        viewAllTo={section.kind === "watched" ? "/u/$username/videos/history" : undefined}
+        username={section.kind === "watched" ? username : undefined}
+      />
 
       {section.kind === "watched" ? <WatchedSection videos={watchedVideos} isLoading={isWatchedLoading} /> : null}
 

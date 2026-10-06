@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
 import type { Video } from "@/mocks/videos";
@@ -99,9 +99,12 @@ export async function removeWatchedVideo(videoId: number): Promise<void> {
   });
 }
 
+export const WATCHED_HISTORY_PAGE_SIZE = 12;
+
 export const watchedVideoQueryKeys = {
   all: ["videos", "watched"] as const,
-  list: (limit: number, offset: number) => [...watchedVideoQueryKeys.all, { limit, offset }] as const,
+  list: (limit: number, offset: number) => [...watchedVideoQueryKeys.all, "list", { limit, offset }] as const,
+  infinite: (limit: number) => [...watchedVideoQueryKeys.all, "infinite", { limit }] as const,
 };
 
 export function watchedVideosQueryOptions(options?: { limit?: number; offset?: number }) {
@@ -111,6 +114,26 @@ export function watchedVideosQueryOptions(options?: { limit?: number; offset?: n
   return queryOptions({
     queryKey: watchedVideoQueryKeys.list(limit, offset),
     queryFn: () => fetchWatchedVideos({ limit, offset }),
+    staleTime: 30_000,
+  });
+}
+
+export function watchedVideosInfiniteQueryOptions(options?: { limit?: number }) {
+  const limit = options?.limit ?? WATCHED_HISTORY_PAGE_SIZE;
+
+  return infiniteQueryOptions({
+    queryKey: watchedVideoQueryKeys.infinite(limit),
+    queryFn: ({ pageParam }) => fetchWatchedVideos({ limit, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => {
+      const nextOffset = lastPage.offset + lastPage.limit;
+
+      if (nextOffset >= lastPage.total) {
+        return undefined;
+      }
+
+      return nextOffset;
+    },
     staleTime: 30_000,
   });
 }

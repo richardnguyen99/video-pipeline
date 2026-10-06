@@ -9,9 +9,10 @@ type PanelProps = {
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading?: boolean;
   isOwner: boolean;
+  username: string;
 };
 
-export function Panel({ videos, playlists, watchedVideos, isWatchedLoading = false, isOwner }: PanelProps) {
+export function Panel({ videos, playlists, watchedVideos, isWatchedLoading = false, isOwner, username }: PanelProps) {
   const sections = librarySections(isOwner);
 
   return (
@@ -25,6 +26,7 @@ export function Panel({ videos, playlists, watchedVideos, isWatchedLoading = fal
           watchedVideos={watchedVideos}
           isWatchedLoading={isWatchedLoading}
           isOwner={isOwner}
+          username={username}
         />
       ))}
     </div>

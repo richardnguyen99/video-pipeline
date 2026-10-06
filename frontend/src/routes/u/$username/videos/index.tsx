@@ -8,13 +8,13 @@ import { userPlaylistsQueryOptions, userVideosQueryOptions } from "@/queries/use
 import { watchedVideosQueryOptions } from "@/queries/video-watch";
 import { useAuthStore } from "@/stores/auth-store";
 
-const WATCHED_PREVIEW_LIMIT = 12;
+const WATCHED_PREVIEW_LIMIT = 6;
 
 function noop(): void {
   return;
 }
 
-export const Route = createFileRoute("/u/$username/videos")({
+export const Route = createFileRoute("/u/$username/videos/")({
   loader: async ({ context, params }) => {
     const [videos, playlists] = await Promise.all([
       context.queryClient.query({
@@ -27,9 +27,6 @@ export const Route = createFileRoute("/u/$username/videos")({
       }),
     ]);
 
-    // Prefetch watched history only when the browser already has a bearer
-    // token. SSR / hard-refresh before silent-refresh must not cache an empty
-    // failure as the source of truth.
     const accessToken = useAuthStore.getState().accessToken;
 
     if (typeof window !== "undefined" && accessToken != null && accessToken.length > 0) {
@@ -65,7 +62,7 @@ function UserVideosPage() {
     enabled: canFetchWatched,
   });
 
-  const watchedVideos = isOwner ? (watchedQuery.data?.items ?? []) : [];
+  const watchedVideos = isOwner ? (watchedQuery.data?.items ?? []).slice(0, WATCHED_PREVIEW_LIMIT) : [];
   const isWatchedLoading = isOwner && (isRestoring || (canFetchWatched && watchedQuery.isPending));
 
   return (
@@ -82,6 +79,7 @@ function UserVideosPage() {
         watchedVideos={watchedVideos}
         isWatchedLoading={isWatchedLoading}
         isOwner={isOwner}
+        username={username}
       />
     </>
   );

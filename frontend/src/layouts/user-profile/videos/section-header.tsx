@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -5,9 +6,11 @@ import { Button } from "@/components/ui/button";
 type SectionHeaderProps = {
   title: string;
   subtitle: string;
+  viewAllTo?: "/u/$username/videos/history";
+  username?: string;
 };
 
-export function SectionHeader({ title, subtitle }: SectionHeaderProps) {
+export function SectionHeader({ title, subtitle, viewAllTo, username }: SectionHeaderProps) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div>
@@ -16,10 +19,23 @@ export function SectionHeader({ title, subtitle }: SectionHeaderProps) {
         <p className="text-sm text-muted-foreground">{subtitle}</p>
       </div>
 
-      <Button type="button" variant="ghost" size="sm">
-        View all
-        <ChevronRight className="size-4" aria-hidden />
-      </Button>
+      {viewAllTo != null && username != null ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          nativeButton={false}
+          render={<Link to={viewAllTo} params={{ username }} />}
+        >
+          View all
+          <ChevronRight className="size-4" aria-hidden />
+        </Button>
+      ) : (
+        <Button type="button" variant="ghost" size="sm">
+          View all
+          <ChevronRight className="size-4" aria-hidden />
+        </Button>
+      )}
     </div>
   );
 }
