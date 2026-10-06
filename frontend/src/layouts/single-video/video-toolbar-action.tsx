@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useAuthStore } from "@/stores/auth-store";
+
 import { LikeDislikeButtons } from "./like-dislike-button";
 import { MoreActionsMenu } from "./more-action-menu";
 import { PlaylistSaveButton } from "./playlist-save-button";
@@ -7,14 +9,16 @@ import { ReportButton } from "./report-button";
 import type { ReportReason } from "./report-button";
 import { ShareButton } from "./share-button";
 
-const IS_AUTHENTICATED = true;
-
 interface VideoToolbarActionsProps {
+  videoId: number;
   likes?: number;
   dislikes?: number;
 }
 
-export function VideoToolbarActions({ likes = 0, dislikes = 0 }: VideoToolbarActionsProps) {
+export function VideoToolbarActions({ videoId, likes = 0, dislikes = 0 }: VideoToolbarActionsProps) {
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = user != null;
+
   const [reportOpen, setReportOpen] = useState(false);
   const [reportStep, setReportStep] = useState<1 | 2>(1);
   const [reportReason, setReportReason] = useState<ReportReason | null>(null);
@@ -28,11 +32,13 @@ export function VideoToolbarActions({ likes = 0, dislikes = 0 }: VideoToolbarAct
 
   return (
     <div className="flex items-center gap-2">
-      <LikeDislikeButtons isAuthenticated={IS_AUTHENTICATED} likes={likes} dislikes={dislikes} />
+      <LikeDislikeButtons videoId={videoId} likes={likes} dislikes={dislikes} />
 
       <div className="hidden items-center gap-2 md:flex">
-        <PlaylistSaveButton isAuthenticated={IS_AUTHENTICATED} />
+        <PlaylistSaveButton isAuthenticated={isAuthenticated} />
+
         <ShareButton />
+
         <ReportButton
           onClick={openReport}
           open={reportOpen}
@@ -41,8 +47,12 @@ export function VideoToolbarActions({ likes = 0, dislikes = 0 }: VideoToolbarAct
           reason={reportReason}
           onSelectReason={(r) => {
             setReportReason(r);
-            if (r === "metadata") setReportStep(2);
-            else setReportOpen(false);
+
+            if (r === "metadata") {
+              setReportStep(2);
+            } else {
+              setReportOpen(false);
+            }
           }}
           onBack={() => setReportStep(1)}
         />
@@ -50,12 +60,13 @@ export function VideoToolbarActions({ likes = 0, dislikes = 0 }: VideoToolbarAct
 
       <div className="md:hidden">
         <MoreActionsMenu
-          isAuthenticated={IS_AUTHENTICATED}
+          isAuthenticated={isAuthenticated}
           onReport={openReport}
           onSaveToPlaylist={() => setPlaylistMobileOpen(true)}
         />
+
         <PlaylistSaveButton
-          isAuthenticated={IS_AUTHENTICATED}
+          isAuthenticated={isAuthenticated}
           mobileOpen={playlistMobileOpen}
           onMobileOpenChange={setPlaylistMobileOpen}
         />

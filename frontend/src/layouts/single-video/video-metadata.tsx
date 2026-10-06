@@ -23,7 +23,7 @@ export function VideoMetadata({ video }: VideoMetadataProps) {
             {formatRelativeDate(video.release_date)}
           </p>
 
-          <VideoToolbarActions likes={video.likes ?? 0} dislikes={video.dislikes ?? 0} />
+          <VideoToolbarActions videoId={video.id} likes={video.likes ?? 0} dislikes={video.dislikes ?? 0} />
         </div>
       </div>
     </TooltipProvider>
