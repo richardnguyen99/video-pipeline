@@ -192,6 +192,33 @@ class ObjectStorageClient:
 
         return True
 
+    async def download_bytes(self, *, object_key: str) -> Optional[bytes]:
+        """Download an object as bytes, or ``None`` when it is missing."""
+
+        key = object_key.lstrip("/")
+
+        async with self.s3_client() as s3:
+            try:
+                response = await s3.get_object(Bucket=self.bucket, Key=key)
+            except ClientError as exc:
+                error_code = exc.response.get("Error", {}).get("Code", "")
+                status = exc.response.get("ResponseMetadata", {}).get(
+                    "HTTPStatusCode",
+                )
+
+                if (
+                    error_code in {"404", "NoSuchKey", "NotFound"}
+                    or status == 404
+                ):
+                    return None
+
+                raise
+
+            body = response["Body"]
+            content = await body.read()
+
+        return bytes(content)
+
     async def ensure_local_media_public_url(self, local_path: str) -> str:
         """Ensure a local media file is in the bucket and return its URL.
 
