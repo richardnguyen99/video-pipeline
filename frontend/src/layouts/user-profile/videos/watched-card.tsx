@@ -2,16 +2,18 @@ import { Link } from "@tanstack/react-router";
 import { Eye, MessageCircle, ThumbsUp } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
+import { WatchedCardMenu } from "@/layouts/user-profile/videos/watched-card-menu";
 import { commentCount, watchProgressPercent, watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
 import { formatCompactNumber } from "@/libs/utils";
 import type { WatchedVideo } from "@/queries/video-watch";
 
 type WatchedCardProps = {
   video: WatchedVideo;
-  index: number;
+  onSaveToPlaylists?: (videoId: number) => void;
+  onRemoveFromHistory?: (videoId: number) => void;
 };
 
-export function WatchedCard({ video, index }: WatchedCardProps) {
+export function WatchedCard({ video, onSaveToPlaylists, onRemoveFromHistory }: WatchedCardProps) {
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
   const comments = commentCount(video);
@@ -19,22 +21,24 @@ export function WatchedCard({ video, index }: WatchedCardProps) {
   const progressPercent = watchProgressPercent(video);
 
   return (
-    <Link
-      to="/videos/$id"
-      params={{ id: String(video.id) }}
-      className="overflow-hidden rounded-xl border border-border/60 bg-card/40 transition-colors hover:border-primary/40"
-    >
+    <div className="group overflow-hidden rounded-xl border border-border/60 bg-card/40 transition-colors hover:border-primary/40">
       <div className="relative aspect-video overflow-hidden bg-muted">
-        <img src={poster} alt={video.video_id} loading="lazy" className="size-full object-cover" />
+        <Link to="/videos/$id" params={{ id: String(video.id) }} className="absolute inset-0 block">
+          <img src={poster} alt={video.video_id} loading="lazy" className="size-full object-cover" />
+        </Link>
 
-        <span className="absolute top-2 left-2 rounded bg-background/80 px-1.5 py-0.5 text-[10px] font-medium">
-          {index + 1}
-        </span>
+        <div className="absolute top-2 right-2 z-10">
+          <WatchedCardMenu
+            videoId={video.id}
+            onSaveToPlaylists={onSaveToPlaylists}
+            onRemoveFromHistory={onRemoveFromHistory}
+          />
+        </div>
       </div>
 
       <Progress value={progressPercent} className="h-1 rounded-none" />
 
-      <div className="p-3">
+      <Link to="/videos/$id" params={{ id: String(video.id) }} className="block p-3">
         <h4 className="line-clamp-2 text-sm font-medium">{video.video_id}</h4>
 
         <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
@@ -53,7 +57,7 @@ export function WatchedCard({ video, index }: WatchedCardProps) {
             {formatCompactNumber(comments)}
           </span>
         </div>
-      </div>
-    </Link>
+      </Link>
+    </div>
   );
 }

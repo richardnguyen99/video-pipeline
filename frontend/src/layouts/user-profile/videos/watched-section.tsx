@@ -1,3 +1,6 @@
+import { useState } from "react";
+
+import { RemoveFromHistoryDialog } from "@/layouts/user-profile/videos/remove-from-history-dialog";
 import { WatchedCard } from "@/layouts/user-profile/videos/watched-card";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
 import type { WatchedVideo } from "@/queries/video-watch";
@@ -8,6 +11,8 @@ type WatchedSectionProps = {
 };
 
 export function WatchedSection({ videos, isLoading }: WatchedSectionProps) {
+  const [pendingRemoveId, setPendingRemoveId] = useState<number | null>(null);
+
   if (isLoading) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -25,10 +30,30 @@ export function WatchedSection({ videos, isLoading }: WatchedSectionProps) {
   }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {videos.map((video, index) => (
-        <WatchedCard key={video.id} video={video} index={index} />
-      ))}
-    </div>
+    <>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {videos.map((video) => (
+          <WatchedCard
+            key={video.id}
+            video={video}
+            onRemoveFromHistory={(videoId) => {
+              setPendingRemoveId(videoId);
+            }}
+          />
+        ))}
+      </div>
+
+      <RemoveFromHistoryDialog
+        open={pendingRemoveId != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingRemoveId(null);
+          }
+        }}
+        onConfirm={() => {
+          setPendingRemoveId(null);
+        }}
+      />
+    </>
   );
 }
