@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
 import type { Video } from "@/mocks/videos";
@@ -17,10 +17,13 @@ export type LikedVideosPage = {
   offset: number;
 };
 
+export const LIKED_PAGE_SIZE = 12;
+
 export const videoReactionQueryKeys = {
   all: ["video-reaction"] as const,
   byVideo: (videoId: number) => [...videoReactionQueryKeys.all, videoId] as const,
   liked: (limit: number, offset: number) => [...videoReactionQueryKeys.all, "liked", { limit, offset }] as const,
+  likedInfinite: (limit: number) => [...videoReactionQueryKeys.all, "liked", "infinite", { limit }] as const,
 };
 
 export async function fetchVideoReaction(videoId: number): Promise<VideoReactionResponse> {
@@ -65,6 +68,34 @@ export function likedVideosQueryOptions(options?: { limit?: number; offset?: num
   return queryOptions({
     queryKey: videoReactionQueryKeys.liked(limit, offset),
     queryFn: () => fetchLikedVideos({ limit, offset }),
+    staleTime: 30_000,
+  });
+}
+
+export function likedVideosInfiniteQueryOptions(options?: { limit?: number }) {
+  const limit = options?.limit ?? LIKED_PAGE_SIZE;
+
+  return infiniteQueryOptions({
+    queryKey: videoReactionQueryKeys.likedInfinite(limit),
+    queryFn: ({ pageParam }) => fetchLikedVideos({ limit, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => {
+      if (lastPage.items.length === 0) {
+        return undefined;
+      }
+
+      if (lastPage.items.length < lastPage.limit) {
+        return undefined;
+      }
+
+      const nextOffset = lastPage.offset + lastPage.items.length;
+
+      if (typeof lastPage.total === "number" && lastPage.total > 0 && nextOffset >= lastPage.total) {
+        return undefined;
+      }
+
+      return nextOffset;
+    },
     staleTime: 30_000,
   });
 }

@@ -3,10 +3,12 @@ import { ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
+type LibraryViewAllPath = "/u/$username/videos/history" | "/u/$username/videos/liked";
+
 type SectionHeaderProps = {
   title: string;
   subtitle: string;
-  viewAllTo?: "/u/$username/videos/history";
+  viewAllTo?: LibraryViewAllPath;
   username?: string;
 };
 

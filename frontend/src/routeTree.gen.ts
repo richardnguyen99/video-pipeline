@@ -36,6 +36,7 @@ import { Route as UUsernameSubscriptionsRouteImport } from './routes/u/$username
 import { Route as UUsernameVideosRouteRouteImport } from './routes/u/$username/videos/route'
 import { Route as UUsernameVideosIndexRouteImport } from './routes/u/$username/videos/index'
 import { Route as UUsernameVideosHistoryRouteImport } from './routes/u/$username/videos/history'
+import { Route as UUsernameVideosLikedRouteImport } from './routes/u/$username/videos/liked'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -172,6 +173,11 @@ const UUsernameVideosHistoryRoute = UUsernameVideosHistoryRouteImport.update({
   path: '/history',
   getParentRoute: () => UUsernameVideosRouteRoute,
 } as any)
+const UUsernameVideosLikedRoute = UUsernameVideosLikedRouteImport.update({
+  id: '/liked',
+  path: '/liked',
+  getParentRoute: () => UUsernameVideosRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -198,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/u/$username/': typeof UUsernameIndexRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
+  '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
 }
 export interface FileRoutesByTo {
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/u/$username': typeof UUsernameIndexRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
+  '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
   '/u/$username/videos': typeof UUsernameVideosIndexRoute
 }
 export interface FileRoutesById {
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/u/$username/': typeof UUsernameIndexRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
+  '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
 }
 export interface FileRouteTypes {
@@ -281,6 +290,7 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/u/$username/'
     | '/u/$username/videos/history'
+    | '/u/$username/videos/liked'
     | '/u/$username/videos/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -305,6 +315,7 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/u/$username'
     | '/u/$username/videos/history'
+    | '/u/$username/videos/liked'
     | '/u/$username/videos'
   id:
     | '__root__'
@@ -334,6 +345,7 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/u/$username/'
     | '/u/$username/videos/history'
+    | '/u/$username/videos/liked'
     | '/u/$username/videos/'
   fileRoutesById: FileRoutesById
 }
@@ -541,6 +553,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameVideosHistoryRouteImport
       parentRoute: typeof UUsernameVideosRouteRoute
     }
+    '/u/$username/videos/liked': {
+      id: '/u/$username/videos/liked'
+      path: '/liked'
+      fullPath: '/u/$username/videos/liked'
+      preLoaderRoute: typeof UUsernameVideosLikedRouteImport
+      parentRoute: typeof UUsernameVideosRouteRoute
+    }
   }
 }
 
@@ -586,11 +605,13 @@ const GuestRouteWithChildren = GuestRoute._addFileChildren(GuestRouteChildren)
 
 interface UUsernameVideosRouteRouteChildren {
   UUsernameVideosHistoryRoute: typeof UUsernameVideosHistoryRoute
+  UUsernameVideosLikedRoute: typeof UUsernameVideosLikedRoute
   UUsernameVideosIndexRoute: typeof UUsernameVideosIndexRoute
 }
 
 const UUsernameVideosRouteRouteChildren: UUsernameVideosRouteRouteChildren = {
   UUsernameVideosHistoryRoute: UUsernameVideosHistoryRoute,
+  UUsernameVideosLikedRoute: UUsernameVideosLikedRoute,
   UUsernameVideosIndexRoute: UUsernameVideosIndexRoute,
 }
 

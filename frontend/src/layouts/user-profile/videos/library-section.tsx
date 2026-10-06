@@ -20,6 +20,19 @@ type LibrarySectionProps = {
   username: string;
 };
 
+function getSectionViewAllTo(
+  kind: LibrarySectionConfig["kind"],
+): "/u/$username/videos/history" | "/u/$username/videos/liked" | undefined {
+  switch (kind) {
+    case "watched":
+      return "/u/$username/videos/history";
+    case "liked":
+      return "/u/$username/videos/liked";
+    default:
+      return undefined;
+  }
+}
+
 export function LibrarySection({
   section,
   videos,
@@ -31,13 +44,16 @@ export function LibrarySection({
   isOwner,
   username,
 }: LibrarySectionProps) {
+  const viewAllTo = getSectionViewAllTo(section.kind);
+  const sectionUsername = viewAllTo == null ? undefined : username;
+
   return (
     <section className="flex flex-col gap-3">
       <SectionHeader
         title={section.title}
         subtitle={section.subtitle}
-        viewAllTo={section.kind === "watched" ? "/u/$username/videos/history" : undefined}
-        username={section.kind === "watched" ? username : undefined}
+        viewAllTo={viewAllTo}
+        username={sectionUsername}
       />
 
       {section.kind === "watched" ? <WatchedSection videos={watchedVideos} isLoading={isWatchedLoading} /> : null}
