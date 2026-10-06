@@ -21,6 +21,10 @@ from app.dependencies import (
 )
 from app.schemas.video import VideoDetailResponse, VideoListResponse
 from app.schemas.video_filters import VideoSort
+from app.schemas.video_reaction import (
+    VideoReactionRequest,
+    VideoReactionResponse,
+)
 from app.schemas.video_watch import (
     HeartbeatRequest,
     HeartbeatResponse,
@@ -364,6 +368,93 @@ async def get_video_watch_progress(
     """Return the authenticated user's progress for a video (zeros if none)."""
 
     return await watch.get_progress(
+        video_id,
+        user_id=current_user.id,
+    )
+
+
+@router.put(
+    "/videos/{video_id}/reaction",
+    response_model=VideoReactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Like or dislike a video",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video not found",
+        },
+    },
+)
+async def set_video_reaction(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    payload: VideoReactionRequest,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+) -> VideoReactionResponse:
+    """Set or update the authenticated user's like/dislike on a video.
+
+    One reaction row is stored per user and video. Sending the opposite
+    polarity updates the existing row instead of creating a second entry.
+    """
+
+    return await service.set_reaction(
+        video_id,
+        user_id=current_user.id,
+        is_like=payload.is_like,
+    )
+
+
+@router.delete(
+    "/videos/{video_id}/reaction",
+    response_model=VideoReactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Clear like or dislike on a video",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video not found",
+        },
+    },
+)
+async def clear_video_reaction(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+) -> VideoReactionResponse:
+    """Remove the authenticated user's reaction on a video if present."""
+
+    return await service.clear_reaction(
+        video_id,
+        user_id=current_user.id,
+    )
+
+
+@router.get(
+    "/videos/{video_id}/reaction",
+    response_model=VideoReactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get current user's reaction on a video",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video not found",
+        },
+    },
+)
+async def get_video_reaction(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+) -> VideoReactionResponse:
+    """Return the authenticated user's reaction and aggregate counts."""
+
+    return await service.get_reaction(
         video_id,
         user_id=current_user.id,
     )

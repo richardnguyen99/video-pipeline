@@ -1,16 +1,17 @@
 """Unit tests for ``app.services.video.VideoService``."""
 
-# cSpell: disable
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any, Optional, cast
+from uuid import uuid4
 
 import pytest
 from fastapi import HTTPException, status
 
+from app.models import video_reaction as reaction_mod
+from app.models.video_reaction import VideoReaction
 from app.repositories.video import VideoRepository
 from app.schemas.video import VideoEngagementCounts
 from app.schemas.video_filters import (
@@ -25,6 +26,7 @@ from app.services.video import VideoService
 class FakeVideoRepository:
     """In-memory stand-in for ``VideoRepository``."""
 
+    session: object = field(default_factory=object)
     list_result: list[Any] = field(default_factory=list)
     count_result: int = 0
     list_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -90,10 +92,7 @@ class FakeVideoRepository:
 
         return self.get_result
 
-    async def exists_by_id(
-        self,
-        video_id: int,  # pylint: disable=unused-argument
-    ) -> bool:
+    async def exists_by_id(self, video_id: int) -> bool:
         """Return configured existence flag."""
 
         return self.exists_result
@@ -761,5 +760,353 @@ async def test_list_recommended_videos_raises_not_found(
 
     with pytest.raises(HTTPException) as exc_info:
         await service.list_recommended_videos(video_id=999)
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_set_reaction_creates_like(
+    service: VideoService,
+    repository: FakeVideoRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Like sets is_like True and returns updated counts."""
+
+    user_id = uuid4()
+    set_calls: list[dict[str, object]] = []
+
+    async def fake_set(
+        _session: object,
+        *,
+        user_id: object,
+        video_id: int,
+        is_like: bool,
+    ) -> VideoReaction:
+        set_calls.append(
+            {
+                "user_id": user_id,
+                "video_id": video_id,
+                "is_like": is_like,
+            },
+        )
+
+        return VideoReaction.create(
+            user_id=user_id,  # type: ignore[arg-type]
+            video_id=video_id,
+            is_like=is_like,
+        )
+
+    async def fake_count_likes(
+        _session: object,
+        video_id: int,
+    ) -> int:
+        assert video_id == 42
+
+        return 3
+
+    async def fake_count_dislikes(
+        _session: object,
+        video_id: int,
+    ) -> int:
+        assert video_id == 42
+
+        return 1
+
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction, "set", staticmethod(fake_set)
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_likes_for_video",
+        staticmethod(fake_count_likes),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_dislikes_for_video",
+        staticmethod(fake_count_dislikes),
+    )
+
+    repository.exists_result = True
+
+    result = await service.set_reaction(
+        42,
+        user_id=user_id,
+        is_like=True,
+    )
+
+    assert result.video_id == 42
+    assert result.is_like is True
+    assert result.likes == 3
+    assert result.dislikes == 1
+    assert set_calls == [
+        {"user_id": user_id, "video_id": 42, "is_like": True},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_set_reaction_updates_to_dislike(
+    service: VideoService,
+    repository: FakeVideoRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Dislike updates the same reaction entry polarity."""
+
+    user_id = uuid4()
+    set_calls: list[dict[str, object]] = []
+
+    async def fake_set(
+        _session: object,
+        *,
+        user_id: object,
+        video_id: int,
+        is_like: bool,
+    ) -> VideoReaction:
+        set_calls.append(
+            {
+                "user_id": user_id,
+                "video_id": video_id,
+                "is_like": is_like,
+            },
+        )
+
+        return VideoReaction.create(
+            user_id=user_id,  # type: ignore[arg-type]
+            video_id=video_id,
+            is_like=is_like,
+        )
+
+    async def fake_count_likes(_session: object, _video_id: int) -> int:
+        return 2
+
+    async def fake_count_dislikes(_session: object, _video_id: int) -> int:
+        return 4
+
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction, "set", staticmethod(fake_set)
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_likes_for_video",
+        staticmethod(fake_count_likes),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_dislikes_for_video",
+        staticmethod(fake_count_dislikes),
+    )
+
+    repository.exists_result = True
+
+    result = await service.set_reaction(
+        7,
+        user_id=user_id,
+        is_like=False,
+    )
+
+    assert result.is_like is False
+    assert result.likes == 2
+    assert result.dislikes == 4
+    assert set_calls[0]["is_like"] is False
+
+
+@pytest.mark.asyncio
+async def test_set_reaction_raises_when_video_missing(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Missing video yields HTTP 404 before writing a reaction."""
+
+    repository.exists_result = False
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.set_reaction(
+            999,
+            user_id=uuid4(),
+            is_like=True,
+        )
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_clear_reaction_removes_entry(
+    service: VideoService,
+    repository: FakeVideoRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Clear deletes the reaction and returns null is_like."""
+
+    user_id = uuid4()
+    clear_calls: list[tuple[object, int]] = []
+
+    async def fake_clear(
+        _session: object,
+        user_id: object,
+        video_id: int,
+    ) -> bool:
+        clear_calls.append((user_id, video_id))
+
+        return True
+
+    async def fake_count_likes(_session: object, _video_id: int) -> int:
+        return 5
+
+    async def fake_count_dislikes(_session: object, _video_id: int) -> int:
+        return 0
+
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "clear",
+        staticmethod(fake_clear),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_likes_for_video",
+        staticmethod(fake_count_likes),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_dislikes_for_video",
+        staticmethod(fake_count_dislikes),
+    )
+
+    repository.exists_result = True
+
+    result = await service.clear_reaction(11, user_id=user_id)
+
+    assert result.video_id == 11
+    assert result.is_like is None
+    assert result.likes == 5
+    assert result.dislikes == 0
+    assert clear_calls == [(user_id, 11)]
+
+
+@pytest.mark.asyncio
+async def test_clear_reaction_raises_when_video_missing(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Clear on missing video yields HTTP 404."""
+
+    repository.exists_result = False
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.clear_reaction(999, user_id=uuid4())
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.asyncio
+async def test_get_reaction_returns_like(
+    service: VideoService,
+    repository: FakeVideoRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get returns the stored polarity when a reaction exists."""
+
+    user_id = uuid4()
+
+    async def fake_get(
+        _session: object,
+        fetched_user_id: object,
+        video_id: int,
+    ) -> VideoReaction:
+        assert fetched_user_id == user_id
+        assert video_id == 15
+
+        return VideoReaction.create(
+            user_id=user_id,
+            video_id=video_id,
+            is_like=True,
+        )
+
+    async def fake_count_likes(_session: object, _video_id: int) -> int:
+        return 9
+
+    async def fake_count_dislikes(_session: object, _video_id: int) -> int:
+        return 2
+
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "get_by_user_and_video",
+        staticmethod(fake_get),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_likes_for_video",
+        staticmethod(fake_count_likes),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_dislikes_for_video",
+        staticmethod(fake_count_dislikes),
+    )
+
+    repository.exists_result = True
+
+    result = await service.get_reaction(15, user_id=user_id)
+
+    assert result.is_like is True
+    assert result.likes == 9
+    assert result.dislikes == 2
+
+
+@pytest.mark.asyncio
+async def test_get_reaction_returns_none_when_absent(
+    service: VideoService,
+    repository: FakeVideoRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Get returns null is_like when the user has not reacted."""
+
+    async def fake_get(
+        _session: object,
+        _user_id: object,
+        _video_id: int,
+    ) -> None:
+        return None
+
+    async def fake_count_likes(_session: object, _video_id: int) -> int:
+        return 0
+
+    async def fake_count_dislikes(_session: object, _video_id: int) -> int:
+        return 0
+
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "get_by_user_and_video",
+        staticmethod(fake_get),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_likes_for_video",
+        staticmethod(fake_count_likes),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "count_dislikes_for_video",
+        staticmethod(fake_count_dislikes),
+    )
+
+    repository.exists_result = True
+
+    result = await service.get_reaction(3, user_id=uuid4())
+
+    assert result.is_like is None
+    assert result.likes == 0
+    assert result.dislikes == 0
+
+
+@pytest.mark.asyncio
+async def test_get_reaction_raises_when_video_missing(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Get on missing video yields HTTP 404."""
+
+    repository.exists_result = False
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.get_reaction(999, user_id=uuid4())
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND

@@ -159,6 +159,48 @@ class VideoReaction(SQLModel, table=True):
         return list(result.all())
 
     @staticmethod
+    async def set(
+        session: AsyncSession,
+        *,
+        user_id: uuid.UUID,
+        video_id: int,
+        is_like: bool,
+    ) -> "VideoReaction":
+        """Create or update the single reaction for a user/video pair.
+
+        Like and dislike share one row; changing polarity updates ``is_like``
+        in place. ``created_at`` is refreshed on every write.
+        """
+
+        now_utc = datetime.datetime.now(datetime.timezone.utc).replace(
+            tzinfo=None,
+        )
+
+        reaction = await VideoReaction.get_by_user_and_video(
+            session,
+            user_id,
+            video_id,
+        )
+
+        if reaction is None:
+            reaction = VideoReaction.create(
+                user_id=user_id,
+                video_id=video_id,
+                is_like=is_like,
+            )
+            reaction.created_at = now_utc
+            session.add(reaction)
+        else:
+            reaction.is_like = is_like
+            reaction.created_at = now_utc
+            session.add(reaction)
+
+        await session.commit()
+        await session.refresh(reaction)
+
+        return reaction
+
+    @staticmethod
     async def clear(
         session: AsyncSession,
         user_id: uuid.UUID,

@@ -12,6 +12,7 @@ from sqlalchemy.exc import NoInspectionAvailable
 
 from app.config import settings
 from app.models.video import Video
+from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
 from app.models.video_watch_progress import VideoWatchProgress
 from app.repositories.video import VideoRepository
@@ -32,6 +33,7 @@ from app.schemas.video_filters import (
     VideoSort,
     parse_features_cnt,
 )
+from app.schemas.video_reaction import VideoReactionResponse
 from app.schemas.video_watch import (
     RecordWatchResponse,
     VideoWatchProgressListResponse,
@@ -802,4 +804,150 @@ class VideoService:
             total=len(items),
             limit=safe_limit,
             offset=safe_offset,
+        )
+
+    async def set_reaction(
+        self,
+        video_id: int,
+        *,
+        user_id: UUID,
+        is_like: bool,
+    ) -> VideoReactionResponse:
+        """Create or update the authenticated user's like/dislike on a video.
+
+        One ``video_reaction`` row is kept per user/video pair. Switching
+        from like to dislike (or the reverse) updates ``is_like`` in place.
+
+        Args:
+            video_id: Target video primary key.
+            user_id: Authenticated user id.
+            is_like: ``True`` for like, ``False`` for dislike.
+
+        Returns:
+            Reaction state and updated aggregate counts.
+
+        Raises:
+            HTTPException: 404 when the video does not exist.
+        """
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        await VideoReaction.set(
+            self._repository.session,
+            user_id=user_id,
+            video_id=video_id,
+            is_like=is_like,
+        )
+
+        likes = await VideoReaction.count_likes_for_video(
+            self._repository.session,
+            video_id,
+        )
+        dislikes = await VideoReaction.count_dislikes_for_video(
+            self._repository.session,
+            video_id,
+        )
+
+        return VideoReactionResponse(
+            video_id=video_id,
+            is_like=is_like,
+            likes=likes,
+            dislikes=dislikes,
+        )
+
+    async def clear_reaction(
+        self,
+        video_id: int,
+        *,
+        user_id: UUID,
+    ) -> VideoReactionResponse:
+        """Remove the authenticated user's reaction on a video if present.
+
+        Args:
+            video_id: Target video primary key.
+            user_id: Authenticated user id.
+
+        Returns:
+            Neutral reaction state and updated aggregate counts.
+
+        Raises:
+            HTTPException: 404 when the video does not exist.
+        """
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        await VideoReaction.clear(
+            self._repository.session,
+            user_id,
+            video_id,
+        )
+
+        likes = await VideoReaction.count_likes_for_video(
+            self._repository.session,
+            video_id,
+        )
+        dislikes = await VideoReaction.count_dislikes_for_video(
+            self._repository.session,
+            video_id,
+        )
+
+        return VideoReactionResponse(
+            video_id=video_id,
+            is_like=None,
+            likes=likes,
+            dislikes=dislikes,
+        )
+
+    async def get_reaction(
+        self,
+        video_id: int,
+        *,
+        user_id: UUID,
+    ) -> VideoReactionResponse:
+        """Return the authenticated user's reaction and aggregate counts.
+
+        Args:
+            video_id: Target video primary key.
+            user_id: Authenticated user id.
+
+        Returns:
+            Reaction state (``is_like`` null when none) and counts.
+
+        Raises:
+            HTTPException: 404 when the video does not exist.
+        """
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        reaction = await VideoReaction.get_by_user_and_video(
+            self._repository.session,
+            user_id,
+            video_id,
+        )
+        likes = await VideoReaction.count_likes_for_video(
+            self._repository.session,
+            video_id,
+        )
+        dislikes = await VideoReaction.count_dislikes_for_video(
+            self._repository.session,
+            video_id,
+        )
+
+        return VideoReactionResponse(
+            video_id=video_id,
+            is_like=None if reaction is None else bool(reaction.is_like),
+            likes=likes,
+            dislikes=dislikes,
         )
