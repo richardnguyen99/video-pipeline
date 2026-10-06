@@ -2,20 +2,21 @@ import { Link } from "@tanstack/react-router";
 import { ChevronRight, Eye, MessageCircle, Play, ThumbsUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCompactNumber } from "@/libs/utils";
-import type { Video } from "@/mocks/videos";
+import type { WatchedVideo } from "@/queries/video-watch";
 import type { UserPlaylistItem, UserVideoItem } from "@/queries/user-profile";
 
 type VideosPanelProps = {
   videos: Array<UserVideoItem>;
   playlists: Array<UserPlaylistItem>;
-  watchedVideos: Array<Video>;
+  watchedVideos: Array<WatchedVideo>;
   isWatchedLoading?: boolean;
   isOwner: boolean;
 };
 
-function watchedThumbnail(video: Video): string {
+function watchedThumbnail(video: WatchedVideo): string {
   const images = video.video_image_url ?? [];
   const largeImages = images.filter((item) => typeof item.type === "string" && item.type.toLowerCase() === "large");
   const candidates =
@@ -124,6 +125,11 @@ export function VideosPanel({ videos, playlists, watchedVideos, isWatchedLoading
                         ? video.comments.length
                         : 0;
                   const poster = watchedThumbnail(video);
+                  // Catalog duration is stored in minutes; watch position is seconds.
+                  const durationSeconds =
+                    typeof video.duration === "number" && video.duration > 0 ? video.duration * 60 : 0;
+                  const position = Math.max(0, video.position_seconds);
+                  const progressPercent = durationSeconds > 0 ? Math.min(100, (position / durationSeconds) * 100) : 0;
 
                   return (
                     <Link
@@ -139,6 +145,8 @@ export function VideosPanel({ videos, playlists, watchedVideos, isWatchedLoading
                           {index + 1}
                         </span>
                       </div>
+
+                      <Progress value={progressPercent} className="h-1 rounded-none" />
 
                       <div className="p-3">
                         <h4 className="line-clamp-2 text-sm font-medium">{video.video_id}</h4>

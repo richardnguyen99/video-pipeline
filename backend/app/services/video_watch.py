@@ -13,12 +13,13 @@ from app.config import settings
 from app.messaging.rabbitmq import publish_watch_message
 from app.models.user_watch_history import UserWatchHistory
 from app.repositories.video import VideoRepository
-from app.schemas.video import VideoListResponse
 from app.schemas.video_watch import (
     HeartbeatResponse,
     PlayStartResponse,
     VideoWatchProgressListResponse,
     VideoWatchProgressResponse,
+    WatchedVideoItem,
+    WatchedVideoListResponse,
 )
 from app.services.video import VideoService
 
@@ -280,7 +281,7 @@ class WatchService:
         user_id: uuid.UUID,
         limit: int = 20,
         offset: int = 0,
-    ) -> VideoListResponse:
+    ) -> WatchedVideoListResponse:
         """Return full video cards for the user's watch history (newest first)."""
 
         safe_limit = max(1, min(limit, 100))
@@ -291,11 +292,21 @@ class WatchService:
             limit=safe_limit,
             offset=safe_offset,
         )
+        position_by_id = {
+            int(row.video_id): float(row.position_seconds) for row in history
+        }
         video_ids = [int(row.video_id) for row in history]
         video_service = VideoService(repository=self._repository)
-        items = await video_service.list_by_ids(video_ids)
+        videos = await video_service.list_by_ids(video_ids)
+        items = [
+            WatchedVideoItem(
+                **video.model_dump(),
+                position_seconds=position_by_id.get(int(video.id), 0.0),
+            )
+            for video in videos
+        ]
 
-        return VideoListResponse(
+        return WatchedVideoListResponse(
             items=items,
             total=len(items),
             limit=safe_limit,

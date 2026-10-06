@@ -9,6 +9,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.schemas.video import VideoResponse
+
 
 def _require_finite_non_negative_seconds(value: object) -> float:
     """Reject NaN, infinity, and negative playback positions."""
@@ -129,3 +131,18 @@ class RecordWatchResponse(BaseModel):
     position_seconds: float
     watch_count: int
     total_views: int
+
+
+class WatchedVideoItem(VideoResponse):
+    """Video list item with resume progress for watch history."""
+
+    position_seconds: float = Field(default=0.0, ge=0)
+
+
+class WatchedVideoListResponse(BaseModel):
+    """Paginated watched video cards with seek progress."""
+
+    items: list[WatchedVideoItem] = Field(default_factory=list)
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    offset: int = Field(ge=0)

@@ -27,6 +27,7 @@ from app.schemas.video_watch import (
     PlayStartRequest,
     PlayStartResponse,
     VideoWatchProgressResponse,
+    WatchedVideoListResponse,
 )
 
 router = APIRouter()
@@ -114,7 +115,7 @@ async def list_videos(
 
 @router.get(
     "/videos/watched",
-    response_model=VideoListResponse,
+    response_model=WatchedVideoListResponse,
     status_code=status.HTTP_200_OK,
     summary="List watched videos for the current user",
     responses={
@@ -128,7 +129,7 @@ async def list_watched_videos(
     current_user: CurrentUserDep,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-) -> VideoListResponse:
+) -> WatchedVideoListResponse:
     """Return full video cards for the current user's watch history."""
 
     return await watch.list_watched_videos(

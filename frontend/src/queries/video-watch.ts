@@ -73,8 +73,12 @@ export async function fetchVideoWatchProgress(videoId: number): Promise<VideoWat
   return apiFetch<VideoWatchProgress>(`/videos/${videoId}/watch/progress`);
 }
 
+export type WatchedVideo = Video & {
+  position_seconds: number;
+};
+
 export type WatchedVideosPage = {
-  items: Array<Video>;
+  items: Array<WatchedVideo>;
   total: number;
   limit: number;
   offset: number;
