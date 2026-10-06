@@ -517,6 +517,23 @@ class VideoService:
             offset=safe_offset,
         )
 
+    async def list_by_ids(self, video_ids: list[int]) -> list[VideoResponse]:
+        """Return list-shaped video responses for the given ids (order preserved)."""
+
+        if not video_ids:
+            return []
+
+        rows = await self._repository.get_by_ids(video_ids)
+        engagement = await self._repository.count_engagement_for_videos(
+            [row.id for row in rows],
+        )
+        empty = VideoEngagementCounts()
+
+        return [
+            self._to_video_response(row, engagement.get(row.id, empty))
+            for row in rows
+        ]
+
     async def list_recommended_videos(
         self,
         video_id: int,

@@ -1,4 +1,7 @@
+import { queryOptions } from "@tanstack/react-query";
+
 import { apiFetch } from "@/libs/api-client";
+import type { Video } from "@/mocks/videos";
 
 export type PlayStartResponse = {
   playback_session_id: string;
@@ -40,6 +43,8 @@ export async function startVideoPlay(
     playback_session_id: options?.playback_session_id ?? null,
   };
 
+  // Only include position when the client intentionally reports a seek.
+  // Omitting zero avoids the worker overwriting saved resume progress.
   if (options?.position_seconds != null && Number.isFinite(options.position_seconds) && options.position_seconds > 0) {
     data.position_seconds = options.position_seconds;
   }
@@ -66,4 +71,36 @@ export async function sendVideoPlayHeartbeat(
 
 export async function fetchVideoWatchProgress(videoId: number): Promise<VideoWatchProgress> {
   return apiFetch<VideoWatchProgress>(`/videos/${videoId}/watch/progress`);
+}
+
+export type WatchedVideosPage = {
+  items: Array<Video>;
+  total: number;
+  limit: number;
+  offset: number;
+};
+
+export async function fetchWatchedVideos(options?: { limit?: number; offset?: number }): Promise<WatchedVideosPage> {
+  const limit = options?.limit ?? 12;
+  const offset = options?.offset ?? 0;
+
+  return apiFetch<WatchedVideosPage>("/videos/watched", {
+    searchParams: { limit, offset },
+  });
+}
+
+export const watchedVideoQueryKeys = {
+  all: ["videos", "watched"] as const,
+  list: (limit: number, offset: number) => [...watchedVideoQueryKeys.all, { limit, offset }] as const,
+};
+
+export function watchedVideosQueryOptions(options?: { limit?: number; offset?: number }) {
+  const limit = options?.limit ?? 12;
+  const offset = options?.offset ?? 0;
+
+  return queryOptions({
+    queryKey: watchedVideoQueryKeys.list(limit, offset),
+    queryFn: () => fetchWatchedVideos({ limit, offset }),
+    staleTime: 30_000,
+  });
 }

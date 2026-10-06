@@ -26,7 +26,6 @@ from app.schemas.video_watch import (
     HeartbeatResponse,
     PlayStartRequest,
     PlayStartResponse,
-    VideoWatchProgressListResponse,
     VideoWatchProgressResponse,
 )
 
@@ -115,9 +114,9 @@ async def list_videos(
 
 @router.get(
     "/videos/watched",
-    response_model=VideoWatchProgressListResponse,
+    response_model=VideoListResponse,
     status_code=status.HTTP_200_OK,
-    summary="List watched videos progress for the current user",
+    summary="List watched videos for the current user",
     responses={
         status.HTTP_401_UNAUTHORIZED: {
             "description": "Missing or invalid authentication",
@@ -129,10 +128,10 @@ async def list_watched_videos(
     current_user: CurrentUserDep,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-) -> VideoWatchProgressListResponse:
-    """Return the current user's watch progress rows, newest first."""
+) -> VideoListResponse:
+    """Return full video cards for the current user's watch history."""
 
-    return await watch.list_progress(
+    return await watch.list_watched_videos(
         user_id=current_user.id,
         limit=limit,
         offset=offset,

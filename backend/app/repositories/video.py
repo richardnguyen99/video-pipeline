@@ -419,6 +419,23 @@ class VideoRepository(BaseRepository):
 
         return result.first()
 
+    async def get_by_ids(self, video_ids: list[int]) -> list[Video]:
+        """Return videos for the given primary keys (order preserved)."""
+
+        if not video_ids:
+            return []
+
+        unique_ids = list(dict.fromkeys(video_ids))
+        statement = (
+            select(Video)
+            .where(col(Video.id).in_(unique_ids))
+            .options(*DETAIL_OPTIONS)
+        )
+        result = await self.session.exec(statement)
+        by_id = {int(row.id): row for row in result.all()}
+
+        return [by_id[vid] for vid in video_ids if vid in by_id]
+
     async def exists_by_id(self, video_id: int) -> bool:
         """Return whether a video primary key exists."""
 

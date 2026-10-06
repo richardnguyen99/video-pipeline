@@ -13,12 +13,14 @@ from app.config import settings
 from app.messaging.rabbitmq import publish_watch_message
 from app.models.user_watch_history import UserWatchHistory
 from app.repositories.video import VideoRepository
+from app.schemas.video import VideoListResponse
 from app.schemas.video_watch import (
     HeartbeatResponse,
     PlayStartResponse,
     VideoWatchProgressListResponse,
     VideoWatchProgressResponse,
 )
+from app.services.video import VideoService
 
 _COOLDOWN_KEY = "watch:cooldown:{user_id}:{video_id}"
 
@@ -267,6 +269,34 @@ class WatchService:
                 )
                 for row in items
             ],
+            total=len(items),
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+
+    async def list_watched_videos(
+        self,
+        *,
+        user_id: uuid.UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> VideoListResponse:
+        """Return full video cards for the user's watch history (newest first)."""
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        history = await UserWatchHistory.list_for_user(
+            self._repository.session,
+            user_id=user_id,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+        video_ids = [int(row.video_id) for row in history]
+        video_service = VideoService(repository=self._repository)
+        items = await video_service.list_by_ids(video_ids)
+
+        return VideoListResponse(
+            items=items,
             total=len(items),
             limit=safe_limit,
             offset=safe_offset,
