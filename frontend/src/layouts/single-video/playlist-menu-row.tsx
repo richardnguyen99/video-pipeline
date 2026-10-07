@@ -1,4 +1,4 @@
-import { Bookmark } from "lucide-react";
+import { Bookmark, CameraIcon } from "lucide-react";
 
 import { cn } from "@/libs/utils";
 import type { PlaylistSummary } from "@/queries/playlist";
@@ -14,19 +14,20 @@ export function PlaylistMenuRow({ playlist, className }: PlaylistMenuRowProps) {
 
   return (
     <div className={cn("flex w-full items-center gap-3", className)}>
-      <div className="relative h-10 w-16 shrink-0 overflow-hidden rounded bg-muted">
+      <div className="relative flex aspect-90/122 h-14 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
         {thumbnailUrl != null ? (
           <img src={thumbnailUrl} alt="" className="size-full object-cover" loading="lazy" />
-        ) : null}
+        ) : (
+          <div className="flex h-full w-full items-center justify-center bg-muted">
+            <CameraIcon className="size-5 text-muted-foreground/70" aria-hidden />
+          </div>
+        )}
       </div>
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">
           {playlist.name}
-          <span className="font-normal text-muted-foreground">
-            {" "}
-            · {playlist.video_count} video{playlist.video_count > 1 ? "s" : ""}
-          </span>
+          <span className="font-normal text-muted-foreground"> · {playlist.video_count}</span>
         </p>
 
         <p className="text-xs capitalize text-muted-foreground">{playlist.visibility}</p>

@@ -1,21 +1,23 @@
 import { LibraryVideoCard } from "@/layouts/user-profile/videos/library-video-card";
 import { LikedSection } from "@/layouts/user-profile/videos/liked-section";
-import { PlaylistCard } from "@/layouts/user-profile/videos/playlist-card";
+import { PlaylistSection } from "@/layouts/user-profile/videos/playlist-section";
 import { SectionHeader } from "@/layouts/user-profile/videos/section-header";
 import type { LibrarySection as LibrarySectionConfig } from "@/layouts/user-profile/videos/section-config";
 import { WatchedSection } from "@/layouts/user-profile/videos/watched-section";
 import type { Video } from "@/mocks/videos";
+import type { PlaylistSummary } from "@/queries/playlist";
 import type { WatchedVideo } from "@/queries/video-watch";
-import type { UserPlaylistItem, UserVideoItem } from "@/queries/user-profile";
+import type { UserVideoItem } from "@/queries/user-profile";
 
 type LibrarySectionProps = {
   section: LibrarySectionConfig;
   videos: Array<UserVideoItem>;
-  playlists: Array<UserPlaylistItem>;
+  playlists: Array<PlaylistSummary>;
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading: boolean;
   likedVideos: Array<Video>;
   isLikedLoading: boolean;
+  isPlaylistsLoading: boolean;
   isOwner: boolean;
   username: string;
 };
@@ -33,6 +35,26 @@ function getSectionViewAllTo(
   }
 }
 
+function filterPlaylistsForSection(
+  section: LibrarySectionConfig,
+  playlists: Array<PlaylistSummary>,
+  isOwner: boolean,
+): Array<PlaylistSummary> {
+  if (section.kind !== "playlists") {
+    return [];
+  }
+
+  if (section.title.toLowerCase().includes("private")) {
+    return playlists.filter((item) => item.visibility === "private");
+  }
+
+  if (section.title.toLowerCase().includes("public")) {
+    return playlists.filter((item) => item.visibility === "public");
+  }
+
+  return isOwner ? playlists : playlists.filter((item) => item.visibility === "public");
+}
+
 export function LibrarySection({
   section,
   videos,
@@ -41,11 +63,13 @@ export function LibrarySection({
   isWatchedLoading,
   likedVideos,
   isLikedLoading,
+  isPlaylistsLoading,
   isOwner,
   username,
 }: LibrarySectionProps) {
   const viewAllTo = getSectionViewAllTo(section.kind);
   const sectionUsername = viewAllTo == null ? undefined : username;
+  const sectionPlaylists = filterPlaylistsForSection(section, playlists, isOwner);
 
   return (
     <section className="flex flex-col gap-3">
@@ -69,11 +93,16 @@ export function LibrarySection({
       ) : null}
 
       {section.kind === "playlists" ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {playlists.map((playlist, index) => (
-            <PlaylistCard key={`${section.title}-${playlist.id}`} playlist={playlist} index={index} isOwner={isOwner} />
-          ))}
-        </div>
+        <PlaylistSection
+          playlists={sectionPlaylists}
+          isOwner={isOwner}
+          isLoading={isPlaylistsLoading}
+          emptyMessage={
+            section.title.toLowerCase().includes("private")
+              ? "Private playlists you create will show up here."
+              : "Public playlists will show up here."
+          }
+        />
       ) : null}
     </section>
   );

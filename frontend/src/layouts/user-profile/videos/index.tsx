@@ -1,16 +1,18 @@
 import { LibrarySection } from "@/layouts/user-profile/videos/library-section";
 import { librarySections } from "@/layouts/user-profile/videos/section-config";
 import type { Video } from "@/mocks/videos";
+import type { PlaylistSummary } from "@/queries/playlist";
 import type { WatchedVideo } from "@/queries/video-watch";
-import type { UserPlaylistItem, UserVideoItem } from "@/queries/user-profile";
+import type { UserVideoItem } from "@/queries/user-profile";
 
 type PanelProps = {
   videos: Array<UserVideoItem>;
-  playlists: Array<UserPlaylistItem>;
+  playlists: Array<PlaylistSummary>;
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading?: boolean;
   likedVideos: Array<Video>;
   isLikedLoading?: boolean;
+  isPlaylistsLoading?: boolean;
   isOwner: boolean;
   username: string;
 };
@@ -22,6 +24,7 @@ export function Panel({
   isWatchedLoading = false,
   likedVideos,
   isLikedLoading = false,
+  isPlaylistsLoading = false,
   isOwner,
   username,
 }: PanelProps) {
@@ -39,6 +42,7 @@ export function Panel({
           isWatchedLoading={isWatchedLoading}
           likedVideos={likedVideos}
           isLikedLoading={isLikedLoading}
+          isPlaylistsLoading={isPlaylistsLoading}
           isOwner={isOwner}
           username={username}
         />

@@ -78,6 +78,12 @@ export async function removeVideoFromPlaylist(playlistId: string, videoId: numbe
   });
 }
 
+export async function deletePlaylist(playlistId: string): Promise<void> {
+  await apiFetch<void>(`/playlists/${playlistId}`, {
+    method: "DELETE",
+  });
+}
+
 export function playlistsQueryOptions(options?: { limit?: number; offset?: number; videoId?: number }) {
   const limit = options?.limit ?? 50;
   const offset = options?.offset ?? 0;

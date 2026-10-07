@@ -11,7 +11,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-$ROOT_DIR/.env.import}"
-SQL_FILE="$ROOT_DIR/scripts/rewrite-local-urls-to-minio.sql"
+SQL_FILE="$ROOT_DIR/scripts/sql/rewrite-local-urls-to-minio.sql"
 
 if [[ -f "$ENV_FILE" ]]; then
   set -a

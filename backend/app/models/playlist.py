@@ -418,11 +418,38 @@ class PlaylistVideo(SQLModel, table=True):
             .order_by(col(VideoImageUrl.fk_id), col(VideoImageUrl.id))
         )
         image_rows = list((await session.exec(image_statement)).all())
-        first_image_by_video: dict[int, str] = {}
+        images_by_video: dict[int, list[VideoImageUrl]] = {}
 
         for image in image_rows:
-            if image.fk_id not in first_image_by_video and image.url:
-                first_image_by_video[image.fk_id] = image.url
+            if not image.url:
+                continue
+
+            images_by_video.setdefault(image.fk_id, []).append(image)
+
+        type_priority = ("list", "small", "large")
+        first_image_by_video: dict[int, str] = {}
+
+        for video_id, images in images_by_video.items():
+            chosen_url: str | None = None
+
+            for preferred in type_priority:
+                match = next(
+                    (
+                        image.url
+                        for image in images
+                        if (image.type or "").strip().lower() == preferred
+                    ),
+                    None,
+                )
+
+                if match is not None:
+                    chosen_url = match
+                    break
+
+            if chosen_url is None:
+                chosen_url = images[0].url
+
+            first_image_by_video[video_id] = chosen_url
 
         for playlist_id, video_id in first_video_by_playlist.items():
             mapping[playlist_id] = first_image_by_video.get(video_id)
