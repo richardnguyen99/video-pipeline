@@ -29,6 +29,7 @@ from app.services.genre import GenreService
 from app.services.health import HealthService
 from app.services.label import LabelService
 from app.services.maker import MakerService
+from app.services.playlist import PlaylistService
 from app.services.series import SeriesService
 from app.services.video import VideoService
 from app.services.video_watch import WatchService
@@ -150,6 +151,14 @@ def get_watch_service(
     return WatchService(repository=repository)
 
 
+def get_playlist_service(
+    repository: VideoRepositoryDep,
+) -> PlaylistService:
+    """Build a request-scoped ``PlaylistService``."""
+
+    return PlaylistService(video_repository=repository)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 VideoServiceDep = Annotated[VideoService, Depends(get_video_service)]
@@ -161,3 +170,4 @@ DirectorServiceDep = Annotated[DirectorService, Depends(get_director_service)]
 SeriesServiceDep = Annotated[SeriesService, Depends(get_series_service)]
 AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
+PlaylistServiceDep = Annotated[PlaylistService, Depends(get_playlist_service)]

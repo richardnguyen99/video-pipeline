@@ -21,6 +21,7 @@ from typing import Optional
 
 from sqlalchemy import Column
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy.sql.functions import count
 from sqlalchemy.sql.functions import max as max_
 from sqlalchemy.sql.functions import now as sa_now
 from sqlmodel import (
@@ -214,6 +215,53 @@ class Playlist(SQLModel, table=True):
         result = await session.exec(statement)
         return list(result.all())
 
+    @staticmethod
+    async def list_owned_by_user(
+        session: AsyncSession,
+        owner_id: uuid.UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list["Playlist"]:
+        """Fetch playlists owned by a user, newest updates first."""
+
+        statement = (
+            select(Playlist)
+            .where(Playlist.owner_id == owner_id)
+            .order_by(col(Playlist.updated_at).desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await session.exec(statement)
+
+        return list(result.all())
+
+    @staticmethod
+    async def count_owned_by_user(
+        session: AsyncSession,
+        owner_id: uuid.UUID,
+    ) -> int:
+        """Return how many playlists a user owns."""
+
+        statement = (
+            select(count())
+            .select_from(Playlist)
+            .where(Playlist.owner_id == owner_id)
+        )
+        result = await session.exec(statement)
+
+        return int(result.one())
+
+    @staticmethod
+    async def delete(
+        session: AsyncSession,
+        playlist: "Playlist",
+    ) -> None:
+        """Delete a playlist and cascaded memberships / shares."""
+
+        await session.delete(playlist)
+        await session.commit()
+
 
 class PlaylistVideo(SQLModel, table=True):
     """One video's membership in one playlist (association object)."""
@@ -328,6 +376,22 @@ class PlaylistVideo(SQLModel, table=True):
         result = await session.exec(statement)
 
         return list(result.all())
+
+    @staticmethod
+    async def count_for_playlist(
+        session: AsyncSession,
+        playlist_id: uuid.UUID,
+    ) -> int:
+        """Return the number of videos in a playlist."""
+
+        statement = (
+            select(count())
+            .select_from(PlaylistVideo)
+            .where(PlaylistVideo.playlist_id == playlist_id)
+        )
+        result = await session.exec(statement)
+
+        return int(result.one())
 
     @staticmethod
     async def remove_video(

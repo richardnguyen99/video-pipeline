@@ -14,6 +14,7 @@ from app.routes.api.v1.genres import router as genres_router
 from app.routes.api.v1.health import router as health_router
 from app.routes.api.v1.labels import router as labels_router
 from app.routes.api.v1.makers import router as makers_router
+from app.routes.api.v1.playlists import router as playlists_router
 from app.routes.api.v1.search_ui import router as search_ui_router
 from app.routes.api.v1.series import router as series_router
 from app.routes.api.v1.users import router as users_router
@@ -44,6 +45,10 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     videos_router,
     tags=["videos"],
+)
+api_v1_router.include_router(
+    playlists_router,
+    tags=["playlists"],
 )
 api_v1_router.include_router(
     search_ui_router,
