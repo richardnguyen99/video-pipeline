@@ -378,6 +378,25 @@ class PlaylistVideo(SQLModel, table=True):
         return list(result.all())
 
     @staticmethod
+    async def playlist_ids_containing_video(
+        session: AsyncSession,
+        playlist_ids: list[uuid.UUID],
+        video_id: int,
+    ) -> set[uuid.UUID]:
+        """Return playlist ids from ``playlist_ids`` that contain ``video_id``."""
+
+        if not playlist_ids:
+            return set()
+
+        statement = select(PlaylistVideo.playlist_id).where(
+            col(PlaylistVideo.playlist_id).in_(playlist_ids),
+            PlaylistVideo.video_id == video_id,
+        )
+        result = await session.exec(statement)
+
+        return set(result.all())
+
+    @staticmethod
     async def count_for_playlist(
         session: AsyncSession,
         playlist_id: uuid.UUID,

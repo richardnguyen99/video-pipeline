@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import uuid
+
 from fastapi import HTTPException, status
 
 from app.models.playlist import Playlist, PlaylistVideo
@@ -36,7 +37,12 @@ class PlaylistService:
 
         return self._video_repository.session
 
-    async def _to_response(self, playlist: Playlist) -> PlaylistResponse:
+    async def _to_response(
+        self,
+        playlist: Playlist,
+        *,
+        contains_video: bool | None = None,
+    ) -> PlaylistResponse:
         """Map a playlist row to a summary response."""
 
         video_count = await PlaylistVideo.count_for_playlist(
@@ -51,6 +57,7 @@ class PlaylistService:
             description=playlist.description,
             visibility=playlist.visibility,
             video_count=video_count,
+            contains_video=contains_video,
             created_at=playlist.created_at,
             updated_at=playlist.updated_at,
         )
@@ -141,8 +148,12 @@ class PlaylistService:
         user_id: uuid.UUID,
         limit: int = 20,
         offset: int = 0,
+        video_id: int | None = None,
     ) -> PlaylistListResponse:
-        """List playlists owned by the authenticated user."""
+        """List playlists owned by the authenticated user.
+
+        When ``video_id`` is set, each item includes ``contains_video``.
+        """
 
         safe_limit = max(1, min(limit, 100))
         safe_offset = max(0, offset)
@@ -153,7 +164,24 @@ class PlaylistService:
             offset=safe_offset,
         )
         total = await Playlist.count_owned_by_user(self._session, user_id)
-        items = [await self._to_response(row) for row in rows]
+        containing: set[uuid.UUID] = set()
+
+        if video_id is not None and rows:
+            containing = await PlaylistVideo.playlist_ids_containing_video(
+                self._session,
+                [row.id for row in rows],
+                video_id,
+            )
+
+        items = [
+            await self._to_response(
+                row,
+                contains_video=(
+                    row.id in containing if video_id is not None else None
+                ),
+            )
+            for row in rows
+        ]
 
         return PlaylistListResponse(
             items=items,

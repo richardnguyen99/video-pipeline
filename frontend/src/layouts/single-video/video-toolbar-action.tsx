@@ -35,7 +35,7 @@ export function VideoToolbarActions({ videoId, likes = 0, dislikes = 0 }: VideoT
       <LikeDislikeButtons videoId={videoId} likes={likes} dislikes={dislikes} />
 
       <div className="hidden items-center gap-2 md:flex">
-        <PlaylistSaveButton isAuthenticated={isAuthenticated} />
+        <PlaylistSaveButton videoId={videoId} isAuthenticated={isAuthenticated} />
 
         <ShareButton />
 
@@ -66,6 +66,7 @@ export function VideoToolbarActions({ videoId, likes = 0, dislikes = 0 }: VideoT
         />
 
         <PlaylistSaveButton
+          videoId={videoId}
           isAuthenticated={isAuthenticated}
           mobileOpen={playlistMobileOpen}
           onMobileOpenChange={setPlaylistMobileOpen}

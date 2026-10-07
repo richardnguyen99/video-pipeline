@@ -1,5 +1,6 @@
 """Playlist collection and membership endpoints."""
 
+from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
@@ -57,6 +58,11 @@ async def list_playlists(
     current_user: CurrentUserDep,
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    video_id: Optional[int] = Query(
+        default=None,
+        ge=1,
+        description="When set, each item includes contains_video.",
+    ),
 ) -> PlaylistListResponse:
     """Return playlists owned by the authenticated user."""
 
@@ -64,6 +70,7 @@ async def list_playlists(
         user_id=current_user.id,
         limit=limit,
         offset=offset,
+        video_id=video_id,
     )
 
 
