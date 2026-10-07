@@ -11,6 +11,7 @@ export type PlaylistSummary = {
   description: string | null;
   visibility: PlaylistVisibility;
   video_count: number;
+  thumbnail_url?: string | null;
   contains_video?: boolean | null;
   created_at: string;
   updated_at: string;

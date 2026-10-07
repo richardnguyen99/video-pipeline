@@ -45,6 +45,7 @@ class PlaylistResponse(BaseModel):
     description: Optional[str] = None
     visibility: PlaylistVisibility
     video_count: int = Field(default=0, ge=0)
+    thumbnail_url: Optional[str] = None
     contains_video: bool | None = None
     created_at: datetime
     updated_at: datetime

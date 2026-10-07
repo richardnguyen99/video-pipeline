@@ -42,6 +42,7 @@ class PlaylistService:
         playlist: Playlist,
         *,
         contains_video: bool | None = None,
+        thumbnail_url: str | None = None,
     ) -> PlaylistResponse:
         """Map a playlist row to a summary response."""
 
@@ -57,6 +58,7 @@ class PlaylistService:
             description=playlist.description,
             visibility=playlist.visibility,
             video_count=video_count,
+            thumbnail_url=thumbnail_url,
             contains_video=contains_video,
             created_at=playlist.created_at,
             updated_at=playlist.updated_at,
@@ -165,13 +167,23 @@ class PlaylistService:
         )
         total = await Playlist.count_owned_by_user(self._session, user_id)
         containing: set[uuid.UUID] = set()
+        thumbnails: dict[uuid.UUID, str | None] = {}
 
-        if video_id is not None and rows:
-            containing = await PlaylistVideo.playlist_ids_containing_video(
-                self._session,
-                [row.id for row in rows],
-                video_id,
+        if rows:
+            row_ids = [row.id for row in rows]
+            thumbnails = (
+                await PlaylistVideo.first_thumbnail_urls_for_playlists(
+                    self._session,
+                    row_ids,
+                )
             )
+
+            if video_id is not None:
+                containing = await PlaylistVideo.playlist_ids_containing_video(
+                    self._session,
+                    row_ids,
+                    video_id,
+                )
 
         items = [
             await self._to_response(
@@ -179,6 +191,7 @@ class PlaylistService:
                 contains_video=(
                     row.id in containing if video_id is not None else None
                 ),
+                thumbnail_url=thumbnails.get(row.id),
             )
             for row in rows
         ]

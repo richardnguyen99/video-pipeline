@@ -37,7 +37,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.sqltypes import AutoString
 
 from app.models.user import User
-from app.models.video import Video
+from app.models.video import Video, VideoImageUrl
 
 
 class PlaylistVisibility(str, Enum):
@@ -376,6 +376,58 @@ class PlaylistVideo(SQLModel, table=True):
         result = await session.exec(statement)
 
         return list(result.all())
+
+    @staticmethod
+    async def first_thumbnail_urls_for_playlists(
+        session: AsyncSession,
+        playlist_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, str | None]:
+        """Map playlist ids to the first video image URL (by position)."""
+
+        if not playlist_ids:
+            return {}
+
+        membership_statement = (
+            select(PlaylistVideo)
+            .where(col(PlaylistVideo.playlist_id).in_(playlist_ids))
+            .order_by(
+                col(PlaylistVideo.playlist_id),
+                col(PlaylistVideo.position),
+            )
+        )
+        membership_rows = list(
+            (await session.exec(membership_statement)).all()
+        )
+        first_video_by_playlist: dict[uuid.UUID, int] = {}
+
+        for row in membership_rows:
+            if row.playlist_id not in first_video_by_playlist:
+                first_video_by_playlist[row.playlist_id] = row.video_id
+
+        mapping: dict[uuid.UUID, str | None] = {
+            playlist_id: None for playlist_id in playlist_ids
+        }
+
+        if not first_video_by_playlist:
+            return mapping
+
+        video_ids = list(set(first_video_by_playlist.values()))
+        image_statement = (
+            select(VideoImageUrl)
+            .where(col(VideoImageUrl.fk_id).in_(video_ids))
+            .order_by(col(VideoImageUrl.fk_id), col(VideoImageUrl.id))
+        )
+        image_rows = list((await session.exec(image_statement)).all())
+        first_image_by_video: dict[int, str] = {}
+
+        for image in image_rows:
+            if image.fk_id not in first_image_by_video and image.url:
+                first_image_by_video[image.fk_id] = image.url
+
+        for playlist_id, video_id in first_video_by_playlist.items():
+            mapping[playlist_id] = first_image_by_video.get(video_id)
+
+        return mapping
 
     @staticmethod
     async def playlist_ids_containing_video(

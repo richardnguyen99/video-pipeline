@@ -186,10 +186,22 @@ async def test_list_owned_returns_paginated_summaries(
         "count_owned_by_user",
         staticmethod(fake_count_owned),
     )
+
+    async def fake_thumbnails(
+        _session: object,
+        playlist_ids: list[UUID],
+    ) -> dict[UUID, str | None]:
+        return {playlist_id: None for playlist_id in playlist_ids}
+
     monkeypatch.setattr(
         playlist_mod.PlaylistVideo,
         "count_for_playlist",
         staticmethod(fake_count_videos),
+    )
+    monkeypatch.setattr(
+        playlist_mod.PlaylistVideo,
+        "first_thumbnail_urls_for_playlists",
+        staticmethod(fake_thumbnails),
     )
 
     result = await service.list_owned(user_id=user_id, limit=20, offset=0)
@@ -199,6 +211,7 @@ async def test_list_owned_returns_paginated_summaries(
     assert len(result.items) == 1
     assert result.items[0].name == "A"
     assert result.items[0].video_count == 4
+    assert result.items[0].thumbnail_url is None
 
 
 @pytest.mark.asyncio

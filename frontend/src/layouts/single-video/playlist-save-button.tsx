@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, ListPlus, Loader2 } from "lucide-react";
+import { ListPlus, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,8 +17,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/toast";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlaylistCreateDialog } from "@/layouts/single-video/playlist-create-dialog";
+import { PlaylistMenuRow } from "@/layouts/single-video/playlist-menu-row";
 import { getApiErrorMessage } from "@/libs/auth";
-import { cn } from "@/libs/utils";
 import {
   addVideoToPlaylist,
   createPlaylist,
@@ -177,17 +177,6 @@ export function PlaylistSaveButton({
     />
   );
 
-  function membershipIcon(playlist: PlaylistSummary) {
-    const inPlaylist = Boolean(playlist.contains_video);
-
-    return (
-      <Bookmark
-        className={cn("size-4 shrink-0", inPlaylist ? "fill-primary text-primary" : "fill-none text-muted-foreground")}
-        aria-label={inPlaylist ? "In playlist" : "Not in playlist"}
-      />
-    );
-  }
-
   if (!isAuthenticated) {
     return (
       <VideoActionButton tooltip={tooltip}>
@@ -229,23 +218,13 @@ export function PlaylistSaveButton({
                       <li key={playlist.id}>
                         <button
                           type="button"
-                          className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-muted"
+                          className="w-full rounded-lg px-2 py-2.5 text-left hover:bg-muted disabled:pointer-events-none disabled:opacity-60"
                           disabled={toggleMutation.isPending}
                           onClick={() => {
                             handleToggle(playlist);
                           }}
                         >
-                          <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-                            {playlist.video_count}
-                          </div>
-
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium">{playlist.name}</p>
-
-                            <p className="text-xs capitalize text-muted-foreground">{playlist.visibility}</p>
-                          </div>
-
-                          {membershipIcon(playlist)}
+                          <PlaylistMenuRow playlist={playlist} />
                         </button>
                       </li>
                     ))}
@@ -311,24 +290,14 @@ export function PlaylistSaveButton({
               ? playlists.map((playlist) => (
                   <DropdownMenuItem
                     key={playlist.id}
-                    className="gap-3 py-2.5 hover:bg-secondary!"
+                    className="gap-0 px-2 py-2.5"
                     closeOnClick={false}
                     disabled={toggleMutation.isPending}
                     onClick={() => {
                       handleToggle(playlist);
                     }}
                   >
-                    <div className="flex h-10 w-16 shrink-0 items-center justify-center rounded bg-muted text-xs text-muted-foreground">
-                      {playlist.video_count}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{playlist.name}</p>
-
-                      <p className="text-xs capitalize text-muted-foreground">{playlist.visibility}</p>
-                    </div>
-
-                    {membershipIcon(playlist)}
+                    <PlaylistMenuRow playlist={playlist} />
                   </DropdownMenuItem>
                 ))
               : null}
