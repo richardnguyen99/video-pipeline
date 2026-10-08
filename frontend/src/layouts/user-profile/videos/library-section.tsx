@@ -1,6 +1,6 @@
 import { LibraryVideoCard } from "@/layouts/user-profile/videos/library-video-card";
 import { LikedSection } from "@/layouts/user-profile/videos/liked-section";
-import { PlaylistSection } from "@/layouts/user-profile/videos/playlist-section";
+import { PlaylistSection } from "@/layouts/user-profile/playlists/section";
 import { SectionHeader } from "@/layouts/user-profile/videos/section-header";
 import type { LibrarySection as LibrarySectionConfig } from "@/layouts/user-profile/videos/section-config";
 import { WatchedSection } from "@/layouts/user-profile/videos/watched-section";

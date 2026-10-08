@@ -30,7 +30,8 @@ function formatDate(value: string): string {
 export function PlaylistRow({ playlist, username, isOwner, onRemove, className }: PlaylistRowProps) {
   const thumbnailUrl = playlist.thumbnail_url ?? null;
   const videoLabel = playlist.video_count === 1 ? "1 video" : `${String(playlist.video_count)} videos`;
-  const visibilityLabel = playlist.visibility === "private" ? "Private" : "Public";
+  const visibilityLabel =
+    playlist.visibility === "public" ? "Public" : playlist.visibility === "restricted" ? "Restricted" : "Private";
 
   return (
     <div

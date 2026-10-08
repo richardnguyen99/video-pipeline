@@ -3,7 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { apiFetch } from "@/libs/api-client";
 import type { Video } from "@/mocks/videos";
 
-export type PlaylistVisibility = "public" | "private";
+export type PlaylistVisibility = "public" | "restricted" | "private";
 
 export type PlaylistSummary = {
   id: string;
@@ -91,6 +91,29 @@ export async function removeVideoFromPlaylist(playlistId: string, videoId: numbe
 export async function deletePlaylist(playlistId: string): Promise<void> {
   await apiFetch<void>(`/playlists/${playlistId}`, {
     method: "DELETE",
+  });
+}
+
+export type UpdatePlaylistInput = {
+  name?: string;
+  description?: string | null;
+  visibility?: PlaylistVisibility;
+};
+
+export async function updatePlaylist(playlistId: string, input: UpdatePlaylistInput): Promise<PlaylistSummary> {
+  return apiFetch<PlaylistSummary>(`/playlists/${playlistId}`, {
+    method: "PATCH",
+    data: input,
+  });
+}
+
+export async function changePlaylistVisibility(
+  playlistId: string,
+  visibility: PlaylistVisibility,
+): Promise<PlaylistSummary> {
+  return apiFetch<PlaylistSummary>(`/playlists/${playlistId}/visibility`, {
+    method: "PATCH",
+    data: { visibility },
   });
 }
 
