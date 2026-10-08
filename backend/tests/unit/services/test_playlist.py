@@ -13,7 +13,11 @@ from fastapi import HTTPException, status
 from app.models import playlist as playlist_mod
 from app.models.playlist import Playlist, PlaylistVisibility
 from app.repositories.video import VideoRepository
-from app.schemas.playlist import PlaylistCreateRequest, PlaylistUpdateRequest
+from app.schemas.playlist import (
+    PlaylistCreateRequest,
+    PlaylistUpdateRequest,
+    PlaylistVisibilityChangeRequest,
+)
 from app.schemas.video import VideoResponse
 from app.services.playlist import PlaylistService
 
@@ -867,3 +871,93 @@ async def test_remove_video_succeeds(
 
     assert result.video_count == 0
     assert session.committed >= 1
+
+
+@pytest.mark.asyncio
+async def test_change_visibility_requires_owner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-owners cannot change playlist visibility."""
+
+    owner_id = uuid4()
+    other_id = uuid4()
+    row = _playlist(owner_id=owner_id, visibility=PlaylistVisibility.PRIVATE)
+    repository = _FakeVideoRepository()
+    repository.session = _SessionSpy()
+    service = PlaylistService(
+        video_repository=cast(VideoRepository, repository),
+    )
+
+    async def fake_get(
+        _session: object,
+        playlist_id: UUID,
+    ) -> Optional[Playlist]:
+        return row if playlist_id == row.id else None
+
+    monkeypatch.setattr(
+        playlist_mod.Playlist,
+        "get_by_id",
+        staticmethod(fake_get),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.change_visibility(
+            row.id,
+            user_id=other_id,
+            payload=PlaylistVisibilityChangeRequest(
+                visibility=PlaylistVisibility.PUBLIC,
+            ),
+        )
+
+    assert exc_info.value.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.asyncio
+async def test_change_visibility_updates_level(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Owners can switch visibility between private, restricted, and public."""
+
+    owner_id = uuid4()
+    row = _playlist(owner_id=owner_id, visibility=PlaylistVisibility.PRIVATE)
+    session = _SessionSpy()
+    repository = _FakeVideoRepository()
+    repository.session = session
+    service = PlaylistService(
+        video_repository=cast(VideoRepository, repository),
+    )
+
+    async def fake_get(
+        _session: object,
+        playlist_id: UUID,
+    ) -> Optional[Playlist]:
+        return row if playlist_id == row.id else None
+
+    async def fake_count(
+        _session: object,
+        _playlist_id: UUID,
+    ) -> int:
+        return 0
+
+    monkeypatch.setattr(
+        playlist_mod.Playlist,
+        "get_by_id",
+        staticmethod(fake_get),
+    )
+    monkeypatch.setattr(
+        playlist_mod.PlaylistVideo,
+        "count_for_playlist",
+        staticmethod(fake_count),
+    )
+
+    result = await service.change_visibility(
+        row.id,
+        user_id=owner_id,
+        payload=PlaylistVisibilityChangeRequest(
+            visibility=PlaylistVisibility.RESTRICTED,
+        ),
+    )
+
+    assert result.visibility == PlaylistVisibility.RESTRICTED
+    assert row.visibility == PlaylistVisibility.RESTRICTED
+    assert session.committed == 1

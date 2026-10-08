@@ -16,6 +16,7 @@ from app.schemas.playlist import (
     PlaylistListResponse,
     PlaylistResponse,
     PlaylistUpdateRequest,
+    PlaylistVisibilityChangeRequest,
 )
 
 
@@ -130,3 +131,33 @@ def test_playlist_detail_response_defaults_videos() -> None:
     )
 
     assert payload.videos == []
+
+
+def test_visibility_change_request_requires_visibility() -> None:
+    """Visibility change body requires an explicit value."""
+
+    with pytest.raises(ValidationError):
+        PlaylistVisibilityChangeRequest()  # type: ignore[call-arg]
+
+
+def test_visibility_change_request_accepts_all_levels() -> None:
+    """Private, restricted, and public values are accepted."""
+
+    for level in (
+        PlaylistVisibility.PRIVATE,
+        PlaylistVisibility.RESTRICTED,
+        PlaylistVisibility.PUBLIC,
+    ):
+        payload = PlaylistVisibilityChangeRequest(visibility=level)
+        assert payload.visibility == level
+
+
+def test_create_request_accepts_restricted_visibility() -> None:
+    """Restricted visibility is accepted on create."""
+
+    payload = PlaylistCreateRequest(
+        name="Shared later",
+        visibility=PlaylistVisibility.RESTRICTED,
+    )
+
+    assert payload.visibility == PlaylistVisibility.RESTRICTED

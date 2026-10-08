@@ -13,6 +13,7 @@ from app.schemas.playlist import (
     PlaylistListResponse,
     PlaylistResponse,
     PlaylistUpdateRequest,
+    PlaylistVisibilityChangeRequest,
 )
 
 router = APIRouter()
@@ -133,6 +134,43 @@ async def update_playlist(
     """Rename, describe, or change visibility (owner only)."""
 
     return await service.update(
+        playlist_id,
+        user_id=current_user.id,
+        payload=payload,
+    )
+
+
+@router.patch(
+    "/playlists/{playlist_id}/visibility",
+    response_model=PlaylistResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Change playlist visibility",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Not allowed to modify this playlist",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Playlist not found",
+        },
+    },
+)
+async def change_playlist_visibility(
+    service: PlaylistServiceDep,
+    current_user: CurrentUserDep,
+    payload: PlaylistVisibilityChangeRequest,
+    playlist_id: UUID = Path(..., description="Playlist primary key."),
+) -> PlaylistResponse:
+    """Set visibility to private, restricted, or public (owner only).
+
+    * ``private`` — only the owner can see the playlist
+    * ``restricted`` — owner and authenticated users with a share
+    * ``public`` — everyone can see the playlist
+    """
+
+    return await service.change_visibility(
         playlist_id,
         user_id=current_user.id,
         payload=payload,

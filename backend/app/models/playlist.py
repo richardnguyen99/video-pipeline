@@ -2,14 +2,14 @@
 
 Three tables, all owned by ``app_user`` in ``public``:
 
-* ``Playlist`` — a named, ownable, renamable collection with a
-  public/private visibility flag.
+* ``Playlist`` — a named, ownable, renamable collection with
+  private / restricted / public visibility.
 * ``PlaylistVideo`` — the many-to-many join between playlists and
   videos. Uses the association-object pattern (not a plain
   ``link_model``) because it carries extra data: ordering
   (``position``) and ``added_at``.
-* ``PlaylistShare`` — explicit per-user access grants for private
-  playlists, separate from ``Playlist.owner``.
+* ``PlaylistShare`` — explicit per-user access grants for
+  restricted playlists, separate from ``Playlist.owner``.
 """
 
 # pylint: disable=no-member
@@ -29,6 +29,7 @@ from sqlmodel import (
     Relationship,
     SQLModel,
     UniqueConstraint,
+    and_,
     col,
     or_,
     select,
@@ -41,9 +42,15 @@ from app.models.video import Video, VideoImageUrl
 
 
 class PlaylistVisibility(str, Enum):
-    """Who can view a playlist without an explicit share."""
+    """Who can view a playlist.
+
+    * ``private`` — owner only
+    * ``restricted`` — owner and users with an explicit share
+    * ``public`` — everyone, including anonymous viewers
+    """
 
     PUBLIC = "public"
+    RESTRICTED = "restricted"
     PRIVATE = "private"
 
 
@@ -137,7 +144,7 @@ class Playlist(SQLModel, table=True):
         )
 
     def set_visibility(self, visibility: PlaylistVisibility) -> None:
-        """Change public/private visibility, bumping ``updated_at``."""
+        """Change playlist visibility, bumping ``updated_at``."""
 
         self.visibility = visibility
         self.updated_at = datetime.datetime.now(datetime.timezone.utc).replace(
@@ -164,18 +171,25 @@ class Playlist(SQLModel, table=True):
     ) -> bool:
         """Return True if ``user_id`` may view this playlist.
 
-        True when the playlist is public, when the caller is the
-        owner, or when the caller has an explicit ``PlaylistShare``.
-        ``user_id`` may be ``None`` for an anonymous caller (only
-        public playlists are accessible).
+        * ``public`` — anyone, including anonymous callers
+        * ``private`` — owner only
+        * ``restricted`` — owner, or an authenticated user with an
+          explicit ``PlaylistShare``
+
+        ``user_id`` may be ``None`` for an anonymous caller.
         """
 
         if playlist.visibility == PlaylistVisibility.PUBLIC:
             return True
+
         if user_id is None:
             return False
+
         if playlist.owner_id == user_id:
             return True
+
+        if playlist.visibility == PlaylistVisibility.PRIVATE:
+            return False
 
         statement = select(PlaylistShare).where(
             PlaylistShare.playlist_id == playlist.id,
@@ -205,7 +219,10 @@ class Playlist(SQLModel, table=True):
                 or_(
                     Playlist.owner_id == user_id,
                     Playlist.visibility == PlaylistVisibility.PUBLIC,
-                    col(Playlist.id).in_(shared_playlist_ids),
+                    and_(
+                        Playlist.visibility == PlaylistVisibility.RESTRICTED,
+                        col(Playlist.id).in_(shared_playlist_ids),
+                    ),
                 )
             )
             .order_by(col(Playlist.updated_at).desc())

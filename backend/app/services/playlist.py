@@ -15,6 +15,7 @@ from app.schemas.playlist import (
     PlaylistListResponse,
     PlaylistResponse,
     PlaylistUpdateRequest,
+    PlaylistVisibilityChangeRequest,
 )
 from app.services.video import VideoService
 
@@ -274,6 +275,26 @@ class PlaylistService:
 
         if payload.visibility is not None:
             playlist.set_visibility(payload.visibility)
+
+        self._session.add(playlist)
+        await self._session.commit()
+        await self._session.refresh(playlist)
+
+        return await self._to_response(playlist)
+
+    async def change_visibility(
+        self,
+        playlist_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID,
+        payload: PlaylistVisibilityChangeRequest,
+    ) -> PlaylistResponse:
+        """Set playlist visibility (owner only)."""
+
+        playlist = await self._require_playlist(playlist_id)
+        await self._require_owner(playlist, user_id)
+
+        playlist.set_visibility(payload.visibility)
 
         self._session.add(playlist)
         await self._session.commit()

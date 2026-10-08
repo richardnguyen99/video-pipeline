@@ -30,6 +30,12 @@ class PlaylistUpdateRequest(BaseModel):
     visibility: Optional[PlaylistVisibility] = None
 
 
+class PlaylistVisibilityChangeRequest(BaseModel):
+    """Body for changing only playlist visibility."""
+
+    visibility: PlaylistVisibility
+
+
 class PlaylistAddVideoRequest(BaseModel):
     """Body for adding a video to a playlist."""
 
