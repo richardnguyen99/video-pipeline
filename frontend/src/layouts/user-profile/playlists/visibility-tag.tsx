@@ -48,7 +48,7 @@ export function VisibilityTag({ visibility, className }: VisibilityTagProps) {
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium",
+        "inline-flex w-fit items-center gap-1 rounded-sm px-2 py-0.5 text-xs font-medium",
         TONE_CLASS[tone],
         className,
       )}
@@ -57,8 +57,4 @@ export function VisibilityTag({ visibility, className }: VisibilityTagProps) {
       {label}
     </span>
   );
-}
-
-export function getVisibilityTone(visibility: PlaylistVisibility): VisibilityTone {
-  return VISIBILITY_CONFIG[visibility].tone;
 }
