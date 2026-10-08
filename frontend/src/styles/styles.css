@@ -27,6 +27,10 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -72,6 +76,10 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --warning: oklch(0.78 0.14 85);
+  --warning-foreground: oklch(0.88 0.12 85);
+  --danger: oklch(0.62 0.24 20);
+  --danger-foreground: oklch(0.78 0.16 20);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -104,6 +112,10 @@
   --accent: oklch(0.55 0.18 355);
   --accent-foreground: oklch(0.98 0.01 340);
   --destructive: oklch(0.62 0.24 20);
+  --warning: oklch(0.78 0.14 85);
+  --warning-foreground: oklch(0.88 0.12 85);
+  --danger: oklch(0.62 0.24 20);
+  --danger-foreground: oklch(0.78 0.16 20);
   --border: oklch(0.5 0.14 350 / 28%);
   --input: oklch(0.5 0.14 350 / 22%);
   --ring: oklch(0.68 0.22 350);
@@ -141,6 +153,10 @@
   --accent: oklch(0.55 0.18 355);
   --accent-foreground: oklch(0.98 0.01 340);
   --destructive: oklch(0.62 0.24 20);
+  --warning: oklch(0.78 0.14 85);
+  --warning-foreground: oklch(0.88 0.12 85);
+  --danger: oklch(0.62 0.24 20);
+  --danger-foreground: oklch(0.78 0.16 20);
   --border: oklch(0.5 0.14 350 / 28%);
   --input: oklch(0.5 0.14 350 / 22%);
   --ring: oklch(0.68 0.22 350);
@@ -235,6 +251,10 @@ body::before {
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);

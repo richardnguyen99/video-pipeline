@@ -9,6 +9,7 @@ import { RemoveFromPlaylistDialog } from "@/layouts/user-profile/playlists/remov
 import { RemovePlaylistDialog } from "@/layouts/user-profile/playlists/remove-playlist-dialog";
 import { RenamePlaylistDialog } from "@/layouts/user-profile/playlists/rename-playlist-dialog";
 import { PlaylistVideoCard } from "@/layouts/user-profile/playlists/video-card";
+import { VisibilityTag } from "@/layouts/user-profile/playlists/visibility-tag";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
 import { getApiErrorMessage } from "@/libs/auth";
 import {
@@ -28,17 +29,6 @@ type PlaylistDetailPageProps = {
   isOwner: boolean;
   username: string;
 };
-
-function visibilityLabel(visibility: PlaylistVisibility): string {
-  switch (visibility) {
-    case "public":
-      return "Public";
-    case "restricted":
-      return "Restricted";
-    default:
-      return "Private";
-  }
-}
 
 export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: usernameProp }: PlaylistDetailPageProps) {
   const queryClient = useQueryClient();
@@ -191,10 +181,12 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
             </span>
           </h3>
 
-          <p className="text-sm text-muted-foreground">
-            {visibilityLabel(playlist.visibility)}
-            {playlist.description != null && playlist.description.length > 0 ? ` · ${playlist.description}` : null}
-          </p>
+          <div className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+            <VisibilityTag visibility={playlist.visibility} />
+            {playlist.description != null && playlist.description.length > 0 ? (
+              <span>· {playlist.description}</span>
+            ) : null}
+          </div>
         </div>
 
         {isOwner ? (

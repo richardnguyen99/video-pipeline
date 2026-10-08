@@ -3,6 +3,7 @@ import { CameraIcon, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/libs/utils";
+import { VisibilityTag } from "@/layouts/user-profile/playlists/visibility-tag";
 import type { PlaylistSummary } from "@/queries/playlist";
 
 type PlaylistRowProps = {
@@ -30,9 +31,6 @@ function formatDate(value: string): string {
 export function PlaylistRow({ playlist, username, isOwner, onRemove, className }: PlaylistRowProps) {
   const thumbnailUrl = playlist.thumbnail_url ?? null;
   const videoLabel = playlist.video_count === 1 ? "1 video" : `${String(playlist.video_count)} videos`;
-  const visibilityLabel =
-    playlist.visibility === "public" ? "Public" : playlist.visibility === "restricted" ? "Restricted" : "Private";
-
   return (
     <div
       className={cn(
@@ -61,9 +59,10 @@ export function PlaylistRow({ playlist, username, isOwner, onRemove, className }
         <div className="flex min-w-0 flex-1 flex-col">
           <p className="truncate text-sm font-medium">{playlist.name}</p>
 
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {visibilityLabel} · {videoLabel}
-          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            <VisibilityTag visibility={playlist.visibility} />
+            <span>· {videoLabel}</span>
+          </div>
 
           <p className="mt-auto pt-1 text-xs text-muted-foreground">
             Created: {formatDate(playlist.created_at)}
