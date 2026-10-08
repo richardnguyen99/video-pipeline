@@ -22,6 +22,8 @@ function pathToSettingsNavKey(pathname: string, username: string): SettingsNavKe
   switch (sub) {
     case "videos":
       return "videos";
+    case "playlists":
+      return "videos";
     case "subscriptions":
       return "subscriptions";
     case "security":

@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
+import type { Video } from "@/mocks/videos";
 
 export type PlaylistVisibility = "public" | "private";
 
@@ -15,6 +16,10 @@ export type PlaylistSummary = {
   contains_video?: boolean | null;
   created_at: string;
   updated_at: string;
+};
+
+export type PlaylistDetail = PlaylistSummary & {
+  videos: Array<Video>;
 };
 
 export type PlaylistListPage = {
@@ -34,6 +39,7 @@ export const playlistQueryKeys = {
   all: ["playlists"] as const,
   list: (limit: number, offset: number, videoId?: number) =>
     [...playlistQueryKeys.all, "list", { limit, offset, videoId: videoId ?? null }] as const,
+  detail: (playlistId: string) => [...playlistQueryKeys.all, "detail", playlistId] as const,
 };
 
 export async function fetchPlaylists(options?: {
@@ -52,6 +58,10 @@ export async function fetchPlaylists(options?: {
   return apiFetch<PlaylistListPage>("/playlists", {
     searchParams,
   });
+}
+
+export async function fetchPlaylistDetail(playlistId: string): Promise<PlaylistDetail> {
+  return apiFetch<PlaylistDetail>(`/playlists/${playlistId}`);
 }
 
 export async function createPlaylist(input: CreatePlaylistInput): Promise<PlaylistSummary> {
@@ -92,6 +102,14 @@ export function playlistsQueryOptions(options?: { limit?: number; offset?: numbe
   return queryOptions({
     queryKey: playlistQueryKeys.list(limit, offset, videoId),
     queryFn: () => fetchPlaylists({ limit, offset, videoId }),
+    staleTime: 30_000,
+  });
+}
+
+export function playlistDetailQueryOptions(playlistId: string) {
+  return queryOptions({
+    queryKey: playlistQueryKeys.detail(playlistId),
+    queryFn: () => fetchPlaylistDetail(playlistId),
     staleTime: 30_000,
   });
 }

@@ -30,10 +30,13 @@ import { Route as UUsernameBlockedAccountsRouteImport } from './routes/u/$userna
 import { Route as UUsernameContentPreferenceRouteImport } from './routes/u/$username/content-preference'
 import { Route as UUsernameDeactivateRouteImport } from './routes/u/$username/deactivate'
 import { Route as UUsernameNotificationsRouteImport } from './routes/u/$username/notifications'
+import { Route as UUsernamePlaylistsRouteRouteImport } from './routes/u/$username/playlists/route'
 import { Route as UUsernamePrivacyRouteImport } from './routes/u/$username/privacy'
 import { Route as UUsernameSecurityRouteImport } from './routes/u/$username/security'
 import { Route as UUsernameSubscriptionsRouteImport } from './routes/u/$username/subscriptions'
 import { Route as UUsernameVideosRouteRouteImport } from './routes/u/$username/videos/route'
+import { Route as UUsernamePlaylistsIndexRouteImport } from './routes/u/$username/playlists/index'
+import { Route as UUsernamePlaylistsPlaylistIdRouteImport } from './routes/u/$username/playlists/$playlistId'
 import { Route as UUsernameVideosIndexRouteImport } from './routes/u/$username/videos/index'
 import { Route as UUsernameVideosHistoryRouteImport } from './routes/u/$username/videos/history'
 import { Route as UUsernameVideosLikedRouteImport } from './routes/u/$username/videos/liked'
@@ -143,6 +146,11 @@ const UUsernameNotificationsRoute = UUsernameNotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => UUsernameRouteRoute,
 } as any)
+const UUsernamePlaylistsRouteRoute = UUsernamePlaylistsRouteRouteImport.update({
+  id: '/playlists',
+  path: '/playlists',
+  getParentRoute: () => UUsernameRouteRoute,
+} as any)
 const UUsernamePrivacyRoute = UUsernamePrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
@@ -163,6 +171,17 @@ const UUsernameVideosRouteRoute = UUsernameVideosRouteRouteImport.update({
   path: '/videos',
   getParentRoute: () => UUsernameRouteRoute,
 } as any)
+const UUsernamePlaylistsIndexRoute = UUsernamePlaylistsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => UUsernamePlaylistsRouteRoute,
+} as any)
+const UUsernamePlaylistsPlaylistIdRoute =
+  UUsernamePlaylistsPlaylistIdRouteImport.update({
+    id: '/$playlistId',
+    path: '/$playlistId',
+    getParentRoute: () => UUsernamePlaylistsRouteRoute,
+  } as any)
 const UUsernameVideosIndexRoute = UUsernameVideosIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -194,6 +213,7 @@ export interface FileRoutesByFullPath {
   '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
   '/videos/': typeof VideosIndexRoute
+  '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
@@ -203,8 +223,10 @@ export interface FileRoutesByFullPath {
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
 }
 export interface FileRoutesByTo {
@@ -228,8 +250,10 @@ export interface FileRoutesByTo {
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/u/$username': typeof UUsernameIndexRoute
+  '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/u/$username/playlists': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos': typeof UUsernameVideosIndexRoute
 }
 export interface FileRoutesById {
@@ -250,6 +274,7 @@ export interface FileRoutesById {
   '/videos/$id': typeof VideosIdRoute
   '/actresses/': typeof ActressesIndexRoute
   '/videos/': typeof VideosIndexRoute
+  '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
@@ -259,8 +284,10 @@ export interface FileRoutesById {
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
 }
 export interface FileRouteTypes {
@@ -280,6 +307,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/actresses/'
     | '/videos/'
+    | '/u/$username/playlists'
     | '/u/$username/videos'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
@@ -289,8 +317,10 @@ export interface FileRouteTypes {
     | '/u/$username/security'
     | '/u/$username/subscriptions'
     | '/u/$username/'
+    | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/u/$username/playlists/'
     | '/u/$username/videos/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -314,8 +344,10 @@ export interface FileRouteTypes {
     | '/u/$username/security'
     | '/u/$username/subscriptions'
     | '/u/$username'
+    | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/u/$username/playlists'
     | '/u/$username/videos'
   id:
     | '__root__'
@@ -335,6 +367,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/actresses/'
     | '/videos/'
+    | '/u/$username/playlists'
     | '/u/$username/videos'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
@@ -344,8 +377,10 @@ export interface FileRouteTypes {
     | '/u/$username/security'
     | '/u/$username/subscriptions'
     | '/u/$username/'
+    | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/u/$username/playlists/'
     | '/u/$username/videos/'
   fileRoutesById: FileRoutesById
 }
@@ -511,6 +546,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameNotificationsRouteImport
       parentRoute: typeof UUsernameRouteRoute
     }
+    '/u/$username/playlists': {
+      id: '/u/$username/playlists'
+      path: '/playlists'
+      fullPath: '/u/$username/playlists'
+      preLoaderRoute: typeof UUsernamePlaylistsRouteRouteImport
+      parentRoute: typeof UUsernameRouteRoute
+    }
     '/u/$username/privacy': {
       id: '/u/$username/privacy'
       path: '/privacy'
@@ -538,6 +580,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/u/$username/videos'
       preLoaderRoute: typeof UUsernameVideosRouteRouteImport
       parentRoute: typeof UUsernameRouteRoute
+    }
+    '/u/$username/playlists/': {
+      id: '/u/$username/playlists/'
+      path: '/'
+      fullPath: '/u/$username/playlists/'
+      preLoaderRoute: typeof UUsernamePlaylistsIndexRouteImport
+      parentRoute: typeof UUsernamePlaylistsRouteRoute
+    }
+    '/u/$username/playlists/$playlistId': {
+      id: '/u/$username/playlists/$playlistId'
+      path: '/$playlistId'
+      fullPath: '/u/$username/playlists/$playlistId'
+      preLoaderRoute: typeof UUsernamePlaylistsPlaylistIdRouteImport
+      parentRoute: typeof UUsernamePlaylistsRouteRoute
     }
     '/u/$username/videos/': {
       id: '/u/$username/videos/'
@@ -603,6 +659,22 @@ const GuestRouteChildren: GuestRouteChildren = {
 
 const GuestRouteWithChildren = GuestRoute._addFileChildren(GuestRouteChildren)
 
+interface UUsernamePlaylistsRouteRouteChildren {
+  UUsernamePlaylistsPlaylistIdRoute: typeof UUsernamePlaylistsPlaylistIdRoute
+  UUsernamePlaylistsIndexRoute: typeof UUsernamePlaylistsIndexRoute
+}
+
+const UUsernamePlaylistsRouteRouteChildren: UUsernamePlaylistsRouteRouteChildren =
+  {
+    UUsernamePlaylistsPlaylistIdRoute: UUsernamePlaylistsPlaylistIdRoute,
+    UUsernamePlaylistsIndexRoute: UUsernamePlaylistsIndexRoute,
+  }
+
+const UUsernamePlaylistsRouteRouteWithChildren =
+  UUsernamePlaylistsRouteRoute._addFileChildren(
+    UUsernamePlaylistsRouteRouteChildren,
+  )
+
 interface UUsernameVideosRouteRouteChildren {
   UUsernameVideosHistoryRoute: typeof UUsernameVideosHistoryRoute
   UUsernameVideosLikedRoute: typeof UUsernameVideosLikedRoute
@@ -619,6 +691,7 @@ const UUsernameVideosRouteRouteWithChildren =
   UUsernameVideosRouteRoute._addFileChildren(UUsernameVideosRouteRouteChildren)
 
 interface UUsernameRouteRouteChildren {
+  UUsernamePlaylistsRouteRoute: typeof UUsernamePlaylistsRouteRouteWithChildren
   UUsernameVideosRouteRoute: typeof UUsernameVideosRouteRouteWithChildren
   UUsernameBlockedAccountsRoute: typeof UUsernameBlockedAccountsRoute
   UUsernameContentPreferenceRoute: typeof UUsernameContentPreferenceRoute
@@ -631,6 +704,7 @@ interface UUsernameRouteRouteChildren {
 }
 
 const UUsernameRouteRouteChildren: UUsernameRouteRouteChildren = {
+  UUsernamePlaylistsRouteRoute: UUsernamePlaylistsRouteRouteWithChildren,
   UUsernameVideosRouteRoute: UUsernameVideosRouteRouteWithChildren,
   UUsernameBlockedAccountsRoute: UUsernameBlockedAccountsRoute,
   UUsernameContentPreferenceRoute: UUsernameContentPreferenceRoute,

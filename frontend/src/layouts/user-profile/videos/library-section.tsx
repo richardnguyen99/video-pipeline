@@ -9,6 +9,8 @@ import type { PlaylistSummary } from "@/queries/playlist";
 import type { WatchedVideo } from "@/queries/video-watch";
 import type { UserVideoItem } from "@/queries/user-profile";
 
+const PLAYLIST_PREVIEW_LIMIT = 6;
+
 type LibrarySectionProps = {
   section: LibrarySectionConfig;
   videos: Array<UserVideoItem>;
@@ -24,12 +26,14 @@ type LibrarySectionProps = {
 
 function getSectionViewAllTo(
   kind: LibrarySectionConfig["kind"],
-): "/u/$username/videos/history" | "/u/$username/videos/liked" | undefined {
+): "/u/$username/videos/history" | "/u/$username/videos/liked" | "/u/$username/playlists" | undefined {
   switch (kind) {
     case "watched":
       return "/u/$username/videos/history";
     case "liked":
       return "/u/$username/videos/liked";
+    case "playlists":
+      return "/u/$username/playlists";
     default:
       return undefined;
   }
@@ -69,7 +73,7 @@ export function LibrarySection({
 }: LibrarySectionProps) {
   const viewAllTo = getSectionViewAllTo(section.kind);
   const sectionUsername = viewAllTo == null ? undefined : username;
-  const sectionPlaylists = filterPlaylistsForSection(section, playlists, isOwner);
+  const sectionPlaylists = filterPlaylistsForSection(section, playlists, isOwner).slice(0, PLAYLIST_PREVIEW_LIMIT);
 
   return (
     <section className="flex flex-col gap-3">
@@ -95,6 +99,7 @@ export function LibrarySection({
       {section.kind === "playlists" ? (
         <PlaylistSection
           playlists={sectionPlaylists}
+          username={username}
           isOwner={isOwner}
           isLoading={isPlaylistsLoading}
           emptyMessage={

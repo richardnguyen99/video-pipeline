@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/libs/utils";
 import type { PlaylistSummary } from "@/queries/playlist";
 
-type PlaylistRowProps = {
+type PlaylistPageRowProps = {
   playlist: PlaylistSummary;
   username: string;
   isOwner: boolean;
@@ -27,7 +27,7 @@ function formatDate(value: string): string {
   });
 }
 
-export function PlaylistRow({ playlist, username, isOwner, onRemove, className }: PlaylistRowProps) {
+export function PlaylistPageRow({ playlist, username, isOwner, onRemove, className }: PlaylistPageRowProps) {
   const thumbnailUrl = playlist.thumbnail_url ?? null;
   const videoLabel = playlist.video_count === 1 ? "1 video" : `${String(playlist.video_count)} videos`;
   const visibilityLabel = playlist.visibility === "private" ? "Private" : "Public";
@@ -35,36 +35,36 @@ export function PlaylistRow({ playlist, username, isOwner, onRemove, className }
   return (
     <div
       className={cn(
-        "relative flex w-full items-stretch gap-3 rounded-lg border border-border/60 bg-card/40 px-3 py-2.5 transition-colors hover:border-primary/40",
+        "relative flex w-full items-stretch gap-4 rounded-xl border border-border/60 bg-card/40 px-4 py-3.5 transition-colors hover:border-primary/40",
         className,
       )}
     >
       <Link
         to="/u/$username/playlists/$playlistId"
         params={{ username, playlistId: playlist.id }}
-        className="absolute inset-0 z-0 rounded-lg"
+        className="absolute inset-0 z-0 rounded-xl"
         aria-label={`Open playlist ${playlist.name}`}
       />
 
-      <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-stretch gap-3">
-        <div className="relative aspect-90/122 h-16 shrink-0 self-center overflow-hidden rounded bg-muted">
+      <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 items-stretch gap-4">
+        <div className="relative aspect-90/122 h-24 shrink-0 self-center overflow-hidden rounded-md bg-muted">
           {thumbnailUrl != null ? (
             <img src={thumbnailUrl} alt="" className="size-full object-cover" loading="lazy" />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-muted">
-              <CameraIcon className="size-5 text-muted-foreground/70" aria-hidden />
+              <CameraIcon className="size-7 text-muted-foreground/70" aria-hidden />
             </div>
           )}
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <p className="truncate text-sm font-medium">{playlist.name}</p>
+          <p className="truncate text-base font-medium">{playlist.name}</p>
 
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {visibilityLabel} · {videoLabel}
           </p>
 
-          <p className="mt-auto pt-1 text-xs text-muted-foreground">
+          <p className="mt-auto pt-2 text-sm text-muted-foreground">
             Created: {formatDate(playlist.created_at)}
             {"  ·  "}
             Updated: {formatDate(playlist.updated_at)}
@@ -77,7 +77,7 @@ export function PlaylistRow({ playlist, username, isOwner, onRemove, className }
           type="button"
           variant="ghost"
           size="icon"
-          className="relative z-20 size-7 shrink-0 self-start text-muted-foreground hover:text-destructive"
+          className="relative z-20 size-8 shrink-0 self-start text-muted-foreground hover:text-destructive"
           aria-label={`Remove playlist ${playlist.name}`}
           onClick={(event) => {
             event.preventDefault();
@@ -85,7 +85,7 @@ export function PlaylistRow({ playlist, username, isOwner, onRemove, className }
             onRemove(playlist.id);
           }}
         >
-          <Trash2 className="size-3.5" />
+          <Trash2 className="size-4" />
         </Button>
       ) : null}
     </div>

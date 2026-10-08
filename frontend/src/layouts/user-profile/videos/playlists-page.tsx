@@ -1,30 +1,33 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@/components/ui/toast";
-import { PlaylistRow } from "@/layouts/user-profile/videos/playlist-row";
+import { PlaylistPageRow } from "@/layouts/user-profile/videos/playlist-page-row";
 import { RemovePlaylistDialog } from "@/layouts/user-profile/videos/remove-playlist-dialog";
 import { getApiErrorMessage } from "@/libs/auth";
-import { deletePlaylist, playlistQueryKeys } from "@/queries/playlist";
-import type { PlaylistSummary } from "@/queries/playlist";
+import { deletePlaylist, playlistQueryKeys, playlistsQueryOptions } from "@/queries/playlist";
 
-type PlaylistSectionProps = {
-  playlists: Array<PlaylistSummary>;
-  username: string;
+type PlaylistsPageProps = {
+  enabled: boolean;
   isOwner: boolean;
-  isLoading?: boolean;
-  emptyMessage?: string;
+  username: string;
 };
 
-export function PlaylistSection({
-  playlists,
-  username,
-  isOwner,
-  isLoading = false,
-  emptyMessage = "No playlists yet.",
-}: PlaylistSectionProps) {
+export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps) {
   const queryClient = useQueryClient();
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+
+  const playlistsQuery = useQuery({
+    ...playlistsQueryOptions({
+      limit: 100,
+      offset: 0,
+    }),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+
+  const playlists = playlistsQuery.data?.items ?? [];
+  const isLoading = enabled && playlistsQuery.isPending && typeof playlistsQuery.data === "undefined";
 
   const pendingPlaylist = playlists.find((item) => item.id === pendingRemoveId);
 
@@ -52,23 +55,29 @@ export function PlaylistSection({
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="h-16 animate-pulse rounded-lg bg-muted/60" />
+      <div className="flex flex-col gap-3">
+        <div className="h-28 animate-pulse rounded-xl bg-muted/60" />
 
-        <div className="h-16 animate-pulse rounded-lg bg-muted/60" />
+        <div className="h-28 animate-pulse rounded-xl bg-muted/60" />
+
+        <div className="h-28 animate-pulse rounded-xl bg-muted/60" />
       </div>
     );
   }
 
   if (playlists.length === 0) {
-    return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {isOwner ? "Playlists you create will show up here." : "No public playlists yet."}
+      </p>
+    );
   }
 
   return (
     <>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         {playlists.map((playlist) => (
-          <PlaylistRow
+          <PlaylistPageRow
             key={playlist.id}
             playlist={playlist}
             username={username}
