@@ -26,7 +26,7 @@ import {
   playlistsQueryOptions,
   removeVideoFromPlaylist,
 } from "@/queries/playlist";
-import type { PlaylistListPage, PlaylistSummary } from "@/queries/playlist";
+import type { PlaylistListPage, PlaylistSummary, PlaylistVisibility } from "@/queries/playlist";
 
 import { VideoActionButton, videoActionBtnClass } from "./video-action-button";
 
@@ -65,7 +65,7 @@ export function PlaylistSaveButton({
   });
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => createPlaylist({ name }),
+    mutationFn: (payload: { name: string; visibility: PlaylistVisibility }) => createPlaylist(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: playlistQueryKeys.all,
@@ -171,8 +171,8 @@ export function PlaylistSaveButton({
       open={createOpen}
       isPending={createMutation.isPending}
       onOpenChange={setCreateOpen}
-      onSubmit={(name) => {
-        createMutation.mutate(name);
+      onSubmit={(payload) => {
+        createMutation.mutate(payload);
       }}
     />
   );

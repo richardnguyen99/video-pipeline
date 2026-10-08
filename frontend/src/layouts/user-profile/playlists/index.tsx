@@ -9,6 +9,7 @@ import { PlaylistPageRow } from "@/layouts/user-profile/playlists/page-row";
 import { RemovePlaylistDialog } from "@/layouts/user-profile/playlists/remove-playlist-dialog";
 import { getApiErrorMessage } from "@/libs/auth";
 import { createPlaylist, deletePlaylist, playlistQueryKeys, playlistsQueryOptions } from "@/queries/playlist";
+import type { PlaylistVisibility } from "@/queries/playlist";
 
 type PlaylistsPageProps = {
   enabled: boolean;
@@ -48,7 +49,7 @@ export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps
   const pendingPlaylist = playlists.find((item) => item.id === pendingRemoveId);
 
   const createMutation = useMutation({
-    mutationFn: (name: string) => createPlaylist({ name }),
+    mutationFn: (payload: { name: string; visibility: PlaylistVisibility }) => createPlaylist(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: playlistQueryKeys.all,
@@ -142,8 +143,8 @@ export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps
             setCreateOpen(false);
           }
         }}
-        onSubmit={(name) => {
-          createMutation.mutate(name);
+        onSubmit={(payload) => {
+          createMutation.mutate(payload);
         }}
       />
 
