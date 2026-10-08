@@ -1,7 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
-import { PlaylistDetailPage } from "@/layouts/user-profile/videos/playlist-detail-page";
+import { PlaylistDetailPage } from "@/layouts/user-profile/playlists/detail-page";
 import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -28,11 +27,5 @@ function PlaylistDetailRoute() {
 
   const enabled = isOwner && !isRestoring && accessToken != null && accessToken.length > 0;
 
-  return (
-    <>
-      <SettingsContentHeader active="videos" title="Playlist" description="Videos saved in this playlist." />
-
-      <PlaylistDetailPage playlistId={playlistId} enabled={enabled} isOwner={isOwner} />
-    </>
-  );
+  return <PlaylistDetailPage playlistId={playlistId} enabled={enabled} isOwner={isOwner} />;
 }

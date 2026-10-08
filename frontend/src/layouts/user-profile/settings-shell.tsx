@@ -14,20 +14,6 @@ type SettingsShellProps = {
 export function SettingsShell({ username, active, isOwner, children }: SettingsShellProps) {
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-6 pt-24 pb-16">
-      <div className="flex flex-col gap-1">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          {isOwner ? "Account center" : "Viewing profile"}
-        </p>
-
-        <h1 className="text-3xl font-semibold tracking-tight">{isOwner ? "Settings" : "Profile"}</h1>
-
-        <p className="max-w-xl text-sm text-muted-foreground">
-          {isOwner
-            ? "Manage your profile and how you show up on Velvet."
-            : "Only information this user has chosen to share publicly is shown here."}
-        </p>
-      </div>
-
       <div className="flex flex-col gap-10 lg:flex-row lg:items-start">
         <SettingsNav username={username} active={active} isOwner={isOwner} />
 

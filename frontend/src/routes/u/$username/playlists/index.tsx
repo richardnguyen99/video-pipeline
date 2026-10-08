@@ -1,7 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { SettingsContentHeader } from "@/layouts/user-profile/settings-shell";
-import { PlaylistsPage } from "@/layouts/user-profile/videos/playlists-page";
+import { PlaylistsPage } from "@/layouts/user-profile/playlists";
 import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -28,15 +27,5 @@ function UserPlaylistsRoute() {
 
   const enabled = isOwner && !isRestoring && accessToken != null && accessToken.length > 0;
 
-  return (
-    <>
-      <SettingsContentHeader
-        active="videos"
-        title="Playlists"
-        description="All of your public and private playlists."
-      />
-
-      <PlaylistsPage enabled={enabled} isOwner={isOwner} username={username} />
-    </>
-  );
+  return <PlaylistsPage enabled={enabled} isOwner={isOwner} username={username} />;
 }
