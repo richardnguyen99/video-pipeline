@@ -16,6 +16,9 @@ from app.schemas.playlist import (
     PlaylistDetailResponse,
     PlaylistListResponse,
     PlaylistResponse,
+    PlaylistShareListResponse,
+    PlaylistShareRequest,
+    PlaylistShareResponse,
     PlaylistUpdateRequest,
     PlaylistVisibilityChangeRequest,
 )
@@ -268,4 +271,103 @@ async def remove_playlist_video(
         playlist_id,
         user_id=current_user.id,
         video_id=video_id,
+    )
+
+
+@router.get(
+    "/playlists/{playlist_id}/shares",
+    response_model=PlaylistShareListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List shared users",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Not allowed to manage this playlist",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Playlist not found",
+        },
+    },
+)
+async def list_playlist_shares(
+    service: PlaylistServiceDep,
+    current_user: CurrentUserDep,
+    playlist_id: UUID = Path(..., description="Playlist primary key."),
+) -> PlaylistShareListResponse:
+    """Return users who can view a restricted playlist (owner only)."""
+
+    return await service.list_shares(
+        playlist_id,
+        user_id=current_user.id,
+    )
+
+
+@router.post(
+    "/playlists/{playlist_id}/shares",
+    response_model=PlaylistShareResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Share playlist with a user",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Not allowed to manage this playlist",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Playlist or user not found",
+        },
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Playlist is not restricted or invalid username",
+        },
+    },
+)
+async def add_playlist_share(
+    service: PlaylistServiceDep,
+    current_user: CurrentUserDep,
+    payload: PlaylistShareRequest,
+    playlist_id: UUID = Path(..., description="Playlist primary key."),
+) -> PlaylistShareResponse:
+    """Grant restricted access to a user by username (owner only)."""
+
+    return await service.add_share(
+        playlist_id,
+        user_id=current_user.id,
+        payload=payload,
+    )
+
+
+@router.delete(
+    "/playlists/{playlist_id}/shares/{shared_user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Revoke playlist share",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Not allowed to manage this playlist",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Playlist or share not found",
+        },
+    },
+)
+async def remove_playlist_share(
+    service: PlaylistServiceDep,
+    current_user: CurrentUserDep,
+    playlist_id: UUID = Path(..., description="Playlist primary key."),
+    shared_user_id: UUID = Path(
+        ...,
+        description="User id of the shared viewer.",
+    ),
+) -> None:
+    """Remove a user's access to a restricted playlist (owner only)."""
+
+    await service.remove_share(
+        playlist_id,
+        user_id=current_user.id,
+        shared_with_user_id=shared_user_id,
     )

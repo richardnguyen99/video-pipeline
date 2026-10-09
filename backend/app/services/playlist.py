@@ -8,7 +8,12 @@ import uuid
 from fastapi import HTTPException, status
 from sqlmodel import select
 
-from app.models.playlist import Playlist, PlaylistVideo
+from app.models.playlist import (
+    Playlist,
+    PlaylistShare,
+    PlaylistVideo,
+    PlaylistVisibility,
+)
 from app.models.user import User
 from app.repositories.video import VideoRepository
 from app.schemas.playlist import (
@@ -16,6 +21,9 @@ from app.schemas.playlist import (
     PlaylistDetailResponse,
     PlaylistListResponse,
     PlaylistResponse,
+    PlaylistShareListResponse,
+    PlaylistShareRequest,
+    PlaylistShareResponse,
     PlaylistUpdateRequest,
     PlaylistVisibilityChangeRequest,
 )
@@ -331,7 +339,15 @@ class PlaylistService:
             ).replace(tzinfo=None)
 
         if payload.visibility is not None:
+            previous = playlist.visibility
             playlist.set_visibility(payload.visibility)
+
+            if previous != payload.visibility:
+                await PlaylistShare.revoke_all_for_playlist(
+                    self._session,
+                    playlist.id,
+                    commit=False,
+                )
 
         self._session.add(playlist)
         await self._session.commit()
@@ -346,18 +362,162 @@ class PlaylistService:
         user_id: uuid.UUID,
         payload: PlaylistVisibilityChangeRequest,
     ) -> PlaylistResponse:
-        """Set playlist visibility (owner only)."""
+        """Set playlist visibility (owner only).
+
+        Any visibility change clears existing shares.
+        """
 
         playlist = await self._require_playlist(playlist_id)
         await self._require_owner(playlist, user_id)
 
+        previous = playlist.visibility
         playlist.set_visibility(payload.visibility)
+
+        if previous != payload.visibility:
+            await PlaylistShare.revoke_all_for_playlist(
+                self._session,
+                playlist.id,
+                commit=False,
+            )
 
         self._session.add(playlist)
         await self._session.commit()
         await self._session.refresh(playlist)
 
         return await self._to_response(playlist)
+
+    async def list_shares(
+        self,
+        playlist_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID,
+    ) -> PlaylistShareListResponse:
+        """List users shared on a playlist (owner only)."""
+
+        playlist = await self._require_playlist(playlist_id)
+        await self._require_owner(playlist, user_id)
+
+        shares = await PlaylistShare.list_for_playlist(
+            self._session,
+            playlist.id,
+        )
+        items: list[PlaylistShareResponse] = []
+
+        for share in shares:
+            user_result = await self._session.exec(
+                select(User).where(User.id == share.shared_with_user_id)
+            )
+            shared_user = user_result.first()
+
+            if shared_user is None:
+                continue
+
+            items.append(
+                PlaylistShareResponse(
+                    user_id=shared_user.id,
+                    username=shared_user.username,
+                    display_name=shared_user.display_name,
+                    created_at=share.created_at,
+                )
+            )
+
+        return PlaylistShareListResponse(items=items, total=len(items))
+
+    async def add_share(
+        self,
+        playlist_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID,
+        payload: PlaylistShareRequest,
+    ) -> PlaylistShareResponse:
+        """Grant restricted access to a user by username (owner only)."""
+
+        playlist = await self._require_playlist(playlist_id)
+        await self._require_owner(playlist, user_id)
+
+        if playlist.visibility != PlaylistVisibility.RESTRICTED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Shares are only allowed on restricted playlists",
+            )
+
+        username = payload.username.strip()
+
+        if not username:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Username is required",
+            )
+
+        user_result = await self._session.exec(
+            select(User).where(User.username == username)
+        )
+        target = user_result.first()
+
+        if target is None or not target.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        if target.id == playlist.owner_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot share a playlist with its owner",
+            )
+
+        existing = await PlaylistShare.get_for_user(
+            self._session,
+            playlist.id,
+            target.id,
+        )
+
+        if existing is not None:
+            return PlaylistShareResponse(
+                user_id=target.id,
+                username=target.username,
+                display_name=target.display_name,
+                created_at=existing.created_at,
+            )
+
+        share = PlaylistShare.create(
+            playlist_id=playlist.id,
+            shared_with_user_id=target.id,
+        )
+        self._session.add(share)
+        await self._session.commit()
+        await self._session.refresh(share)
+
+        return PlaylistShareResponse(
+            user_id=target.id,
+            username=target.username,
+            display_name=target.display_name,
+            created_at=share.created_at,
+        )
+
+    async def remove_share(
+        self,
+        playlist_id: uuid.UUID,
+        *,
+        user_id: uuid.UUID,
+        shared_with_user_id: uuid.UUID,
+    ) -> None:
+        """Revoke a user's access to a restricted playlist (owner only)."""
+
+        playlist = await self._require_playlist(playlist_id)
+        await self._require_owner(playlist, user_id)
+
+        removed = await PlaylistShare.revoke(
+            self._session,
+            playlist.id,
+            shared_with_user_id,
+        )
+
+        if not removed:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Share not found",
+            )
 
     async def delete(
         self,

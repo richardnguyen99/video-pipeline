@@ -15,6 +15,9 @@ from app.schemas.playlist import (
     PlaylistDetailResponse,
     PlaylistListResponse,
     PlaylistResponse,
+    PlaylistShareListResponse,
+    PlaylistShareRequest,
+    PlaylistShareResponse,
     PlaylistUpdateRequest,
     PlaylistVisibilityChangeRequest,
 )
@@ -161,3 +164,49 @@ def test_create_request_accepts_restricted_visibility() -> None:
     )
 
     assert payload.visibility == PlaylistVisibility.RESTRICTED
+
+
+def test_share_request_requires_username() -> None:
+    """Share body requires a non-empty username."""
+
+    with pytest.raises(ValidationError):
+        PlaylistShareRequest()  # type: ignore[call-arg]
+
+    with pytest.raises(ValidationError):
+        PlaylistShareRequest(username="")
+
+
+def test_share_request_accepts_username() -> None:
+    """Valid usernames are accepted."""
+
+    payload = PlaylistShareRequest(username="friend")
+
+    assert payload.username == "friend"
+
+
+def test_share_response_round_trip() -> None:
+    """Share response carries user identity and grant time."""
+
+    now = datetime(2026, 10, 9, 12, 0, 0)
+    user_id = uuid4()
+
+    payload = PlaylistShareResponse(
+        user_id=user_id,
+        username="friend",
+        display_name="Friend",
+        created_at=now,
+    )
+
+    assert payload.user_id == user_id
+    assert payload.username == "friend"
+    assert payload.display_name == "Friend"
+    assert payload.created_at == now
+
+
+def test_share_list_response_defaults_items() -> None:
+    """Share list responses default to an empty items list."""
+
+    payload = PlaylistShareListResponse(total=0)
+
+    assert payload.items == []
+    assert payload.total == 0

@@ -48,6 +48,7 @@ class _SessionSpy:
         self.committed = 0
         self.refreshed: list[Any] = []
         self.deleted: list[Any] = []
+        self.exec_first: Any = None
 
     def add(self, obj: Any) -> None:
         self.added.append(obj)
@@ -60,6 +61,15 @@ class _SessionSpy:
 
     async def delete(self, obj: Any) -> None:
         self.deleted.append(obj)
+
+    async def exec(self, _statement: object) -> Any:
+        first_value = self.exec_first
+
+        class _ExecResult:
+            def first(self) -> Any:
+                return first_value
+
+        return _ExecResult()
 
 
 def _playlist(
@@ -360,7 +370,7 @@ async def test_get_detail_returns_ordered_videos(
         return 2
 
     async def fake_list_by_ids(
-        self: Any,
+        _self: Any,
         video_ids: list[int],
     ) -> list[VideoResponse]:
         assert video_ids == [20, 10]
@@ -767,7 +777,7 @@ async def test_add_video_noop_when_already_present(
     result = await service.add_video(row.id, user_id=user_id, video_id=7)
 
     assert result.video_count == 1
-    assert add_calls == []
+    assert not add_calls
 
 
 @pytest.mark.asyncio
@@ -939,6 +949,17 @@ async def test_change_visibility_updates_level(
     ) -> int:
         return 0
 
+    async def fake_revoke_all(
+        _session: object,
+        playlist_id: UUID,
+        *,
+        commit: bool = True,
+    ) -> int:
+        assert playlist_id == row.id
+        assert commit is False
+
+        return 0
+
     monkeypatch.setattr(
         playlist_mod.Playlist,
         "get_by_id",
@@ -948,6 +969,11 @@ async def test_change_visibility_updates_level(
         playlist_mod.PlaylistVideo,
         "count_for_playlist",
         staticmethod(fake_count),
+    )
+    monkeypatch.setattr(
+        playlist_mod.PlaylistShare,
+        "revoke_all_for_playlist",
+        staticmethod(fake_revoke_all),
     )
 
     result = await service.change_visibility(

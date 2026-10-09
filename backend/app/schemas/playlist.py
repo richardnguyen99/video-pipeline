@@ -70,3 +70,25 @@ class PlaylistDetailResponse(PlaylistResponse):
     """Playlist with ordered video cards."""
 
     videos: list[VideoResponse] = Field(default_factory=list)
+
+
+class PlaylistShareRequest(BaseModel):
+    """Body for granting restricted playlist access to a user."""
+
+    username: str = Field(min_length=1, max_length=64)
+
+
+class PlaylistShareResponse(BaseModel):
+    """A user who can view a restricted playlist."""
+
+    user_id: UUID
+    username: str
+    display_name: Optional[str] = None
+    created_at: datetime
+
+
+class PlaylistShareListResponse(BaseModel):
+    """Shared users for a restricted playlist."""
+
+    items: list[PlaylistShareResponse] = Field(default_factory=list)
+    total: int = Field(ge=0)

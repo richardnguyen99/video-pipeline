@@ -578,7 +578,7 @@ class PlaylistVideo(SQLModel, table=True):
 
 
 class PlaylistShare(SQLModel, table=True):
-    """An explicit access grant for a private playlist."""
+    """An explicit access grant for a restricted playlist."""
 
     __tablename__ = "playlist_share"
     __table_args__ = (
@@ -637,6 +637,36 @@ class PlaylistShare(SQLModel, table=True):
         )
 
     @staticmethod
+    async def list_for_playlist(
+        session: AsyncSession,
+        playlist_id: uuid.UUID,
+    ) -> list["PlaylistShare"]:
+        """Return all shares for a playlist, oldest first."""
+
+        statement = (
+            select(PlaylistShare)
+            .where(PlaylistShare.playlist_id == playlist_id)
+            .order_by(col(PlaylistShare.created_at).asc())
+        )
+
+        return list((await session.exec(statement)).all())
+
+    @staticmethod
+    async def get_for_user(
+        session: AsyncSession,
+        playlist_id: uuid.UUID,
+        shared_with_user_id: uuid.UUID,
+    ) -> Optional["PlaylistShare"]:
+        """Return a share row when present."""
+
+        statement = select(PlaylistShare).where(
+            PlaylistShare.playlist_id == playlist_id,
+            PlaylistShare.shared_with_user_id == shared_with_user_id,
+        )
+
+        return (await session.exec(statement)).first()
+
+    @staticmethod
     async def revoke(
         session: AsyncSession,
         playlist_id: uuid.UUID,
@@ -648,12 +678,12 @@ class PlaylistShare(SQLModel, table=True):
             True if a row was deleted, False if it wasn't there.
         """
 
-        statement = select(PlaylistShare).where(
-            PlaylistShare.playlist_id == playlist_id,
-            PlaylistShare.shared_with_user_id == shared_with_user_id,
+        share = await PlaylistShare.get_for_user(
+            session,
+            playlist_id,
+            shared_with_user_id,
         )
 
-        share = (await session.exec(statement)).first()
         if share is None:
             return False
 
@@ -661,3 +691,28 @@ class PlaylistShare(SQLModel, table=True):
         await session.commit()
 
         return True
+
+    @staticmethod
+    async def revoke_all_for_playlist(
+        session: AsyncSession,
+        playlist_id: uuid.UUID,
+        *,
+        commit: bool = True,
+    ) -> int:
+        """Remove every share for a playlist.
+
+        Returns:
+            Number of shares deleted.
+        """
+
+        shares = await PlaylistShare.list_for_playlist(session, playlist_id)
+        deleted = 0
+
+        for share in shares:
+            await session.delete(share)
+            deleted += 1
+
+        if commit and deleted > 0:
+            await session.commit()
+
+        return deleted
