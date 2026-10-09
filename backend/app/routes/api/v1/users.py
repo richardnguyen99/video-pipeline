@@ -4,12 +4,59 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
+from app.dependencies import CurrentUserDep
 from app.dependencies.repositories import UserRepositoryDep
 from app.dependencies.services import PlaylistServiceDep
 from app.schemas.playlist import PlaylistListResponse
+from app.schemas.user import UserSearchItem, UserSearchResponse
 from app.schemas.user_bio import UserBioResponse
 
 router = APIRouter(prefix="/users")
+
+
+@router.get(
+    "/search",
+    response_model=UserSearchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Search users by username or email",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def search_users(
+    current_user: CurrentUserDep,
+    repository: UserRepositoryDep,
+    q: Annotated[
+        str,
+        Query(
+            min_length=1,
+            max_length=100,
+            description="Substring matched against username and email.",
+        ),
+    ],
+    limit: int = Query(default=10, ge=1, le=50),
+) -> UserSearchResponse:
+    """Return active users matching ``q`` (authenticated callers only)."""
+
+    rows = await repository.search_by_username_or_email(
+        q,
+        limit=limit,
+        exclude_user_id=current_user.id,
+    )
+
+    return UserSearchResponse(
+        items=[
+            UserSearchItem(
+                id=user.id,
+                username=user.username,
+                email=user.email,
+                display_name=preferred_name,
+            )
+            for user, preferred_name in rows
+        ],
+    )
 
 
 @router.get(

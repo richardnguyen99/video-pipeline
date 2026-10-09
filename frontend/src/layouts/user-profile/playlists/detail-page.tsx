@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
+import { Share2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { ChangeVisibilityDialog } from "@/layouts/user-profile/playlists/change-visibility-dialog";
 import { DetailMenu } from "@/layouts/user-profile/playlists/detail-menu";
 import { RemoveFromPlaylistDialog } from "@/layouts/user-profile/playlists/remove-from-playlist-dialog";
 import { RemovePlaylistDialog } from "@/layouts/user-profile/playlists/remove-playlist-dialog";
 import { RenamePlaylistDialog } from "@/layouts/user-profile/playlists/rename-playlist-dialog";
+import { SharePlaylistDialog } from "@/layouts/user-profile/playlists/share-playlist-dialog";
 import { PlaylistVideoCard } from "@/layouts/user-profile/playlists/video-card";
 import { VisibilityTag } from "@/layouts/user-profile/playlists/visibility-tag";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
@@ -44,6 +47,7 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
   const [renameOpen, setRenameOpen] = useState(false);
   const [visibilityOpen, setVisibilityOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const detailQuery = useQuery({
     ...playlistDetailQueryOptions(playlistId),
@@ -214,17 +218,32 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
         </div>
 
         {isOwner ? (
-          <DetailMenu
-            onRename={() => {
-              setRenameOpen(true);
-            }}
-            onChangeVisibility={() => {
-              setVisibilityOpen(true);
-            }}
-            onDelete={() => {
-              setDeleteOpen(true);
-            }}
-          />
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label="Share playlist"
+              onClick={() => {
+                setShareOpen(true);
+              }}
+            >
+              <Share2 className="size-4" aria-hidden />
+              Share
+            </Button>
+
+            <DetailMenu
+              onRename={() => {
+                setRenameOpen(true);
+              }}
+              onChangeVisibility={() => {
+                setVisibilityOpen(true);
+              }}
+              onDelete={() => {
+                setDeleteOpen(true);
+              }}
+            />
+          </div>
         ) : null}
       </div>
 
@@ -303,6 +322,15 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
         }}
         onConfirm={() => {
           deleteMutation.mutate();
+        }}
+      />
+
+      <SharePlaylistDialog
+        open={shareOpen}
+        playlistId={playlistId}
+        visibility={playlist.visibility}
+        onOpenChange={(open) => {
+          setShareOpen(open);
         }}
       />
     </>

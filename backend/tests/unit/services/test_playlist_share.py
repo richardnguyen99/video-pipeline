@@ -47,6 +47,7 @@ class _SessionSpy:
         self.refreshed: list[Any] = []
         self.deleted: list[Any] = []
         self.exec_first: Any = None
+        self.exec_results: list[Any] = []
 
     def add(self, obj: Any) -> None:
         self.added.append(obj)
@@ -61,7 +62,10 @@ class _SessionSpy:
         self.deleted.append(obj)
 
     async def exec(self, _statement: object) -> Any:
-        first_value = self.exec_first
+        if self.exec_results:
+            first_value = self.exec_results.pop(0)
+        else:
+            first_value = self.exec_first
 
         class _ExecResult:
             def first(self) -> Any:
@@ -327,7 +331,7 @@ async def test_add_share_rejects_owner_username(
         display_name="Owner",
         is_active=True,
     )
-    session.exec_first = owner_user
+    session.exec_results = [owner_user, None]
 
     async def fake_get(
         _session: object,
@@ -375,7 +379,7 @@ async def test_add_share_creates_share_for_active_user(
         display_name="Friend",
         is_active=True,
     )
-    session.exec_first = target_user
+    session.exec_results = [target_user, None]
 
     async def fake_get(
         _session: object,
@@ -440,7 +444,7 @@ async def test_add_share_idempotent_when_already_shared(
         is_active=True,
     )
     existing = SimpleNamespace(created_at=created_at)
-    session.exec_first = target_user
+    session.exec_results = [target_user, None]
 
     async def fake_get(
         _session: object,
@@ -546,7 +550,7 @@ async def test_list_shares_returns_shared_users(
         is_active=True,
     )
     session = _SessionSpy()
-    session.exec_first = target_user
+    session.exec_results = [target_user, None]
     repository = _FakeVideoRepository()
     repository.session = session
     service = PlaylistService(

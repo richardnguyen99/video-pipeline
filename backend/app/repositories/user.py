@@ -66,6 +66,55 @@ class UserRepository(BaseRepository):
 
         return result.first()
 
+    async def search_by_username_or_email(
+        self,
+        query: str,
+        *,
+        limit: int = 10,
+        exclude_user_id: Optional[uuid.UUID] = None,
+    ) -> list[tuple[User, Optional[str]]]:
+        """Return active users whose username or email matches ``query``.
+
+        Each row is ``(user, preferred_display_name)`` where the preferred
+        name is ``UserBio.full_name`` when set, otherwise
+        ``User.display_name``.
+
+        Args:
+            query: Case-insensitive substring to match.
+            limit: Maximum rows to return.
+            exclude_user_id: Optional user to omit (e.g. the caller).
+
+        Returns:
+            Matching active users ordered by username, with preferred
+            display names.
+        """
+
+        pattern = f"%{query.strip()}%"
+        statement = (
+            select(User, UserBio.full_name)
+            .outerjoin(UserBio, col(UserBio.user_id) == col(User.id))
+            .where(
+                col(User.is_active).is_(True),
+                (
+                    col(User.username).ilike(pattern)
+                    | col(User.email).ilike(pattern)
+                ),
+            )
+            .order_by(col(User.username).asc())
+            .limit(max(1, min(limit, 50)))
+        )
+
+        if exclude_user_id is not None:
+            statement = statement.where(col(User.id) != exclude_user_id)
+
+        result = await self.session.exec(statement)
+        rows = list(result.all())
+
+        return [
+            (user, full_name if full_name else user.display_name)
+            for user, full_name in rows
+        ]
+
     async def create_with_credential(
         self,
         *,

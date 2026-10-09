@@ -15,6 +15,7 @@ from app.models.playlist import (
     PlaylistVisibility,
 )
 from app.models.user import User
+from app.models.user_bio import UserBio
 from app.repositories.video import VideoRepository
 from app.schemas.playlist import (
     PlaylistCreateRequest,
@@ -122,6 +123,16 @@ class PlaylistService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not allowed to view this playlist",
             )
+
+    async def _preferred_display_name(self, user: User) -> str | None:
+        """Prefer biography full name over the account display name."""
+
+        bio = await UserBio.get_by_user_id(self._session, user.id)
+
+        if bio is not None and bio.full_name:
+            return bio.full_name
+
+        return user.display_name
 
     async def create(
         self,
@@ -412,11 +423,13 @@ class PlaylistService:
             if shared_user is None:
                 continue
 
+            preferred_name = await self._preferred_display_name(shared_user)
+
             items.append(
                 PlaylistShareResponse(
                     user_id=shared_user.id,
                     username=shared_user.username,
-                    display_name=shared_user.display_name,
+                    display_name=preferred_name,
                     created_at=share.created_at,
                 )
             )
@@ -460,38 +473,43 @@ class PlaylistService:
                 detail="User not found",
             )
 
-        if target.id == playlist.owner_id:
+        target_id = target.id
+        target_username = target.username
+
+        if target_id == playlist.owner_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Cannot share a playlist with its owner",
             )
 
+        target_display_name = await self._preferred_display_name(target)
+
         existing = await PlaylistShare.get_for_user(
             self._session,
             playlist.id,
-            target.id,
+            target_id,
         )
 
         if existing is not None:
             return PlaylistShareResponse(
-                user_id=target.id,
-                username=target.username,
-                display_name=target.display_name,
+                user_id=target_id,
+                username=target_username,
+                display_name=target_display_name,
                 created_at=existing.created_at,
             )
 
         share = PlaylistShare.create(
             playlist_id=playlist.id,
-            shared_with_user_id=target.id,
+            shared_with_user_id=target_id,
         )
         self._session.add(share)
         await self._session.commit()
         await self._session.refresh(share)
 
         return PlaylistShareResponse(
-            user_id=target.id,
-            username=target.username,
-            display_name=target.display_name,
+            user_id=target_id,
+            username=target_username,
+            display_name=target_display_name,
             created_at=share.created_at,
         )
 

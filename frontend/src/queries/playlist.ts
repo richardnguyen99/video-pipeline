@@ -35,6 +35,18 @@ export type CreatePlaylistInput = {
   visibility?: PlaylistVisibility;
 };
 
+export type PlaylistShare = {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  created_at: string;
+};
+
+export type PlaylistShareList = {
+  items: Array<PlaylistShare>;
+  total: number;
+};
+
 export const playlistQueryKeys = {
   all: ["playlists"] as const,
   list: (limit: number, offset: number, videoId?: number) =>
@@ -42,6 +54,7 @@ export const playlistQueryKeys = {
   detail: (playlistId: string) => [...playlistQueryKeys.all, "detail", playlistId] as const,
   byUsername: (username: string, limit: number, offset: number) =>
     [...playlistQueryKeys.all, "user", username, { limit, offset }] as const,
+  shares: (playlistId: string) => [...playlistQueryKeys.all, "shares", playlistId] as const,
 };
 
 export async function fetchPlaylists(options?: {
@@ -116,6 +129,31 @@ export async function changePlaylistVisibility(
   return apiFetch<PlaylistSummary>(`/playlists/${playlistId}/visibility`, {
     method: "PATCH",
     data: { visibility },
+  });
+}
+
+export async function fetchPlaylistShares(playlistId: string): Promise<PlaylistShareList> {
+  return apiFetch<PlaylistShareList>(`/playlists/${playlistId}/shares`);
+}
+
+export async function addPlaylistShare(playlistId: string, username: string): Promise<PlaylistShare> {
+  return apiFetch<PlaylistShare>(`/playlists/${playlistId}/shares`, {
+    method: "POST",
+    data: { username },
+  });
+}
+
+export async function removePlaylistShare(playlistId: string, userId: string): Promise<void> {
+  await apiFetch<void>(`/playlists/${playlistId}/shares/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export function playlistSharesQueryOptions(playlistId: string) {
+  return queryOptions({
+    queryKey: playlistQueryKeys.shares(playlistId),
+    queryFn: () => fetchPlaylistShares(playlistId),
+    staleTime: 15_000,
   });
 }
 
