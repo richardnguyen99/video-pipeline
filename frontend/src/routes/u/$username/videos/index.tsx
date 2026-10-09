@@ -5,7 +5,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { Panel as VideosPanel } from "@/layouts/user-profile/videos";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
-import { playlistsQueryOptions, publicPlaylistsByUsernameQueryOptions } from "@/queries/playlist";
+import {
+  playlistsQueryOptions,
+  publicPlaylistsByUsernameQueryOptions,
+  sharedPlaylistsQueryOptions,
+} from "@/queries/playlist";
 import { userVideosQueryOptions } from "@/queries/user-profile";
 import type { UserVideoItem } from "@/queries/user-profile";
 import { likedVideosQueryOptions } from "@/queries/video-reaction";
@@ -54,6 +58,7 @@ function OwnerLibraryData({
 }) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const isRestoring = useAuthStore((state) => state.isRestoring);
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
 
   const canFetchOwnerLists = isOwner && !isRestoring && accessToken != null && accessToken.length > 0;
 
@@ -84,6 +89,15 @@ function OwnerLibraryData({
     placeholderData: keepPreviousData,
   });
 
+  const sharedPlaylistsQuery = useQuery({
+    ...sharedPlaylistsQueryOptions({
+      limit: 100,
+      offset: 0,
+    }),
+    enabled: canFetchOwnerLists,
+    placeholderData: keepPreviousData,
+  });
+
   const publicPlaylistsQuery = useQuery({
     ...publicPlaylistsByUsernameQueryOptions(username, {
       limit: 100,
@@ -100,14 +114,16 @@ function OwnerLibraryData({
   const isLikedLoading = isOwner && (isRestoring || (canFetchOwnerLists && likedQuery.isPending));
 
   const playlists = isOwner ? (ownedPlaylistsQuery.data?.items ?? []) : (publicPlaylistsQuery.data?.items ?? []);
+  const sharedPlaylists = isOwner ? (sharedPlaylistsQuery.data?.items ?? []) : [];
   const isPlaylistsLoading = isOwner
-    ? isRestoring || (canFetchOwnerLists && ownedPlaylistsQuery.isPending)
+    ? isRestoring || (canFetchOwnerLists && (ownedPlaylistsQuery.isPending || sharedPlaylistsQuery.isPending))
     : isRestoring || publicPlaylistsQuery.isPending;
 
   return (
     <VideosPanel
       videos={videos}
       playlists={playlists}
+      sharedPlaylists={sharedPlaylists}
       watchedVideos={watchedVideos}
       isWatchedLoading={isWatchedLoading}
       likedVideos={likedVideos}
@@ -115,6 +131,7 @@ function OwnerLibraryData({
       isPlaylistsLoading={isPlaylistsLoading}
       isOwner={isOwner}
       username={username}
+      authUserId={authUserId}
     />
   );
 }

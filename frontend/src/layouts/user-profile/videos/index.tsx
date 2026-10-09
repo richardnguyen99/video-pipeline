@@ -8,6 +8,7 @@ import type { UserVideoItem } from "@/queries/user-profile";
 type PanelProps = {
   videos: Array<UserVideoItem>;
   playlists: Array<PlaylistSummary>;
+  sharedPlaylists?: Array<PlaylistSummary>;
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading?: boolean;
   likedVideos: Array<Video>;
@@ -15,11 +16,13 @@ type PanelProps = {
   isPlaylistsLoading?: boolean;
   isOwner: boolean;
   username: string;
+  authUserId?: string | null;
 };
 
 export function Panel({
   videos,
   playlists,
+  sharedPlaylists = [],
   watchedVideos,
   isWatchedLoading = false,
   likedVideos,
@@ -27,6 +30,7 @@ export function Panel({
   isPlaylistsLoading = false,
   isOwner,
   username,
+  authUserId = null,
 }: PanelProps) {
   const sections = librarySections(isOwner);
 
@@ -38,6 +42,7 @@ export function Panel({
           section={section}
           videos={videos}
           playlists={playlists}
+          sharedPlaylists={sharedPlaylists}
           watchedVideos={watchedVideos}
           isWatchedLoading={isWatchedLoading}
           likedVideos={likedVideos}
@@ -45,6 +50,7 @@ export function Panel({
           isPlaylistsLoading={isPlaylistsLoading}
           isOwner={isOwner}
           username={username}
+          authUserId={authUserId}
         />
       ))}
     </div>

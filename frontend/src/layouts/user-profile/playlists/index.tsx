@@ -19,6 +19,7 @@ import {
   playlistQueryKeys,
   playlistsQueryOptions,
   publicPlaylistsByUsernameQueryOptions,
+  sharedPlaylistsQueryOptions,
 } from "@/queries/playlist";
 import type { PlaylistVisibility } from "@/queries/playlist";
 import { useAuthStore } from "@/stores/auth-store";
@@ -76,6 +77,15 @@ export function PlaylistsPage({ enabled, isOwner, username, visibility, ownershi
     placeholderData: keepPreviousData,
   });
 
+  const sharedQuery = useQuery({
+    ...sharedPlaylistsQueryOptions({
+      limit: 100,
+      offset: 0,
+    }),
+    enabled: enabled && isOwner,
+    placeholderData: keepPreviousData,
+  });
+
   const publicQuery = useQuery({
     ...publicPlaylistsByUsernameQueryOptions(username, {
       limit: 100,
@@ -87,7 +97,26 @@ export function PlaylistsPage({ enabled, isOwner, username, visibility, ownershi
 
   const playlistsQuery = isOwner ? ownedQuery : publicQuery;
 
-  const playlists = useMemo(() => playlistsQuery.data?.items ?? [], [playlistsQuery.data?.items]);
+  const playlists = useMemo(() => {
+    const ownedItems = playlistsQuery.data?.items ?? [];
+    const sharedItems = isOwner ? (sharedQuery.data?.items ?? []) : [];
+
+    if (!isOwner || sharedItems.length === 0) {
+      return ownedItems;
+    }
+
+    const seen = new Set(ownedItems.map((item) => item.id));
+    const merged = [...ownedItems];
+
+    for (const item of sharedItems) {
+      if (!seen.has(item.id)) {
+        merged.push(item);
+        seen.add(item.id);
+      }
+    }
+
+    return merged;
+  }, [playlistsQuery.data?.items, sharedQuery.data?.items, isOwner]);
 
   const filteredPlaylists = useMemo(() => {
     const next = playlists.filter((playlist) => {
@@ -127,7 +156,10 @@ export function PlaylistsPage({ enabled, isOwner, username, visibility, ownershi
     return next;
   }, [playlists, visibility, ownership, authUserId, sort]);
 
-  const isListLoading = !enabled || (playlistsQuery.isPending && typeof playlistsQuery.data === "undefined");
+  const isListLoading =
+    !enabled ||
+    (playlistsQuery.isPending && typeof playlistsQuery.data === "undefined") ||
+    (isOwner && sharedQuery.isPending && typeof sharedQuery.data === "undefined");
 
   const pendingPlaylist = playlists.find((item) => item.id === pendingRemoveId);
 
@@ -249,21 +281,25 @@ export function PlaylistsPage({ enabled, isOwner, username, visibility, ownershi
         <p className="text-sm text-muted-foreground">No playlists match the selected filters.</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {filteredPlaylists.map((playlist) => (
-            <PlaylistPageRow
-              key={playlist.id}
-              playlist={playlist}
-              username={username}
-              isOwner={isOwner}
-              onRemove={
-                isOwner
-                  ? (playlistId) => {
-                      setPendingRemoveId(playlistId);
-                    }
-                  : undefined
-              }
-            />
-          ))}
+          {filteredPlaylists.map((playlist) => {
+            const ownsPlaylist = isOwner && authUserId != null && playlist.owner_id === authUserId;
+
+            return (
+              <PlaylistPageRow
+                key={playlist.id}
+                playlist={playlist}
+                username={username}
+                isOwner={ownsPlaylist}
+                onRemove={
+                  ownsPlaylist
+                    ? (playlistId) => {
+                        setPendingRemoveId(playlistId);
+                      }
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
       )}
 

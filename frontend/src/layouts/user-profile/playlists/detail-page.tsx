@@ -31,17 +31,17 @@ import { useAuthStore } from "@/stores/auth-store";
 type PlaylistDetailPageProps = {
   playlistId: string;
   enabled: boolean;
-  isOwner: boolean;
   username: string;
 };
 
-export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: usernameProp }: PlaylistDetailPageProps) {
+export function PlaylistDetailPage({ playlistId, enabled, username: usernameProp }: PlaylistDetailPageProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const routeParams = useParams({
     from: "/u/$username/playlists/$playlistId",
   });
   const authUsername = useAuthStore((state) => state.user?.username);
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
   const username = routeParams.username || usernameProp || authUsername || "";
   const [pendingRemoveVideoId, setPendingRemoveVideoId] = useState<number | null>(null);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -72,6 +72,7 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
   const hasResolvedData = typeof playlist !== "undefined";
   const isResolving = !hasResolvedData && (!enabled || detailQuery.isPending || detailQuery.isFetching);
   const errorStatus = detailQuery.error instanceof ApiError ? detailQuery.error.status : null;
+  const isPlaylistOwner = playlist != null && authUserId != null && playlist.owner_id === authUserId;
 
   const removeVideoMutation = useMutation({
     mutationFn: (videoId: number) => removeVideoFromPlaylist(playlistId, videoId),
@@ -217,7 +218,7 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
           </div>
         </div>
 
-        {isOwner ? (
+        {isPlaylistOwner ? (
           <div className="flex shrink-0 items-center gap-1">
             <Button
               type="button"
@@ -255,10 +256,14 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
             <PlaylistVideoCard
               key={video.id}
               video={video}
-              isOwner={isOwner}
-              onRemoveFromPlaylist={(videoId) => {
-                setPendingRemoveVideoId(videoId);
-              }}
+              isOwner={isPlaylistOwner}
+              onRemoveFromPlaylist={
+                isPlaylistOwner
+                  ? (videoId) => {
+                      setPendingRemoveVideoId(videoId);
+                    }
+                  : undefined
+              }
             />
           ))}
         </div>

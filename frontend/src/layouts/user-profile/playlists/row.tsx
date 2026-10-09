@@ -32,17 +32,18 @@ function formatDate(value: string): string {
 export function PlaylistRow({ playlist, username, isOwner, onRemove, className }: PlaylistRowProps) {
   const navigate = useNavigate();
   const thumbnailUrl = playlist.thumbnail_url ?? null;
+  const ownerUsername = playlist.owner_username.length > 0 ? playlist.owner_username : username;
   const videoLabel = playlist.video_count === 1 ? "1 video" : `${String(playlist.video_count)} videos`;
   const createdLabel = formatDate(playlist.created_at);
   const updatedLabel = formatDate(playlist.updated_at);
-  const ownedByLabel = `Owned by ${username}`;
+  const ownedByLabel = `Owned by ${ownerUsername}`;
   const createdAtLabel = `Created ${createdLabel}`;
   const updatedAtLabel = `Updated ${updatedLabel}`;
 
   const openPlaylist = () => {
     void navigate({
       to: "/u/$username/playlists/$playlistId",
-      params: { username, playlistId: playlist.id },
+      params: { username: ownerUsername, playlistId: playlist.id },
     });
   };
 
@@ -55,7 +56,7 @@ export function PlaylistRow({ playlist, username, isOwner, onRemove, className }
     >
       <Link
         to="/u/$username/playlists/$playlistId"
-        params={{ username, playlistId: playlist.id }}
+        params={{ username: ownerUsername, playlistId: playlist.id }}
         className="absolute inset-0 z-0 rounded-lg"
         aria-label={`Open playlist ${playlist.name}`}
       />
@@ -98,7 +99,7 @@ export function PlaylistRow({ playlist, username, isOwner, onRemove, className }
                 onClick={openPlaylist}
               >
                 <UserPenIcon className="size-4 text-muted-foreground/70" aria-hidden />
-                <span>{username}</span>
+                <span>{ownerUsername}</span>
               </TooltipTrigger>
               <TooltipContent side="top">{ownedByLabel}</TooltipContent>
             </Tooltip>

@@ -69,6 +69,15 @@ class _SessionSpy:
             def first(self) -> Any:
                 return first_value
 
+            def all(self) -> list[Any]:
+                if first_value is None:
+                    return []
+
+                if isinstance(first_value, list):
+                    return first_value
+
+                return [first_value]
+
         return _ExecResult()
 
 

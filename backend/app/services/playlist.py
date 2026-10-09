@@ -6,7 +6,7 @@ import datetime
 import uuid
 
 from fastapi import HTTPException, status
-from sqlmodel import select
+from sqlmodel import col, select
 
 from app.models.playlist import (
     Playlist,
@@ -49,12 +49,31 @@ class PlaylistService:
 
         return self._video_repository.session
 
+    async def _owner_usernames(
+        self,
+        owner_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, str]:
+        """Resolve usernames for the given owner ids."""
+
+        unique_ids = list(set(owner_ids))
+
+        if not unique_ids:
+            return {}
+
+        statement = select(User.id, User.username).where(
+            col(User.id).in_(unique_ids),
+        )
+        rows = (await self._session.exec(statement)).all()
+
+        return dict(rows)
+
     async def _to_response(
         self,
         playlist: Playlist,
         *,
         contains_video: bool | None = None,
         thumbnail_url: str | None = None,
+        owner_username: str | None = None,
     ) -> PlaylistResponse:
         """Map a playlist row to a summary response."""
 
@@ -62,10 +81,16 @@ class PlaylistService:
             self._session,
             playlist.id,
         )
+        resolved_username = owner_username
+
+        if resolved_username is None:
+            usernames = await self._owner_usernames([playlist.owner_id])
+            resolved_username = usernames.get(playlist.owner_id, "")
 
         return PlaylistResponse(
             id=playlist.id,
             owner_id=playlist.owner_id,
+            owner_username=resolved_username,
             name=playlist.name,
             description=playlist.description,
             visibility=playlist.visibility,
@@ -191,6 +216,8 @@ class PlaylistService:
         containing: set[uuid.UUID] = set()
         thumbnails: dict[uuid.UUID, str | None] = {}
 
+        owner_usernames: dict[uuid.UUID, str] = {}
+
         if rows:
             row_ids = [row.id for row in rows]
             thumbnails = (
@@ -198,6 +225,9 @@ class PlaylistService:
                     self._session,
                     row_ids,
                 )
+            )
+            owner_usernames = await self._owner_usernames(
+                [row.owner_id for row in rows],
             )
 
             if video_id is not None:
@@ -214,6 +244,56 @@ class PlaylistService:
                     row.id in containing if video_id is not None else None
                 ),
                 thumbnail_url=thumbnails.get(row.id),
+                owner_username=owner_usernames.get(row.owner_id),
+            )
+            for row in rows
+        ]
+
+        return PlaylistListResponse(
+            items=items,
+            total=total,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+
+    async def list_shared_with_me(
+        self,
+        *,
+        user_id: uuid.UUID,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> PlaylistListResponse:
+        """List restricted playlists shared with the authenticated user."""
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        rows = await Playlist.list_shared_with_user(
+            self._session,
+            user_id,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+        total = await Playlist.count_shared_with_user(self._session, user_id)
+        thumbnails: dict[uuid.UUID, str | None] = {}
+        owner_usernames: dict[uuid.UUID, str] = {}
+
+        if rows:
+            row_ids = [row.id for row in rows]
+            thumbnails = (
+                await PlaylistVideo.first_thumbnail_urls_for_playlists(
+                    self._session,
+                    row_ids,
+                )
+            )
+            owner_usernames = await self._owner_usernames(
+                [row.owner_id for row in rows],
+            )
+
+        items = [
+            await self._to_response(
+                row,
+                thumbnail_url=thumbnails.get(row.id),
+                owner_username=owner_usernames.get(row.owner_id),
             )
             for row in rows
         ]
@@ -269,6 +349,7 @@ class PlaylistService:
             await self._to_response(
                 row,
                 thumbnail_url=thumbnails.get(row.id),
+                owner_username=user.username,
             )
             for row in rows
         ]

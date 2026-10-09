@@ -254,6 +254,59 @@ class Playlist(SQLModel, table=True):
         return list(result.all())
 
     @staticmethod
+    async def list_shared_with_user(
+        session: AsyncSession,
+        user_id: uuid.UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list["Playlist"]:
+        """Fetch restricted playlists shared with ``user_id`` (not owned)."""
+
+        statement = (
+            select(Playlist)
+            .join(
+                PlaylistShare,
+                col(PlaylistShare.playlist_id) == col(Playlist.id),
+            )
+            .where(
+                PlaylistShare.shared_with_user_id == user_id,
+                Playlist.visibility == PlaylistVisibility.RESTRICTED,
+                Playlist.owner_id != user_id,
+            )
+            .order_by(col(Playlist.updated_at).desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await session.exec(statement)
+
+        return list(result.all())
+
+    @staticmethod
+    async def count_shared_with_user(
+        session: AsyncSession,
+        user_id: uuid.UUID,
+    ) -> int:
+        """Return how many restricted playlists are shared with ``user_id``."""
+
+        statement = (
+            select(count())
+            .select_from(Playlist)
+            .join(
+                PlaylistShare,
+                col(PlaylistShare.playlist_id) == col(Playlist.id),
+            )
+            .where(
+                PlaylistShare.shared_with_user_id == user_id,
+                Playlist.visibility == PlaylistVisibility.RESTRICTED,
+                Playlist.owner_id != user_id,
+            )
+        )
+        result = await session.exec(statement)
+
+        return int(result.one())
+
+    @staticmethod
     async def count_owned_by_user(
         session: AsyncSession,
         owner_id: uuid.UUID,

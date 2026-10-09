@@ -8,6 +8,7 @@ export type PlaylistVisibility = "public" | "restricted" | "private";
 export type PlaylistSummary = {
   id: string;
   owner_id: string;
+  owner_username: string;
   name: string;
   description: string | null;
   visibility: PlaylistVisibility;
@@ -51,6 +52,7 @@ export const playlistQueryKeys = {
   all: ["playlists"] as const,
   list: (limit: number, offset: number, videoId?: number) =>
     [...playlistQueryKeys.all, "list", { limit, offset, videoId: videoId ?? null }] as const,
+  shared: (limit: number, offset: number) => [...playlistQueryKeys.all, "shared", { limit, offset }] as const,
   detail: (playlistId: string) => [...playlistQueryKeys.all, "detail", playlistId] as const,
   byUsername: (username: string, limit: number, offset: number) =>
     [...playlistQueryKeys.all, "user", username, { limit, offset }] as const,
@@ -165,6 +167,26 @@ export function playlistsQueryOptions(options?: { limit?: number; offset?: numbe
   return queryOptions({
     queryKey: playlistQueryKeys.list(limit, offset, videoId),
     queryFn: () => fetchPlaylists({ limit, offset, videoId }),
+    staleTime: 30_000,
+  });
+}
+
+export async function fetchSharedPlaylists(options?: { limit?: number; offset?: number }): Promise<PlaylistListPage> {
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+
+  return apiFetch<PlaylistListPage>("/playlists/shared", {
+    searchParams: { limit, offset },
+  });
+}
+
+export function sharedPlaylistsQueryOptions(options?: { limit?: number; offset?: number }) {
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+
+  return queryOptions({
+    queryKey: playlistQueryKeys.shared(limit, offset),
+    queryFn: () => fetchSharedPlaylists({ limit, offset }),
     staleTime: 30_000,
   });
 }

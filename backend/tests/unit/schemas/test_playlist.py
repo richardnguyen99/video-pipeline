@@ -98,6 +98,7 @@ def test_playlist_response_round_trip() -> None:
     payload = PlaylistResponse(
         id=playlist_id,
         owner_id=owner_id,
+        owner_username="owner",
         name="Watch later",
         description=None,
         visibility=PlaylistVisibility.PRIVATE,
@@ -126,6 +127,7 @@ def test_playlist_detail_response_defaults_videos() -> None:
     payload = PlaylistDetailResponse(
         id=uuid4(),
         owner_id=uuid4(),
+        owner_username="owner",
         name="Empty",
         visibility=PlaylistVisibility.PRIVATE,
         video_count=0,

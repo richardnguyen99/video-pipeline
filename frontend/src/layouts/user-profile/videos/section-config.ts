@@ -25,6 +25,11 @@ export function librarySections(isOwner: boolean): Array<LibrarySection> {
         kind: "playlists",
       },
       {
+        title: "Curated playlists",
+        subtitle: "Restricted playlists shared with you",
+        kind: "playlists",
+      },
+      {
         title: "Public uploaded videos",
         subtitle: "What you have shared",
         kind: "videos",

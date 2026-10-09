@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { PlaylistDetailPage } from "@/layouts/user-profile/playlists/detail-page";
-import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { useAuthStore } from "@/stores/auth-store";
 
 export const Route = createFileRoute("/u/$username/playlists/$playlistId")({
@@ -10,11 +9,11 @@ export const Route = createFileRoute("/u/$username/playlists/$playlistId")({
 
 function PlaylistDetailRoute() {
   const { username, playlistId } = Route.useParams();
-  const { isOwner } = useResolvedOwner(username);
   const accessToken = useAuthStore((state) => state.accessToken);
   const isRestoring = useAuthStore((state) => state.isRestoring);
+  const authUserId = useAuthStore((state) => state.user?.id ?? null);
 
-  const enabled = isOwner ? !isRestoring && accessToken != null && accessToken.length > 0 : !isRestoring;
+  const enabled = !isRestoring && (authUserId == null || (accessToken != null && accessToken.length > 0));
 
-  return <PlaylistDetailPage playlistId={playlistId} enabled={enabled} isOwner={isOwner} username={username} />;
+  return <PlaylistDetailPage playlistId={playlistId} enabled={enabled} username={username} />;
 }

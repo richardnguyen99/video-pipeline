@@ -15,6 +15,7 @@ type LibrarySectionProps = {
   section: LibrarySectionConfig;
   videos: Array<UserVideoItem>;
   playlists: Array<PlaylistSummary>;
+  sharedPlaylists: Array<PlaylistSummary>;
   watchedVideos: Array<WatchedVideo>;
   isWatchedLoading: boolean;
   likedVideos: Array<Video>;
@@ -22,6 +23,7 @@ type LibrarySectionProps = {
   isPlaylistsLoading: boolean;
   isOwner: boolean;
   username: string;
+  authUserId: string | null;
 };
 
 function getSectionViewAllTo(
@@ -42,17 +44,27 @@ function getSectionViewAllTo(
 function filterPlaylistsForSection(
   section: LibrarySectionConfig,
   playlists: Array<PlaylistSummary>,
+  sharedPlaylists: Array<PlaylistSummary>,
   isOwner: boolean,
+  authUserId: string | null,
 ): Array<PlaylistSummary> {
   if (section.kind !== "playlists") {
     return [];
   }
 
-  if (section.title.toLowerCase().includes("private")) {
+  const title = section.title.toLowerCase();
+
+  if (title.includes("private")) {
     return playlists.filter((item) => item.visibility === "private");
   }
 
-  if (section.title.toLowerCase().includes("public")) {
+  if (title.includes("curated")) {
+    return sharedPlaylists.filter(
+      (item) => item.visibility === "restricted" && (authUserId == null || item.owner_id !== authUserId),
+    );
+  }
+
+  if (title.includes("public")) {
     return playlists.filter((item) => item.visibility === "public");
   }
 
@@ -63,6 +75,7 @@ export function LibrarySection({
   section,
   videos,
   playlists,
+  sharedPlaylists,
   watchedVideos,
   isWatchedLoading,
   likedVideos,
@@ -70,10 +83,23 @@ export function LibrarySection({
   isPlaylistsLoading,
   isOwner,
   username,
+  authUserId,
 }: LibrarySectionProps) {
   const viewAllTo = getSectionViewAllTo(section.kind);
   const sectionUsername = viewAllTo == null ? undefined : username;
-  const sectionPlaylists = filterPlaylistsForSection(section, playlists, isOwner).slice(0, PLAYLIST_PREVIEW_LIMIT);
+  const isCuratedSection = section.title.toLowerCase().includes("curated");
+  const sectionPlaylists = filterPlaylistsForSection(section, playlists, sharedPlaylists, isOwner, authUserId).slice(
+    0,
+    PLAYLIST_PREVIEW_LIMIT,
+  );
+
+  let emptyMessage = "Public playlists will show up here.";
+
+  if (section.title.toLowerCase().includes("private")) {
+    emptyMessage = "Private playlists you create will show up here.";
+  } else if (isCuratedSection) {
+    emptyMessage = "Restricted playlists shared with you will show up here.";
+  }
 
   return (
     <section className="flex flex-col gap-3">
@@ -100,13 +126,9 @@ export function LibrarySection({
         <PlaylistSection
           playlists={sectionPlaylists}
           username={username}
-          isOwner={isOwner}
+          isOwner={isOwner && !isCuratedSection}
           isLoading={isPlaylistsLoading}
-          emptyMessage={
-            section.title.toLowerCase().includes("private")
-              ? "Private playlists you create will show up here."
-              : "Public playlists will show up here."
-          }
+          emptyMessage={emptyMessage}
         />
       ) : null}
     </section>

@@ -1,9 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import {
-  resetAuthBootstrap,
-  markAuthBootstrapSession,
-} from "@/libs/auth-bootstrap";
+import { resetAuthBootstrap, markAuthBootstrapSession } from "@/libs/auth-bootstrap";
 import type { UserProfile } from "@/libs/auth";
 import { readIdentityUsername } from "@/libs/auth-identity-cookie";
 import { authMeQueryOptions, authQueryKeys } from "@/queries/auth";
@@ -44,9 +41,7 @@ export type AuthRouterContext = {
  * await network here; a hung ``/auth/refresh`` must not block navigations or
  * keep content suspended. Access-token bootstrap belongs in ``AuthStoreSync``.
  */
-export async function loadAuthSession(
-  queryClient: QueryClient,
-): Promise<AuthRouterContext> {
+export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRouterContext> {
   purgeLegacyAuthStorage();
 
   if (typeof window === "undefined") {
@@ -73,11 +68,7 @@ export async function loadAuthSession(
 
   const store = useAuthStore.getState();
 
-  if (
-    store.user !== null &&
-    store.accessToken != null &&
-    store.accessToken.length > 0
-  ) {
+  if (store.user !== null && store.accessToken != null && store.accessToken.length > 0) {
     queryClient.setQueryData(authMeQueryOptions.queryKey, store.user);
     store.setRestoring(false);
 
@@ -88,9 +79,7 @@ export async function loadAuthSession(
     };
   }
 
-  const cachedUser = queryClient.getQueryData<UserProfile | null>(
-    authMeQueryOptions.queryKey,
-  );
+  const cachedUser = queryClient.getQueryData<UserProfile | null>(authMeQueryOptions.queryKey);
 
   if (cachedUser != null) {
     if (store.user == null) {
@@ -146,6 +135,12 @@ export async function loadAuthSession(
   };
 }
 
+function clearUserScopedQueries(queryClient: QueryClient): void {
+  void queryClient.removeQueries({ queryKey: ["playlists"] });
+  void queryClient.removeQueries({ queryKey: ["videos", "watched"] });
+  void queryClient.removeQueries({ queryKey: ["video-reaction"] });
+}
+
 /**
  * Apply a known session (login / logout) to Query cache and the Zustand mirror.
  */
@@ -154,7 +149,15 @@ export function applyAuthSession(
   user: UserProfile | null,
   accessToken?: string | null,
 ): void {
+  const previousUserId = useAuthStore.getState().user?.id ?? null;
+  const nextUserId = user?.id ?? null;
+  const sessionChanged = previousUserId !== nextUserId;
+
   void queryClient.cancelQueries({ queryKey: authQueryKeys.me() });
+
+  if (user === null || sessionChanged) {
+    clearUserScopedQueries(queryClient);
+  }
 
   if (user !== null) {
     queryClient.setQueryData(authMeQueryOptions.queryKey, user);

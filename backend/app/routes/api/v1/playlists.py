@@ -83,6 +83,32 @@ async def list_playlists(
 
 
 @router.get(
+    "/playlists/shared",
+    response_model=PlaylistListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List playlists shared with the current user",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def list_shared_playlists(
+    service: PlaylistServiceDep,
+    current_user: CurrentUserDep,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> PlaylistListResponse:
+    """Return restricted playlists shared with the authenticated user."""
+
+    return await service.list_shared_with_me(
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
     "/playlists/{playlist_id}",
     response_model=PlaylistDetailResponse,
     status_code=status.HTTP_200_OK,

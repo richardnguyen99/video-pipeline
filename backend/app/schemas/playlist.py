@@ -47,6 +47,7 @@ class PlaylistResponse(BaseModel):
 
     id: UUID
     owner_id: UUID
+    owner_username: str
     name: str
     description: Optional[str] = None
     visibility: PlaylistVisibility
