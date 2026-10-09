@@ -1,12 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { PlaylistCreateDialog } from "@/layouts/single-video/playlist-create-dialog";
+import { PlaylistFilterMenu } from "@/layouts/user-profile/playlists/filter-menu";
+import type { PlaylistOwnershipFilter, PlaylistVisibilityFilter } from "@/layouts/user-profile/playlists/filter-menu";
 import { PlaylistPageRow } from "@/layouts/user-profile/playlists/page-row";
 import { RemovePlaylistDialog } from "@/layouts/user-profile/playlists/remove-playlist-dialog";
+import { PlaylistSortMenu } from "@/layouts/user-profile/playlists/sort-menu";
+import type { PlaylistSort } from "@/layouts/user-profile/playlists/sort-menu";
 import { getApiErrorMessage } from "@/libs/auth";
 import {
   createPlaylist,
@@ -16,11 +21,15 @@ import {
   publicPlaylistsByUsernameQueryOptions,
 } from "@/queries/playlist";
 import type { PlaylistVisibility } from "@/queries/playlist";
+import { useAuthStore } from "@/stores/auth-store";
 
 type PlaylistsPageProps = {
   enabled: boolean;
   isOwner: boolean;
   username: string;
+  visibility: PlaylistVisibilityFilter;
+  ownership: PlaylistOwnershipFilter;
+  sort: PlaylistSort;
 };
 
 function PlaylistListSkeleton() {
@@ -35,8 +44,26 @@ function PlaylistListSkeleton() {
   );
 }
 
-export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps) {
+function buildPlaylistsSearch(next: {
+  visibility: PlaylistVisibilityFilter;
+  ownership: PlaylistOwnershipFilter;
+  sort: PlaylistSort;
+}): {
+  visibility?: PlaylistVisibilityFilter;
+  ownership?: PlaylistOwnershipFilter;
+  sort?: PlaylistSort;
+} {
+  return {
+    visibility: next.visibility === "all" ? undefined : next.visibility,
+    ownership: next.ownership === "all" ? undefined : next.ownership,
+    sort: next.sort === "created" ? undefined : next.sort,
+  };
+}
+
+export function PlaylistsPage({ enabled, isOwner, username, visibility, ownership, sort }: PlaylistsPageProps) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const authUserId = useAuthStore((state) => state.user?.id);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -60,7 +87,46 @@ export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps
 
   const playlistsQuery = isOwner ? ownedQuery : publicQuery;
 
-  const playlists = playlistsQuery.data?.items ?? [];
+  const playlists = useMemo(() => playlistsQuery.data?.items ?? [], [playlistsQuery.data?.items]);
+
+  const filteredPlaylists = useMemo(() => {
+    const next = playlists.filter((playlist) => {
+      if (visibility !== "all" && playlist.visibility !== visibility) {
+        return false;
+      }
+
+      if (ownership === "mine") {
+        if (authUserId == null || playlist.owner_id !== authUserId) {
+          return false;
+        }
+      }
+
+      if (ownership === "others") {
+        if (authUserId != null && playlist.owner_id === authUserId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    next.sort((left, right) => {
+      if (sort === "videos") {
+        const byCount = right.video_count - left.video_count;
+
+        if (byCount !== 0) {
+          return byCount;
+        }
+
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+      }
+
+      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    });
+
+    return next;
+  }, [playlists, visibility, ownership, authUserId, sort]);
+
   const isListLoading = !enabled || (playlistsQuery.isPending && typeof playlistsQuery.data === "undefined");
 
   const pendingPlaylist = playlists.find((item) => item.id === pendingRemoveId);
@@ -111,8 +177,55 @@ export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps
 
   return (
     <>
-      {isOwner ? (
-        <div className="mb-3 flex justify-end">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <PlaylistFilterMenu
+            visibility={visibility}
+            ownership={ownership}
+            onVisibilityChange={(nextVisibility) => {
+              void navigate({
+                to: "/u/$username/playlists",
+                params: { username },
+                search: buildPlaylistsSearch({
+                  visibility: nextVisibility,
+                  ownership,
+                  sort,
+                }),
+                replace: true,
+              });
+            }}
+            onOwnershipChange={(nextOwnership) => {
+              void navigate({
+                to: "/u/$username/playlists",
+                params: { username },
+                search: buildPlaylistsSearch({
+                  visibility,
+                  ownership: nextOwnership,
+                  sort,
+                }),
+                replace: true,
+              });
+            }}
+          />
+
+          <PlaylistSortMenu
+            sort={sort}
+            onSortChange={(nextSort) => {
+              void navigate({
+                to: "/u/$username/playlists",
+                params: { username },
+                search: buildPlaylistsSearch({
+                  visibility,
+                  ownership,
+                  sort: nextSort,
+                }),
+                replace: true,
+              });
+            }}
+          />
+        </div>
+
+        {isOwner ? (
           <Button
             type="button"
             size="sm"
@@ -123,8 +236,8 @@ export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps
             <Plus className="size-4" aria-hidden />
             New playlist
           </Button>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {isListLoading ? (
         <PlaylistListSkeleton />
@@ -132,9 +245,11 @@ export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps
         <p className="text-sm text-muted-foreground">
           {isOwner ? "Playlists you create will show up here." : "No public playlists yet."}
         </p>
+      ) : filteredPlaylists.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No playlists match the selected filters.</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {playlists.map((playlist) => (
+          {filteredPlaylists.map((playlist) => (
             <PlaylistPageRow
               key={playlist.id}
               playlist={playlist}
