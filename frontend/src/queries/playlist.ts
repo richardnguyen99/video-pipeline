@@ -40,6 +40,8 @@ export const playlistQueryKeys = {
   list: (limit: number, offset: number, videoId?: number) =>
     [...playlistQueryKeys.all, "list", { limit, offset, videoId: videoId ?? null }] as const,
   detail: (playlistId: string) => [...playlistQueryKeys.all, "detail", playlistId] as const,
+  byUsername: (username: string, limit: number, offset: number) =>
+    [...playlistQueryKeys.all, "user", username, { limit, offset }] as const,
 };
 
 export async function fetchPlaylists(options?: {
@@ -133,6 +135,38 @@ export function playlistDetailQueryOptions(playlistId: string) {
   return queryOptions({
     queryKey: playlistQueryKeys.detail(playlistId),
     queryFn: () => fetchPlaylistDetail(playlistId),
+    staleTime: 30_000,
+  });
+}
+
+export async function fetchPublicPlaylistsByUsername(
+  username: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+  },
+): Promise<PlaylistListPage> {
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+
+  return apiFetch<PlaylistListPage>(`/users/${username}/playlists`, {
+    searchParams: { limit, offset },
+  });
+}
+
+export function publicPlaylistsByUsernameQueryOptions(
+  username: string,
+  options?: {
+    limit?: number;
+    offset?: number;
+  },
+) {
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+
+  return queryOptions({
+    queryKey: playlistQueryKeys.byUsername(username, limit, offset),
+    queryFn: () => fetchPublicPlaylistsByUsername(username, { limit, offset }),
     staleTime: 30_000,
   });
 }

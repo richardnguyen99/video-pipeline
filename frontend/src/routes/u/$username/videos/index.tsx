@@ -5,7 +5,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 import { Panel as VideosPanel } from "@/layouts/user-profile/videos";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
-import { playlistsQueryOptions } from "@/queries/playlist";
+import { playlistsQueryOptions, publicPlaylistsByUsernameQueryOptions } from "@/queries/playlist";
 import { userVideosQueryOptions } from "@/queries/user-profile";
 import type { UserVideoItem } from "@/queries/user-profile";
 import { likedVideosQueryOptions } from "@/queries/video-reaction";
@@ -75,12 +75,21 @@ function OwnerLibraryData({
     placeholderData: keepPreviousData,
   });
 
-  const playlistsQuery = useQuery({
+  const ownedPlaylistsQuery = useQuery({
     ...playlistsQueryOptions({
       limit: 100,
       offset: 0,
     }),
     enabled: canFetchOwnerLists,
+    placeholderData: keepPreviousData,
+  });
+
+  const publicPlaylistsQuery = useQuery({
+    ...publicPlaylistsByUsernameQueryOptions(username, {
+      limit: 100,
+      offset: 0,
+    }),
+    enabled: !isOwner && !isRestoring,
     placeholderData: keepPreviousData,
   });
 
@@ -90,8 +99,10 @@ function OwnerLibraryData({
   const likedVideos = isOwner ? (likedQuery.data?.items ?? []).slice(0, PREVIEW_LIMIT) : [];
   const isLikedLoading = isOwner && (isRestoring || (canFetchOwnerLists && likedQuery.isPending));
 
-  const playlists = isOwner ? (playlistsQuery.data?.items ?? []) : [];
-  const isPlaylistsLoading = isOwner && (isRestoring || (canFetchOwnerLists && playlistsQuery.isPending));
+  const playlists = isOwner ? (ownedPlaylistsQuery.data?.items ?? []) : (publicPlaylistsQuery.data?.items ?? []);
+  const isPlaylistsLoading = isOwner
+    ? isRestoring || (canFetchOwnerLists && ownedPlaylistsQuery.isPending)
+    : isRestoring || publicPlaylistsQuery.isPending;
 
   return (
     <VideosPanel

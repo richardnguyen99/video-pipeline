@@ -5,7 +5,11 @@ from uuid import UUID
 
 from fastapi import APIRouter, Path, Query, status
 
-from app.dependencies import CurrentUserDep, PlaylistServiceDep
+from app.dependencies import (
+    CurrentUserDep,
+    OptionalCurrentUserDep,
+    PlaylistServiceDep,
+)
 from app.schemas.playlist import (
     PlaylistAddVideoRequest,
     PlaylistCreateRequest,
@@ -81,9 +85,6 @@ async def list_playlists(
     status_code=status.HTTP_200_OK,
     summary="Get playlist with videos",
     responses={
-        status.HTTP_401_UNAUTHORIZED: {
-            "description": "Missing or invalid authentication",
-        },
         status.HTTP_403_FORBIDDEN: {
             "description": "Not allowed to view this playlist",
         },
@@ -94,14 +95,17 @@ async def list_playlists(
 )
 async def get_playlist(
     service: PlaylistServiceDep,
-    current_user: CurrentUserDep,
+    current_user: OptionalCurrentUserDep,
     playlist_id: UUID = Path(..., description="Playlist primary key."),
 ) -> PlaylistDetailResponse:
-    """Return a playlist and ordered video cards when accessible."""
+    """Return a playlist and ordered video cards when accessible.
+
+    Public playlists are available without authentication.
+    """
 
     return await service.get_detail(
         playlist_id,
-        user_id=current_user.id,
+        user_id=current_user.id if current_user is not None else None,
     )
 
 

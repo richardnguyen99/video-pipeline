@@ -8,7 +8,13 @@ import { PlaylistCreateDialog } from "@/layouts/single-video/playlist-create-dia
 import { PlaylistPageRow } from "@/layouts/user-profile/playlists/page-row";
 import { RemovePlaylistDialog } from "@/layouts/user-profile/playlists/remove-playlist-dialog";
 import { getApiErrorMessage } from "@/libs/auth";
-import { createPlaylist, deletePlaylist, playlistQueryKeys, playlistsQueryOptions } from "@/queries/playlist";
+import {
+  createPlaylist,
+  deletePlaylist,
+  playlistQueryKeys,
+  playlistsQueryOptions,
+  publicPlaylistsByUsernameQueryOptions,
+} from "@/queries/playlist";
 import type { PlaylistVisibility } from "@/queries/playlist";
 
 type PlaylistsPageProps = {
@@ -34,14 +40,25 @@ export function PlaylistsPage({ enabled, isOwner, username }: PlaylistsPageProps
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const playlistsQuery = useQuery({
+  const ownedQuery = useQuery({
     ...playlistsQueryOptions({
       limit: 100,
       offset: 0,
     }),
-    enabled,
+    enabled: enabled && isOwner,
     placeholderData: keepPreviousData,
   });
+
+  const publicQuery = useQuery({
+    ...publicPlaylistsByUsernameQueryOptions(username, {
+      limit: 100,
+      offset: 0,
+    }),
+    enabled: enabled && !isOwner,
+    placeholderData: keepPreviousData,
+  });
+
+  const playlistsQuery = isOwner ? ownedQuery : publicQuery;
 
   const playlists = playlistsQuery.data?.items ?? [];
   const isListLoading = !enabled || (playlistsQuery.isPending && typeof playlistsQuery.data === "undefined");

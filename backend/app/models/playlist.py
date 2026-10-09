@@ -270,6 +270,49 @@ class Playlist(SQLModel, table=True):
         return int(result.one())
 
     @staticmethod
+    async def list_public_by_owner(
+        session: AsyncSession,
+        owner_id: uuid.UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list["Playlist"]:
+        """Fetch public playlists owned by a user, newest updates first."""
+
+        statement = (
+            select(Playlist)
+            .where(
+                Playlist.owner_id == owner_id,
+                Playlist.visibility == PlaylistVisibility.PUBLIC,
+            )
+            .order_by(col(Playlist.updated_at).desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        result = await session.exec(statement)
+
+        return list(result.all())
+
+    @staticmethod
+    async def count_public_by_owner(
+        session: AsyncSession,
+        owner_id: uuid.UUID,
+    ) -> int:
+        """Return how many public playlists a user owns."""
+
+        statement = (
+            select(count())
+            .select_from(Playlist)
+            .where(
+                Playlist.owner_id == owner_id,
+                Playlist.visibility == PlaylistVisibility.PUBLIC,
+            )
+        )
+        result = await session.exec(statement)
+
+        return int(result.one())
+
+    @staticmethod
     async def delete(
         session: AsyncSession,
         playlist: "Playlist",

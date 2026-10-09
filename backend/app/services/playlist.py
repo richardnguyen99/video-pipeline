@@ -6,8 +6,10 @@ import datetime
 import uuid
 
 from fastapi import HTTPException, status
+from sqlmodel import select
 
 from app.models.playlist import Playlist, PlaylistVideo
+from app.models.user import User
 from app.repositories.video import VideoRepository
 from app.schemas.playlist import (
     PlaylistCreateRequest,
@@ -97,7 +99,7 @@ class PlaylistService:
     async def _require_accessible(
         self,
         playlist: Playlist,
-        user_id: uuid.UUID,
+        user_id: uuid.UUID | None,
     ) -> None:
         """Raise 403 when the caller cannot view the playlist."""
 
@@ -204,11 +206,66 @@ class PlaylistService:
             offset=safe_offset,
         )
 
+    async def list_public_for_username(
+        self,
+        *,
+        username: str,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> PlaylistListResponse:
+        """List public playlists owned by ``username`` (no auth required)."""
+
+        user_result = await self._session.exec(
+            select(User).where(User.username == username)
+        )
+        user = user_result.first()
+
+        if user is None or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found.",
+            )
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        rows = await Playlist.list_public_by_owner(
+            self._session,
+            user.id,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+        total = await Playlist.count_public_by_owner(self._session, user.id)
+        thumbnails: dict[uuid.UUID, str | None] = {}
+
+        if rows:
+            row_ids = [row.id for row in rows]
+            thumbnails = (
+                await PlaylistVideo.first_thumbnail_urls_for_playlists(
+                    self._session,
+                    row_ids,
+                )
+            )
+
+        items = [
+            await self._to_response(
+                row,
+                thumbnail_url=thumbnails.get(row.id),
+            )
+            for row in rows
+        ]
+
+        return PlaylistListResponse(
+            items=items,
+            total=total,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+
     async def get_detail(
         self,
         playlist_id: uuid.UUID,
         *,
-        user_id: uuid.UUID,
+        user_id: uuid.UUID | None,
     ) -> PlaylistDetailResponse:
         """Return a playlist and its videos when accessible."""
 

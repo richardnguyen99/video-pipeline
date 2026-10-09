@@ -1,6 +1,11 @@
 """FastAPI dependency providers (composition root for DI)."""
 
-from app.dependencies.auth import CurrentUserDep, get_current_user
+from app.dependencies.auth import (
+    CurrentUserDep,
+    OptionalCurrentUserDep,
+    get_current_user,
+    get_optional_current_user,
+)
 from app.dependencies.database import SessionDep, get_session
 from app.dependencies.redis import (
     AsyncRedisDep,
@@ -63,6 +68,7 @@ __all__ = [
     "ActressServiceDep",
     "AuthServiceDep",
     "CurrentUserDep",
+    "OptionalCurrentUserDep",
     "DirectorRepositoryDep",
     "DirectorServiceDep",
     "EmailServiceDep",
@@ -84,6 +90,7 @@ __all__ = [
     "PlaylistServiceDep",
     "WatchServiceDep",
     "get_current_user",
+    "get_optional_current_user",
     "get_actress_repository",
     "get_actress_service",
     "get_auth_service",

@@ -87,3 +87,34 @@ async def get_current_user(
 
 
 CurrentUserDep = Annotated[UserResponse, Depends(get_current_user)]
+
+
+async def get_optional_current_user(
+    service: AuthServiceDep,
+    redis: AsyncRedisDep,
+    authorization: Annotated[Optional[str], Header()] = None,
+) -> Optional[UserResponse]:
+    """Resolve the signed-in user when a Bearer token is present.
+
+    Returns ``None`` for anonymous requests instead of raising 401.
+    """
+
+    access_token = _extract_bearer_token(authorization)
+
+    if access_token is None:
+        return None
+
+    try:
+        return await get_current_user(
+            service=service,
+            redis=redis,
+            authorization=authorization,
+        )
+    except HTTPException:
+        return None
+
+
+OptionalCurrentUserDep = Annotated[
+    Optional[UserResponse],
+    Depends(get_optional_current_user),
+]

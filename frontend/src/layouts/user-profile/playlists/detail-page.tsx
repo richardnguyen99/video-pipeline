@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 
 import { toast } from "@/components/ui/toast";
@@ -11,7 +11,9 @@ import { RenamePlaylistDialog } from "@/layouts/user-profile/playlists/rename-pl
 import { PlaylistVideoCard } from "@/layouts/user-profile/playlists/video-card";
 import { VisibilityTag } from "@/layouts/user-profile/playlists/visibility-tag";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
+import { ApiError } from "@/libs/api-client";
 import { getApiErrorMessage } from "@/libs/auth";
+import { HttpStatus } from "@/libs/http-status";
 import {
   changePlaylistVisibility,
   deletePlaylist,
@@ -46,12 +48,26 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
   const detailQuery = useQuery({
     ...playlistDetailQueryOptions(playlistId),
     enabled,
-    placeholderData: keepPreviousData,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError) {
+        if (
+          error.status === HttpStatus.NOT_FOUND ||
+          error.status === HttpStatus.FORBIDDEN ||
+          error.status === HttpStatus.UNAUTHORIZED
+        ) {
+          return false;
+        }
+      }
+
+      return failureCount < 1;
+    },
   });
 
   const playlist = detailQuery.data;
   const videos = playlist?.videos ?? [];
-  const isLoading = enabled && detailQuery.isPending && typeof detailQuery.data === "undefined";
+  const hasResolvedData = typeof playlist !== "undefined";
+  const isResolving = !hasResolvedData && (!enabled || detailQuery.isPending || detailQuery.isFetching);
+  const errorStatus = detailQuery.error instanceof ApiError ? detailQuery.error.status : null;
 
   const removeVideoMutation = useMutation({
     mutationFn: (videoId: number) => removeVideoFromPlaylist(playlistId, videoId),
@@ -155,7 +171,7 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
     },
   });
 
-  if (isLoading) {
+  if (isResolving) {
     return (
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {Array.from({ length: 6 }, (_, index) => (
@@ -163,6 +179,14 @@ export function PlaylistDetailPage({ playlistId, enabled, isOwner, username: use
         ))}
       </div>
     );
+  }
+
+  if (detailQuery.isError) {
+    if (errorStatus === HttpStatus.FORBIDDEN) {
+      return <p className="text-sm text-muted-foreground">You do not have permission to view this playlist.</p>;
+    }
+
+    return <p className="text-sm text-muted-foreground">Playlist not found.</p>;
   }
 
   if (playlist == null) {
