@@ -5,17 +5,20 @@ from __future__ import annotations
 import uuid
 
 from fastapi import HTTPException, status
+from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
-from app.models.actress import Actress
+from app.models.actress import Actress, ActressImage
 from app.models.user import User
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.repositories.actress import ActressRepository
 from app.schemas.actress_subscribe import (
+    ActressSubscribeImage,
     ActressSubscribeItem,
     ActressSubscribeListResponse,
     ActressSubscribeStatusResponse,
 )
+from app.utils import query_col, relationship_attr
 
 
 class ActressSubscribeService:
@@ -155,9 +158,25 @@ class ActressSubscribeService:
             )
 
         actress_ids = [row.actress_id for row in rows]
-        statement = select(Actress).where(col(Actress.id).in_(actress_ids))
+        statement = (
+            select(Actress)
+            .where(col(Actress.id).in_(actress_ids))
+            .options(
+                selectinload(
+                    relationship_attr(Actress.actress_image),
+                ).load_only(
+                    query_col(ActressImage.id),
+                    query_col(ActressImage.url),
+                    query_col(ActressImage.attribute),
+                    query_col(ActressImage.fk_id),
+                ),
+            )
+        )
         actress_rows = (await self._session.exec(statement)).all()
         actress_by_id = {actress.id: actress for actress in actress_rows}
+        engagement = await self._repository.count_engagement_for_actresses(
+            actress_ids,
+        )
 
         items: list[ActressSubscribeItem] = []
 
@@ -167,12 +186,33 @@ class ActressSubscribeService:
             if actress is None:
                 continue
 
+            counts = engagement.get(
+                actress.id,
+                {
+                    "view_cnt": 0,
+                    "like_cnt": 0,
+                },
+            )
+            images = [
+                ActressSubscribeImage.model_validate(image)
+                for image in (actress.actress_image or [])
+            ]
+
             items.append(
                 ActressSubscribeItem(
                     actress_id=actress.id,
                     name=actress.name,
                     image_url=actress.image_url,
                     ruby=actress.ruby,
+                    birthday=actress.birthday,
+                    bust=actress.bust,
+                    cup=actress.cup,
+                    waist=actress.waist,
+                    hip=actress.hip,
+                    height=actress.height,
+                    view_cnt=int(counts.get("view_cnt", 0)),
+                    like_cnt=int(counts.get("like_cnt", 0)),
+                    image=images,
                     subscribed_at=row.created_at,
                 ),
             )

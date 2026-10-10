@@ -1,5 +1,7 @@
 """Unit tests for ``app.services.actress_subscribe.ActressSubscribeService``."""
 
+# pylint: disable=unused-argument
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -87,6 +89,21 @@ class _FakeActressRepository:
 
         return self._actress
 
+    async def count_engagement_for_actresses(
+        self,
+        actress_ids: list[int],
+    ) -> dict[int, dict[str, int]]:
+        return {
+            actress_id: {
+                "video_cnt": 0,
+                "sub_cnt": 0,
+                "view_cnt": 12,
+                "like_cnt": 3,
+                "comment_cnt": 0,
+            }
+            for actress_id in actress_ids
+        }
+
 
 def _actress(
     *,
@@ -100,6 +117,13 @@ def _actress(
         name=name,
         image_url=image_url,
         ruby=ruby,
+        birthday="1995-04-12",
+        bust=86,
+        cup="D",
+        waist=58,
+        hip=88,
+        height=160,
+        actress_image=[],
         is_active=True,
     )
 
@@ -391,6 +415,8 @@ async def test_list_for_user_maps_actress_fields(
     assert result.items[0].name == "Mapped"
     assert result.items[0].ruby == "mapped"
     assert result.items[0].image_url == "https://example.com/a.jpg"
+    assert result.items[0].view_cnt == 12
+    assert result.items[0].like_cnt == 3
 
 
 @pytest.mark.asyncio

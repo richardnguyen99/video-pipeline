@@ -4,10 +4,10 @@ import { getRouteApi, redirect } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import type { AuthRouterContext } from "@/libs/auth-session";
 import type { UserProfile } from "@/libs/auth";
+import { userActressSubscriptionsQueryOptions } from "@/queries/actress-subscribe";
 import {
   publicUserProfileQueryOptions,
   userBlockedAccountsQueryOptions,
-  userFollowedCreatorsQueryOptions,
   userPlaylistsQueryOptions,
   userVideosQueryOptions,
 } from "@/queries/user-profile";
@@ -17,8 +17,7 @@ const parentRouteApi = getRouteApi("/u/$username");
 
 export function useUserSettingsContext(username: string) {
   const { user, isAuthenticated, isRestoring } = useAuth();
-  const isOwner =
-    isAuthenticated && user != null && user.username === username;
+  const isOwner = isAuthenticated && user != null && user.username === username;
 
   const profileQuery = useQuery(publicUserProfileQueryOptions(username));
 
@@ -44,9 +43,7 @@ export function useResolvedOwner(username: string): {
   const { isOwner: contextIsOwner, authUser } = parentRouteApi.useRouteContext();
   const storeUser = useAuthStore((state) => state.user);
   const resolvedUser = authUser ?? storeUser;
-  const isOwner =
-    contextIsOwner ||
-    (resolvedUser != null && resolvedUser.username === username);
+  const isOwner = contextIsOwner || (resolvedUser != null && resolvedUser.username === username);
 
   return { isOwner, authUser: resolvedUser };
 }
@@ -110,8 +107,8 @@ export function useOwnerPlaylists(username: string) {
   return useQuery(userPlaylistsQueryOptions(username));
 }
 
-export function useOwnerFollowed(username: string) {
-  return useQuery(userFollowedCreatorsQueryOptions(username));
+export function useOwnerSubscriptions(username: string) {
+  return useQuery(userActressSubscriptionsQueryOptions(username));
 }
 
 export function useOwnerBlocked(username: string) {

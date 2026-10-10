@@ -156,10 +156,7 @@ export function PlaylistsPage({ enabled, isOwner, username, visibility, ownershi
     return next;
   }, [playlists, visibility, ownership, authUserId, sort]);
 
-  const isListLoading =
-    !enabled ||
-    (playlistsQuery.isPending && typeof playlistsQuery.data === "undefined") ||
-    (isOwner && sharedQuery.isPending && typeof sharedQuery.data === "undefined");
+  const isListLoading = !enabled || playlistsQuery.isPending || (isOwner && sharedQuery.isPending);
 
   const pendingPlaylist = playlists.find((item) => item.id === pendingRemoveId);
 
