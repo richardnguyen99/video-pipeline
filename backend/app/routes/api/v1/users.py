@@ -6,7 +6,11 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from app.dependencies import CurrentUserDep
 from app.dependencies.repositories import UserRepositoryDep
-from app.dependencies.services import PlaylistServiceDep
+from app.dependencies.services import (
+    ActressSubscribeServiceDep,
+    PlaylistServiceDep,
+)
+from app.schemas.actress_subscribe import ActressSubscribeListResponse
 from app.schemas.playlist import PlaylistListResponse
 from app.schemas.user import UserSearchItem, UserSearchResponse
 from app.schemas.user_bio import UserBioResponse
@@ -134,6 +138,65 @@ async def list_public_user_playlists(
     """
 
     return await service.list_public_for_username(
+        username=username,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/me/actress-subscriptions",
+    response_model=ActressSubscribeListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List the authenticated user's actress subscriptions",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def list_my_actress_subscriptions(
+    current_user: CurrentUserDep,
+    service: ActressSubscribeServiceDep,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> ActressSubscribeListResponse:
+    """Return actresses the caller is subscribed to (newest first)."""
+
+    return await service.list_for_user(
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/{username}/actress-subscriptions",
+    response_model=ActressSubscribeListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List a user's actress subscriptions",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "description": "No user with this username.",
+        },
+    },
+)
+async def list_user_actress_subscriptions(
+    service: ActressSubscribeServiceDep,
+    username: Annotated[
+        str,
+        Path(
+            min_length=3,
+            max_length=50,
+            description="Public username handle.",
+        ),
+    ],
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> ActressSubscribeListResponse:
+    """Return actresses ``username`` is subscribed to (newest first)."""
+
+    return await service.list_for_username(
         username=username,
         limit=limit,
         offset=offset,

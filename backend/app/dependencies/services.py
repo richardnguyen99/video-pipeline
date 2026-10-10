@@ -22,6 +22,7 @@ from app.search.actress_service import ActressSearchService
 from app.search.client import get_elasticsearch
 from app.search.service import VideoSearchService
 from app.services.actress import ActressService
+from app.services.actress_subscribe import ActressSubscribeService
 from app.services.auth import AuthService
 from app.services.director import DirectorService
 from app.services.email import EmailService
@@ -159,8 +160,20 @@ def get_playlist_service(
     return PlaylistService(video_repository=repository)
 
 
+def get_actress_subscribe_service(
+    repository: ActressRepositoryDep,
+) -> ActressSubscribeService:
+    """Build a request-scoped ``ActressSubscribeService``."""
+
+    return ActressSubscribeService(repository=repository)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
+ActressSubscribeServiceDep = Annotated[
+    ActressSubscribeService,
+    Depends(get_actress_subscribe_service),
+]
 VideoServiceDep = Annotated[VideoService, Depends(get_video_service)]
 WatchServiceDep = Annotated[WatchService, Depends(get_watch_service)]
 GenreServiceDep = Annotated[GenreService, Depends(get_genre_service)]

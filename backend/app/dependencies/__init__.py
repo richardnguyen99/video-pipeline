@@ -36,6 +36,7 @@ from app.dependencies.repositories import (
 )
 from app.dependencies.services import (
     ActressServiceDep,
+    ActressSubscribeServiceDep,
     AuthServiceDep,
     DirectorServiceDep,
     EmailServiceDep,
@@ -48,6 +49,7 @@ from app.dependencies.services import (
     VideoServiceDep,
     WatchServiceDep,
     get_actress_service,
+    get_actress_subscribe_service,
     get_auth_service,
     get_director_service,
     get_email_service,
@@ -66,6 +68,7 @@ from app.dependencies.storage import ObjectStorageDep, get_storage
 __all__ = [
     "ActressRepositoryDep",
     "ActressServiceDep",
+    "ActressSubscribeServiceDep",
     "AuthServiceDep",
     "CurrentUserDep",
     "OptionalCurrentUserDep",
@@ -93,6 +96,7 @@ __all__ = [
     "get_optional_current_user",
     "get_actress_repository",
     "get_actress_service",
+    "get_actress_subscribe_service",
     "get_auth_service",
     "get_director_repository",
     "get_director_service",

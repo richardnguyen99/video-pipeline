@@ -12,9 +12,14 @@ from app.cache.policy import (
     CACHE_TTL_SECONDS,
     SUSTAIN_RATE,
 )
-from app.dependencies import ActressServiceDep
+from app.dependencies import (
+    ActressServiceDep,
+    ActressSubscribeServiceDep,
+    CurrentUserDep,
+)
 from app.schemas.actress import ActressListResponse, ActressResponse
 from app.schemas.actress_filters import ActressSort
+from app.schemas.actress_subscribe import ActressSubscribeStatusResponse
 
 router = APIRouter()
 
@@ -135,3 +140,84 @@ async def get_actress(
     """Return one actress using the same payload as list items."""
 
     return await service.get_actress(actress_id)
+
+
+@router.post(
+    "/actresses/{actress_id}/subscribe",
+    response_model=ActressSubscribeStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Subscribe to an actress",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Actress not found",
+        },
+    },
+)
+async def subscribe_actress(
+    actress_id: int,
+    current_user: CurrentUserDep,
+    service: ActressSubscribeServiceDep,
+) -> ActressSubscribeStatusResponse:
+    """Subscribe the authenticated user to an actress (idempotent)."""
+
+    return await service.subscribe(
+        user_id=current_user.id,
+        actress_id=actress_id,
+    )
+
+
+@router.delete(
+    "/actresses/{actress_id}/subscribe",
+    response_model=ActressSubscribeStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Unsubscribe from an actress",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Actress not found",
+        },
+    },
+)
+async def unsubscribe_actress(
+    actress_id: int,
+    current_user: CurrentUserDep,
+    service: ActressSubscribeServiceDep,
+) -> ActressSubscribeStatusResponse:
+    """Remove the authenticated user's subscription when present."""
+
+    return await service.unsubscribe(
+        user_id=current_user.id,
+        actress_id=actress_id,
+    )
+
+
+@router.get(
+    "/actresses/{actress_id}/subscribe",
+    response_model=ActressSubscribeStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get subscription status for an actress",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Actress not found",
+        },
+    },
+)
+async def get_actress_subscribe_status(
+    actress_id: int,
+    current_user: CurrentUserDep,
+    service: ActressSubscribeServiceDep,
+) -> ActressSubscribeStatusResponse:
+    """Return whether the caller is subscribed and the public sub count."""
+
+    return await service.get_status(
+        user_id=current_user.id,
+        actress_id=actress_id,
+    )
