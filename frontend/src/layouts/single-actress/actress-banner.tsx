@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Clapperboard, Eye, UserPlus } from "lucide-react";
 
-import { ActressReportButton } from "@/layouts/single-actress/actress-report-button";
-import { ActressStat } from "@/layouts/single-actress/actress-stat";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { ActressReportButton } from "@/layouts/single-actress/actress-report-button";
+import { ActressStat } from "@/layouts/single-actress/actress-stat";
+import { ActressSubscribeButton } from "@/layouts/single-actress/actress-subscribe-button";
 import type { ActressSummary } from "@/libs/actresses";
 import { formatBirthdayLabel, formatMeasurements } from "@/libs/actresses";
 import { cn } from "@/libs/utils";
+import { actressSubscribeStatusQueryOptions } from "@/queries/actress-subscribe";
+import { useAuthStore } from "@/stores/auth-store";
 
 const BANNER_PLACEHOLDER = "https://placehold.co/1920x640/1a1220/6b5a70?text=No+Banner";
 const PARALLAX_FACTOR = 0.35;
@@ -77,7 +81,16 @@ export function ActressProfileHeader({ actress, className }: ActressProfileHeade
   const measurements = formatMeasurements(actress);
   const hasProfileDetails = Boolean(birthdayLabel || measurements);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [subscribed, setSubscribed] = useState(false);
+  const user = useAuthStore((state) => state.user);
+  const isRestoring = useAuthStore((state) => state.isRestoring);
+  const isFullyAuthenticated = user != null && user.id !== "";
+
+  const statusQuery = useQuery({
+    ...actressSubscribeStatusQueryOptions(actress.id),
+    enabled: isFullyAuthenticated && !isRestoring,
+  });
+
+  const subscriberCount = statusQuery.data?.sub_cnt ?? actress.subscribers;
 
   return (
     <header
@@ -119,16 +132,7 @@ export function ActressProfileHeader({ actress, className }: ActressProfileHeade
 
             <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
               <div className="flex min-w-0 flex-col items-start gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:gap-3">
-                <Button
-                  type="button"
-                  variant={subscribed ? "secondary" : "default"}
-                  size="sm"
-                  className="w-fit max-w-48"
-                  onClick={() => setSubscribed((v) => !v)}
-                >
-                  <UserPlus className="size-3.5 shrink-0 xs:size-4" />
-                  <span className="line-clamp-1">{subscribed ? "Subscribed" : "Subscribe"}</span>
-                </Button>
+                <ActressSubscribeButton actressId={actress.id} initialSubCount={actress.subscribers} />
 
                 {hasProfileDetails ? (
                   <Button type="button" onClick={() => setDetailsOpen((v) => !v)} variant="ghost">
@@ -165,7 +169,7 @@ export function ActressProfileHeader({ actress, className }: ActressProfileHeade
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-foreground lg:gap-x-8">
           <ActressStat icon={Clapperboard} value={actress.videoCount} label="Videos" />
           <ActressStat icon={Eye} value={actress.totalViews} label="Views" />
-          <ActressStat icon={UserPlus} value={actress.subscribers} label="Subscribers" />
+          <ActressStat icon={UserPlus} value={subscriberCount} label="Subscribers" />
         </div>
       </div>
 

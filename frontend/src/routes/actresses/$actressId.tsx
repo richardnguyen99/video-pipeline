@@ -5,7 +5,9 @@ import { ActressVideosGridSkeleton } from "@/layouts/single-actress/actress-vide
 import type { ActressVideoFilters, ActressVideoSearchParams, ActressVideoSort } from "@/libs/actress-videos";
 import { DEFAULT_ACTRESS_VIDEO_SORT, actressVideoListQueryParams } from "@/libs/actress-videos";
 import { ApiError } from "@/libs/api-client";
+import { actressSubscribeQueryKeys, actressSubscribeStatusQueryOptions } from "@/queries/actress-subscribe";
 import { actressSummaryQueryOptions } from "@/queries/actresses";
+import { fetchActressSubscribeStatusServer } from "@/server/actress-subscribe.functions";
 import { directorFilterInfiniteOptions } from "@/queries/directors";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { labelFilterInfiniteOptions } from "@/queries/labels";
@@ -101,6 +103,27 @@ export const Route = createFileRoute("/actresses/$actressId")({
       throw error;
     }
 
+    let subscribeStatus: Awaited<ReturnType<typeof fetchActressSubscribeStatusServer>> = null;
+
+    if (context.auth.isAuthenticated) {
+      try {
+        subscribeStatus = await fetchActressSubscribeStatusServer({
+          data: { actressId: id },
+        });
+
+        if (subscribeStatus != null) {
+          context.queryClient.setQueryData(actressSubscribeQueryKeys.status(id), subscribeStatus);
+        } else if (context.auth.user?.id) {
+          subscribeStatus = await context.queryClient.query({
+            ...actressSubscribeStatusQueryOptions(id),
+            staleTime: "static",
+          });
+        }
+      } catch {
+        // Status is optional chrome; ignore failures so the page still renders.
+      }
+    }
+
     const filters: ActressVideoFilters = {
       labels: deps.labels ?? [],
       genres: deps.genres ?? [],
@@ -144,6 +167,7 @@ export const Route = createFileRoute("/actresses/$actressId")({
       sort,
       filters,
       pagePromise,
+      subscribeStatus,
     };
   },
   pendingComponent: () => (
@@ -164,6 +188,12 @@ function ActressDetailPage() {
   const data = Route.useLoaderData();
 
   return (
-    <ActressDetail actress={data.actress} sort={data.sort} filters={data.filters} pagePromise={data.pagePromise} />
+    <ActressDetail
+      actress={data.actress}
+      sort={data.sort}
+      filters={data.filters}
+      pagePromise={data.pagePromise}
+      subscribeStatus={data.subscribeStatus}
+    />
   );
 }

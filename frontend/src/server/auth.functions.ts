@@ -122,6 +122,30 @@ const forwardRequestCookieMiddleware = createMiddleware({ type: "function" }).se
 );
 
 
+const ssrAccessTokenByRequest = new WeakMap<Request, string>();
+
+/** Store the Bearer token from a successful SSR refresh for reuse in the same request. */
+export function rememberSsrAccessToken(accessToken: string): void {
+  try {
+    const request = getRequest();
+    ssrAccessTokenByRequest.set(request, accessToken);
+  } catch {
+    // Outside a request context.
+  }
+}
+
+/** Read a Bearer token previously stored for this SSR request, if any. */
+export function readSsrAccessToken(): string | null {
+  try {
+    const request = getRequest();
+    return ssrAccessTokenByRequest.get(request) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+
+
 function getBackendOrigin(): string {
   const fromApiBase = process.env.VITE_API_BASE_URL?.trim();
 
@@ -403,6 +427,7 @@ export const fetchAuthMe = createServerFn({ method: "GET" })
       const session = await refreshAccessTokenFromCookie(cookieHeader);
 
       if (session !== null) {
+        rememberSsrAccessToken(session.access_token);
         const me = await fetchMeWithBearer(session.access_token);
 
         if (me.ok) {
