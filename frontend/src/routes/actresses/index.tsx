@@ -1,17 +1,23 @@
 import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { ActressesGrid, ActressesShell } from "@/layouts/actresses/actresses-index";
 import { ActressesGridSkeleton, ActressesIndexSkeleton } from "@/layouts/actresses/actresses-index-skeleton";
 import type { ActressFilters, ActressPageResult, ActressSort, ActressesSearchParams } from "@/libs/actresses";
 import { DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
-import { actressListQueryOptions } from "@/queries/actresses";
+import {
+  ACTRESS_LIST_STALE_MS,
+  actressEngagementQueryOptions,
+  actressListQueryOptions,
+  mergeActressEngagement,
+} from "@/queries/actresses";
 import { directorFilterInfiniteOptions } from "@/queries/directors";
 import { genreFilterInfiniteOptions } from "@/queries/genres";
 import { labelFilterInfiniteOptions } from "@/queries/labels";
 import { makerFilterInfiniteOptions } from "@/queries/makers";
 import { seriesFilterInfiniteOptions } from "@/queries/series";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const SORT_VALUES: Array<ActressSort> = [
   "trending-year",
@@ -168,7 +174,7 @@ export const Route = createFileRoute("/actresses/")({
 
     const pagePromise = context.queryClient.query({
       ...actressListQueryOptions({ page, sort, filters, q }),
-      staleTime: "static",
+      staleTime: ACTRESS_LIST_STALE_MS,
     });
 
     await Promise.all([
@@ -206,7 +212,7 @@ export const Route = createFileRoute("/actresses/")({
 });
 
 function ActressesPage() {
-  const { sort, filters, q, pagePromise } = Route.useLoaderData();
+  const { sort, filters, q, page, pagePromise } = Route.useLoaderData();
 
   return (
     <ActressesShell
@@ -215,33 +221,82 @@ function ActressesPage() {
       q={q}
       totalSlot={
         <React.Suspense fallback={<Skeleton className="ml-1 inline-block h-4 w-24 align-middle sm:h-5" />}>
-          <ActressesTotalCount pagePromise={pagePromise} />
+          <ActressesTotalCount pagePromise={pagePromise} page={page} sort={sort} filters={filters} q={q} />
         </React.Suspense>
       }
     >
       <React.Suspense fallback={<ActressesGridSkeleton />}>
-        <ActressesGridContent pagePromise={pagePromise} q={q} />
+        <ActressesGridContent pagePromise={pagePromise} page={page} sort={sort} filters={filters} q={q} />
       </React.Suspense>
     </ActressesShell>
   );
 }
 
-function ActressesTotalCount({ pagePromise }: { pagePromise: Promise<ActressPageResult> }) {
-  const data = React.use(pagePromise);
-  return <>{` ${data.total} profiles.`}</>;
+function useActressPageQuery(
+  pagePromise: Promise<ActressPageResult>,
+  page: number,
+  sort: ActressSort,
+  filters: ActressFilters,
+  q?: string,
+) {
+  const initial = React.use(pagePromise);
+
+  return useQuery({
+    ...actressListQueryOptions({ page, sort, filters, q }),
+    initialData: initial,
+  });
 }
 
-function ActressesGridContent({ pagePromise, q }: { pagePromise: Promise<ActressPageResult>; q?: string }) {
-  const data = React.use(pagePromise);
+function ActressesTotalCount({
+  pagePromise,
+  page,
+  sort,
+  filters,
+  q,
+}: {
+  pagePromise: Promise<ActressPageResult>;
+  page: number;
+  sort: ActressSort;
+  filters: ActressFilters;
+  q?: string;
+}) {
+  const listQuery = useActressPageQuery(pagePromise, page, sort, filters, q);
+
+  return <>{` ${listQuery.data.total} profiles.`}</>;
+}
+
+function ActressesGridContent({
+  pagePromise,
+  page,
+  sort,
+  filters,
+  q,
+}: {
+  pagePromise: Promise<ActressPageResult>;
+  page: number;
+  sort: ActressSort;
+  filters: ActressFilters;
+  q?: string;
+}) {
+  const listQuery = useActressPageQuery(pagePromise, page, sort, filters, q);
+  const data = listQuery.data;
+  const actressIds = React.useMemo(() => data.items.map((item) => item.id), [data.items]);
+  const engagementQuery = useQuery(actressEngagementQueryOptions(actressIds));
+  const engagementLoading = actressIds.length > 0 && engagementQuery.data == null && engagementQuery.isFetching;
+  const actresses = React.useMemo(
+    () => mergeActressEngagement(data.items, engagementQuery.data),
+    [data.items, engagementQuery.data],
+  );
 
   return (
     <ActressesGrid
-      actresses={data.items}
+      actresses={actresses}
       page={data.page}
       totalPages={data.totalPages}
       sort={data.sort}
       filters={data.filters}
       q={q}
+      engagementLoading={engagementLoading}
     />
   );
 }

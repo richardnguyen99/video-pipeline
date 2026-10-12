@@ -1,6 +1,8 @@
 """HTTP response cache policies for Redis-backed FastAPI routes."""
 
 from app.cache.policy import (
+    ACTRESS_ENGAGEMENT_CACHE_TTL_SECONDS,
+    ACTRESS_LIST_CACHE_TTL_SECONDS,
     BURST_RATE,
     CACHE_TTL_SECONDS,
     GLOBAL_RATE,
@@ -9,6 +11,8 @@ from app.cache.policy import (
 
 __all__ = [
     "CACHE_TTL_SECONDS",
+    "ACTRESS_LIST_CACHE_TTL_SECONDS",
+    "ACTRESS_ENGAGEMENT_CACHE_TTL_SECONDS",
     "BURST_RATE",
     "SUSTAIN_RATE",
     "GLOBAL_RATE",

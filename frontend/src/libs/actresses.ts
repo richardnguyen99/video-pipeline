@@ -41,7 +41,7 @@ export const DEFAULT_ACTRESS_FILTERS: ActressFilters = {
   cups: [],
 };
 
-export const DEFAULT_ACTRESS_SORT: ActressSort = "trending-month";
+export const DEFAULT_ACTRESS_SORT: ActressSort = "most-videos";
 
 export interface ActressBannerRef {
   id: number;

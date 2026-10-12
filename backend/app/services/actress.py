@@ -14,7 +14,12 @@ from sqlalchemy.exc import NoInspectionAvailable
 
 from app.config import settings
 from app.repositories.actress import ActressRepository
-from app.schemas.actress import ActressListResponse, ActressResponse
+from app.schemas.actress import (
+    ActressEngagementItem,
+    ActressEngagementListResponse,
+    ActressListResponse,
+    ActressResponse,
+)
 from app.schemas.actress_filters import ActressListFilters, ActressSort
 
 if TYPE_CHECKING:
@@ -263,15 +268,9 @@ class ActressService:
             )
             total = await self._repository.count_actresses(filters=filters)
 
-        engagement = await self._repository.count_engagement_for_actresses(
-            [row.id for row in rows],
-        )
-
-        items: list[ActressResponse] = []
-
-        for row in rows:
-            counts = engagement.get(
-                row.id,
+        items: list[ActressResponse] = [
+            self._to_actress_response(
+                row,
                 {
                     "video_cnt": 0,
                     "sub_cnt": 0,
@@ -280,7 +279,8 @@ class ActressService:
                     "comment_cnt": 0,
                 },
             )
-            items.append(self._to_actress_response(row, counts))
+            for row in rows
+        ]
 
         return ActressListResponse(
             items=items,
@@ -288,6 +288,60 @@ class ActressService:
             limit=safe_limit,
             offset=safe_offset,
         )
+
+    async def list_engagement(
+        self,
+        *,
+        actress_ids: list[int],
+    ) -> ActressEngagementListResponse:
+        """Return engagement counters for the given actress ids.
+
+        Args:
+            actress_ids: Distinct positive actress primary keys.
+
+        Returns:
+            Batch engagement items (missing ids report zeros).
+        """
+
+        unique_ids: list[int] = []
+        seen: set[int] = set()
+
+        for actress_id in actress_ids:
+            if actress_id < 1 or actress_id in seen:
+                continue
+
+            seen.add(actress_id)
+            unique_ids.append(actress_id)
+
+        engagement = await self._repository.count_engagement_for_actresses(
+            unique_ids,
+        )
+
+        items: list[ActressEngagementItem] = []
+
+        for actress_id in unique_ids:
+            counts = engagement.get(
+                actress_id,
+                {
+                    "video_cnt": 0,
+                    "sub_cnt": 0,
+                    "view_cnt": 0,
+                    "like_cnt": 0,
+                    "comment_cnt": 0,
+                },
+            )
+            items.append(
+                ActressEngagementItem(
+                    actress_id=actress_id,
+                    video_cnt=counts.get("video_cnt", 0),
+                    sub_cnt=counts.get("sub_cnt", 0),
+                    view_cnt=counts.get("view_cnt", 0),
+                    like_cnt=counts.get("like_cnt", 0),
+                    comment_cnt=counts.get("comment_cnt", 0),
+                ),
+            )
+
+        return ActressEngagementListResponse(items=items)
 
     async def get_actress(self, actress_id: int) -> ActressResponse:
         """Return one actress in the same shape as list items.

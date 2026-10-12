@@ -1,16 +1,18 @@
 import { Link } from "@tanstack/react-router";
 import { Clapperboard, Eye, MessageCircle, ThumbsUp, UserPlus } from "lucide-react";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ActressSummary } from "@/libs/actresses";
 import { formatBirthdayLabel, formatMeasurements } from "@/libs/actresses";
 import { cn, formatCompactNumber } from "@/libs/utils";
 
 interface ActressCardProps {
   actress: ActressSummary;
+  engagementLoading?: boolean;
   className?: string;
 }
 
-export function ActressCard({ actress, className }: ActressCardProps) {
+export function ActressCard({ actress, engagementLoading = false, className }: ActressCardProps) {
   const birthdayLabel = formatBirthdayLabel(actress.birthday);
   const measurements = formatMeasurements(actress);
 
@@ -61,32 +63,44 @@ export function ActressCard({ actress, className }: ActressCardProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground xs:justify-start">
-        <span className="inline-flex items-center gap-1" title="Videos">
-          <Clapperboard className="size-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">Videos</span>
-          {formatCompactNumber(actress.videoCount)}
-        </span>
-        <span className="inline-flex items-center gap-1" title="Views">
-          <Eye className="size-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">Views</span>
-          {formatCompactNumber(actress.totalViews)}
-        </span>
-        <span className="inline-flex items-center gap-1" title="Subscribers">
-          <UserPlus className="size-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">Subscribers</span>
-          {formatCompactNumber(actress.subscribers)}
-        </span>
-        <span className="inline-flex items-center gap-1" title="Likes">
-          <ThumbsUp className="size-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">Likes</span>
-          {formatCompactNumber(actress.totalLikes)}
-        </span>
-        <span className="inline-flex items-center gap-1" title="Comments">
-          <MessageCircle className="size-3.5 shrink-0" aria-hidden />
-          <span className="sr-only">Comments</span>
-          {formatCompactNumber(actress.totalComments)}
-        </span>
+      <div
+        className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground xs:justify-start"
+        aria-busy={engagementLoading || undefined}
+      >
+        {engagementLoading ? (
+          <>
+            <span className="sr-only">Loading engagement</span>
+            <Skeleton className="h-4 w-[50%]" />
+          </>
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-1" title="Videos">
+              <Clapperboard className="size-3.5 shrink-0" aria-hidden />
+              <span className="sr-only">Videos</span>
+              {formatCompactNumber(actress.videoCount)}
+            </span>
+            <span className="inline-flex items-center gap-1" title="Views">
+              <Eye className="size-3.5 shrink-0" aria-hidden />
+              <span className="sr-only">Views</span>
+              {formatCompactNumber(actress.totalViews)}
+            </span>
+            <span className="inline-flex items-center gap-1" title="Subscribers">
+              <UserPlus className="size-3.5 shrink-0" aria-hidden />
+              <span className="sr-only">Subscribers</span>
+              {formatCompactNumber(actress.subscribers)}
+            </span>
+            <span className="inline-flex items-center gap-1" title="Likes">
+              <ThumbsUp className="size-3.5 shrink-0" aria-hidden />
+              <span className="sr-only">Likes</span>
+              {formatCompactNumber(actress.totalLikes)}
+            </span>
+            <span className="inline-flex items-center gap-1" title="Comments">
+              <MessageCircle className="size-3.5 shrink-0" aria-hidden />
+              <span className="sr-only">Comments</span>
+              {formatCompactNumber(actress.totalComments)}
+            </span>
+          </>
+        )}
       </div>
     </Link>
   );

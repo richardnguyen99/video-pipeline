@@ -57,6 +57,7 @@ interface ActressesGridProps {
   sort: ActressSort;
   filters: ActressFilters;
   q?: string;
+  engagementLoading?: boolean;
 }
 
 function buildPageNumbers(page: number, totalPages: number): Array<number> {
@@ -71,7 +72,15 @@ function buildPageNumbers(page: number, totalPages: number): Array<number> {
   return [...pages].sort((a, b) => a - b);
 }
 
-export function ActressesGrid({ actresses, page, totalPages, sort, filters, q }: ActressesGridProps) {
+export function ActressesGrid({
+  actresses,
+  page,
+  totalPages,
+  sort,
+  filters,
+  q,
+  engagementLoading = false,
+}: ActressesGridProps) {
   const prevPage = page > 1 ? page - 1 : null;
   const nextPage = page < totalPages ? page + 1 : null;
 
@@ -89,7 +98,7 @@ export function ActressesGrid({ actresses, page, totalPages, sort, filters, q }:
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {actresses.map((actress) => (
             <li key={actress.id} className="h-full min-w-0">
-              <ActressCard actress={actress} className="h-full" />
+              <ActressCard actress={actress} engagementLoading={engagementLoading} className="h-full" />
             </li>
           ))}
         </ul>

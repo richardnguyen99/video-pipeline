@@ -1,9 +1,14 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
 import type { ActressFilters, ActressPageResult, ActressSort, ActressSummary } from "@/libs/actresses";
 import { ACTRESSES_PAGE_SIZE, DEFAULT_ACTRESS_FILTERS, DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
 import type { NamedEntity } from "@/mocks/videos";
+
+/** List/detail metadata is mostly static; only engagement counts change often. */
+export const ACTRESS_LIST_STALE_MS = 60 * 60_000;
+export const ACTRESS_DETAIL_STALE_MS = 5 * 60_000;
 
 export type ActressAkaApi = {
   id: number;
@@ -106,6 +111,24 @@ export const actressQueryKeys = {
   filterOptions: (q?: string) => [...actressQueryKeys.all, "filter-options", q ?? ""] as const,
   details: () => [...actressQueryKeys.all, "detail"] as const,
   detail: (actressId: number) => [...actressQueryKeys.details(), actressId] as const,
+  engagement: (actressIds: Array<number>) =>
+    [...actressQueryKeys.all, "engagement", [...actressIds].sort((a, b) => a - b)] as const,
+};
+
+/** Static list metadata can stay warm; engagement is fetched separately. */
+export const ACTRESS_ENGAGEMENT_STALE_MS = 5_000;
+
+export type ActressEngagementApi = {
+  actress_id: number;
+  video_cnt: number;
+  sub_cnt: number;
+  view_cnt: number;
+  like_cnt: number;
+  comment_cnt: number;
+};
+
+export type ActressEngagementListApiResponse = {
+  items: Array<ActressEngagementApi>;
 };
 
 export function mapActressToNamedEntity(item: ActressListItemApi): NamedEntity {
@@ -303,6 +326,124 @@ export function actressListQueryOptions(input: {
         filters,
         q,
       }),
+    staleTime: ACTRESS_LIST_STALE_MS,
+  });
+}
+
+export async function fetchActressEngagement(actressIds: Array<number>): Promise<Map<number, ActressEngagementApi>> {
+  const uniqueIds = [...new Set(actressIds.filter((id) => id > 0))];
+
+  if (uniqueIds.length === 0) {
+    return new Map();
+  }
+
+  const response = await apiFetch<ActressEngagementListApiResponse>("/actresses/engagement", {
+    searchParams: { ids: uniqueIds },
+  });
+
+  const byId = new Map<number, ActressEngagementApi>();
+
+  for (const item of response.items) {
+    byId.set(item.actress_id, item);
+  }
+
+  return byId;
+}
+
+export function actressEngagementQueryOptions(actressIds: Array<number>) {
+  const normalized = [...new Set(actressIds.filter((id) => id > 0))].sort((a, b) => a - b);
+
+  return queryOptions({
+    queryKey: actressQueryKeys.engagement(normalized),
+    queryFn: () => fetchActressEngagement(normalized),
+    staleTime: ACTRESS_ENGAGEMENT_STALE_MS,
+    enabled: normalized.length > 0,
+  });
+}
+
+export function mergeActressEngagement(
+  actresses: Array<ActressSummary>,
+  engagement: Map<number, ActressEngagementApi> | undefined,
+): Array<ActressSummary> {
+  if (engagement == null || engagement.size === 0) {
+    return actresses;
+  }
+
+  return actresses.map((actress) => {
+    const counts = engagement.get(actress.id);
+
+    if (counts == null) {
+      return actress;
+    }
+
+    return {
+      ...actress,
+      videoCount: counts.video_cnt,
+      totalViews: counts.view_cnt,
+      totalLikes: counts.like_cnt,
+      totalComments: counts.comment_cnt,
+      subscribers: counts.sub_cnt,
+      viewsYear: counts.view_cnt,
+      viewsMonth: counts.view_cnt,
+      viewsWeek: counts.view_cnt,
+    };
+  });
+}
+
+/**
+ * Patch subscriber count on engagement caches and detail summaries.
+ */
+export function patchActressSubscriberCount(queryClient: QueryClient, actressId: number, subCnt: number): void {
+  queryClient.setQueriesData<Map<number, ActressEngagementApi>>(
+    { queryKey: [...actressQueryKeys.all, "engagement"] },
+    (current) => {
+      if (current == null || !current.has(actressId)) {
+        return current;
+      }
+
+      const next = new Map(current);
+      const existing = next.get(actressId);
+
+      if (existing === undefined || existing.sub_cnt === subCnt) {
+        return current;
+      }
+
+      next.set(actressId, { ...existing, sub_cnt: subCnt });
+
+      return next;
+    },
+  );
+
+  queryClient.setQueriesData<ActressPageResult>({ queryKey: actressQueryKeys.lists() }, (page) => {
+    if (page == null) {
+      return page;
+    }
+
+    const items = page.items.map((item) => {
+      if (item.id !== actressId || item.subscribers === subCnt) {
+        return item;
+      }
+
+      return { ...item, subscribers: subCnt };
+    });
+
+    return { ...page, items };
+  });
+
+  queryClient.setQueryData<ActressListItemApi>(actressQueryKeys.detail(actressId), (current) => {
+    if (current == null || current.sub_cnt === subCnt) {
+      return current;
+    }
+
+    return { ...current, sub_cnt: subCnt };
+  });
+
+  queryClient.setQueryData<ActressSummary>([...actressQueryKeys.detail(actressId), "summary"] as const, (current) => {
+    if (current == null || current.subscribers === subCnt) {
+      return current;
+    }
+
+    return { ...current, subscribers: subCnt };
   });
 }
 
@@ -417,6 +558,7 @@ export function actressDetailQueryOptions(actressId: number) {
   return queryOptions({
     queryKey: actressQueryKeys.detail(actressId),
     queryFn: () => fetchActressDetail(actressId),
+    staleTime: ACTRESS_DETAIL_STALE_MS,
   });
 }
 
@@ -424,5 +566,6 @@ export function actressSummaryQueryOptions(actressId: number) {
   return queryOptions({
     queryKey: [...actressQueryKeys.detail(actressId), "summary"] as const,
     queryFn: () => fetchActressSummary(actressId),
+    staleTime: ACTRESS_DETAIL_STALE_MS,
   });
 }

@@ -14,6 +14,7 @@ import {
   unsubscribeFromActress,
 } from "@/queries/actress-subscribe";
 import type { ActressSubscribeStatusApi } from "@/queries/actress-subscribe";
+import { patchActressSubscriberCount } from "@/queries/actresses";
 import { authMeQueryOptions } from "@/queries/auth";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -112,12 +113,14 @@ export function ActressSubscribeButton({
       };
 
       queryClient.setQueryData(actressSubscribeQueryKeys.status(actressId), optimistic);
+      patchActressSubscriberCount(queryClient, actressId, nextCount);
 
       return { previous };
     },
     onError: (error, _next, context) => {
       if (context?.previous != null) {
         queryClient.setQueryData(actressSubscribeQueryKeys.status(actressId), context.previous);
+        patchActressSubscriberCount(queryClient, actressId, context.previous.sub_cnt);
       } else {
         queryClient.removeQueries({
           queryKey: actressSubscribeQueryKeys.status(actressId),
@@ -132,6 +135,7 @@ export function ActressSubscribeButton({
     },
     onSuccess: (data) => {
       queryClient.setQueryData(actressSubscribeQueryKeys.status(actressId), data);
+      patchActressSubscriberCount(queryClient, actressId, data.sub_cnt);
 
       void queryClient.invalidateQueries({
         queryKey: actressSubscribeQueryKeys.me(),

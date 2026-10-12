@@ -125,3 +125,20 @@ class ActressListResponse(BaseModel):
     total: int = Field(ge=0)
     limit: int = Field(ge=1)
     offset: int = Field(ge=0)
+
+
+class ActressEngagementItem(BaseModel):
+    """Dynamic engagement counters for one actress."""
+
+    actress_id: int = Field(ge=1)
+    video_cnt: int = Field(default=0, ge=0)
+    sub_cnt: int = Field(default=0, ge=0)
+    view_cnt: int = Field(default=0, ge=0)
+    like_cnt: int = Field(default=0, ge=0)
+    comment_cnt: int = Field(default=0, ge=0)
+
+
+class ActressEngagementListResponse(BaseModel):
+    """Batch engagement payload keyed by actress id order of request."""
+
+    items: list[ActressEngagementItem] = Field(default_factory=list)

@@ -5,9 +5,11 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, Query, status
-from redis_fastapi import cache, rate_limit
+from redis_fastapi import cache, cache_evict, rate_limit
 
 from app.cache.policy import (
+    ACTRESS_ENGAGEMENT_CACHE_TTL_SECONDS,
+    ACTRESS_LIST_CACHE_TTL_SECONDS,
     BURST_RATE,
     CACHE_TTL_SECONDS,
     SUSTAIN_RATE,
@@ -17,7 +19,11 @@ from app.dependencies import (
     ActressSubscribeServiceDep,
     CurrentUserDep,
 )
-from app.schemas.actress import ActressListResponse, ActressResponse
+from app.schemas.actress import (
+    ActressEngagementListResponse,
+    ActressListResponse,
+    ActressResponse,
+)
 from app.schemas.actress_filters import ActressSort
 from app.schemas.actress_subscribe import ActressSubscribeStatusResponse
 
@@ -31,7 +37,10 @@ router = APIRouter()
     summary="List actresses",
     dependencies=[
         Depends(
-            cache(ttl=CACHE_TTL_SECONDS, eviction_group="actress_list"),
+            cache(
+                ttl=ACTRESS_LIST_CACHE_TTL_SECONDS,
+                eviction_group="actress_list",
+            ),
         ),
         Depends(
             rate_limit(
@@ -111,6 +120,46 @@ async def list_actresses(
 
 
 @router.get(
+    "/actresses/engagement",
+    response_model=ActressEngagementListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Batch actress engagement counters",
+    dependencies=[
+        Depends(
+            cache(
+                ttl=ACTRESS_ENGAGEMENT_CACHE_TTL_SECONDS,
+                eviction_group="actress_engagement",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                BURST_RATE,
+                scope="actress_engagement:burst",
+            ),
+        ),
+        Depends(
+            rate_limit(
+                SUSTAIN_RATE,
+                scope="actress_engagement:sustain",
+            ),
+        ),
+    ],
+)
+async def list_actress_engagement(
+    service: ActressServiceDep,
+    ids: List[int] = Query(
+        default=...,
+        min_length=1,
+        max_length=100,
+        description="Actress ids to resolve engagement for",
+    ),
+) -> ActressEngagementListResponse:
+    """Return video / sub / view / like / comment counts for many actresses."""
+
+    return await service.list_engagement(actress_ids=ids)
+
+
+@router.get(
     "/actresses/{actress_id}",
     response_model=ActressResponse,
     status_code=status.HTTP_200_OK,
@@ -155,6 +204,10 @@ async def get_actress(
             "description": "Actress not found",
         },
     },
+    dependencies=[
+        Depends(cache_evict(eviction_group="actress_engagement")),
+        Depends(cache_evict(eviction_group="actress_detail")),
+    ],
 )
 async def subscribe_actress(
     actress_id: int,
@@ -182,6 +235,10 @@ async def subscribe_actress(
             "description": "Actress not found",
         },
     },
+    dependencies=[
+        Depends(cache_evict(eviction_group="actress_engagement")),
+        Depends(cache_evict(eviction_group="actress_detail")),
+    ],
 )
 async def unsubscribe_actress(
     actress_id: int,

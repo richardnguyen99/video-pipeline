@@ -313,11 +313,11 @@ async def test_list_actresses_maps_image_attribute_codes(
 
 
 @pytest.mark.asyncio
-async def test_list_actresses_attaches_engagement_counts(
+async def test_list_actresses_skips_engagement_counts(
     service: ActressService,
     repository: FakeActressRepository,
 ) -> None:
-    """Non-zero repository engagement totals are attached to each item."""
+    """List payload keeps static metadata only; engagement is a separate step."""
 
     repository.list_result = [
         SimpleNamespace(
@@ -363,49 +363,71 @@ async def test_list_actresses_attaches_engagement_counts(
 
     result = await service.list_actresses()
 
-    assert repository.engagement_calls == [[1, 2]]
-    assert result.items[0].video_cnt == 12
-    assert result.items[0].sub_cnt == 4
-    assert result.items[0].view_cnt == 900
-    assert result.items[1].video_cnt == 1
-    assert result.items[1].sub_cnt == 0
-    assert result.items[1].view_cnt == 15
-
-
-@pytest.mark.asyncio
-async def test_list_actresses_engagement_defaults_when_repo_omits_id(
-    service: ActressService,
-    repository: FakeActressRepository,
-) -> None:
-    """Missing engagement entry for an id becomes zeros on the response."""
-
-    repository.list_result = [
-        SimpleNamespace(
-            id=9,
-            name="Solo",
-            ruby=None,
-            image_url=None,
-            dmm_id=None,
-            bust=None,
-            cup=None,
-            waist=None,
-            hip=None,
-            height=None,
-            birthday=None,
-            created_at=None,
-            updated_at=None,
-            actress_aka=None,
-            actress_image=[],
-        ),
-    ]
-    repository.count_result = 1
-    repository.engagement_result = {}
-
-    result = await service.list_actresses()
-
+    assert repository.engagement_calls == []
     assert result.items[0].video_cnt == 0
     assert result.items[0].sub_cnt == 0
     assert result.items[0].view_cnt == 0
+    assert result.items[1].video_cnt == 0
+    assert result.items[1].sub_cnt == 0
+    assert result.items[1].view_cnt == 0
+
+
+@pytest.mark.asyncio
+async def test_list_engagement_returns_counts_for_ids(
+    service: ActressService,
+    repository: FakeActressRepository,
+) -> None:
+    """Batch engagement endpoint attaches repository totals by actress id."""
+
+    repository.engagement_result = {
+        1: {
+            "video_cnt": 12,
+            "sub_cnt": 4,
+            "view_cnt": 900,
+            "like_cnt": 3,
+            "comment_cnt": 1,
+        },
+        2: {
+            "video_cnt": 1,
+            "sub_cnt": 0,
+            "view_cnt": 15,
+            "like_cnt": 0,
+            "comment_cnt": 0,
+        },
+    }
+
+    result = await service.list_engagement(actress_ids=[1, 2, 2, 0, -1])
+
+    assert repository.engagement_calls == [[1, 2]]
+    assert len(result.items) == 2
+    assert result.items[0].actress_id == 1
+    assert result.items[0].video_cnt == 12
+    assert result.items[0].sub_cnt == 4
+    assert result.items[0].view_cnt == 900
+    assert result.items[1].actress_id == 2
+    assert result.items[1].video_cnt == 1
+    assert result.items[1].sub_cnt == 0
+
+
+@pytest.mark.asyncio
+async def test_list_engagement_defaults_when_repo_omits_id(
+    service: ActressService,
+    repository: FakeActressRepository,
+) -> None:
+    """Missing engagement entry for an id becomes zeros on the batch response."""
+
+    repository.engagement_result = {}
+
+    result = await service.list_engagement(actress_ids=[9])
+
+    assert repository.engagement_calls == [[9]]
+    assert len(result.items) == 1
+    assert result.items[0].actress_id == 9
+    assert result.items[0].video_cnt == 0
+    assert result.items[0].sub_cnt == 0
+    assert result.items[0].view_cnt == 0
+    assert result.items[0].like_cnt == 0
+    assert result.items[0].comment_cnt == 0
 
 
 @pytest.mark.asyncio
