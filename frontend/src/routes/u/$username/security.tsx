@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { SecurityPanel } from "@/layouts/user-profile/security-panel";
-import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
+import { SecurityPanel } from "@/layouts/user-profile/security";
+import { SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
 import { requireOwnerBeforeLoad, useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 
 export const Route = createFileRoute("/u/$username/security")({
@@ -17,15 +17,5 @@ function UserSecurityPage() {
     return <SettingsContentSkeleton />;
   }
 
-  return (
-    <>
-      <SettingsContentHeader
-        active="security"
-        title="Security"
-        description="Fine-tune your experience and keep your account feeling like yours."
-      />
-
-      <SecurityPanel user={authUser} />
-    </>
-  );
+  return <SecurityPanel user={authUser} />;
 }

@@ -1,6 +1,6 @@
 import { ChangePasswordForm } from "@/layouts/auth/change-password-form";
 import { Button } from "@/components/ui/button";
-import { ChangeEmailRequestButton } from "@/layouts/user-profile/change-email-request";
+import { ChangeEmailRequestButton } from "@/layouts/user-profile/security/change-email-request";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import type { UserProfile } from "@/libs/auth";
 
