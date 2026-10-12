@@ -44,7 +44,9 @@ export default function SiteHeader() {
   });
   const user = storeUser ?? routeAuth.user ?? null;
   const isAuthenticated = user != null;
-  const showAuthPlaceholder = !isAuthenticated && isRestoring;
+  // Only hold a placeholder while a session may still appear. When SSR (or
+  // root beforeLoad) already resolved a guest, paint "Sign in" immediately.
+  const showAuthPlaceholder = !isAuthenticated && isRestoring && routeAuth.isAuthenticated;
   const navigate = useNavigate();
   const router = useRouter();
 

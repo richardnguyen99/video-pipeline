@@ -1,6 +1,7 @@
 import type { VideoSort } from "@/libs/discover-videos";
 import type { NamedEntity, Video } from "@/mocks/videos";
 import { videoCommentCount } from "@/mocks/videos";
+import { fetchVideoList } from "@/queries/videos";
 
 /** 4 rows × 4 columns */
 export const ACTRESS_VIDEO_PAGE_SIZE = 16;
@@ -176,7 +177,6 @@ export async function getActressVideoPage(
     allVideos?: Array<Video>;
   } = {},
 ): Promise<ActressVideoPageResult> {
-  const { fetchVideoList } = await import("@/queries/videos");
   const sort = options.sort ?? DEFAULT_ACTRESS_VIDEO_SORT;
   const filters = options.filters ?? DEFAULT_ACTRESS_VIDEO_FILTERS;
   const page = Math.max(1, options.page ?? 1);

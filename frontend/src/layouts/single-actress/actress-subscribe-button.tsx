@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouteContext } from "@tanstack/react-router";
 import { UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -11,14 +12,16 @@ import {
   actressSubscribeStatusQueryOptions,
   subscribeToActress,
   unsubscribeFromActress,
-  type ActressSubscribeStatusApi,
 } from "@/queries/actress-subscribe";
+import type { ActressSubscribeStatusApi } from "@/queries/actress-subscribe";
 import { authMeQueryOptions } from "@/queries/auth";
 import { useAuthStore } from "@/stores/auth-store";
 
 type ActressSubscribeButtonProps = {
   actressId: number;
   initialSubCount?: number;
+  /** SSR/loader status — same transport path as route auth for the header. */
+  initialStatus?: ActressSubscribeStatusApi | null;
   className?: string;
 };
 
@@ -26,25 +29,53 @@ function isRealUser(user: UserProfile | null | undefined): boolean {
   return user != null && user.id !== "";
 }
 
-export function ActressSubscribeButton({ actressId, initialSubCount = 0, className }: ActressSubscribeButtonProps) {
+export function ActressSubscribeButton({
+  actressId,
+  initialSubCount = 0,
+  initialStatus = null,
+  className,
+}: ActressSubscribeButtonProps) {
   const queryClient = useQueryClient();
   const storeUser = useAuthStore((state) => state.user);
   const isRestoring = useAuthStore((state) => state.isRestoring);
 
+  const routeAuth = useRouteContext({
+    from: "__root__",
+    select: (ctx) => ctx.auth,
+  });
+
   const cachedUser = queryClient.getQueryData<UserProfile | null>(authMeQueryOptions.queryKey) ?? null;
-  const user = isRealUser(storeUser) ? storeUser : (cachedUser ?? storeUser);
+
+  const user = (() => {
+    if (isRealUser(storeUser)) {
+      return storeUser;
+    }
+
+    if (isRealUser(routeAuth.user)) {
+      return routeAuth.user;
+    }
+
+    if (isRealUser(cachedUser)) {
+      return cachedUser;
+    }
+
+    return storeUser ?? routeAuth.user ?? cachedUser ?? null;
+  })();
+
   const isFullyAuthenticated = isRealUser(user);
   const isIdentityHint = user != null && user.id === "";
 
   const cachedStatus = queryClient.getQueryData<ActressSubscribeStatusApi>(actressSubscribeQueryKeys.status(actressId));
 
+  const resolvedInitial = cachedStatus ?? initialStatus ?? undefined;
+
   const statusQuery = useQuery({
     ...actressSubscribeStatusQueryOptions(actressId),
     enabled: isFullyAuthenticated && !isRestoring,
-    initialData: cachedStatus,
+    initialData: resolvedInitial,
   });
 
-  const status = statusQuery.data ?? cachedStatus;
+  const status = statusQuery.data ?? resolvedInitial ?? null;
   const isStatusResolved = status != null;
   const isSubscribed = status?.is_subscribed === true;
 
@@ -112,14 +143,14 @@ export function ActressSubscribeButton({ actressId, initialSubCount = 0, classNa
   });
 
   const pending = mutation.isPending;
-  const isServer = typeof window === "undefined";
 
   /**
-   * Prefer SSR/dehydrated status when present so the first paint matches HTML.
-   * On the client, hold a neutral state while session bootstrap runs — never
-   * flash the guest "Subscribe" label for an authenticated session.
+   * Loader ``initialStatus`` is serialized with the route (same path as header
+   * auth). When present, paint immediately. Hold a neutral state only while a
+   * real or pending session may still produce a status — never for a known guest.
    */
-  const isResolving = (!isServer && isRestoring) || isIdentityHint || (isFullyAuthenticated && !isStatusResolved);
+  const mayBeAuthenticated = isFullyAuthenticated || isIdentityHint || (isRestoring && routeAuth.isAuthenticated);
+  const isResolving = !isStatusResolved && mayBeAuthenticated;
 
   function handleClick() {
     if (!isFullyAuthenticated || isResolving || pending || !isStatusResolved) {

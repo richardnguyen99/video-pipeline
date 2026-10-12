@@ -65,11 +65,9 @@ export function pickSubscribeImageUrl(
   fallback?: string | null,
 ): string | null {
   if (images != null && images.length > 0) {
-    const byAttr = (attr: string) =>
-      images.find((img) => img.attribute.toLowerCase() === attr);
+    const byAttr = (attr: string) => images.find((img) => img.attribute.toLowerCase() === attr);
 
-    const preferred =
-      byAttr("default") ?? byAttr("thumbnail") ?? byAttr("avatar") ?? images[0];
+    const preferred = byAttr("default") ?? byAttr("thumbnail") ?? byAttr("avatar") ?? images[0];
 
     if (preferred.url !== "") {
       return preferred.url;
@@ -107,9 +105,7 @@ function formatSubscribeMeasurements(item: ActressSubscribeItemApi): string | nu
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-export function mapActressSubscribeItem(
-  item: ActressSubscribeItemApi,
-): ActressSubscription {
+export function mapActressSubscribeItem(item: ActressSubscribeItemApi): ActressSubscription {
   return {
     actressId: item.actress_id,
     name: item.name,
@@ -131,26 +127,21 @@ export function mapActressSubscribeItem(
 
 export const actressSubscribeQueryKeys = {
   all: ["actress-subscriptions"] as const,
-  byUsername: (username: string) =>
-    [...actressSubscribeQueryKeys.all, "user", username] as const,
+  byUsername: (username: string) => [...actressSubscribeQueryKeys.all, "user", username] as const,
   me: () => [...actressSubscribeQueryKeys.all, "me"] as const,
-  status: (actressId: number) =>
-    [...actressSubscribeQueryKeys.all, "status", actressId] as const,
+  status: (actressId: number) => [...actressSubscribeQueryKeys.all, "status", actressId] as const,
 };
 
 export async function fetchUserActressSubscriptions(
   username: string,
   options?: { limit?: number; offset?: number },
 ): Promise<ActressSubscribeListApiResponse> {
-  return apiFetch<ActressSubscribeListApiResponse>(
-    `/users/${encodeURIComponent(username)}/actress-subscriptions`,
-    {
-      searchParams: {
-        limit: options?.limit ?? 50,
-        offset: options?.offset ?? 0,
-      },
+  return apiFetch<ActressSubscribeListApiResponse>(`/users/${encodeURIComponent(username)}/actress-subscriptions`, {
+    searchParams: {
+      limit: options?.limit ?? 50,
+      offset: options?.offset ?? 0,
     },
-  );
+  });
 }
 
 export async function fetchMyActressSubscriptions(options?: {
@@ -165,25 +156,19 @@ export async function fetchMyActressSubscriptions(options?: {
   });
 }
 
-export async function subscribeToActress(
-  actressId: number,
-): Promise<ActressSubscribeStatusApi> {
+export async function subscribeToActress(actressId: number): Promise<ActressSubscribeStatusApi> {
   return apiFetch<ActressSubscribeStatusApi>(`/actresses/${actressId}/subscribe`, {
     method: "POST",
   });
 }
 
-export async function unsubscribeFromActress(
-  actressId: number,
-): Promise<ActressSubscribeStatusApi> {
+export async function unsubscribeFromActress(actressId: number): Promise<ActressSubscribeStatusApi> {
   return apiFetch<ActressSubscribeStatusApi>(`/actresses/${actressId}/subscribe`, {
     method: "DELETE",
   });
 }
 
-export async function fetchActressSubscribeStatus(
-  actressId: number,
-): Promise<ActressSubscribeStatusApi> {
+export async function fetchActressSubscribeStatus(actressId: number): Promise<ActressSubscribeStatusApi> {
   return apiFetch<ActressSubscribeStatusApi>(`/actresses/${actressId}/subscribe`);
 }
 

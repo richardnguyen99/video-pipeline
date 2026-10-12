@@ -40,10 +40,20 @@ export function getRouter() {
       if (dehydrated.queryClientState.length > 0) {
         hydrate(queryClient, JSON.parse(dehydrated.queryClientState));
 
-        const ssrUser = queryClient.getQueryData<UserProfile | null>(authMeQueryOptions.queryKey);
+        const meState = queryClient.getQueryState(authMeQueryOptions.queryKey);
 
-        if (ssrUser != null) {
-          useAuthStore.getState().setUser(ssrUser);
+        // SSR always seeds auth/me (user or null). Trust that verdict so
+        // guest chrome paints immediately without an isRestoring flash.
+        if (meState != null && meState.dataUpdatedAt > 0) {
+          const ssrUser = queryClient.getQueryData<UserProfile | null>(authMeQueryOptions.queryKey);
+
+          if (ssrUser != null) {
+            useAuthStore.getState().setUser(ssrUser);
+            useAuthStore.getState().setRestoring(false);
+
+            return;
+          }
+
           useAuthStore.getState().setRestoring(false);
 
           return;

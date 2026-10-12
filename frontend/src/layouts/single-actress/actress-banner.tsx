@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import { ActressReportButton } from "@/layouts/single-actress/actress-report-button";
 import { ActressStat } from "@/layouts/single-actress/actress-stat";
 import { ActressSubscribeButton } from "@/layouts/single-actress/actress-subscribe-button";
+import type { ActressSubscribeStatusApi } from "@/queries/actress-subscribe";
 import type { ActressSummary } from "@/libs/actresses";
 import { formatBirthdayLabel, formatMeasurements } from "@/libs/actresses";
 import { cn } from "@/libs/utils";
@@ -73,10 +74,11 @@ export function ActressBannerBackground({ actress, className }: ActressBannerBac
 
 interface ActressProfileHeaderProps {
   actress: ActressSummary;
+  subscribeStatus?: ActressSubscribeStatusApi | null;
   className?: string;
 }
 
-export function ActressProfileHeader({ actress, className }: ActressProfileHeaderProps) {
+export function ActressProfileHeader({ actress, subscribeStatus = null, className }: ActressProfileHeaderProps) {
   const birthdayLabel = formatBirthdayLabel(actress.birthday);
   const measurements = formatMeasurements(actress);
   const hasProfileDetails = Boolean(birthdayLabel || measurements);
@@ -132,7 +134,11 @@ export function ActressProfileHeader({ actress, className }: ActressProfileHeade
 
             <Collapsible open={detailsOpen} onOpenChange={setDetailsOpen}>
               <div className="flex min-w-0 flex-col items-start gap-2 xs:flex-row xs:flex-wrap xs:items-center xs:gap-3">
-                <ActressSubscribeButton actressId={actress.id} initialSubCount={actress.subscribers} />
+                <ActressSubscribeButton
+                  actressId={actress.id}
+                  initialSubCount={actress.subscribers}
+                  initialStatus={subscribeStatus}
+                />
 
                 {hasProfileDetails ? (
                   <Button type="button" onClick={() => setDetailsOpen((v) => !v)} variant="ghost">

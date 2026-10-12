@@ -6,6 +6,7 @@ import { ActressVideosGrid, ActressVideosShell } from "@/layouts/single-actress/
 import { ActressVideosGridSkeleton } from "@/layouts/single-actress/actress-videos-skeleton";
 import type { ActressVideoFilters, ActressVideoSort } from "@/libs/actress-videos";
 import type { ActressSummary } from "@/libs/actresses";
+import type { ActressSubscribeStatusApi } from "@/queries/actress-subscribe";
 import type { VideoListPage } from "@/queries/videos";
 
 interface ActressDetailProps {
@@ -13,15 +14,16 @@ interface ActressDetailProps {
   sort: ActressVideoSort;
   filters: ActressVideoFilters;
   pagePromise: Promise<VideoListPage>;
+  subscribeStatus?: ActressSubscribeStatusApi | null;
 }
 
-export function ActressDetail({ actress, sort, filters, pagePromise }: ActressDetailProps) {
+export function ActressDetail({ actress, sort, filters, pagePromise, subscribeStatus = null }: ActressDetailProps) {
   return (
     <div className="relative isolate min-h-screen">
       <ActressBannerBackground actress={actress} />
 
       <div className="relative z-10 lg:pt-0 xl:pt-80">
-        <ActressProfileHeader actress={actress} />
+        <ActressProfileHeader actress={actress} subscribeStatus={subscribeStatus} />
 
         <ActressVideosShell sort={sort} filters={filters}>
           <React.Suspense

@@ -48,9 +48,9 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
     try {
       const user = await fetchAuthMe();
 
-      if (user != null) {
-        queryClient.setQueryData(authMeQueryOptions.queryKey, user);
-      }
+      // Always seed the me query (including null) so client hydrate can trust
+      // an SSR guest verdict and skip the auth-restoring placeholder.
+      queryClient.setQueryData(authMeQueryOptions.queryKey, user);
 
       return {
         isAuthenticated: user != null,
@@ -58,6 +58,8 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
         isReady: true,
       };
     } catch {
+      queryClient.setQueryData(authMeQueryOptions.queryKey, null);
+
       return {
         isAuthenticated: false,
         user: null,
@@ -126,8 +128,8 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
     };
   }
 
-  // Guest for routing, but keep isRestoring true so the header does not
-  // flash "Sign in" until AuthStoreSync finishes the silent refresh.
+  // Guest for routing. SSR already seeds auth/me as null when resolved; the
+  // client bootstrap may still upgrade via silent refresh without blocking UI.
   return {
     isAuthenticated: false,
     user: null,
