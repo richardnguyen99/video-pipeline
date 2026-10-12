@@ -5,8 +5,8 @@ from typing import cast
 from fastapi import APIRouter, status
 
 from app.dependencies import (
+    AccountEmailServiceDep,
     AsyncRedisDep,
-    AuthServiceDep,
     CurrentUserDep,
     EmailServiceDep,
 )
@@ -43,7 +43,7 @@ router = APIRouter()
 )
 async def request_change_email_link(
     current_user: CurrentUserDep,
-    service: AuthServiceDep,
+    service: AccountEmailServiceDep,
     email_service: EmailServiceDep,
     redis: AsyncRedisDep,
 ) -> ChangeEmailRequestLinkResponse:
@@ -69,7 +69,7 @@ async def request_change_email_link(
 )
 async def open_change_email_form(
     payload: ChangeEmailFormSessionRequest,
-    service: AuthServiceDep,
+    service: AccountEmailServiceDep,
     redis: AsyncRedisDep,
 ) -> ChangeEmailFormSessionResponse:
     """Return form_id and XSRF token bound to the intent link."""
@@ -93,7 +93,7 @@ async def open_change_email_form(
 )
 async def confirm_change_email(
     payload: ChangeEmailConfirmRequest,
-    service: AuthServiceDep,
+    service: AccountEmailServiceDep,
     email_service: EmailServiceDep,
     redis: AsyncRedisDep,
 ) -> ChangeEmailConfirmResponse:
@@ -119,7 +119,7 @@ async def confirm_change_email(
 )
 async def confirm_new_email(
     payload: ConfirmNewEmailRequest,
-    service: AuthServiceDep,
+    service: AccountEmailServiceDep,
     redis: AsyncRedisDep,
 ) -> UserResponse:
     """Finalize email change after the new inbox confirms ownership."""

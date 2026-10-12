@@ -35,6 +35,7 @@ from app.dependencies.repositories import (
     get_video_repository,
 )
 from app.dependencies.services import (
+    AccountEmailServiceDep,
     ActressServiceDep,
     ActressSubscribeServiceDep,
     AuthServiceDep,
@@ -48,6 +49,7 @@ from app.dependencies.services import (
     SeriesServiceDep,
     VideoServiceDep,
     WatchServiceDep,
+    get_account_email_service,
     get_actress_service,
     get_actress_subscribe_service,
     get_auth_service,
@@ -69,6 +71,7 @@ __all__ = [
     "ActressRepositoryDep",
     "ActressServiceDep",
     "ActressSubscribeServiceDep",
+    "AccountEmailServiceDep",
     "AuthServiceDep",
     "CurrentUserDep",
     "OptionalCurrentUserDep",

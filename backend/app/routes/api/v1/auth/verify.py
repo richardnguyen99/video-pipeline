@@ -5,8 +5,8 @@ from typing import cast
 from fastapi import APIRouter, status
 
 from app.dependencies import (
+    AccountEmailServiceDep,
     AsyncRedisDep,
-    AuthServiceDep,
     CurrentUserDep,
     EmailServiceDep,
 )
@@ -42,7 +42,7 @@ router = APIRouter()
 )
 async def request_verification(
     current_user: CurrentUserDep,
-    service: AuthServiceDep,
+    service: AccountEmailServiceDep,
     email_service: EmailServiceDep,
     redis: AsyncRedisDep,
 ) -> VerifyEmailResponse:
@@ -76,7 +76,7 @@ async def request_verification(
 )
 async def confirm_verification(
     payload: VerifyEmailRequest,
-    service: AuthServiceDep,
+    service: AccountEmailServiceDep,
     redis: AsyncRedisDep,
 ) -> UserResponse:
     """Consume the token from the email link and mark the account verified."""
