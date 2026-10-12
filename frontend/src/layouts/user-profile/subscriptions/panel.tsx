@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "@/components/ui/toast";
@@ -5,10 +6,12 @@ import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { SubscriptionRow } from "@/layouts/user-profile/subscriptions/row";
 import {
   actressSubscribeQueryKeys,
+  mergeSubscriptionEngagement,
   unsubscribeFromActress,
   userActressSubscriptionsQueryOptions,
 } from "@/queries/actress-subscribe";
 import type { ActressSubscription } from "@/queries/actress-subscribe";
+import { actressEngagementQueryOptions } from "@/queries/actresses";
 
 type SubscriptionsPanelProps = {
   username: string;
@@ -29,6 +32,16 @@ export function SubscriptionsPanel({
   });
 
   const subscriptions = listQuery.data;
+
+  const actressIds = useMemo(() => subscriptions.map((item) => item.actressId), [subscriptions]);
+
+  const engagementQuery = useQuery(actressEngagementQueryOptions(actressIds));
+  const engagementLoading = actressIds.length > 0 && engagementQuery.data == null && engagementQuery.isFetching;
+
+  const displaySubscriptions = useMemo(
+    () => mergeSubscriptionEngagement(subscriptions, engagementQuery.data),
+    [subscriptions, engagementQuery.data],
+  );
 
   const unsubscribeMutation = useMutation({
     mutationFn: (actressId: number) => unsubscribeFromActress(actressId),
@@ -79,17 +92,18 @@ export function SubscriptionsPanel({
 
   return (
     <SettingsCard title="Subscriptions" description="Actresses you follow so you do not miss their new videos.">
-      {subscriptions.length === 0 ? (
+      {displaySubscriptions.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {isOwner ? "You have not subscribed to any actresses yet." : "No public subscriptions to show."}
         </p>
       ) : (
         <div className="flex flex-col gap-2">
-          {subscriptions.map((subscription) => (
+          {displaySubscriptions.map((subscription) => (
             <SubscriptionRow
               key={subscription.actressId}
               subscription={subscription}
               isOwner={isOwner}
+              engagementLoading={engagementLoading}
               onUnsubscribe={(actressId) => {
                 unsubscribeMutation.mutate(actressId);
               }}

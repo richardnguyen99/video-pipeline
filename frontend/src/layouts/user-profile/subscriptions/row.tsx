@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { Eye, ThumbsUp } from "lucide-react";
+import { Clapperboard, Eye, MessageCircle, ThumbsUp, UserPlus } from "lucide-react";
 
+import { Skeleton } from "@/components/ui/skeleton";
 import { SubscriptionRowMenu } from "@/layouts/user-profile/subscriptions/row-menu";
 import { formatCompactNumber } from "@/libs/utils";
 import type { ActressSubscription } from "@/queries/actress-subscribe";
@@ -8,10 +9,16 @@ import type { ActressSubscription } from "@/queries/actress-subscribe";
 type SubscriptionRowProps = {
   subscription: ActressSubscription;
   isOwner: boolean;
+  engagementLoading?: boolean;
   onUnsubscribe?: (actressId: number) => void;
 };
 
-export function SubscriptionRow({ subscription, isOwner, onUnsubscribe }: SubscriptionRowProps) {
+export function SubscriptionRow({
+  subscription,
+  isOwner,
+  engagementLoading = false,
+  onUnsubscribe,
+}: SubscriptionRowProps) {
   const metaParts: Array<string> = [];
 
   if (subscription.age != null) {
@@ -56,22 +63,59 @@ export function SubscriptionRow({ subscription, isOwner, onUnsubscribe }: Subscr
             {metaLabel ? <span className="font-normal text-muted-foreground"> - {metaLabel}</span> : null}
           </p>
 
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <Eye className="size-3.5 shrink-0" aria-hidden />
+          <div
+            className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground"
+            aria-busy={engagementLoading || undefined}
+          >
+            {engagementLoading ? (
+              <>
+                <span className="sr-only">Loading engagement</span>
 
-              <span className="sr-only">Views</span>
+                <Skeleton className="h-4 w-1/2" />
+              </>
+            ) : (
+              <>
+                <span className="inline-flex items-center gap-1" title="Videos">
+                  <Clapperboard className="size-3.5 shrink-0" aria-hidden />
 
-              {formatCompactNumber(subscription.viewCount)}
-            </span>
+                  <span className="sr-only">Videos</span>
 
-            <span className="inline-flex items-center gap-1">
-              <ThumbsUp className="size-3.5 shrink-0" aria-hidden />
+                  {formatCompactNumber(subscription.videoCount)}
+                </span>
 
-              <span className="sr-only">Likes</span>
+                <span className="inline-flex items-center gap-1" title="Views">
+                  <Eye className="size-3.5 shrink-0" aria-hidden />
 
-              {formatCompactNumber(subscription.likeCount)}
-            </span>
+                  <span className="sr-only">Views</span>
+
+                  {formatCompactNumber(subscription.viewCount)}
+                </span>
+
+                <span className="inline-flex items-center gap-1" title="Subscribers">
+                  <UserPlus className="size-3.5 shrink-0" aria-hidden />
+
+                  <span className="sr-only">Subscribers</span>
+
+                  {formatCompactNumber(subscription.subscriberCount)}
+                </span>
+
+                <span className="inline-flex items-center gap-1" title="Likes">
+                  <ThumbsUp className="size-3.5 shrink-0" aria-hidden />
+
+                  <span className="sr-only">Likes</span>
+
+                  {formatCompactNumber(subscription.likeCount)}
+                </span>
+
+                <span className="inline-flex items-center gap-1" title="Comments">
+                  <MessageCircle className="size-3.5 shrink-0" aria-hidden />
+
+                  <span className="sr-only">Comments</span>
+
+                  {formatCompactNumber(subscription.commentCount)}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </Link>

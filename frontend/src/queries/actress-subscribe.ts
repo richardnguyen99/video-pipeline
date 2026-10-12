@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
 import { formatAge } from "@/libs/actresses";
+import type { ActressEngagementApi } from "@/queries/actresses";
 
 export type ActressSubscribeImageApi = {
   id: number;
@@ -50,8 +51,11 @@ export type ActressSubscription = {
   waist: number | null;
   hip: number | null;
   height: number | null;
+  videoCount: number;
   viewCount: number;
+  subscriberCount: number;
   likeCount: number;
+  commentCount: number;
   age: number | null;
   measurementLabel: string | null;
   subscribedAt: string;
@@ -117,12 +121,41 @@ export function mapActressSubscribeItem(item: ActressSubscribeItemApi): ActressS
     waist: item.waist ?? null,
     hip: item.hip ?? null,
     height: item.height ?? null,
+    videoCount: 0,
     viewCount: item.view_cnt ?? 0,
+    subscriberCount: 0,
     likeCount: item.like_cnt ?? 0,
+    commentCount: 0,
     age: formatAge(item.birthday),
     measurementLabel: formatSubscribeMeasurements(item),
     subscribedAt: item.subscribed_at,
   };
+}
+
+export function mergeSubscriptionEngagement(
+  subscriptions: Array<ActressSubscription>,
+  engagement: Map<number, ActressEngagementApi> | undefined,
+): Array<ActressSubscription> {
+  if (engagement == null || engagement.size === 0) {
+    return subscriptions;
+  }
+
+  return subscriptions.map((subscription) => {
+    const counts = engagement.get(subscription.actressId);
+
+    if (counts == null) {
+      return subscription;
+    }
+
+    return {
+      ...subscription,
+      videoCount: counts.video_cnt,
+      viewCount: counts.view_cnt,
+      subscriberCount: counts.sub_cnt,
+      likeCount: counts.like_cnt,
+      commentCount: counts.comment_cnt,
+    };
+  });
 }
 
 export const actressSubscribeQueryKeys = {
