@@ -25,13 +25,13 @@ export function SubscriptionRow({ subscription, isOwner, onUnsubscribe }: Subscr
   const metaLabel = metaParts.join(" · ");
 
   return (
-    <div className="flex items-center gap-3 rounded-lg px-1 py-2">
+    <div className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-muted/30">
       <Link
         to="/actresses/$actressId"
         params={{ actressId: String(subscription.actressId) }}
         className="flex min-w-0 flex-1 items-center gap-3"
       >
-        <span className="size-9 shrink-0 overflow-hidden rounded-full border border-border/60 bg-muted">
+        <span className="size-9 shrink-0 overflow-hidden rounded-full border border-border/60 bg-muted ring-1 ring-border/40 transition-shadow group-hover:ring-primary/30">
           {subscription.imageUrl ? (
             <img
               src={subscription.imageUrl}
@@ -51,7 +51,7 @@ export function SubscriptionRow({ subscription, isOwner, onUnsubscribe }: Subscr
 
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <p className="line-clamp-1 text-sm">
-            <span className="font-semibold">{subscription.name}</span>
+            <span className="font-semibold text-foreground">{subscription.name}</span>
 
             {metaLabel ? <span className="font-normal text-muted-foreground"> - {metaLabel}</span> : null}
           </p>

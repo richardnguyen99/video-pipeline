@@ -139,6 +139,12 @@ export function ActressSubscribeButton({
       void queryClient.invalidateQueries({
         queryKey: [...actressSubscribeQueryKeys.all, "user"],
       });
+
+      toast.add({
+        type: "success",
+        title: data.is_subscribed ? "Subscribed" : "Unsubscribed",
+        timeout: 3000,
+      });
     },
   });
 

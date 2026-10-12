@@ -46,7 +46,7 @@ export function SubscriptionsPanel({ username, subscriptions, isOwner }: Subscri
           {isOwner ? "You have not subscribed to any actresses yet." : "No public subscriptions to show."}
         </p>
       ) : (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2">
           {subscriptions.map((subscription) => (
             <SubscriptionRow
               key={subscription.actressId}

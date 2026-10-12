@@ -111,6 +111,7 @@ def _actress(
     name: str = "Sample Actress",
     image_url: Optional[str] = "https://example.com/a.jpg",
     ruby: Optional[str] = "sample",
+    actress_aka: Optional[object] = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=actress_id,
@@ -124,6 +125,7 @@ def _actress(
         hip=88,
         height=160,
         actress_image=[],
+        actress_aka=actress_aka,
         is_active=True,
     )
 
@@ -417,6 +419,51 @@ async def test_list_for_user_maps_actress_fields(
     assert result.items[0].image_url == "https://example.com/a.jpg"
     assert result.items[0].view_cnt == 12
     assert result.items[0].like_cnt == 3
+
+
+@pytest.mark.asyncio
+async def test_list_for_user_prefers_aka_translated_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Display name uses actress_aka.translated_name when present."""
+
+    user_id = uuid4()
+    session = _SessionSpy()
+    aka = SimpleNamespace(
+        id=1,
+        name="波多野結衣",
+        translated_name="Yui Hatano",
+        name_type="deepl",
+        fk_id=33,
+    )
+    actress = _actress(
+        actress_id=33,
+        name="波多野結衣",
+        actress_aka=aka,
+    )
+    repository = _FakeActressRepository(actress=actress, session=session)
+    service = _service(repository)
+    row = _subscription(user_id=user_id, actress_id=33)
+    session.exec_results = [[actress]]
+
+    async def _fake_list(
+        _session: object,
+        _user_id: UUID,
+        *,
+        limit: int,
+        offset: int,
+    ) -> list[UserActressSubscribe]:
+        return [row]
+
+    async def _fake_count(_session: object, _user_id: UUID) -> int:
+        return 1
+
+    monkeypatch.setattr(UserActressSubscribe, "list_for_user", _fake_list)
+    monkeypatch.setattr(UserActressSubscribe, "count_for_user", _fake_count)
+
+    result = await service.list_for_user(user_id=user_id, limit=10, offset=0)
+
+    assert result.items[0].name == "Yui Hatano"
 
 
 @pytest.mark.asyncio

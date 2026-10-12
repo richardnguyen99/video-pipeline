@@ -8,7 +8,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 
-from app.models.actress import Actress, ActressImage
+from app.models.actress import Actress, ActressAka, ActressImage
 from app.models.user import User
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.repositories.actress import ActressRepository
@@ -38,6 +38,20 @@ class ActressSubscribeService:
         """Return the bound async session."""
 
         return self._repository.session
+
+    @staticmethod
+    def _display_name(actress: Actress) -> str:
+        """Prefer deepl / aka translated name, fall back to native name."""
+
+        aka = getattr(actress, "actress_aka", None)
+
+        if aka is not None:
+            translated = (getattr(aka, "translated_name", None) or "").strip()
+
+            if translated:
+                return translated
+
+        return actress.name
 
     async def _require_actress(self, actress_id: int) -> Actress:
         """Load an actress or raise 404."""
@@ -170,6 +184,15 @@ class ActressSubscribeService:
                     query_col(ActressImage.attribute),
                     query_col(ActressImage.fk_id),
                 ),
+                selectinload(
+                    relationship_attr(Actress.actress_aka),
+                ).load_only(
+                    query_col(ActressAka.id),
+                    query_col(ActressAka.name),
+                    query_col(ActressAka.translated_name),
+                    query_col(ActressAka.name_type),
+                    query_col(ActressAka.fk_id),
+                ),
             )
         )
         actress_rows = (await self._session.exec(statement)).all()
@@ -201,7 +224,7 @@ class ActressSubscribeService:
             items.append(
                 ActressSubscribeItem(
                     actress_id=actress.id,
-                    name=actress.name,
+                    name=self._display_name(actress),
                     image_url=actress.image_url,
                     ruby=actress.ruby,
                     birthday=actress.birthday,
