@@ -19,6 +19,7 @@ from app.config import _ENV_FILE, AppEnvironment, settings
 from app.database import create_db_and_tables
 from app.messaging import (
     close_rabbitmq,
+    start_engagement_consumer,
     start_watch_consumer,
     start_watch_event_archiver,
     stop_watch_event_archiver,
@@ -37,6 +38,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     await create_db_and_tables()
     await start_watch_event_archiver()
     await start_watch_consumer()
+    await start_engagement_consumer()
 
     logger = logging.getLogger("uvicorn.error")
 

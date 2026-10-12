@@ -18,6 +18,7 @@ from app.schemas.actress_subscribe import (
     ActressSubscribeListResponse,
     ActressSubscribeStatusResponse,
 )
+from app.services.engagement_cache import notify_sub_count_delta
 from app.utils import query_col, relationship_attr
 
 
@@ -75,11 +76,24 @@ class ActressSubscribeService:
         """Subscribe the authenticated user to an actress (idempotent)."""
 
         await self._require_actress(actress_id)
+        existing = await UserActressSubscribe.get_by_user_and_actress(
+            self._session,
+            user_id=user_id,
+            actress_id=actress_id,
+        )
         await UserActressSubscribe.subscribe(
             self._session,
             user_id=user_id,
             actress_id=actress_id,
         )
+
+        if existing is None:
+            await notify_sub_count_delta(
+                self._session,
+                actress_id=actress_id,
+                delta=1,
+            )
+
         sub_cnt = await UserActressSubscribe.count_for_actress(
             self._session,
             actress_id,
@@ -100,11 +114,19 @@ class ActressSubscribeService:
         """Remove the authenticated user's subscription when present."""
 
         await self._require_actress(actress_id)
-        await UserActressSubscribe.unsubscribe(
+        removed = await UserActressSubscribe.unsubscribe(
             self._session,
             user_id=user_id,
             actress_id=actress_id,
         )
+
+        if removed:
+            await notify_sub_count_delta(
+                self._session,
+                actress_id=actress_id,
+                delta=-1,
+            )
+
         sub_cnt = await UserActressSubscribe.count_for_actress(
             self._session,
             actress_id,

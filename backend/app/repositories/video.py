@@ -444,7 +444,7 @@ class VideoRepository(BaseRepository):
 
         return result.first() is not None
 
-    async def _association_fk_ids(
+    async def association_fk_ids(
         self,
         table: Table,
         video_id: int,
@@ -585,11 +585,11 @@ class VideoRepository(BaseRepository):
             source_row if isinstance(source_row, datetime) else None
         )
 
-        actress_ids = await self._association_fk_ids(t_video_actress, video_id)
-        genre_ids = await self._association_fk_ids(t_video_genre, video_id)
-        series_ids = await self._association_fk_ids(t_video_series, video_id)
-        label_ids = await self._association_fk_ids(t_video_label, video_id)
-        maker_ids = await self._association_fk_ids(t_video_maker, video_id)
+        actress_ids = await self.association_fk_ids(t_video_actress, video_id)
+        genre_ids = await self.association_fk_ids(t_video_genre, video_id)
+        series_ids = await self.association_fk_ids(t_video_series, video_id)
+        label_ids = await self.association_fk_ids(t_video_label, video_id)
+        maker_ids = await self.association_fk_ids(t_video_maker, video_id)
         source_actress_count = len(actress_ids)
 
         if not any((actress_ids, genre_ids, series_ids, label_ids, maker_ids)):
@@ -787,8 +787,8 @@ class VideoRepository(BaseRepository):
         their recommendation lists.
         """
 
-        actress_ids = await self._association_fk_ids(t_video_actress, video_id)
-        series_ids = await self._association_fk_ids(t_video_series, video_id)
+        actress_ids = await self.association_fk_ids(t_video_actress, video_id)
+        series_ids = await self.association_fk_ids(t_video_series, video_id)
         related: set[int] = set()
 
         if actress_ids:

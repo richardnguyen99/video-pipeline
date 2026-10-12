@@ -15,6 +15,7 @@ from aio_pika.abc import (
 )
 
 from app.config import settings
+from app.messaging.engagement_worker import process_engagement_flush_message
 from app.messaging.watch_worker import process_watch_message
 
 _logger = logging.getLogger("uvicorn.error")
@@ -26,7 +27,8 @@ class RabbitMQClient:
     def __init__(self) -> None:
         self._connection: Optional[AbstractRobustConnection] = None
         self._channel: Optional[AbstractChannel] = None
-        self._consumer_tag: Optional[str] = None
+        self._watch_consumer_tag: Optional[str] = None
+        self._engagement_consumer_tag: Optional[str] = None
 
     async def _get_connection(self) -> AbstractRobustConnection:
         """Return a robust connection, creating it if needed."""
@@ -39,7 +41,7 @@ class RabbitMQClient:
         return self._connection
 
     async def _get_channel(self) -> AbstractChannel:
-        """Return a channel with the watch queue declared."""
+        """Return a channel with application queues declared."""
 
         connection = await self._get_connection()
 
@@ -48,6 +50,10 @@ class RabbitMQClient:
             await self._channel.set_qos(prefetch_count=32)
             await self._channel.declare_queue(
                 settings.rabbitmq_watch_queue,
+                durable=True,
+            )
+            await self._channel.declare_queue(
+                settings.rabbitmq_engagement_queue,
                 durable=True,
             )
 
@@ -76,6 +82,29 @@ class RabbitMQClient:
             routing_key=settings.rabbitmq_watch_queue,
         )
 
+    async def publish_engagement_flush(
+        self,
+        payload: dict[str, Any],
+    ) -> None:
+        """Publish a debounced engagement write-behind flush signal."""
+
+        if not settings.rabbitmq_enabled:
+            await process_engagement_flush_message(payload)
+
+            return
+
+        channel = await self._get_channel()
+        body = json.dumps(payload, default=str).encode("utf-8")
+        message = Message(
+            body=body,
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            content_type="application/json",
+        )
+        await channel.default_exchange.publish(
+            message,
+            routing_key=settings.rabbitmq_engagement_queue,
+        )
+
     async def start_watch_consumer(self) -> None:
         """Start consuming the watch queue (no-op when RabbitMQ is disabled)."""
 
@@ -98,16 +127,54 @@ class RabbitMQClient:
                 except json.JSONDecodeError, KeyError, TypeError, ValueError:
                     _logger.exception("Failed to process watch message")
 
-        self._consumer_tag = await queue.consume(on_message)
+        self._watch_consumer_tag = await queue.consume(on_message)
         _logger.info(
             "RabbitMQ watch consumer started queue=%s",
             settings.rabbitmq_watch_queue,
         )
 
+    async def start_engagement_consumer(self) -> None:
+        """Start consuming the engagement flush queue."""
+
+        if not settings.rabbitmq_enabled:
+            _logger.info(
+                "RabbitMQ disabled — engagement consumer not started",
+            )
+
+            return
+
+        channel = await self._get_channel()
+        queue = await channel.declare_queue(
+            settings.rabbitmq_engagement_queue,
+            durable=True,
+        )
+
+        async def on_message(message: AbstractIncomingMessage) -> None:
+            async with message.process(requeue=False):
+                try:
+                    payload = json.loads(message.body.decode("utf-8"))
+                    await process_engagement_flush_message(payload)
+                except (
+                    json.JSONDecodeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
+                    _logger.exception(
+                        "Failed to process engagement flush message",
+                    )
+
+        self._engagement_consumer_tag = await queue.consume(on_message)
+        _logger.info(
+            "RabbitMQ engagement consumer started queue=%s",
+            settings.rabbitmq_engagement_queue,
+        )
+
     async def close(self) -> None:
         """Close channel and connection."""
 
-        self._consumer_tag = None
+        self._watch_consumer_tag = None
+        self._engagement_consumer_tag = None
 
         if self._channel is not None and not self._channel.is_closed:
             await self._channel.close()
@@ -129,10 +196,22 @@ async def publish_watch_message(payload: dict[str, Any]) -> None:
     await _client.publish_watch_message(payload)
 
 
+async def publish_engagement_flush(payload: dict[str, Any]) -> None:
+    """Publish an engagement flush signal via the shared client."""
+
+    await _client.publish_engagement_flush(payload)
+
+
 async def start_watch_consumer() -> None:
     """Start the shared client's watch consumer."""
 
     await _client.start_watch_consumer()
+
+
+async def start_engagement_consumer() -> None:
+    """Start the shared client's engagement consumer."""
+
+    await _client.start_engagement_consumer()
 
 
 async def close_rabbitmq() -> None:

@@ -21,6 +21,7 @@ from app.schemas.actress import (
     ActressResponse,
 )
 from app.schemas.actress_filters import ActressListFilters, ActressSort
+from app.services.engagement_cache import EngagementCacheService
 
 if TYPE_CHECKING:
     from app.search.actress_service import ActressSearchService
@@ -313,9 +314,10 @@ class ActressService:
             seen.add(actress_id)
             unique_ids.append(actress_id)
 
-        engagement = await self._repository.count_engagement_for_actresses(
-            unique_ids,
-        )
+        engagement = await EngagementCacheService(
+            self._repository.session,
+            repository=self._repository,
+        ).get_counts(unique_ids)
 
         items: list[ActressEngagementItem] = []
 

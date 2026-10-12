@@ -1,5 +1,7 @@
 """Unit tests for ``app.services.video.VideoService``."""
 
+# pylint: disable=unused-argument
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -96,6 +98,15 @@ class FakeVideoRepository:
         """Return configured existence flag."""
 
         return self.exists_result
+
+    async def association_fk_ids(
+        self,
+        _table: object,
+        _video_id: int,
+    ) -> list[int]:
+        """Unit tests do not resolve association rows."""
+
+        return []
 
     async def list_recommended_for_video(
         self,
@@ -812,8 +823,20 @@ async def test_set_reaction_creates_like(
 
         return 1
 
+    async def fake_get_by_user_and_video(
+        _session: object,
+        _user_id: object,
+        _video_id: int,
+    ) -> None:
+        return None
+
     monkeypatch.setattr(
         reaction_mod.VideoReaction, "set", staticmethod(fake_set)
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "get_by_user_and_video",
+        staticmethod(fake_get_by_user_and_video),
     )
     monkeypatch.setattr(
         reaction_mod.VideoReaction,
@@ -881,8 +904,24 @@ async def test_set_reaction_updates_to_dislike(
     async def fake_count_dislikes(_session: object, _video_id: int) -> int:
         return 4
 
+    async def fake_get_by_user_and_video(
+        _session: object,
+        _user_id: object,
+        _video_id: int,
+    ) -> VideoReaction:
+        return VideoReaction.create(
+            user_id=user_id,
+            video_id=_video_id,
+            is_like=True,
+        )
+
     monkeypatch.setattr(
         reaction_mod.VideoReaction, "set", staticmethod(fake_set)
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "get_by_user_and_video",
+        staticmethod(fake_get_by_user_and_video),
     )
     monkeypatch.setattr(
         reaction_mod.VideoReaction,
@@ -954,10 +993,26 @@ async def test_clear_reaction_removes_entry(
     async def fake_count_dislikes(_session: object, _video_id: int) -> int:
         return 0
 
+    async def fake_get_by_user_and_video(
+        _session: object,
+        _user_id: object,
+        _video_id: int,
+    ) -> VideoReaction:
+        return VideoReaction.create(
+            user_id=user_id,
+            video_id=_video_id,
+            is_like=True,
+        )
+
     monkeypatch.setattr(
         reaction_mod.VideoReaction,
         "clear",
         staticmethod(fake_clear),
+    )
+    monkeypatch.setattr(
+        reaction_mod.VideoReaction,
+        "get_by_user_and_video",
+        staticmethod(fake_get_by_user_and_video),
     )
     monkeypatch.setattr(
         reaction_mod.VideoReaction,

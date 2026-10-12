@@ -21,6 +21,7 @@ class FakeActressRepository:
     signatures for ``list_actresses`` / ``count_actresses``.
     """
 
+    session: Any = None
     list_result: list[Any] = field(default_factory=list)
     count_result: int = 0
     list_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -376,8 +377,17 @@ async def test_list_actresses_skips_engagement_counts(
 async def test_list_engagement_returns_counts_for_ids(
     service: ActressService,
     repository: FakeActressRepository,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Batch engagement endpoint attaches repository totals by actress id."""
+
+    async def _no_redis() -> None:
+        raise ConnectionError("redis disabled in unit tests")
+
+    monkeypatch.setattr(
+        "app.services.engagement_cache.get_engagement_cache",
+        _no_redis,
+    )
 
     repository.engagement_result = {
         1: {
@@ -413,8 +423,17 @@ async def test_list_engagement_returns_counts_for_ids(
 async def test_list_engagement_defaults_when_repo_omits_id(
     service: ActressService,
     repository: FakeActressRepository,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Missing engagement entry for an id becomes zeros on the batch response."""
+
+    async def _no_redis() -> None:
+        raise ConnectionError("redis disabled in unit tests")
+
+    monkeypatch.setattr(
+        "app.services.engagement_cache.get_engagement_cache",
+        _no_redis,
+    )
 
     repository.engagement_result = {}
 

@@ -95,7 +95,12 @@ class Settings(BaseSettings):
         "amqp://velvet:change-me-strong-rabbitmq@localhost:5672/"
     )
     rabbitmq_watch_queue: str = "watch.events"
+    rabbitmq_engagement_queue: str = "engagement.flush"
     rabbitmq_enabled: bool = True
+
+    # Engagement read-through / write-behind cache.
+    engagement_cache_ttl_seconds: int = 3600
+    engagement_debounce_seconds: int = 2
 
     # Watch / play pipeline.
     watch_cooldown_seconds: int = 1800

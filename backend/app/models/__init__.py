@@ -20,6 +20,7 @@ from app.models.actress import (
     ActressBanner,
     ActressImage,
 )
+from app.models.actress_engagement_stats import ActressEngagementStats
 from app.models.comments import Comment
 from app.models.credentials import UserCredential
 from app.models.director import Director, DirectorAka

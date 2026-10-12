@@ -1,6 +1,6 @@
 """Video application service."""
 
-# pylint: disable=too-many-locals
+# pylint: disable=too-many-locals,too-many-lines
 
 import logging
 from typing import TYPE_CHECKING, Optional
@@ -11,6 +11,7 @@ from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.exc import NoInspectionAvailable
 
 from app.config import settings
+from app.models.associations import t_video_actress
 from app.models.video import Video
 from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
@@ -39,6 +40,7 @@ from app.schemas.video_watch import (
     VideoWatchProgressListResponse,
     VideoWatchProgressResponse,
 )
+from app.services.engagement_cache import notify_like_count_delta
 
 if TYPE_CHECKING:
     from app.search.service import VideoSearchService
@@ -836,12 +838,37 @@ class VideoService:
                 detail="Video not found",
             )
 
+        previous = await VideoReaction.get_by_user_and_video(
+            self._repository.session,
+            user_id,
+            video_id,
+        )
+        previous_like = previous.is_like if previous is not None else None
+
         await VideoReaction.set(
             self._repository.session,
             user_id=user_id,
             video_id=video_id,
             is_like=is_like,
         )
+
+        like_delta = 0
+
+        if is_like and previous_like is not True:
+            like_delta = 1
+        elif not is_like and previous_like is True:
+            like_delta = -1
+
+        if like_delta != 0:
+            actress_ids = await self._repository.association_fk_ids(
+                t_video_actress,
+                video_id,
+            )
+            await notify_like_count_delta(
+                self._repository.session,
+                actress_ids=list(actress_ids),
+                delta=like_delta,
+            )
 
         likes = await VideoReaction.count_likes_for_video(
             self._repository.session,
@@ -884,11 +911,29 @@ class VideoService:
                 detail="Video not found",
             )
 
+        previous = await VideoReaction.get_by_user_and_video(
+            self._repository.session,
+            user_id,
+            video_id,
+        )
+        was_like = previous is not None and previous.is_like is True
+
         await VideoReaction.clear(
             self._repository.session,
             user_id,
             video_id,
         )
+
+        if was_like:
+            actress_ids = await self._repository.association_fk_ids(
+                t_video_actress,
+                video_id,
+            )
+            await notify_like_count_delta(
+                self._repository.session,
+                actress_ids=list(actress_ids),
+                delta=-1,
+            )
 
         likes = await VideoReaction.count_likes_for_video(
             self._repository.session,
