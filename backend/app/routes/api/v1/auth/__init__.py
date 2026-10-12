@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.routes.api.v1.auth.bio import router as bio_router
+from app.routes.api.v1.auth.change_email import router as change_email_router
 from app.routes.api.v1.auth.change_password import (
     router as change_password_router,
 )
@@ -25,6 +26,7 @@ router.include_router(refresh_router)
 router.include_router(me_router)
 router.include_router(bio_router)
 router.include_router(change_password_router)
+router.include_router(change_email_router)
 router.include_router(verify_router)
 router.include_router(forgot_password_router)
 

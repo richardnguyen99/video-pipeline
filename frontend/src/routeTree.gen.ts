@@ -13,8 +13,10 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as AboutRouteImport } from './routes/about'
+import { Route as ChangeEmailRouteImport } from './routes/change-email'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
+import { Route as VerifyEmailChangeRouteImport } from './routes/verify-email-change'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as GuestForgotPasswordRouteImport } from './routes/_guest/forgot-password'
@@ -59,6 +61,11 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChangeEmailRoute = ChangeEmailRouteImport.update({
+  id: '/change-email',
+  path: '/change-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -67,6 +74,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const VerifyEmailRoute = VerifyEmailRouteImport.update({
   id: '/verify-email',
   path: '/verify-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyEmailChangeRoute = VerifyEmailChangeRouteImport.update({
+  id: '/verify-email-change',
+  path: '/verify-email-change',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VideosRouteRoute = VideosRouteRouteImport.update({
@@ -202,8 +214,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/videos': typeof VideosRouteRouteWithChildren
   '/about': typeof AboutRoute
+  '/change-email': typeof ChangeEmailRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/verify-email-change': typeof VerifyEmailChangeRoute
   '/u/$username': typeof UUsernameRouteRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
   '/forgot-password': typeof GuestForgotPasswordRoute
@@ -232,8 +246,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/change-email': typeof ChangeEmailRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/verify-email-change': typeof VerifyEmailChangeRoute
   '/account': typeof AuthenticatedAccountRoute
   '/forgot-password': typeof GuestForgotPasswordRoute
   '/register': typeof GuestRegisterRoute
@@ -263,8 +279,10 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/_guest': typeof GuestRouteWithChildren
   '/about': typeof AboutRoute
+  '/change-email': typeof ChangeEmailRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
+  '/verify-email-change': typeof VerifyEmailChangeRoute
   '/u/$username': typeof UUsernameRouteRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRoute
   '/_guest/forgot-password': typeof GuestForgotPasswordRoute
@@ -296,8 +314,10 @@ export interface FileRouteTypes {
     | '/'
     | '/videos'
     | '/about'
+    | '/change-email'
     | '/reset-password'
     | '/verify-email'
+    | '/verify-email-change'
     | '/u/$username'
     | '/account'
     | '/forgot-password'
@@ -326,8 +346,10 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/change-email'
     | '/reset-password'
     | '/verify-email'
+    | '/verify-email-change'
     | '/account'
     | '/forgot-password'
     | '/register'
@@ -356,8 +378,10 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/_guest'
     | '/about'
+    | '/change-email'
     | '/reset-password'
     | '/verify-email'
+    | '/verify-email-change'
     | '/u/$username'
     | '/_authenticated/account'
     | '/_guest/forgot-password'
@@ -390,8 +414,10 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   GuestRoute: typeof GuestRouteWithChildren
   AboutRoute: typeof AboutRoute
+  ChangeEmailRoute: typeof ChangeEmailRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  VerifyEmailChangeRoute: typeof VerifyEmailChangeRoute
   UUsernameRouteRoute: typeof UUsernameRouteRouteWithChildren
   ActressesActressIdRoute: typeof ActressesActressIdRoute
   ActressesIndexRoute: typeof ActressesIndexRoute
@@ -427,6 +453,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/change-email': {
+      id: '/change-email'
+      path: '/change-email'
+      fullPath: '/change-email'
+      preLoaderRoute: typeof ChangeEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
@@ -439,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/verify-email'
       fullPath: '/verify-email'
       preLoaderRoute: typeof VerifyEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify-email-change': {
+      id: '/verify-email-change'
+      path: '/verify-email-change'
+      fullPath: '/verify-email-change'
+      preLoaderRoute: typeof VerifyEmailChangeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/videos': {
@@ -726,8 +766,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   GuestRoute: GuestRouteWithChildren,
   AboutRoute: AboutRoute,
+  ChangeEmailRoute: ChangeEmailRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  VerifyEmailChangeRoute: VerifyEmailChangeRoute,
   UUsernameRouteRoute: UUsernameRouteRouteWithChildren,
   ActressesActressIdRoute: ActressesActressIdRoute,
   ActressesIndexRoute: ActressesIndexRoute,

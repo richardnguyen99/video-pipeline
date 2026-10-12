@@ -249,6 +249,47 @@ class UserRepository(BaseRepository):
 
         return user
 
+    async def update_email(
+        self,
+        user_id: uuid.UUID,
+        *,
+        email: str,
+        email_verified: bool,
+    ) -> Optional[User]:
+        """Replace the account email and verification flag.
+
+        Args:
+            user_id: Account to update.
+            email: Normalized unique contact address.
+            email_verified: Whether the new address is already confirmed.
+
+        Returns:
+            The refreshed user, or ``None`` when the id is unknown.
+
+        Raises:
+            IntegrityError: When ``email`` collides with another account.
+        """
+
+        user = await self.get_by_id(user_id)
+
+        if user is None:
+            return None
+
+        user.email = email
+        user.email_verified = email_verified
+        user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.session.add(user)
+
+        try:
+            await self.session.commit()
+        except IntegrityError:
+            await self.session.rollback()
+            raise
+
+        await self.session.refresh(user)
+
+        return user
+
     async def update_password(
         self,
         user_id: uuid.UUID,

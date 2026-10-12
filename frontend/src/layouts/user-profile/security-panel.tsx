@@ -1,5 +1,6 @@
 import { ChangePasswordForm } from "@/layouts/auth/change-password-form";
 import { Button } from "@/components/ui/button";
+import { ChangeEmailRequestButton } from "@/layouts/user-profile/change-email-request";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import type { UserProfile } from "@/libs/auth";
 
@@ -13,11 +14,7 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
       <SettingsCard
         title="Change email"
         description="Update the email address used to sign in and receive account notices."
-        action={
-          <Button type="button" size="sm">
-            Change email
-          </Button>
-        }
+        action={<ChangeEmailRequestButton />}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

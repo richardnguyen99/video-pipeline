@@ -8,7 +8,13 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
+from app.schemas.auth import (
+    ChangeEmailConfirmRequest,
+    ChangeEmailFormSessionRequest,
+    LoginRequest,
+    RegisterRequest,
+    UserResponse,
+)
 
 
 def test_register_request_accepts_valid_payload() -> None:
@@ -215,3 +221,35 @@ def test_login_request_rejects_empty_password() -> None:
             email="alice@example.com",
             password="",
         )
+
+
+def test_change_email_confirm_request_normalizes_email() -> None:
+    """Whitespace is stripped; domain is lowercased; local-part case is kept."""
+
+    payload = ChangeEmailConfirmRequest(
+        token="a" * 32,
+        form_id="form-session-id-12",
+        xsrf_token="b" * 32,
+        new_email="  Alice@Example.COM ",
+    )
+
+    assert payload.new_email == "Alice@example.com"
+
+
+def test_change_email_confirm_request_rejects_bad_email() -> None:
+    """Malformed new email is rejected."""
+
+    with pytest.raises(ValidationError):
+        ChangeEmailConfirmRequest(
+            token="a" * 32,
+            form_id="form-session-id-12",
+            xsrf_token="b" * 32,
+            new_email="not-an-email",
+        )
+
+
+def test_change_email_form_session_request_requires_token() -> None:
+    """Intent token must meet minimum length."""
+
+    with pytest.raises(ValidationError):
+        ChangeEmailFormSessionRequest(token="short")

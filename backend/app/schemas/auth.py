@@ -304,3 +304,88 @@ class ResetPasswordRequest(BaseModel):
             )
 
         return value
+
+
+class ChangeEmailRequestLinkResponse(BaseModel):
+    """Result after emailing a change-email intent link."""
+
+    success: bool = True
+    detail: str
+
+
+class ChangeEmailFormSessionResponse(BaseModel):
+    """Form credentials bound to a valid change-email intent token."""
+
+    form_id: str
+    xsrf_token: str
+    email_verified: bool
+    current_email_masked: str
+
+
+class ChangeEmailFormSessionRequest(BaseModel):
+    """Open a change-email form for an intent token from the original email."""
+
+    token: str = Field(
+        min_length=16,
+        max_length=256,
+        description="Opaque intent token from the change-email link.",
+    )
+
+
+class ChangeEmailConfirmRequest(BaseModel):
+    """Submit a new email address after proving control of the original."""
+
+    token: str = Field(
+        min_length=16,
+        max_length=256,
+        description="Opaque intent token from the change-email link.",
+    )
+    form_id: str = Field(
+        min_length=8,
+        max_length=128,
+        description="Unique form session id issued with the form.",
+    )
+    xsrf_token: str = Field(
+        min_length=16,
+        max_length=256,
+        description="XSRF token paired with form_id.",
+    )
+    new_email: str = Field(
+        max_length=255,
+        description="Desired new account email address.",
+    )
+
+    @field_validator("new_email")
+    @classmethod
+    def validate_email_rfc6531(cls, value: str) -> str:
+        """Validate email per RFC 6531 (SMTPUTF8 / internationalized)."""
+
+        try:
+            result = validate_email(
+                value.strip(),
+                allow_smtputf8=True,
+                check_deliverability=False,
+            )
+        except EmailNotValidError as exc:
+            raise ValueError(str(exc)) from exc
+
+        return result.normalized
+
+
+class ChangeEmailConfirmResponse(BaseModel):
+    """Outcome of submitting a new email on the change-email form."""
+
+    success: bool = True
+    detail: str
+    requires_new_email_verification: bool = False
+    user: Optional[UserResponse] = None
+
+
+class ConfirmNewEmailRequest(BaseModel):
+    """Payload for confirming a pending new email address."""
+
+    token: str = Field(
+        min_length=16,
+        max_length=256,
+        description="Opaque token from the new-email verification link.",
+    )

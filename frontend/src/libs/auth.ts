@@ -228,3 +228,52 @@ export async function changePassword(payload: ChangePasswordPayload): Promise<vo
   resetAuthBootstrap();
   useAuthStore.getState().clearUser();
 }
+
+export type ChangeEmailFormSession = {
+  form_id: string;
+  xsrf_token: string;
+  email_verified: boolean;
+  current_email_masked: string;
+};
+
+export type ChangeEmailConfirmResult = {
+  success: boolean;
+  detail: string;
+  requires_new_email_verification: boolean;
+  user?: UserProfile | null;
+};
+
+export async function requestChangeEmailLink(): Promise<{ detail: string }> {
+  return apiFetch<{ success: boolean; detail: string }>("/auth/change-email/request", {
+    method: "POST",
+  });
+}
+
+export async function openChangeEmailForm(token: string): Promise<ChangeEmailFormSession> {
+  return apiFetch<ChangeEmailFormSession>("/auth/change-email/form", {
+    method: "POST",
+    data: { token },
+    skipAuthRefresh: true,
+  });
+}
+
+export async function confirmChangeEmail(payload: {
+  token: string;
+  form_id: string;
+  xsrf_token: string;
+  new_email: string;
+}): Promise<ChangeEmailConfirmResult> {
+  return apiFetch<ChangeEmailConfirmResult>("/auth/change-email/confirm", {
+    method: "POST",
+    data: payload,
+    skipAuthRefresh: true,
+  });
+}
+
+export async function confirmNewEmailChange(token: string): Promise<UserProfile> {
+  return apiFetch<UserProfile>("/auth/change-email/confirm-new", {
+    method: "POST",
+    data: { token },
+    skipAuthRefresh: true,
+  });
+}
