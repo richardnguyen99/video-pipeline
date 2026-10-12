@@ -226,6 +226,44 @@ class UserRepository(BaseRepository):
 
         return user
 
+    async def update_username(
+        self,
+        user_id: uuid.UUID,
+        *,
+        username: str,
+    ) -> Optional[User]:
+        """Replace the unique username for ``user_id``.
+
+        Args:
+            user_id: Account to update.
+            username: Normalized unique login handle.
+
+        Returns:
+            The refreshed user, or ``None`` when the id is unknown.
+
+        Raises:
+            IntegrityError: When ``username`` collides with another account.
+        """
+
+        user = await self.get_by_id(user_id)
+
+        if user is None:
+            return None
+
+        user.username = username
+        user.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.session.add(user)
+
+        try:
+            await self.session.commit()
+        except IntegrityError:
+            await self.session.rollback()
+            raise
+
+        await self.session.refresh(user)
+
+        return user
+
     async def mark_email_verified(self, user_id: uuid.UUID) -> Optional[User]:
         """Set ``email_verified`` for ``user_id`` and return the user.
 

@@ -16,6 +16,7 @@ from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
     ChangePasswordRequest,
+    ChangeUsernameRequest,
     ForgotPasswordRequest,
     LoginRequest,
     RegisterRequest,
@@ -673,3 +674,49 @@ class AuthService:
             hash_refresh_token(raw_refresh_token),
             for_update=False,
         )
+
+    async def change_username(
+        self,
+        user: UserResponse,
+        payload: ChangeUsernameRequest,
+    ) -> UserResponse:
+        """Update the authenticated user's unique username.
+
+        Raises:
+            HTTPException: 400 when unchanged or invalid; 409 when taken.
+        """
+
+        new_username = payload.username
+
+        if new_username.lower() == user.username.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New username must be different from the current username.",
+            )
+
+        existing = await self._repository.get_by_username(new_username)
+
+        if existing is not None and existing.id != user.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username is already taken.",
+            )
+
+        try:
+            updated = await self._repository.update_username(
+                user.id,
+                username=new_username,
+            )
+        except IntegrityError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username is already taken.",
+            ) from exc
+
+        if updated is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated.",
+            )
+
+        return UserResponse.model_validate(updated)

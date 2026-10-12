@@ -277,3 +277,10 @@ export async function confirmNewEmailChange(token: string): Promise<UserProfile>
     skipAuthRefresh: true,
   });
 }
+
+export async function changeUsername(username: string): Promise<UserProfile> {
+  return apiFetch<UserProfile>("/auth/change-username", {
+    method: "POST",
+    data: { username },
+  });
+}

@@ -1,6 +1,9 @@
+import { useState } from "react";
+
 import { ChangePasswordForm } from "@/layouts/auth/change-password-form";
 import { Button } from "@/components/ui/button";
 import { ChangeEmailRequestButton } from "@/layouts/user-profile/security/change-email-request";
+import { ChangeUsernameDialog } from "@/layouts/user-profile/security/change-username-dialog";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import type { UserProfile } from "@/libs/auth";
 
@@ -9,6 +12,8 @@ type SecurityPanelProps = {
 };
 
 export function SecurityPanel({ user }: SecurityPanelProps) {
+  const [usernameDialogOpen, setUsernameDialogOpen] = useState(false);
+
   return (
     <div className="flex flex-col gap-4">
       <SettingsCard
@@ -33,7 +38,13 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
         title="Change username"
         description="Your username appears on your profile and public video pages."
         action={
-          <Button type="button" size="sm">
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setUsernameDialogOpen(true);
+            }}
+          >
             Change username
           </Button>
         }
@@ -50,6 +61,12 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
           </span>
         </div>
       </SettingsCard>
+
+      <ChangeUsernameDialog
+        open={usernameDialogOpen}
+        currentUsername={user.username}
+        onOpenChange={setUsernameDialogOpen}
+      />
 
       <SettingsCard
         title="Change password"

@@ -7,6 +7,9 @@ from app.routes.api.v1.auth.change_email import router as change_email_router
 from app.routes.api.v1.auth.change_password import (
     router as change_password_router,
 )
+from app.routes.api.v1.auth.change_username import (
+    router as change_username_router,
+)
 from app.routes.api.v1.auth.forgot_password import (
     router as forgot_password_router,
 )
@@ -26,6 +29,7 @@ router.include_router(refresh_router)
 router.include_router(me_router)
 router.include_router(bio_router)
 router.include_router(change_password_router)
+router.include_router(change_username_router)
 router.include_router(change_email_router)
 router.include_router(verify_router)
 router.include_router(forgot_password_router)

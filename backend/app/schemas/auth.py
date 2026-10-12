@@ -389,3 +389,28 @@ class ConfirmNewEmailRequest(BaseModel):
         max_length=256,
         description="Opaque token from the new-email verification link.",
     )
+
+
+class ChangeUsernameRequest(BaseModel):
+    """Payload for ``POST /api/v1/auth/change-username``."""
+
+    username: str = Field(
+        min_length=3,
+        max_length=50,
+        description="New unique login handle (letters, digits, underscore).",
+    )
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        """Normalize and validate username shape."""
+
+        username = value.strip()
+
+        if not _USERNAME_PATTERN.fullmatch(username):
+            raise ValueError(
+                "Username must be 3–50 characters and contain only "
+                "letters, digits, and underscores.",
+            )
+
+        return username
