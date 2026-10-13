@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
@@ -15,6 +16,8 @@ from app.models.refresh_token import RefreshToken
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
+    AuthSessionItem,
+    AuthSessionListResponse,
     ChangePasswordRequest,
     ChangeUsernameRequest,
     ForgotPasswordRequest,
@@ -26,6 +29,7 @@ from app.schemas.auth import (
 from app.schemas.user_bio import Gender, UserBioResponse, UserBioUpdateRequest
 from app.services.email import EmailService
 from app.utils.email_verification import AsyncKeyValueStore
+from app.utils.ip_location import format_location, resolve_ip_location
 from app.utils.jwt import create_access_token, create_refresh_token
 from app.utils.password import (
     PASSWORD_ALGORITHM,
@@ -39,6 +43,7 @@ from app.utils.password_reset import (
     store_password_reset_token,
 )
 from app.utils.refresh_token_hash import hash_refresh_token
+from app.utils.user_agent import format_user_agent
 
 
 class AuthService:
@@ -478,6 +483,66 @@ class AuthService:
         """
 
         return await self._refresh_tokens.revoke_all_for_user(user_id)
+
+    async def list_sessions(
+        self,
+        user_id: uuid.UUID,
+        *,
+        current_refresh_token: Optional[str] = None,
+    ) -> AuthSessionListResponse:
+        """List active device sessions for ``user_id``."""
+
+        rows = await self._refresh_tokens.list_active_for_user(user_id)
+        current_hash: Optional[str] = None
+
+        if current_refresh_token is not None and current_refresh_token.strip():
+            current_hash = hash_refresh_token(current_refresh_token.strip())
+
+        locations = await asyncio.gather(
+            *[
+                asyncio.to_thread(resolve_ip_location, row.ip_address)
+                for row in rows
+            ],
+        )
+
+        items: list[AuthSessionItem] = []
+
+        for row, resolved in zip(rows, locations, strict=True):
+            items.append(
+                AuthSessionItem(
+                    id=row.id,
+                    ip_address=row.ip_address,
+                    user_agent=row.user_agent,
+                    browser_label=format_user_agent(row.user_agent),
+                    location=format_location(resolved),
+                    last_logged_in=row.issued_at,
+                    is_current=(
+                        current_hash is not None
+                        and row.token_hash == current_hash
+                    ),
+                ),
+            )
+
+        return AuthSessionListResponse(items=items)
+
+    async def revoke_session_by_id(
+        self,
+        user_id: uuid.UUID,
+        session_id: uuid.UUID,
+    ) -> None:
+        """Revoke one session owned by ``user_id``."""
+
+        row = await self._refresh_tokens.get_by_id_for_user(
+            session_id, user_id
+        )
+
+        if row is None or row.revoked_at is not None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Session not found.",
+            )
+
+        await self._refresh_tokens.revoke(row)
 
     async def change_password(
         self,

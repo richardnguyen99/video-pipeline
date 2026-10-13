@@ -499,3 +499,24 @@ class ChangePasswordConfirmLinkResponse(BaseModel):
 
     success: bool = True
     detail: str
+
+
+class AuthSessionItem(BaseModel):
+    """One active device/browser session for the signed-in user."""
+
+    id: uuid.UUID
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    browser_label: str
+    location: Optional[str] = Field(
+        default=None,
+        description="City, Country when city is known; otherwise Country only.",
+    )
+    last_logged_in: datetime
+    is_current: bool = False
+
+
+class AuthSessionListResponse(BaseModel):
+    """Active sessions for the current account."""
+
+    items: list[AuthSessionItem]

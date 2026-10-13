@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChangeEmailRequestButton } from "@/layouts/user-profile/security/change-email-request";
 import { ChangePasswordRequestButton } from "@/layouts/user-profile/security/change-password-request";
 import { ChangeUsernameDialog } from "@/layouts/user-profile/security/change-username-dialog";
+import { SessionsSection } from "@/layouts/user-profile/security/sessions-section";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import type { UserProfile } from "@/libs/auth";
 
@@ -68,34 +69,18 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
         onOpenChange={setUsernameDialogOpen}
       />
 
-      <SettingsCard title="Change password" description="" action={<ChangePasswordRequestButton />}>
+      <SettingsCard
+        title="Change password"
+        description="We email a temporary link so you can confirm your identity and set a new password. All devices are signed out when the change completes."
+        action={<ChangePasswordRequestButton />}
+      >
         <p className="text-sm text-muted-foreground">
           Use the button to send a password-change link to{" "}
           <span className="font-medium text-foreground">{user.email}</span>.
         </p>
       </SettingsCard>
 
-      <SettingsCard
-        title="Sessions"
-        description="Review where your Velvet account is currently signed in."
-        action={
-          <Button type="button" variant="outline" size="sm">
-            Sign out all
-          </Button>
-        }
-      >
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/50 px-3 py-2">
-            <div>
-              <p className="text-sm font-medium">This browser</p>
-
-              <p className="text-xs text-muted-foreground">Active now</p>
-            </div>
-
-            <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-medium text-primary">Current</span>
-          </div>
-        </div>
-      </SettingsCard>
+      <SessionsSection />
     </div>
   );
 }

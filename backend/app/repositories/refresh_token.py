@@ -207,6 +207,47 @@ class RefreshTokenRepository(BaseRepository):
 
         return replacement
 
+    async def list_active_for_user(
+        self,
+        user_id: uuid.UUID,
+    ) -> list[RefreshToken]:
+        """Return non-revoked, non-expired sessions for ``user_id``.
+
+        Newest issuance first so the UI shows the most recent devices at
+        the top. Revoked and expired rows are excluded so the security
+        panel stays limited to live sessions.
+        """
+
+        now = _as_naive_utc(datetime.now(timezone.utc))
+        statement = (
+            select(RefreshToken)
+            .where(
+                col(RefreshToken.user_id) == user_id,
+                col(RefreshToken.revoked_at).is_(None),
+                col(RefreshToken.expires_at) > now,
+            )
+            .order_by(col(RefreshToken.issued_at).desc())
+        )
+        result = await self.session.exec(statement)
+        rows = list(result.all())
+
+        return [row for row in rows if row.is_active]
+
+    async def get_by_id_for_user(
+        self,
+        session_id: uuid.UUID,
+        user_id: uuid.UUID,
+    ) -> Optional[RefreshToken]:
+        """Return an allowlist row owned by ``user_id``, if present."""
+
+        statement = select(RefreshToken).where(
+            col(RefreshToken.id) == session_id,
+            col(RefreshToken.user_id) == user_id,
+        )
+        result = await self.session.exec(statement)
+
+        return result.first()
+
     async def revoke_all_for_user(self, user_id: uuid.UUID) -> int:
         """Revoke every active allowlist entry for ``user_id``.
 
