@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 from fastapi import HTTPException, status
 
@@ -217,7 +218,7 @@ class AccountPasswordService:
                 locked_out=False,
             )
 
-        attempts = int(session.get("attempts", 0)) + 1  # type: ignore[arg-type,call-overload]
+        attempts = int(session.get("attempts", 0)) + 1
         session["attempts"] = attempts
         remaining = max(0, MAX_PASSWORD_VERIFY_ATTEMPTS - attempts)
 
@@ -319,7 +320,7 @@ class AccountPasswordService:
         form_id: str,
         xsrf_token: str,
         raw_token: str,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         session = await load_form_session(redis, form_id)
 
         if session is None:

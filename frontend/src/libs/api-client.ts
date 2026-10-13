@@ -40,12 +40,7 @@ export class ApiError extends Error {
   readonly body: unknown;
   readonly retryAfterSeconds: number | null;
 
-  constructor(
-    message: string,
-    status: number,
-    body: unknown,
-    retryAfterSeconds: number | null = null,
-  ) {
+  constructor(message: string, status: number, body: unknown, retryAfterSeconds: number | null = null) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -153,11 +148,7 @@ function parseRetryAfterSeconds(value: string | number | undefined): number | nu
   return seconds;
 }
 
-function toApiError(
-  status: number,
-  body: unknown,
-  retryAfterSeconds: number | null = null,
-): ApiError {
+function toApiError(status: number, body: unknown, retryAfterSeconds: number | null = null): ApiError {
   const message =
     typeof body === "object" && body !== null && "detail" in body && body.detail != null
       ? String(body.detail)
@@ -170,14 +161,9 @@ function axiosErrorToApiError(error: AxiosError): ApiError {
   const status = error.response?.status ?? 0;
   const body = error.response?.data ?? null;
   const headers = error.response?.headers;
-  const retryRaw =
-    headers == null
-      ? undefined
-      : (headers["retry-after"] ?? headers["Retry-After"]);
+  const retryRaw = headers == null ? undefined : (headers["retry-after"] ?? headers["Retry-After"]);
   const retryAfterSeconds = parseRetryAfterSeconds(
-    typeof retryRaw === "string" || typeof retryRaw === "number"
-      ? retryRaw
-      : undefined,
+    typeof retryRaw === "string" || typeof retryRaw === "number" ? retryRaw : undefined,
   );
 
   return toApiError(status, body, retryAfterSeconds);
@@ -219,9 +205,7 @@ api.interceptors.request.use(
  * - ``transient``: network / timeout — keep any SSR-seeded profile
  */
 export type SilentRefreshResult =
-  | { status: "ok"; session: SessionPayload }
-  | { status: "unauthorized" }
-  | { status: "transient" };
+  { status: "ok"; session: SessionPayload } | { status: "unauthorized" } | { status: "transient" };
 
 const SILENT_REFRESH_TIMEOUT_MS = 5_000;
 
@@ -261,7 +245,7 @@ export async function silentRefreshSessionDetailed(): Promise<SilentRefreshResul
       });
 
       if (!isSessionPayload(data)) {
-        useAuthStore.getState().setAccessToken(null);
+        useAuthStore.getState().clearUser();
 
         return { status: "unauthorized" };
       }
@@ -270,11 +254,16 @@ export async function silentRefreshSessionDetailed(): Promise<SilentRefreshResul
 
       return { status: "ok", session: data };
     } catch (error: unknown) {
-      useAuthStore.getState().setAccessToken(null);
+      const status = isAxiosError(error) ? error.response?.status : undefined;
+      const isAuthFailure = status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN;
 
-      if (isAxiosError(error) && error.response?.status === HttpStatus.UNAUTHORIZED) {
+      if (isAuthFailure) {
+        useAuthStore.getState().clearUser();
+
         return { status: "unauthorized" };
       }
+
+      useAuthStore.getState().setAccessToken(null);
 
       return { status: "transient" };
     } finally {
@@ -341,13 +330,17 @@ api.interceptors.response.use(
 
     originalRequest._retry = true;
 
-    const session = await silentRefreshSession();
+    const refresh = await silentRefreshSessionDetailed();
 
-    if (session === null) {
+    if (refresh.status !== "ok") {
+      if (refresh.status === "unauthorized") {
+        useAuthStore.getState().clearUser();
+      }
+
       return Promise.reject(axiosErrorToApiError(error));
     }
 
-    originalRequest.headers.set("Authorization", `Bearer ${session.access_token}`);
+    originalRequest.headers.set("Authorization", `Bearer ${refresh.session.access_token}`);
 
     return api.request(originalRequest);
   },

@@ -399,8 +399,14 @@ export async function resolveAuthMe(cookieHeader?: string | null): Promise<UserP
         return toUserProfile(session);
       }
     } catch {
-      // Fall through to identity hint.
+      // Refresh cookie was presented but rejected (revoked / expired /
+      // malformed). Do not fall back to the identity hint — that cookie is
+      // stale once the session is dead on the server.
+      return null;
     }
+
+    // Refresh cookie present but yielded no session body.
+    return null;
   }
 
   const identityUsername = readIdentityUsernameFromRequest(resolvedHeader);

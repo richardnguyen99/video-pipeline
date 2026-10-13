@@ -105,9 +105,12 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
     };
   }
 
+  // Identity cookie is only a first-paint hint while bootstrap is still
+  // restoring. Once the store is empty after a completed restore, do not
+  // rehydrate a dead session from the hint alone.
   const identityUsername = readIdentityUsername();
 
-  if (identityUsername != null && identityUsername.length > 0) {
+  if (store.isRestoring && identityUsername != null && identityUsername.length > 0) {
     const hintUser: UserProfile = {
       id: "",
       username: identityUsername,
@@ -175,5 +178,66 @@ export function applyAuthSession(
     queryClient.removeQueries({ queryKey: authQueryKeys.me() });
     queryClient.setQueryData(authMeQueryOptions.queryKey, null);
     useAuthStore.getState().clearUser();
+    broadcastAuthMessage({ type: "session-ended" });
   }
+}
+
+const AUTH_BROADCAST_CHANNEL = "velvet-auth";
+
+export type AuthBroadcastMessage = {
+  type: "session-ended";
+};
+
+let authBroadcastChannel: BroadcastChannel | null = null;
+
+function getAuthBroadcastChannel(): BroadcastChannel | null {
+  if (typeof window === "undefined" || typeof BroadcastChannel === "undefined") {
+    return null;
+  }
+
+  if (authBroadcastChannel == null) {
+    authBroadcastChannel = new BroadcastChannel(AUTH_BROADCAST_CHANNEL);
+  }
+
+  return authBroadcastChannel;
+}
+
+function broadcastAuthMessage(message: AuthBroadcastMessage): void {
+  try {
+    getAuthBroadcastChannel()?.postMessage(message);
+  } catch {
+    // BroadcastChannel can throw in private modes; ignore.
+  }
+}
+
+/** Notify other same-origin tabs that the local session ended. */
+export function notifyAuthSessionEnded(): void {
+  broadcastAuthMessage({ type: "session-ended" });
+}
+
+/**
+ * Subscribe to cross-tab session-ended messages (same browser origin).
+ */
+export function subscribeAuthBroadcast(onMessage: (message: AuthBroadcastMessage) => void): () => void {
+  const channel = getAuthBroadcastChannel();
+
+  if (channel == null) {
+    return () => {};
+  }
+
+  const handler = (event: MessageEvent) => {
+    const payload = event.data as { type?: string } | null | undefined;
+
+    if (payload == null || payload.type !== "session-ended") {
+      return;
+    }
+
+    onMessage({ type: "session-ended" });
+  };
+
+  channel.addEventListener("message", handler);
+
+  return () => {
+    channel.removeEventListener("message", handler);
+  };
 }

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import secrets
-from typing import Optional, Protocol
+from typing import Any, Optional, Protocol
 from uuid import UUID
 
 MAX_PASSWORD_VERIFY_ATTEMPTS = 5
@@ -224,7 +224,7 @@ async def load_form_session(
         return None
 
     try:
-        attempts_int = int(attempts)  # type: ignore[arg-type]
+        attempts_int = int(attempts)
     except TypeError, ValueError:
         attempts_int = 0
 
@@ -240,7 +240,7 @@ async def load_form_session(
 async def save_form_session(
     store: AsyncKeyValueStore,
     form_id: str,
-    session: dict[str, object],
+    session: dict[str, Any],
     *,
     ttl_seconds: int,
 ) -> None:
@@ -249,7 +249,7 @@ async def save_form_session(
             "user_id": session["user_id"],
             "intent_token_hash": session["intent_token_hash"],
             "xsrf_hash": session["xsrf_hash"],
-            "attempts": int(session.get("attempts", 0)),  # type: ignore[arg-type]
+            "attempts": int(session.get("attempts", 0)),
             "password_verified": bool(session.get("password_verified", False)),
         },
     )

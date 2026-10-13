@@ -5,6 +5,7 @@
 import { ApiError, apiFetch, applySessionFromBody, isSessionPayload, silentRefreshSession } from "@/libs/api-client";
 import type { SessionPayload } from "@/libs/api-client";
 import { resetAuthBootstrap } from "@/libs/auth-bootstrap";
+import { notifyAuthSessionEnded } from "@/libs/auth-session";
 import { logoutSession } from "@/server/auth.functions";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -146,6 +147,7 @@ export async function logoutUser(): Promise<void> {
 
   resetAuthBootstrap();
   useAuthStore.getState().clearUser();
+  notifyAuthSessionEnded();
 }
 
 /**
@@ -303,9 +305,7 @@ export async function requestChangePasswordLink(): Promise<{ detail: string }> {
   });
 }
 
-export async function openChangePasswordForm(
-  token: string,
-): Promise<ChangePasswordFormSession> {
+export async function openChangePasswordForm(token: string): Promise<ChangePasswordFormSession> {
   return apiFetch<ChangePasswordFormSession>("/auth/change-password/form", {
     method: "POST",
     data: { token },

@@ -61,7 +61,12 @@ export async function runAuthBootstrap(): Promise<AuthBootstrapResult> {
   }
 
   if (bootstrapCompleted) {
-    useAuthStore.getState().setRestoring(false);
+    const current = useAuthStore.getState();
+    lastResult = {
+      user: current.user,
+      accessToken: current.accessToken,
+    };
+    current.setRestoring(false);
 
     return lastResult;
   }

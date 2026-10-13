@@ -295,10 +295,10 @@ async def store_pending_email_change(
     await store.set(pending_active_key(user_id), token_hash, ex=ttl_seconds)
 
 
-async def consume_pending_email_change(
+async def _load_data_pending_email_change(
     store: AsyncKeyValueStore,
     raw_token: str,
-) -> Optional[tuple[UUID, str]]:
+) -> Optional[tuple[str, str, dict]]:
     if not raw_token.strip():
         return None
 
@@ -320,6 +320,20 @@ async def consume_pending_email_change(
         await store.delete(key)
 
         return None
+
+    return token_hash, key, data
+
+
+async def consume_pending_email_change(
+    store: AsyncKeyValueStore,
+    raw_token: str,
+) -> Optional[tuple[UUID, str]]:
+
+    result = await _load_data_pending_email_change(store, raw_token)
+    if result is None:
+        return None
+
+    token_hash, key, data = result
 
     user_raw = data.get("user_id")
     new_email = data.get("new_email")

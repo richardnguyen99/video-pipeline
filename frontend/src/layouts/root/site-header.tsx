@@ -42,7 +42,9 @@ export default function SiteHeader() {
     from: "__root__",
     select: (ctx) => ctx.auth,
   });
-  const user = storeUser ?? routeAuth.user ?? null;
+  // After bootstrap finishes, trust the store only. routeAuth can lag until
+  // router.invalidate() and must not keep showing a revoked session.
+  const user = isRestoring ? (storeUser ?? routeAuth.user ?? null) : storeUser;
   const isAuthenticated = user != null;
   // Only hold a placeholder while a session may still appear. When SSR (or
   // root beforeLoad) already resolved a guest, paint "Sign in" immediately.
