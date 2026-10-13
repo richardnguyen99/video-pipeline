@@ -22,6 +22,7 @@ from app.search.actress_service import ActressSearchService
 from app.search.client import get_elasticsearch
 from app.search.service import VideoSearchService
 from app.services.account_email import AccountEmailService
+from app.services.account_password import AccountPasswordService
 from app.services.actress import ActressService
 from app.services.actress_subscribe import ActressSubscribeService
 from app.services.auth import AuthService
@@ -147,6 +148,18 @@ def get_account_email_service(
     return AccountEmailService(repository=repository)
 
 
+def get_account_password_service(
+    repository: UserRepositoryDep,
+    refresh_tokens: RefreshTokenRepositoryDep,
+) -> AccountPasswordService:
+    """Build a request-scoped ``AccountPasswordService``."""
+
+    return AccountPasswordService(
+        repository=repository,
+        refresh_tokens=refresh_tokens,
+    )
+
+
 def get_email_service(settings: SettingsDep) -> EmailService:
     """Build a request-scoped ``EmailService``."""
 
@@ -194,6 +207,10 @@ AuthServiceDep = Annotated[AuthService, Depends(get_auth_service)]
 AccountEmailServiceDep = Annotated[
     AccountEmailService,
     Depends(get_account_email_service),
+]
+AccountPasswordServiceDep = Annotated[
+    AccountPasswordService,
+    Depends(get_account_password_service),
 ]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
 PlaylistServiceDep = Annotated[PlaylistService, Depends(get_playlist_service)]

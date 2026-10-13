@@ -284,3 +284,57 @@ export async function changeUsername(username: string): Promise<UserProfile> {
     data: { username },
   });
 }
+
+export type ChangePasswordFormSession = {
+  form_id: string;
+  xsrf_token: string;
+};
+
+export type ChangePasswordVerifyResult = {
+  success: boolean;
+  detail: string;
+  attempts_remaining: number;
+  locked_out: boolean;
+};
+
+export async function requestChangePasswordLink(): Promise<{ detail: string }> {
+  return apiFetch<{ success: boolean; detail: string }>("/auth/change-password/request", {
+    method: "POST",
+  });
+}
+
+export async function openChangePasswordForm(
+  token: string,
+): Promise<ChangePasswordFormSession> {
+  return apiFetch<ChangePasswordFormSession>("/auth/change-password/form", {
+    method: "POST",
+    data: { token },
+    skipAuthRefresh: true,
+  });
+}
+
+export async function verifyChangePasswordCurrent(payload: {
+  token: string;
+  form_id: string;
+  xsrf_token: string;
+  current_password: string;
+}): Promise<ChangePasswordVerifyResult> {
+  return apiFetch<ChangePasswordVerifyResult>("/auth/change-password/verify", {
+    method: "POST",
+    data: payload,
+    skipAuthRefresh: true,
+  });
+}
+
+export async function confirmChangePasswordLink(payload: {
+  token: string;
+  form_id: string;
+  xsrf_token: string;
+  new_password: string;
+}): Promise<{ detail: string }> {
+  return apiFetch<{ success: boolean; detail: string }>("/auth/change-password/confirm", {
+    method: "POST",
+    data: payload,
+    skipAuthRefresh: true,
+  });
+}

@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-import { ChangePasswordForm } from "@/layouts/auth/change-password-form";
 import { Button } from "@/components/ui/button";
 import { ChangeEmailRequestButton } from "@/layouts/user-profile/security/change-email-request";
+import { ChangePasswordRequestButton } from "@/layouts/user-profile/security/change-password-request";
 import { ChangeUsernameDialog } from "@/layouts/user-profile/security/change-username-dialog";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import type { UserProfile } from "@/libs/auth";
@@ -68,11 +68,11 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
         onOpenChange={setUsernameDialogOpen}
       />
 
-      <SettingsCard
-        title="Change password"
-        description="Choose a strong password you do not use anywhere else. After updating, every device is signed out."
-      >
-        <ChangePasswordForm />
+      <SettingsCard title="Change password" description="" action={<ChangePasswordRequestButton />}>
+        <p className="text-sm text-muted-foreground">
+          Use the button to send a password-change link to{" "}
+          <span className="font-medium text-foreground">{user.email}</span>.
+        </p>
       </SettingsCard>
 
       <SettingsCard

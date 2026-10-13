@@ -414,3 +414,88 @@ class ChangeUsernameRequest(BaseModel):
             )
 
         return username
+
+
+class ChangePasswordRequestLinkResponse(BaseModel):
+    """Acknowledgement after requesting a password-change link."""
+
+    success: bool = True
+    detail: str
+
+
+class ChangePasswordFormSessionRequest(BaseModel):
+    """Open a password-change form for an intent token."""
+
+    token: str = Field(
+        min_length=16,
+        max_length=256,
+        description="Opaque intent token from the password-change link.",
+    )
+
+
+class ChangePasswordFormSessionResponse(BaseModel):
+    """Form session issued for a valid password-change link."""
+
+    form_id: str
+    xsrf_token: str
+
+
+class ChangePasswordVerifyRequest(BaseModel):
+    """Re-enter the current password before choosing a new one."""
+
+    token: str = Field(min_length=16, max_length=256)
+    form_id: str = Field(min_length=8, max_length=128)
+    xsrf_token: str = Field(min_length=16, max_length=256)
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class ChangePasswordVerifyResponse(BaseModel):
+    """Result of verifying the current password on a change form."""
+
+    success: bool
+    detail: str
+    attempts_remaining: int = 0
+    locked_out: bool = False
+
+
+class ChangePasswordConfirmLinkRequest(BaseModel):
+    """Set a new password after the current password was verified."""
+
+    token: str = Field(min_length=16, max_length=256)
+    form_id: str = Field(min_length=8, max_length=128)
+    xsrf_token: str = Field(min_length=16, max_length=256)
+    new_password: str = Field(
+        min_length=8,
+        max_length=128,
+        description="New password meeting registration strength rules.",
+    )
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password_strength(cls, value: str) -> str:
+        """Enforce length and character-class rules."""
+
+        if len(value) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+
+        if not any(char.isupper() for char in value):
+            raise ValueError(
+                "Password must include at least one uppercase letter."
+            )
+
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must include at least one number.")
+
+        if not any(not char.isalnum() for char in value):
+            raise ValueError(
+                "Password must include at least one special character."
+            )
+
+        return value
+
+
+class ChangePasswordConfirmLinkResponse(BaseModel):
+    """Outcome after applying a new password via the email link."""
+
+    success: bool = True
+    detail: str

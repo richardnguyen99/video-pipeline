@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as GuestRouteImport } from './routes/_guest'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as ChangeEmailRouteImport } from './routes/change-email'
+import { Route as ChangePasswordRouteImport } from './routes/change-password'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as VerifyEmailChangeRouteImport } from './routes/verify-email-change'
@@ -64,6 +65,11 @@ const AboutRoute = AboutRouteImport.update({
 const ChangeEmailRoute = ChangeEmailRouteImport.update({
   id: '/change-email',
   path: '/change-email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChangePasswordRoute = ChangePasswordRouteImport.update({
+  id: '/change-password',
+  path: '/change-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -215,6 +221,7 @@ export interface FileRoutesByFullPath {
   '/videos': typeof VideosRouteRouteWithChildren
   '/about': typeof AboutRoute
   '/change-email': typeof ChangeEmailRoute
+  '/change-password': typeof ChangePasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/verify-email-change': typeof VerifyEmailChangeRoute
@@ -247,6 +254,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
   '/change-email': typeof ChangeEmailRoute
+  '/change-password': typeof ChangePasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/verify-email-change': typeof VerifyEmailChangeRoute
@@ -280,6 +288,7 @@ export interface FileRoutesById {
   '/_guest': typeof GuestRouteWithChildren
   '/about': typeof AboutRoute
   '/change-email': typeof ChangeEmailRoute
+  '/change-password': typeof ChangePasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/verify-email-change': typeof VerifyEmailChangeRoute
@@ -315,6 +324,7 @@ export interface FileRouteTypes {
     | '/videos'
     | '/about'
     | '/change-email'
+    | '/change-password'
     | '/reset-password'
     | '/verify-email'
     | '/verify-email-change'
@@ -347,6 +357,7 @@ export interface FileRouteTypes {
     | '/'
     | '/about'
     | '/change-email'
+    | '/change-password'
     | '/reset-password'
     | '/verify-email'
     | '/verify-email-change'
@@ -379,6 +390,7 @@ export interface FileRouteTypes {
     | '/_guest'
     | '/about'
     | '/change-email'
+    | '/change-password'
     | '/reset-password'
     | '/verify-email'
     | '/verify-email-change'
@@ -415,6 +427,7 @@ export interface RootRouteChildren {
   GuestRoute: typeof GuestRouteWithChildren
   AboutRoute: typeof AboutRoute
   ChangeEmailRoute: typeof ChangeEmailRoute
+  ChangePasswordRoute: typeof ChangePasswordRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   VerifyEmailChangeRoute: typeof VerifyEmailChangeRoute
@@ -458,6 +471,13 @@ declare module '@tanstack/react-router' {
       path: '/change-email'
       fullPath: '/change-email'
       preLoaderRoute: typeof ChangeEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/change-password': {
+      id: '/change-password'
+      path: '/change-password'
+      fullPath: '/change-password'
+      preLoaderRoute: typeof ChangePasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -767,6 +787,7 @@ const rootRouteChildren: RootRouteChildren = {
   GuestRoute: GuestRouteWithChildren,
   AboutRoute: AboutRoute,
   ChangeEmailRoute: ChangeEmailRoute,
+  ChangePasswordRoute: ChangePasswordRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   VerifyEmailChangeRoute: VerifyEmailChangeRoute,
