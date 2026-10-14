@@ -978,6 +978,11 @@ async def test_set_reaction_updates_to_dislike(
     )
 
     repository.exists_result = True
+    repository.get_result = SimpleNamespace(
+        id=7,
+        video_id="DEF-200",
+        title="Disliked video",
+    )
 
     result = await service.set_reaction(
         7,
@@ -996,7 +1001,13 @@ async def test_set_reaction_updates_to_dislike(
         if isinstance(row, UserActivity)
     ]
 
-    assert activities == []
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.DISLIKE.value
+    assert activities[0].user_id == user_id
+    assert activities[0].metadata_ is not None
+    assert activities[0].metadata_["video_id"] == 7
+    assert activities[0].metadata_["content_id"] == "DEF-200"
+    assert activities[0].metadata_["title"] == "Disliked video"
 
 
 @pytest.mark.asyncio

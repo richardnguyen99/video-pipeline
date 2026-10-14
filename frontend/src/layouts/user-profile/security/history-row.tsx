@@ -1,4 +1,16 @@
-import { AtSign, Heart, KeyRound, ListVideo, LogIn, Mail, MessageSquare } from "lucide-react";
+import {
+  AtSign,
+  Heart,
+  HeartOff,
+  KeyRound,
+  ListVideo,
+  LogIn,
+  Mail,
+  MessageSquare,
+  UserMinus,
+  UserPlus,
+  UserRoundPlus,
+} from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { UserActivityItem } from "@/queries/auth-activity";
@@ -46,6 +58,15 @@ function activityCopy(item: UserActivityItem): {
   const metadata = item.metadata;
 
   switch (item.event_type) {
+    case "user_create": {
+      const username = metaString(metadata, "username");
+
+      return {
+        title: "Account created",
+        detail: username != null ? `@${username}` : null,
+        icon: <UserRoundPlus className="size-4" aria-hidden />,
+      };
+    }
     case "login": {
       const ip = item.ip_address?.trim() || null;
       const browser = item.browser_label?.trim() || null;
@@ -102,6 +123,16 @@ function activityCopy(item: UserActivityItem): {
         icon: <Heart className="size-4" aria-hidden />,
       };
     }
+    case "dislike": {
+      const contentId = metaString(metadata, "content_id");
+      const title = metaString(metadata, "title");
+
+      return {
+        title: "Disliked a video",
+        detail: [contentId, title].filter(Boolean).join(" · ") || null,
+        icon: <HeartOff className="size-4" aria-hidden />,
+      };
+    }
     case "comment": {
       const contentId = metaString(metadata, "content_id");
       const title = metaString(metadata, "title");
@@ -121,6 +152,24 @@ function activityCopy(item: UserActivityItem): {
         title: "Created a playlist",
         detail: name != null ? (visibility != null ? `${name} · ${visibility}` : name) : null,
         icon: <ListVideo className="size-4" aria-hidden />,
+      };
+    }
+    case "actress_subscribe": {
+      const name = metaString(metadata, "name");
+
+      return {
+        title: "Subscribed to actress",
+        detail: name,
+        icon: <UserPlus className="size-4" aria-hidden />,
+      };
+    }
+    case "actress_unsubscribe": {
+      const name = metaString(metadata, "name");
+
+      return {
+        title: "Unsubscribed from actress",
+        detail: name,
+        icon: <UserMinus className="size-4" aria-hidden />,
       };
     }
     default:

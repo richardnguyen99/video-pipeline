@@ -881,6 +881,27 @@ class VideoService:
                 },
                 commit=True,
             )
+        elif not is_like and previous_like is not False:
+            video_row = await self._repository.get_by_id(video_id)
+            await UserActivity.record(
+                self._repository.session,
+                user_id=user_id,
+                event_type=UserActivityType.DISLIKE,
+                metadata={
+                    "video_id": video_id,
+                    "content_id": (
+                        getattr(video_row, "video_id", None)
+                        if video_row is not None
+                        else None
+                    ),
+                    "title": (
+                        getattr(video_row, "title", None)
+                        if video_row is not None
+                        else None
+                    ),
+                },
+                commit=True,
+            )
 
         if like_delta != 0:
             actress_ids = await self._repository.association_fk_ids(

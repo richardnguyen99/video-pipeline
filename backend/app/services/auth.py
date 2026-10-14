@@ -114,6 +114,17 @@ class AuthService:
                 detail="Username or email is already registered.",
             ) from exc
 
+        await UserActivity.record(
+            self._repository.session,
+            user_id=user.id,
+            event_type=UserActivityType.USER_CREATE,
+            metadata={
+                "username": user.username,
+                "email": user.email,
+            },
+            commit=True,
+        )
+
         return UserResponse.model_validate(user)
 
     async def login(self, payload: LoginRequest) -> UserResponse:

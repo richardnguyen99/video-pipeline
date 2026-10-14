@@ -3,7 +3,17 @@ import { queryOptions } from "@tanstack/react-query";
 import { apiFetch } from "@/libs/api-client";
 
 export type UserActivityEventType =
-  "login" | "password_change" | "username_change" | "email_change" | "like" | "comment" | "playlist_create";
+  | "user_create"
+  | "login"
+  | "password_change"
+  | "username_change"
+  | "email_change"
+  | "like"
+  | "dislike"
+  | "comment"
+  | "playlist_create"
+  | "actress_subscribe"
+  | "actress_unsubscribe";
 
 export type UserActivityItem = {
   id: string;

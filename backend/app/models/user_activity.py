@@ -18,13 +18,17 @@ from sqlmodel.sql.sqltypes import AutoString
 class UserActivityType(str, Enum):
     """Supported activity event kinds shown on the security history page."""
 
+    USER_CREATE = "user_create"
     LOGIN = "login"
     PASSWORD_CHANGE = "password_change"
     USERNAME_CHANGE = "username_change"
     EMAIL_CHANGE = "email_change"
     LIKE = "like"
+    DISLIKE = "dislike"
     COMMENT = "comment"
     PLAYLIST_CREATE = "playlist_create"
+    ACTRESS_SUBSCRIBE = "actress_subscribe"
+    ACTRESS_UNSUBSCRIBE = "actress_unsubscribe"
 
 
 class UserActivity(SQLModel, table=True):
@@ -36,7 +40,7 @@ class UserActivity(SQLModel, table=True):
 
     __tablename__ = "user_activity"
     __table_args__ = (
-        Index(None, "user_id", "created_at"),
+        Index("ix_user_activity_user_id_created_at", "user_id", "created_at"),
         {"schema": "public"},
     )
 

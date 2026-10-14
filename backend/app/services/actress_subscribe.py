@@ -10,6 +10,7 @@ from sqlmodel import col, select
 
 from app.models.actress import Actress, ActressAka, ActressImage
 from app.models.user import User
+from app.models.user_activity import UserActivity, UserActivityType
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.repositories.actress import ActressRepository
 from app.schemas.actress_subscribe import (
@@ -75,7 +76,7 @@ class ActressSubscribeService:
     ) -> ActressSubscribeStatusResponse:
         """Subscribe the authenticated user to an actress (idempotent)."""
 
-        await self._require_actress(actress_id)
+        actress = await self._require_actress(actress_id)
         existing = await UserActressSubscribe.get_by_user_and_actress(
             self._session,
             user_id=user_id,
@@ -92,6 +93,16 @@ class ActressSubscribeService:
                 self._session,
                 actress_id=actress_id,
                 delta=1,
+            )
+            await UserActivity.record(
+                self._session,
+                user_id=user_id,
+                event_type=UserActivityType.ACTRESS_SUBSCRIBE,
+                metadata={
+                    "actress_id": actress_id,
+                    "name": self._display_name(actress),
+                },
+                commit=True,
             )
 
         sub_cnt = await UserActressSubscribe.count_for_actress(
@@ -113,7 +124,7 @@ class ActressSubscribeService:
     ) -> ActressSubscribeStatusResponse:
         """Remove the authenticated user's subscription when present."""
 
-        await self._require_actress(actress_id)
+        actress = await self._require_actress(actress_id)
         removed = await UserActressSubscribe.unsubscribe(
             self._session,
             user_id=user_id,
@@ -125,6 +136,16 @@ class ActressSubscribeService:
                 self._session,
                 actress_id=actress_id,
                 delta=-1,
+            )
+            await UserActivity.record(
+                self._session,
+                user_id=user_id,
+                event_type=UserActivityType.ACTRESS_UNSUBSCRIBE,
+                metadata={
+                    "actress_id": actress_id,
+                    "name": self._display_name(actress),
+                },
+                commit=True,
             )
 
         sub_cnt = await UserActressSubscribe.count_for_actress(
