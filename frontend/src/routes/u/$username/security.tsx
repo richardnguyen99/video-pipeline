@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 import { SecurityPanel } from "@/layouts/user-profile/security";
 import { SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
@@ -11,9 +11,17 @@ export const Route = createFileRoute("/u/$username/security")({
 
 function UserSecurityPage() {
   const { username } = Route.useParams();
-  const { isOwner, authUser } = useResolvedOwner(username);
+  const { isOwner, authUser, isRestoring } = useResolvedOwner(username);
 
-  if (!isOwner || authUser == null) {
+  if (!isRestoring && (!isOwner || authUser == null)) {
+    return <Navigate to="/u/$username" params={{ username }} />;
+  }
+
+  if (isRestoring && !isOwner) {
+    return <SettingsContentSkeleton />;
+  }
+
+  if (authUser == null) {
     return <SettingsContentSkeleton />;
   }
 

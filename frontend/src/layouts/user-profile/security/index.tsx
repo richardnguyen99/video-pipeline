@@ -71,7 +71,7 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
 
       <SettingsCard
         title="Change password"
-        description="We email a temporary link so you can confirm your identity and set a new password. All devices are signed out when the change completes."
+        description="A temporary link will be sent to confirm your identity and set a new password"
         action={<ChangePasswordRequestButton />}
       >
         <p className="text-sm text-muted-foreground">

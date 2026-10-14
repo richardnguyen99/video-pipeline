@@ -32,30 +32,43 @@ export function useUserSettingsContext(username: string) {
 }
 
 /**
- * Resolve owner status from route context first, then Zustand.
- * Child routes must use this so a guest SSR payload that is upgraded by
- * AuthStoreSync still shows owner chrome without waiting for invalidate.
+ * Resolve owner status with Zustand as the source of truth once restore
+ * settles. Route context can lag after revoke-all / session-ended until
+ * ``router.invalidate()`` finishes; trusting ``contextIsOwner`` alone keeps
+ * owner chrome visible during client-side navigation.
+ *
+ * While restoring, allow context or a store hint so SSR→client upgrade does
+ * not flash guest chrome. After restore, a null store is always guest.
  */
 export function useResolvedOwner(username: string): {
   isOwner: boolean;
   authUser: UserProfile | null;
+  isRestoring: boolean;
 } {
   const { isOwner: contextIsOwner, authUser } = parentRouteApi.useRouteContext();
   const storeUser = useAuthStore((state) => state.user);
-  const resolvedUser = authUser ?? storeUser;
-  const isOwner = contextIsOwner || (resolvedUser != null && resolvedUser.username === username);
+  const isRestoring = useAuthStore((state) => state.isRestoring);
 
-  return { isOwner, authUser: resolvedUser };
+  if (!isRestoring && storeUser == null) {
+    return { isOwner: false, authUser: null, isRestoring: false };
+  }
+
+  const resolvedUser = storeUser ?? authUser;
+  const isOwner = (resolvedUser != null && resolvedUser.username === username) || (isRestoring && contextIsOwner);
+
+  return { isOwner, authUser: resolvedUser, isRestoring };
 }
 
 /**
  * Shared ``beforeLoad`` guard for owner-only ``/u/$username/*`` sections.
- * Redirects confirmed non-owners to the public profile index.
+ * Redirects confirmed non-owners (and settled guests) to the public profile.
  *
- * On SSR, when auth is still unknown (refresh cookie invisible), do not
- * redirect — the client identity cookie / bootstrap will allow or deny.
- * Only redirect when we know the viewer is a different authenticated user
- * or a settled guest on the client.
+ * SSR: when ``loadAuthSession`` already resolved guest (``user`` null),
+ * redirect immediately so hard refresh after revoke-all does not hang on a
+ * skeleton. When a username hint is present, allow paint and let the client
+ * bootstrap confirm or clear the session.
+ *
+ * Client: while ``isRestoring``, wait; once settled, non-owners redirect.
  */
 export function requireOwnerBeforeLoad({
   context,
@@ -91,7 +104,7 @@ export function requireOwnerBeforeLoad({
     });
   }
 
-  if (routeUser != null && routeUser.username !== params.username) {
+  if (routeUser == null || routeUser.username !== params.username) {
     throw redirect({
       to: "/u/$username",
       params: { username: params.username },

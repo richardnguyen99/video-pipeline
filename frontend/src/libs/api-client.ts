@@ -15,6 +15,16 @@ import type { AxiosError, AxiosInstance, AxiosRequestConfig, InternalAxiosReques
 import { HttpStatus } from "@/libs/http-status";
 import { getAccessToken, useAuthStore } from "@/stores/auth-store";
 
+export const AUTH_SESSION_ENDED_EVENT = "velvet-auth-session-ended";
+
+function dispatchSessionEndedEvent(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new Event(AUTH_SESSION_ENDED_EVENT));
+}
+
 declare module "axios" {
   export interface AxiosRequestConfig {
     skipAuthRefresh?: boolean;
@@ -259,6 +269,7 @@ export async function silentRefreshSessionDetailed(): Promise<SilentRefreshResul
 
       if (isAuthFailure) {
         useAuthStore.getState().clearUser();
+        dispatchSessionEndedEvent();
 
         return { status: "unauthorized" };
       }
@@ -335,6 +346,7 @@ api.interceptors.response.use(
     if (refresh.status !== "ok") {
       if (refresh.status === "unauthorized") {
         useAuthStore.getState().clearUser();
+        dispatchSessionEndedEvent();
       }
 
       return Promise.reject(axiosErrorToApiError(error));

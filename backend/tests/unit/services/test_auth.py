@@ -94,6 +94,9 @@ class FakeUserRepository:
     login_success_calls: list[FakeUser] = field(default_factory=list)
     login_failure_calls: list[FakeUser] = field(default_factory=list)
     update_password_calls: list[dict[str, Any]] = field(default_factory=list)
+    bump_sessions_revoked_at_calls: list[uuid.UUID] = field(
+        default_factory=list
+    )
     bios: dict[uuid.UUID, FakeUserBio] = field(default_factory=dict)
     upsert_bio_calls: list[dict[str, Any]] = field(default_factory=list)
 
@@ -173,6 +176,11 @@ class FakeUserRepository:
                 "password_algorithm": password_algorithm,
             },
         )
+
+    async def bump_sessions_revoked_at(self, user_id: uuid.UUID) -> None:
+        """Record session-checkpoint bumps from revoke-all / change-password."""
+
+        self.bump_sessions_revoked_at_calls.append(user_id)
 
     async def get_by_id(self, user_id: uuid.UUID) -> Optional[FakeUser]:
         """Return a user by id from username or email indexes."""
@@ -845,6 +853,37 @@ async def test_ensure_access_token_not_superseded_rejects_stale_iat(
 
 
 @pytest.mark.asyncio
+async def test_ensure_access_token_not_superseded_rejects_equal_iat(
+    service: AuthService,
+) -> None:
+    """Access tokens issued in the same second as the checkpoint are rejected."""
+
+    user_id = uuid.uuid4()
+    changed = datetime.datetime(
+        2026, 6, 1, 12, 0, 0, tzinfo=datetime.timezone.utc
+    )
+    credential = type(
+        "Cred",
+        (),
+        {"password_changed_at": changed.replace(tzinfo=None)},
+    )()
+
+    claims = {
+        "iat": int(changed.timestamp()),
+    }
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new=AsyncMock(return_value=credential),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await service.ensure_access_token_not_superseded(user_id, claims)
+
+    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
+    assert "revoked" in str(exc_info.value.detail).lower()
+
+
+@pytest.mark.asyncio
 async def test_ensure_access_token_not_superseded_accepts_fresh_iat(
     service: AuthService,
 ) -> None:
@@ -919,6 +958,7 @@ async def test_change_password_revokes_all_refresh_tokens(
 
     assert len(repository.update_password_calls) == 1
     assert repository.update_password_calls[0]["user_id"] == user.id
+    assert repository.bump_sessions_revoked_at_calls == [user.id]
     assert refresh_tokens.active_hashes_for(user.id) == []
     assert set(refresh_tokens.revoked_hashes) == {"hash:a", "hash:b"}
 

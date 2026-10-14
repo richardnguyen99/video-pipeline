@@ -1,19 +1,38 @@
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionRow } from "@/layouts/user-profile/security/session-row";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { getApiErrorMessage } from "@/libs/auth";
+import { ApiError } from "@/libs/api-client";
+import { HttpStatus } from "@/libs/http-status";
 import { applyAuthSession, notifyAuthSessionEnded } from "@/libs/auth-session";
 import { authSessionQueryKeys, authSessionsQueryOptions, revokeAllAuthSessions } from "@/queries/auth-sessions";
 
 export function SessionsSection() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const router = useRouter();
   const query = useQuery(authSessionsQueryOptions);
+
+  useEffect(() => {
+    if (!query.isError) {
+      return;
+    }
+
+    const status = query.error instanceof ApiError ? query.error.status : undefined;
+
+    if (status !== HttpStatus.UNAUTHORIZED && status !== HttpStatus.FORBIDDEN) {
+      return;
+    }
+
+    applyAuthSession(queryClient, null);
+    void router.invalidate();
+  }, [query.isError, query.error, queryClient, router]);
 
   const revokeAll = useMutation({
     mutationFn: revokeAllAuthSessions,
@@ -25,7 +44,11 @@ export function SessionsSection() {
     },
   });
 
-  const items = query.data?.items ?? [];
+  const isAuthError =
+    query.isError &&
+    query.error instanceof ApiError &&
+    (query.error.status === HttpStatus.UNAUTHORIZED || query.error.status === HttpStatus.FORBIDDEN);
+  const items = isAuthError ? [] : (query.data?.items ?? []);
   const isLoading = query.isPending;
   const errorMessage = query.isError ? getApiErrorMessage(query.error) : null;
 
@@ -68,7 +91,7 @@ export function SessionsSection() {
         <p className="text-sm text-muted-foreground">No active sessions.</p>
       ) : null}
 
-      {!isLoading && items.length > 0 ? (
+      {!isLoading && errorMessage == null && items.length > 0 ? (
         <div className="flex flex-col gap-2">
           {items.map((session) => (
             <SessionRow key={session.id} session={session} />

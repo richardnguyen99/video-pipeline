@@ -364,6 +364,28 @@ class UserRepository(BaseRepository):
         self.session.add(credential)
         await self.session.commit()
 
+    async def bump_sessions_revoked_at(self, user_id: uuid.UUID) -> None:
+        """Advance ``password_changed_at`` so in-flight access tokens fail.
+
+        Used by sign-out-all without changing the password hash.
+        ``ensure_access_token_not_superseded`` rejects any access JWT whose
+        ``iat`` is older than this timestamp.
+        """
+
+        credential = await UserCredential.get_by_user_id(
+            self.session,
+            user_id,
+        )
+
+        if credential is None:
+            return
+
+        credential.password_changed_at = datetime.now(timezone.utc).replace(
+            tzinfo=None,
+        )
+        self.session.add(credential)
+        await self.session.commit()
+
     async def record_login_success(self, user: User) -> User:
         """Reset failed-login counters and stamp ``last_login_at``.
 

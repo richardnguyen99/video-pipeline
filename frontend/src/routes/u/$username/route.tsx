@@ -63,13 +63,21 @@ function UserProfileLayout() {
   const { username } = Route.useParams();
   const { isOwner: contextIsOwner, authUser } = Route.useRouteContext();
   const storeUser = useAuthStore((state) => state.user);
+  const isRestoring = useAuthStore((state) => state.isRestoring);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
   const active = pathToSettingsNavKey(pathname, username);
 
-  const resolvedUser = authUser ?? storeUser;
-  const isOwner = contextIsOwner || (resolvedUser != null && resolvedUser.username === username);
+  let isOwner: boolean;
+
+  if (!isRestoring && storeUser == null) {
+    isOwner = false;
+  } else {
+    const resolvedUser = storeUser ?? authUser;
+
+    isOwner = (resolvedUser != null && resolvedUser.username === username) || (isRestoring && contextIsOwner);
+  }
 
   return (
     <SettingsShell username={username} active={active} isOwner={isOwner}>

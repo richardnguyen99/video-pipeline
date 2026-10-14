@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 import { DeactivatePanel } from "@/layouts/user-profile/deactivate-panel";
-import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
+import { SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
 import { requireOwnerBeforeLoad, useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 
 export const Route = createFileRoute("/u/$username/deactivate")({
@@ -11,21 +11,15 @@ export const Route = createFileRoute("/u/$username/deactivate")({
 
 function DeactivatePage() {
   const { username } = Route.useParams();
-  const { isOwner } = useResolvedOwner(username);
+  const { isOwner, isRestoring } = useResolvedOwner(username);
 
-  if (!isOwner) {
+  if (!isRestoring && !isOwner) {
+    return <Navigate to="/u/$username" params={{ username }} />;
+  }
+
+  if (isRestoring && !isOwner) {
     return <SettingsContentSkeleton />;
   }
 
-  return (
-    <>
-      <SettingsContentHeader
-        active="deactivate"
-        title="Deactivate account"
-        description="Fine-tune your experience and keep your account feeling like yours."
-      />
-
-      <DeactivatePanel />
-    </>
-  );
+  return <DeactivatePanel />;
 }

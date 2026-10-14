@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
 import { isAuthBootstrapComplete, runAuthBootstrap } from "@/libs/auth-bootstrap";
-import { silentRefreshSessionDetailed } from "@/libs/api-client";
+import { AUTH_SESSION_ENDED_EVENT, silentRefreshSessionDetailed } from "@/libs/api-client";
 import type { UserProfile } from "@/libs/auth";
 import { applyAuthSession, subscribeAuthBroadcast } from "@/libs/auth-session";
 import { authMeQueryOptions } from "@/queries/auth";
@@ -11,6 +11,7 @@ import { useAuthStore } from "@/stores/auth-store";
 
 const BOOTSTRAP_HARD_TIMEOUT_MS = 3_000;
 const FOCUS_REVALIDATE_MIN_INTERVAL_MS = 5_000;
+const NAV_REVALIDATE_MIN_INTERVAL_MS = 1_500;
 
 function sameUser(a: UserProfile | null | undefined, b: UserProfile | null | undefined): boolean {
   if (a == null && b == null) {
@@ -105,9 +106,12 @@ export function AuthStoreSync() {
           if (!sameUser(seededBefore ?? ssrUser, result.user)) {
             await router.invalidate();
           }
-        } else if (seededBefore != null || ssrUser != null) {
+        } else {
           applyAuthSession(queryClient, null);
-          await router.invalidate();
+
+          if (seededBefore != null || ssrUser != null) {
+            await router.invalidate();
+          }
         }
       } catch {
         // Bootstrap failures are non-fatal; chrome already has SSR or guest state.
@@ -135,15 +139,11 @@ export function AuthStoreSync() {
         return;
       }
 
-      if (useAuthStore.getState().user == null) {
-        return;
-      }
-
       applyAuthSession(queryClient, null);
       await router.invalidate();
     }
 
-    async function revalidateSession() {
+    async function revalidateSession(minIntervalMs: number) {
       if (cancelled) {
         return;
       }
@@ -154,7 +154,7 @@ export function AuthStoreSync() {
 
       const now = Date.now();
 
-      if (now - lastFocusRevalidateAtRef.current < FOCUS_REVALIDATE_MIN_INTERVAL_MS) {
+      if (now - lastFocusRevalidateAtRef.current < minIntervalMs) {
         return;
       }
 
@@ -173,21 +173,35 @@ export function AuthStoreSync() {
         return;
       }
 
-      void revalidateSession();
+      void revalidateSession(FOCUS_REVALIDATE_MIN_INTERVAL_MS);
+    }
+
+    function onSessionEndedEvent() {
+      void endLocalSession();
     }
 
     const unsubscribeBroadcast = subscribeAuthBroadcast(() => {
       void endLocalSession();
     });
 
+    // Cross-browser revoke-all cannot use BroadcastChannel. Re-check the
+    // refresh cookie on every settled navigation so owner chrome drops as
+    // soon as the user clicks around, without waiting for focus/tab switch.
+    const unsubscribeNav = router.subscribe("onResolved", () => {
+      void revalidateSession(NAV_REVALIDATE_MIN_INTERVAL_MS);
+    });
+
     document.addEventListener("visibilitychange", onVisibilityOrFocus);
     window.addEventListener("focus", onVisibilityOrFocus);
+    window.addEventListener(AUTH_SESSION_ENDED_EVENT, onSessionEndedEvent);
 
     return () => {
       cancelled = true;
       unsubscribeBroadcast();
+      unsubscribeNav();
       document.removeEventListener("visibilitychange", onVisibilityOrFocus);
       window.removeEventListener("focus", onVisibilityOrFocus);
+      window.removeEventListener(AUTH_SESSION_ENDED_EVENT, onSessionEndedEvent);
     };
   }, [queryClient, router]);
 

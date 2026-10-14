@@ -70,6 +70,18 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
 
   const store = useAuthStore.getState();
 
+  // Settled guest after clearUser / session-ended: never rehydrate from
+  // query cache or identity cookie. Client navigation must stay guest.
+  if (!store.isRestoring && store.user == null) {
+    queryClient.setQueryData(authMeQueryOptions.queryKey, null);
+
+    return {
+      isAuthenticated: false,
+      user: null,
+      isReady: true,
+    };
+  }
+
   if (store.user !== null && store.accessToken != null && store.accessToken.length > 0) {
     queryClient.setQueryData(authMeQueryOptions.queryKey, store.user);
     store.setRestoring(false);
@@ -83,7 +95,15 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
 
   const cachedUser = queryClient.getQueryData<UserProfile | null>(authMeQueryOptions.queryKey);
 
-  if (cachedUser != null) {
+  if (cachedUser != null && store.user != null) {
+    return {
+      isAuthenticated: true,
+      user: store.user,
+      isReady: true,
+    };
+  }
+
+  if (cachedUser != null && store.isRestoring) {
     if (store.user == null) {
       store.setUser(cachedUser);
     }

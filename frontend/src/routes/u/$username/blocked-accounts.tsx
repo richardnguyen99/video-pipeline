@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 
 import { BlockedAccountsPanel } from "@/layouts/user-profile/blocked-accounts-panel";
-import { SettingsContentHeader, SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
+import { SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
 import { requireOwnerBeforeLoad, useOwnerBlocked, useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 
 export const Route = createFileRoute("/u/$username/blocked-accounts")({
@@ -11,22 +11,20 @@ export const Route = createFileRoute("/u/$username/blocked-accounts")({
 
 function BlockedAccountsPage() {
   const { username } = Route.useParams();
-  const { isOwner } = useResolvedOwner(username);
+  const { isOwner, isRestoring } = useResolvedOwner(username);
   const blockedQuery = useOwnerBlocked(username);
 
-  if (!isOwner || blockedQuery.isPending) {
+  if (!isRestoring && !isOwner) {
+    return <Navigate to="/u/$username" params={{ username }} />;
+  }
+
+  if (isRestoring && !isOwner) {
     return <SettingsContentSkeleton />;
   }
 
-  return (
-    <>
-      <SettingsContentHeader
-        active="blocked-accounts"
-        title="Blocked accounts"
-        description="Fine-tune your experience and keep your account feeling like yours."
-      />
+  if (blockedQuery.isPending) {
+    return <SettingsContentSkeleton />;
+  }
 
-      <BlockedAccountsPanel username={username} accounts={blockedQuery.data ?? []} />
-    </>
-  );
+  return <BlockedAccountsPanel username={username} accounts={blockedQuery.data ?? []} />;
 }

@@ -321,7 +321,9 @@ class AuthService:
         else:
             issued_at = datetime.fromtimestamp(int(iat), tz=timezone.utc)
 
-        if issued_at.astimezone(timezone.utc) < changed_at:
+        # Inclusive: tokens issued in the same second as the checkpoint
+        # (sign-out-all / password change) must not remain usable.
+        if issued_at.astimezone(timezone.utc) <= changed_at:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Access token has been revoked.",
@@ -475,6 +477,10 @@ class AuthService:
     async def revoke_all_refresh_tokens(self, user_id: uuid.UUID) -> int:
         """Revoke every active refresh token for ``user_id``.
 
+        Also advances the credential session checkpoint so short-lived
+        access tokens on other devices fail ``ensure_access_token_not_superseded``
+        on the next request without waiting for natural expiry.
+
         Args:
             user_id: Account whose sessions must end.
 
@@ -482,7 +488,10 @@ class AuthService:
             Number of allowlist rows revoked.
         """
 
-        return await self._refresh_tokens.revoke_all_for_user(user_id)
+        count = await self._refresh_tokens.revoke_all_for_user(user_id)
+        await self._repository.bump_sessions_revoked_at(user_id)
+
+        return count
 
     async def list_sessions(
         self,
@@ -490,7 +499,7 @@ class AuthService:
         *,
         current_refresh_token: Optional[str] = None,
     ) -> AuthSessionListResponse:
-        """List active device sessions for ``user_id``."""
+        """List only active (non-revoked, non-expired) device sessions."""
 
         rows = await self._refresh_tokens.list_active_for_user(user_id)
         current_hash: Optional[str] = None
@@ -498,16 +507,18 @@ class AuthService:
         if current_refresh_token is not None and current_refresh_token.strip():
             current_hash = hash_refresh_token(current_refresh_token.strip())
 
+        active_rows = [row for row in rows if row.is_active]
+
         locations = await asyncio.gather(
             *[
                 asyncio.to_thread(resolve_ip_location, row.ip_address)
-                for row in rows
+                for row in active_rows
             ],
         )
 
         items: list[AuthSessionItem] = []
 
-        for row, resolved in zip(rows, locations, strict=True):
+        for row, resolved in zip(active_rows, locations, strict=True):
             items.append(
                 AuthSessionItem(
                     id=row.id,
