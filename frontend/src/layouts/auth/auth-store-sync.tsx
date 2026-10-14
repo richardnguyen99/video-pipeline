@@ -3,11 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 
 import { isAuthBootstrapComplete, runAuthBootstrap } from "@/libs/auth-bootstrap";
-import { AUTH_SESSION_ENDED_EVENT, silentRefreshSessionDetailed } from "@/libs/api-client";
+import { ApiError, AUTH_SESSION_ENDED_EVENT, apiFetch, silentRefreshSessionDetailed } from "@/libs/api-client";
 import type { UserProfile } from "@/libs/auth";
 import { applyAuthSession, subscribeAuthBroadcast } from "@/libs/auth-session";
+import { HttpStatus } from "@/libs/http-status";
 import { authMeQueryOptions } from "@/queries/auth";
-import { useAuthStore } from "@/stores/auth-store";
+import { getAccessToken, useAuthStore } from "@/stores/auth-store";
 
 const BOOTSTRAP_HARD_TIMEOUT_MS = 3_000;
 const FOCUS_REVALIDATE_MIN_INTERVAL_MS = 5_000;
@@ -143,7 +144,16 @@ export function AuthStoreSync() {
       await router.invalidate();
     }
 
-    async function revalidateSession(minIntervalMs: number) {
+    async function endIfUnauthorized() {
+      applyAuthSession(queryClient, null);
+      await router.invalidate();
+    }
+
+    /**
+     * Focus / tab-visible: rotate via refresh cookie. Detects cross-browser
+     * revoke-all when the refresh allowlist row is gone.
+     */
+    async function revalidateViaRefresh(minIntervalMs: number) {
       if (cancelled) {
         return;
       }
@@ -163,8 +173,54 @@ export function AuthStoreSync() {
       const refresh = await silentRefreshSessionDetailed();
 
       if (refresh.status === "unauthorized") {
-        applyAuthSession(queryClient, null);
-        await router.invalidate();
+        await endIfUnauthorized();
+      }
+    }
+
+    /**
+     * Navigation: probe with the in-memory access token only.
+     * Avoids rotating the refresh cookie on every click (rotation races were
+     * clearing valid sessions and leaving owner pages stuck on guest until
+     * hard refresh). Superseded access JWTs still 401 here after revoke-all.
+     */
+    async function revalidateViaAccessProbe(minIntervalMs: number) {
+      if (cancelled) {
+        return;
+      }
+
+      if (useAuthStore.getState().user == null) {
+        return;
+      }
+
+      const now = Date.now();
+
+      if (now - lastFocusRevalidateAtRef.current < minIntervalMs) {
+        return;
+      }
+
+      lastFocusRevalidateAtRef.current = now;
+
+      const token = getAccessToken();
+
+      if (token == null || token.length === 0) {
+        const refresh = await silentRefreshSessionDetailed();
+
+        if (refresh.status === "unauthorized") {
+          await endIfUnauthorized();
+        }
+
+        return;
+      }
+
+      try {
+        await apiFetch<UserProfile>("/auth/me");
+      } catch (error: unknown) {
+        if (
+          error instanceof ApiError &&
+          (error.status === HttpStatus.UNAUTHORIZED || error.status === HttpStatus.FORBIDDEN)
+        ) {
+          await endIfUnauthorized();
+        }
       }
     }
 
@@ -173,7 +229,7 @@ export function AuthStoreSync() {
         return;
       }
 
-      void revalidateSession(FOCUS_REVALIDATE_MIN_INTERVAL_MS);
+      void revalidateViaRefresh(FOCUS_REVALIDATE_MIN_INTERVAL_MS);
     }
 
     function onSessionEndedEvent() {
@@ -184,11 +240,8 @@ export function AuthStoreSync() {
       void endLocalSession();
     });
 
-    // Cross-browser revoke-all cannot use BroadcastChannel. Re-check the
-    // refresh cookie on every settled navigation so owner chrome drops as
-    // soon as the user clicks around, without waiting for focus/tab switch.
     const unsubscribeNav = router.subscribe("onResolved", () => {
-      void revalidateSession(NAV_REVALIDATE_MIN_INTERVAL_MS);
+      void revalidateViaAccessProbe(NAV_REVALIDATE_MIN_INTERVAL_MS);
     });
 
     document.addEventListener("visibilitychange", onVisibilityOrFocus);

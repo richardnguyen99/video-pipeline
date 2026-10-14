@@ -853,10 +853,10 @@ async def test_ensure_access_token_not_superseded_rejects_stale_iat(
 
 
 @pytest.mark.asyncio
-async def test_ensure_access_token_not_superseded_rejects_equal_iat(
+async def test_ensure_access_token_not_superseded_accepts_equal_iat(
     service: AuthService,
 ) -> None:
-    """Access tokens issued in the same second as the checkpoint are rejected."""
+    """Same-second iat is allowed so login right after sign-out-all works."""
 
     user_id = uuid.uuid4()
     changed = datetime.datetime(
@@ -876,11 +876,7 @@ async def test_ensure_access_token_not_superseded_rejects_equal_iat(
         "app.services.auth.UserCredential.get_by_user_id",
         new=AsyncMock(return_value=credential),
     ):
-        with pytest.raises(HTTPException) as exc_info:
-            await service.ensure_access_token_not_superseded(user_id, claims)
-
-    assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
-    assert "revoked" in str(exc_info.value.detail).lower()
+        await service.ensure_access_token_not_superseded(user_id, claims)
 
 
 @pytest.mark.asyncio

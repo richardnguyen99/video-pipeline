@@ -321,9 +321,14 @@ class AuthService:
         else:
             issued_at = datetime.fromtimestamp(int(iat), tz=timezone.utc)
 
-        # Inclusive: tokens issued in the same second as the checkpoint
-        # (sign-out-all / password change) must not remain usable.
-        if issued_at.astimezone(timezone.utc) <= changed_at:
+        # Compare at second precision (JWT ``iat`` is NumericDate). Tokens
+        # issued strictly before the checkpoint second are rejected. Tokens
+        # issued in the same second or later (e.g. login right after
+        # sign-out-all) remain valid so re-authentication is not rejected.
+        issued_ts = int(issued_at.astimezone(timezone.utc).timestamp())
+        changed_ts = int(changed_at.timestamp())
+
+        if issued_ts < changed_ts:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Access token has been revoked.",

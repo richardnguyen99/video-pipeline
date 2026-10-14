@@ -38,7 +38,10 @@ export function useUserSettingsContext(username: string) {
  * owner chrome visible during client-side navigation.
  *
  * While restoring, allow context or a store hint so SSR→client upgrade does
- * not flash guest chrome. After restore, a null store is always guest.
+ * not flash guest chrome. After restore, a null store is guest — but when
+ * context still reports owner (invalidate in flight), keep ``isRestoring``
+ * so owner pages show a skeleton instead of ``Navigate``-ing away and
+ * getting stuck on the public profile until a hard refresh.
  */
 export function useResolvedOwner(username: string): {
   isOwner: boolean;
@@ -50,6 +53,10 @@ export function useResolvedOwner(username: string): {
   const isRestoring = useAuthStore((state) => state.isRestoring);
 
   if (!isRestoring && storeUser == null) {
+    if (contextIsOwner) {
+      return { isOwner: false, authUser: null, isRestoring: true };
+    }
+
     return { isOwner: false, authUser: null, isRestoring: false };
   }
 

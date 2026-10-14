@@ -1,7 +1,6 @@
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,30 +15,14 @@ import { authSessionQueryKeys, authSessionsQueryOptions, revokeAllAuthSessions }
 export function SessionsSection() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const router = useRouter();
   const query = useQuery(authSessionsQueryOptions);
-
-  useEffect(() => {
-    if (!query.isError) {
-      return;
-    }
-
-    const status = query.error instanceof ApiError ? query.error.status : undefined;
-
-    if (status !== HttpStatus.UNAUTHORIZED && status !== HttpStatus.FORBIDDEN) {
-      return;
-    }
-
-    applyAuthSession(queryClient, null);
-    void router.invalidate();
-  }, [query.isError, query.error, queryClient, router]);
 
   const revokeAll = useMutation({
     mutationFn: revokeAllAuthSessions,
     onSuccess: async () => {
+      await queryClient.removeQueries({ queryKey: authSessionQueryKeys.all });
       applyAuthSession(queryClient, null);
       notifyAuthSessionEnded();
-      await queryClient.invalidateQueries({ queryKey: authSessionQueryKeys.all });
       await navigate({ to: "/sign-in" });
     },
   });
@@ -50,7 +33,7 @@ export function SessionsSection() {
     (query.error.status === HttpStatus.UNAUTHORIZED || query.error.status === HttpStatus.FORBIDDEN);
   const items = isAuthError ? [] : (query.data?.items ?? []);
   const isLoading = query.isPending;
-  const errorMessage = query.isError ? getApiErrorMessage(query.error) : null;
+  const errorMessage = query.isError && !isAuthError ? getApiErrorMessage(query.error) : null;
 
   return (
     <SettingsCard
