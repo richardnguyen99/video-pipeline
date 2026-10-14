@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 
 from app.config import settings
 from app.models.credentials import UserCredential
+from app.models.user_activity import UserActivity, UserActivityType
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
@@ -305,6 +306,12 @@ class AccountPasswordService:
             user_id,
             password_hash=new_hash,
             password_algorithm=PASSWORD_ALGORITHM,
+        )
+        await UserActivity.record(
+            self._repository.session,
+            user_id=user_id,
+            event_type=UserActivityType.PASSWORD_CHANGE,
+            commit=True,
         )
         await self._refresh_tokens.revoke_all_for_user(user_id)
 

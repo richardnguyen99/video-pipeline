@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
+from app.models.user_activity import UserActivity, UserActivityType
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
     ChangeEmailConfirmRequest,
@@ -343,6 +344,8 @@ class AccountEmailService:
             )
 
         if not user.email_verified:
+            previous_email = user.email
+
             try:
                 updated = await self._repository.update_email(
                     user.id,
@@ -360,6 +363,17 @@ class AccountEmailService:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Unable to update email.",
                 )
+
+            await UserActivity.record(
+                self._repository.session,
+                user_id=user.id,
+                event_type=UserActivityType.EMAIL_CHANGE,
+                metadata={
+                    "old_email": previous_email,
+                    "new_email": new_email,
+                },
+                commit=True,
+            )
 
             return ChangeEmailConfirmResponse(
                 success=True,
@@ -440,6 +454,9 @@ class AccountEmailService:
                 detail="That email address is already in use.",
             )
 
+        previous = await self._repository.get_by_id(user_id)
+        old_email = previous.email if previous is not None else None
+
         try:
             updated = await self._repository.update_email(
                 user_id,
@@ -457,5 +474,16 @@ class AccountEmailService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email-change link is invalid or has expired.",
             )
+
+        await UserActivity.record(
+            self._repository.session,
+            user_id=user_id,
+            event_type=UserActivityType.EMAIL_CHANGE,
+            metadata={
+                "old_email": old_email,
+                "new_email": new_email,
+            },
+            commit=True,
+        )
 
         return UserResponse.model_validate(updated)

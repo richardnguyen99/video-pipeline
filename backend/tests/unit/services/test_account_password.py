@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException, status
 
+from app.models.user_activity import UserActivity, UserActivityType
 from app.schemas.auth import (
     ChangePasswordConfirmLinkRequest,
     ChangePasswordVerifyRequest,
@@ -506,6 +507,16 @@ async def test_confirm_new_password_updates_and_revokes(
     assert len(repository.update_password_calls) == 1
     assert repository.update_password_calls[0]["user_id"] == user.id
     assert "session-hash-1" in refresh_tokens.revoked_hashes
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.PASSWORD_CHANGE.value
+    assert activities[0].user_id == user.id
 
 
 @pytest.mark.asyncio

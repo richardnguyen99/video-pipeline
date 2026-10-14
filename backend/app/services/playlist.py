@@ -15,6 +15,7 @@ from app.models.playlist import (
     PlaylistVisibility,
 )
 from app.models.user import User
+from app.models.user_activity import UserActivity, UserActivityType
 from app.models.user_bio import UserBio
 from app.repositories.video import VideoRepository
 from app.schemas.playlist import (
@@ -186,6 +187,21 @@ class PlaylistService:
             ),
         )
         self._session.add(playlist)
+        await self._session.flush()
+        await UserActivity.record(
+            self._session,
+            user_id=user_id,
+            event_type=UserActivityType.PLAYLIST_CREATE,
+            metadata={
+                "playlist_id": str(playlist.id),
+                "name": playlist.name,
+                "visibility": (
+                    playlist.visibility.value
+                    if hasattr(playlist.visibility, "value")
+                    else str(playlist.visibility)
+                ),
+            },
+        )
         await self._session.commit()
         await self._session.refresh(playlist)
 

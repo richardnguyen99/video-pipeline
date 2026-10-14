@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from app.config import settings
 from app.models.credentials import UserCredential
 from app.models.refresh_token import RefreshToken
+from app.models.user_activity import UserActivity, UserActivityType
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
@@ -24,6 +25,8 @@ from app.schemas.auth import (
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
+    UserActivityItem,
+    UserActivityListResponse,
     UserResponse,
 )
 from app.schemas.user_bio import Gender, UserBioResponse, UserBioUpdateRequest
@@ -377,6 +380,15 @@ class AuthService:
             user_agent=user_agent,
             ip_address=ip_address,
         )
+        await UserActivity.record(
+            self._repository.session,
+            user_id=user.id,
+            event_type=UserActivityType.LOGIN,
+            metadata=None,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            commit=True,
+        )
 
         return access, refresh
 
@@ -610,6 +622,12 @@ class AuthService:
             password_hash=new_hash,
             password_algorithm=PASSWORD_ALGORITHM,
         )
+        await UserActivity.record(
+            self._repository.session,
+            user_id=user.id,
+            event_type=UserActivityType.PASSWORD_CHANGE,
+            commit=True,
+        )
         await self.revoke_all_refresh_tokens(user.id)
 
     async def request_password_reset(
@@ -783,6 +801,8 @@ class AuthService:
                 detail="Username is already taken.",
             )
 
+        previous_username = user.username
+
         try:
             updated = await self._repository.update_username(
                 user.id,
@@ -800,4 +820,60 @@ class AuthService:
                 detail="Not authenticated.",
             )
 
+        await UserActivity.record(
+            self._repository.session,
+            user_id=user.id,
+            event_type=UserActivityType.USERNAME_CHANGE,
+            metadata={
+                "old_username": previous_username,
+                "new_username": new_username,
+            },
+            commit=True,
+        )
+
         return UserResponse.model_validate(updated)
+
+    async def list_activity(
+        self,
+        user_id: uuid.UUID,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> UserActivityListResponse:
+        """Return recent activity for the signed-in user, newest first."""
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        rows = await UserActivity.list_for_user(
+            self._repository.session,
+            user_id,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+        total = await UserActivity.count_for_user(
+            self._repository.session,
+            user_id,
+        )
+        items = [
+            UserActivityItem(
+                id=row.id,
+                event_type=row.event_type,
+                metadata=row.metadata_,
+                ip_address=row.ip_address,
+                user_agent=row.user_agent,
+                browser_label=(
+                    format_user_agent(row.user_agent)
+                    if row.user_agent
+                    else None
+                ),
+                created_at=row.created_at,
+            )
+            for row in rows
+        ]
+
+        return UserActivityListResponse(
+            items=items,
+            total=total,
+            limit=safe_limit,
+            offset=safe_offset,
+        )

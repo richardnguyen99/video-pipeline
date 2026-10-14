@@ -520,3 +520,24 @@ class AuthSessionListResponse(BaseModel):
     """Active sessions for the current account."""
 
     items: list[AuthSessionItem]
+
+
+class UserActivityItem(BaseModel):
+    """One security or content activity entry for the signed-in user."""
+
+    id: uuid.UUID
+    event_type: str
+    metadata: Optional[dict] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    browser_label: Optional[str] = None
+    created_at: datetime
+
+
+class UserActivityListResponse(BaseModel):
+    """Paginated activity history for the current account."""
+
+    items: list[UserActivityItem]
+    total: int
+    limit: int
+    offset: int

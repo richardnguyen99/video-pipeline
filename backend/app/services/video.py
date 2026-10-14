@@ -12,6 +12,7 @@ from sqlalchemy.exc import NoInspectionAvailable
 
 from app.config import settings
 from app.models.associations import t_video_actress
+from app.models.user_activity import UserActivity, UserActivityType
 from app.models.video import Video
 from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
@@ -858,6 +859,28 @@ class VideoService:
             like_delta = 1
         elif not is_like and previous_like is True:
             like_delta = -1
+
+        if is_like and previous_like is not True:
+            video_row = await self._repository.get_by_id(video_id)
+            await UserActivity.record(
+                self._repository.session,
+                user_id=user_id,
+                event_type=UserActivityType.LIKE,
+                metadata={
+                    "video_id": video_id,
+                    "content_id": (
+                        getattr(video_row, "video_id", None)
+                        if video_row is not None
+                        else None
+                    ),
+                    "title": (
+                        getattr(video_row, "title", None)
+                        if video_row is not None
+                        else None
+                    ),
+                },
+                commit=True,
+            )
 
         if like_delta != 0:
             actress_ids = await self._repository.association_fk_ids(

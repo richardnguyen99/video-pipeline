@@ -13,6 +13,7 @@ import pytest
 from fastapi import HTTPException, status
 
 from app.models import video_reaction as reaction_mod
+from app.models.user_activity import UserActivity, UserActivityType
 from app.models.video_reaction import VideoReaction
 from app.repositories.video import VideoRepository
 from app.schemas.video import VideoEngagementCounts
@@ -24,11 +25,33 @@ from app.schemas.video_filters import (
 from app.services.video import VideoService
 
 
+class FakeAsyncSession:
+    """Session stand-in for activity recording during reaction tests."""
+
+    def __init__(self) -> None:
+        self.added: list[Any] = []
+        self.flushed = 0
+        self.committed = 0
+        self.refreshed: list[Any] = []
+
+    def add(self, obj: Any) -> None:
+        self.added.append(obj)
+
+    async def flush(self) -> None:
+        self.flushed += 1
+
+    async def commit(self) -> None:
+        self.committed += 1
+
+    async def refresh(self, obj: Any) -> None:
+        self.refreshed.append(obj)
+
+
 @dataclass
 class FakeVideoRepository:
     """In-memory stand-in for ``VideoRepository``."""
 
-    session: object = field(default_factory=object)
+    session: FakeAsyncSession = field(default_factory=FakeAsyncSession)
     list_result: list[Any] = field(default_factory=list)
     count_result: int = 0
     list_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -850,6 +873,11 @@ async def test_set_reaction_creates_like(
     )
 
     repository.exists_result = True
+    repository.get_result = SimpleNamespace(
+        id=42,
+        video_id="ABC-100",
+        title="Sample video",
+    )
 
     result = await service.set_reaction(
         42,
@@ -864,6 +892,21 @@ async def test_set_reaction_creates_like(
     assert set_calls == [
         {"user_id": user_id, "video_id": 42, "is_like": True},
     ]
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.LIKE.value
+    assert activities[0].user_id == user_id
+    assert activities[0].metadata_ == {
+        "video_id": 42,
+        "content_id": "ABC-100",
+        "title": "Sample video",
+    }
 
 
 @pytest.mark.asyncio
@@ -946,6 +989,14 @@ async def test_set_reaction_updates_to_dislike(
     assert result.likes == 2
     assert result.dislikes == 4
     assert set_calls[0]["is_like"] is False
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert activities == []
 
 
 @pytest.mark.asyncio

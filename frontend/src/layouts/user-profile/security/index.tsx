@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ChangeEmailRequestButton } from "@/layouts/user-profile/security/change-email-request";
 import { ChangePasswordRequestButton } from "@/layouts/user-profile/security/change-password-request";
 import { ChangeUsernameDialog } from "@/layouts/user-profile/security/change-username-dialog";
+import { HistorySection } from "@/layouts/user-profile/security/history-section";
 import { SessionsSection } from "@/layouts/user-profile/security/sessions-section";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import type { UserProfile } from "@/libs/auth";
@@ -71,7 +72,7 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
 
       <SettingsCard
         title="Change password"
-        description="A temporary link will be sent to confirm your identity and set a new password"
+        description="We email a temporary link so you can confirm your identity and set a new password. All devices are signed out when the change completes."
         action={<ChangePasswordRequestButton />}
       >
         <p className="text-sm text-muted-foreground">
@@ -81,6 +82,8 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
       </SettingsCard>
 
       <SessionsSection />
+
+      <HistorySection />
     </div>
   );
 }

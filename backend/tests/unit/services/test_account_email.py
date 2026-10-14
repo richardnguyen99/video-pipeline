@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from fastapi import HTTPException, status
 
+from app.models.user_activity import UserActivity, UserActivityType
 from app.schemas.auth import ChangeEmailConfirmRequest, UserResponse
 from app.services.account_email import AccountEmailService
 from app.utils.email_change import (
@@ -269,6 +270,19 @@ async def test_confirm_change_email_updates_when_unverified(
     assert user.email == "new-alice@example.com"
     assert mailer.sent == []
 
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.EMAIL_CHANGE.value
+    assert activities[0].metadata_ == {
+        "old_email": "alice@example.com",
+        "new_email": "new-alice@example.com",
+    }
+
 
 @pytest.mark.asyncio
 async def test_confirm_change_email_stages_verify_when_verified(
@@ -421,3 +435,16 @@ async def test_confirm_new_email_change_applies_verified_email(
     assert result.email == "final@example.com"
     assert result.email_verified is True
     assert user.email == "final@example.com"
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.EMAIL_CHANGE.value
+    assert activities[0].metadata_ == {
+        "old_email": "alice@example.com",
+        "new_email": "final@example.com",
+    }

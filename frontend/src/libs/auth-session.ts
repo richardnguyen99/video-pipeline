@@ -165,6 +165,7 @@ function clearUserScopedQueries(queryClient: QueryClient): void {
   void queryClient.removeQueries({ queryKey: ["videos", "watched"] });
   void queryClient.removeQueries({ queryKey: ["video-reaction"] });
   void queryClient.removeQueries({ queryKey: ["auth", "sessions"] });
+  void queryClient.removeQueries({ queryKey: ["auth", "activity"] });
 }
 
 /**

@@ -1,5 +1,7 @@
 """Unit tests for ``app.services.auth.AuthService``."""
 
+# pylint: disable=too-many-lines,unused-argument
+
 from __future__ import annotations
 
 import datetime
@@ -12,10 +14,12 @@ import pytest
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
+from app.models.user_activity import UserActivity, UserActivityType
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
     ChangePasswordRequest,
+    ChangeUsernameRequest,
     LoginRequest,
     RegisterRequest,
     UserResponse,
@@ -81,6 +85,28 @@ class FakeCredential:
     failed_login_attempts: int = 0
 
 
+class FakeAsyncSession:
+    """Session stand-in that records add / flush / commit / refresh."""
+
+    def __init__(self) -> None:
+        self.added: list[Any] = []
+        self.flushed = 0
+        self.committed = 0
+        self.refreshed: list[Any] = []
+
+    def add(self, obj: Any) -> None:
+        self.added.append(obj)
+
+    async def flush(self) -> None:
+        self.flushed += 1
+
+    async def commit(self) -> None:
+        self.committed += 1
+
+    async def refresh(self, obj: Any) -> None:
+        self.refreshed.append(obj)
+
+
 @dataclass
 class FakeUserRepository:
     """In-memory stand-in for ``UserRepository``."""
@@ -90,7 +116,7 @@ class FakeUserRepository:
     create_calls: list[dict[str, Any]] = field(default_factory=list)
     raise_integrity: bool = False
     created_user: Optional[FakeUser] = None
-    session: object = field(default_factory=object)
+    session: FakeAsyncSession = field(default_factory=FakeAsyncSession)
     login_success_calls: list[FakeUser] = field(default_factory=list)
     login_failure_calls: list[FakeUser] = field(default_factory=list)
     update_password_calls: list[dict[str, Any]] = field(default_factory=list)
@@ -194,6 +220,36 @@ class FakeUserRepository:
                 return user
 
         return None
+
+    async def update_username(
+        self,
+        user_id: uuid.UUID,
+        *,
+        username: str,
+    ) -> Optional[FakeUser]:
+        """Replace the username on the in-memory user."""
+
+        user = await self.get_by_id(user_id)
+
+        if user is None:
+            return None
+
+        if self.raise_integrity:
+            raise IntegrityError(
+                "duplicate",
+                params=None,
+                orig=Exception("unique"),
+            )
+
+        old_username = user.username
+
+        if old_username in self.by_username:
+            del self.by_username[old_username]
+
+        user.username = username
+        self.by_username[username] = user
+
+        return user
 
     async def update_email(
         self,
@@ -1163,3 +1219,208 @@ async def test_update_bio_null_clears_field(
     assert result.link is None
     assert result.full_name == "Alice Example"
     assert "link" in (repository.upsert_bio_calls[0]["fields_set"] or set())
+
+
+@pytest.mark.asyncio
+async def test_issue_session_tokens_records_login_activity(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Issuing session tokens appends a login activity row."""
+
+    user = UserResponse(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+        is_active=True,
+        email_verified=True,
+        created_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+    )
+
+    with (
+        patch("app.services.auth.create_access_token", return_value="access"),
+        patch(
+            "app.services.auth.create_refresh_token", return_value="refresh"
+        ),
+        patch(
+            "app.services.auth.hash_refresh_token",
+            return_value="hash:refresh",
+        ),
+    ):
+        await service.issue_session_tokens(
+            user,
+            user_agent="Mozilla/5.0 Firefox/120.0",
+            ip_address="203.0.113.10",
+        )
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].user_id == user.id
+    assert activities[0].event_type == UserActivityType.LOGIN.value
+    assert activities[0].ip_address == "203.0.113.10"
+    assert activities[0].user_agent == "Mozilla/5.0 Firefox/120.0"
+    assert repository.session.committed >= 1
+
+
+@pytest.mark.asyncio
+async def test_change_password_records_password_change_activity(
+    service: AuthService,
+    repository: FakeUserRepository,
+    refresh_tokens: FakeRefreshTokenRepository,
+) -> None:
+    """Password change records a password_change activity before revoke-all."""
+
+    user = FakeUser(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    plain = "OldPass1!"
+    credential = FakeCredential(password_hash=hash_password(plain))
+    profile = UserResponse.model_validate(user)
+    payload = ChangePasswordRequest(
+        current_password=plain,
+        new_password="NewPass1!",
+    )
+
+    with patch(
+        "app.services.auth.UserCredential.get_by_user_id",
+        new=AsyncMock(return_value=credential),
+    ):
+        await service.change_password(profile, payload)
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.PASSWORD_CHANGE.value
+    assert activities[0].user_id == user.id
+
+
+@pytest.mark.asyncio
+async def test_change_username_records_username_change_activity(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Username change stores old and new handles in activity metadata."""
+
+    user = FakeUser(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+    )
+    repository.by_username["alice"] = user
+    repository.by_email[user.email] = user
+    profile = UserResponse.model_validate(user)
+    payload = ChangeUsernameRequest(username="alice_new")
+
+    result = await service.change_username(profile, payload)
+
+    assert result.username == "alice_new"
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.USERNAME_CHANGE.value
+    assert activities[0].metadata_ == {
+        "old_username": "alice",
+        "new_username": "alice_new",
+    }
+
+
+@pytest.mark.asyncio
+async def test_list_activity_returns_mapped_items(
+    service: AuthService,
+) -> None:
+    """list_activity maps stored rows into the public response shape."""
+
+    user_id = uuid.uuid4()
+    row = UserActivity(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        event_type=UserActivityType.LOGIN.value,
+        metadata_=None,
+        ip_address="198.51.100.1",
+        user_agent="Chrome/120",
+        created_at=datetime.datetime(
+            2026,
+            10,
+            1,
+            12,
+            0,
+            0,
+            tzinfo=datetime.timezone.utc,
+        ),
+    )
+
+    with (
+        patch(
+            "app.services.auth.UserActivity.list_for_user",
+            new=AsyncMock(return_value=[row]),
+        ),
+        patch(
+            "app.services.auth.UserActivity.count_for_user",
+            new=AsyncMock(return_value=1),
+        ),
+        patch(
+            "app.services.auth.format_user_agent",
+            return_value="Chrome",
+        ),
+    ):
+        result = await service.list_activity(user_id, limit=20, offset=0)
+
+    assert result.total == 1
+    assert result.limit == 20
+    assert result.offset == 0
+    assert len(result.items) == 1
+    assert result.items[0].id == row.id
+    assert result.items[0].event_type == UserActivityType.LOGIN.value
+    assert result.items[0].ip_address == "198.51.100.1"
+    assert result.items[0].browser_label == "Chrome"
+
+
+@pytest.mark.asyncio
+async def test_list_activity_clamps_limit(
+    service: AuthService,
+) -> None:
+    """list_activity clamps limit into the 1–100 range."""
+
+    with (
+        patch(
+            "app.services.auth.UserActivity.list_for_user",
+            new=AsyncMock(return_value=[]),
+        ) as list_mock,
+        patch(
+            "app.services.auth.UserActivity.count_for_user",
+            new=AsyncMock(return_value=0),
+        ),
+    ):
+        result = await service.list_activity(
+            uuid.uuid4(),
+            limit=500,
+            offset=-3,
+        )
+
+    assert result.limit == 100
+    assert result.offset == 0
+    list_mock.assert_awaited_once()
+    await_args = list_mock.await_args
+    assert await_args is not None
+    assert await_args.kwargs["limit"] == 100
+    assert await_args.kwargs["offset"] == 0

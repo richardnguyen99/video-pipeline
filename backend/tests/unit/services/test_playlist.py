@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 
 from app.models import playlist as playlist_mod
 from app.models.playlist import Playlist, PlaylistVisibility
+from app.models.user_activity import UserActivity, UserActivityType
 from app.repositories.video import VideoRepository
 from app.schemas.playlist import (
     PlaylistCreateRequest,
@@ -41,10 +42,11 @@ class _FakeVideoRepository:
 
 
 class _SessionSpy:
-    """Session stand-in that records add / commit / refresh / delete."""
+    """Session stand-in that records add / flush / commit / refresh / delete."""
 
     def __init__(self) -> None:
         self.added: list[Any] = []
+        self.flushed = 0
         self.committed = 0
         self.refreshed: list[Any] = []
         self.deleted: list[Any] = []
@@ -52,6 +54,9 @@ class _SessionSpy:
 
     def add(self, obj: Any) -> None:
         self.added.append(obj)
+
+    async def flush(self) -> None:
+        self.flushed += 1
 
     async def commit(self) -> None:
         self.committed += 1
@@ -134,7 +139,17 @@ async def test_create_playlist_persists_and_returns_summary(
     assert result.visibility == PlaylistVisibility.PRIVATE
     assert result.video_count == 0
     assert session.committed == 1
-    assert len(session.added) == 1
+    assert session.flushed >= 1
+
+    activities = [
+        row for row in session.added if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.PLAYLIST_CREATE.value
+    assert activities[0].user_id == user_id
+    assert activities[0].metadata_ is not None
+    assert activities[0].metadata_["name"] == "Watch later"
 
 
 @pytest.mark.asyncio
