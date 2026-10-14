@@ -15,11 +15,7 @@ import type { ReactNode } from "react";
 
 import type { UserActivityItem } from "@/queries/auth-activity";
 
-type HistoryRowProps = {
-  item: UserActivityItem;
-};
-
-function formatCreatedAt(value: string): string {
+export function formatActivityCreatedAt(value: string): string {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
@@ -50,7 +46,7 @@ function metaString(metadata: Record<string, unknown> | null, key: string): stri
   return null;
 }
 
-function activityCopy(item: UserActivityItem): {
+export function activityCopy(item: UserActivityItem): {
   title: string;
   detail: string | null;
   icon: ReactNode;
@@ -179,26 +175,4 @@ function activityCopy(item: UserActivityItem): {
         icon: <LogIn className="size-4" aria-hidden />,
       };
   }
-}
-
-export function HistoryRow({ item }: HistoryRowProps) {
-  const { title, detail, icon } = activityCopy(item);
-
-  return (
-    <div className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border/50 px-3 py-2.5">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-          {icon}
-        </span>
-
-        <div className="min-w-0">
-          <p className="text-sm font-medium capitalize">{title}</p>
-
-          {detail != null ? <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p> : null}
-
-          <p className="mt-1 text-xs text-muted-foreground">{formatCreatedAt(item.created_at)}</p>
-        </div>
-      </div>
-    </div>
-  );
 }

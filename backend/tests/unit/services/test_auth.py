@@ -500,6 +500,19 @@ async def test_register_returns_user_response(
     assert result.email_verified is False
     assert len(repository.create_calls) == 1
 
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert len(activities) == 1
+    assert activities[0].event_type == UserActivityType.USER_CREATE.value
+    assert activities[0].metadata_ == {
+        "username": "alice_1",
+        "email": "alice@example.com",
+    }
+
 
 @pytest.mark.asyncio
 async def test_register_hashes_password_with_bcrypt(
@@ -1226,7 +1239,7 @@ async def test_issue_session_tokens_records_login_activity(
     service: AuthService,
     repository: FakeUserRepository,
 ) -> None:
-    """Issuing session tokens appends a login activity row."""
+    """Explicit login flag appends a login activity row."""
 
     user = UserResponse(
         id=uuid.uuid4(),
@@ -1253,6 +1266,7 @@ async def test_issue_session_tokens_records_login_activity(
             user,
             user_agent="Mozilla/5.0 Firefox/120.0",
             ip_address="203.0.113.10",
+            record_login_activity=True,
         )
 
     activities = [
@@ -1267,6 +1281,49 @@ async def test_issue_session_tokens_records_login_activity(
     assert activities[0].ip_address == "203.0.113.10"
     assert activities[0].user_agent == "Mozilla/5.0 Firefox/120.0"
     assert repository.session.committed >= 1
+
+
+@pytest.mark.asyncio
+async def test_issue_session_tokens_skips_login_activity_by_default(
+    service: AuthService,
+    repository: FakeUserRepository,
+) -> None:
+    """Token issuance alone does not write a login activity row."""
+
+    user = UserResponse(
+        id=uuid.uuid4(),
+        username="alice",
+        email="alice@example.com",
+        display_name="Alice",
+        is_active=True,
+        email_verified=True,
+        created_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+        updated_at=datetime.datetime(2026, 1, 1, tzinfo=datetime.timezone.utc),
+    )
+
+    with (
+        patch("app.services.auth.create_access_token", return_value="access"),
+        patch(
+            "app.services.auth.create_refresh_token", return_value="refresh"
+        ),
+        patch(
+            "app.services.auth.hash_refresh_token",
+            return_value="hash:refresh",
+        ),
+    ):
+        await service.issue_session_tokens(
+            user,
+            user_agent="Mozilla/5.0",
+            ip_address="203.0.113.10",
+        )
+
+    activities = [
+        row
+        for row in repository.session.added
+        if isinstance(row, UserActivity)
+    ]
+
+    assert activities == []
 
 
 @pytest.mark.asyncio

@@ -74,6 +74,7 @@ async def login(
         remember_me=body.remember_me,
         user_agent=user_agent,
         ip_address=ip_address,
+        record_login_activity=True,
     )
     payload = SessionResponse(
         **user.model_dump(),

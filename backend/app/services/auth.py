@@ -356,17 +356,23 @@ class AuthService:
         remember_me: bool = False,
         user_agent: Optional[str] = None,
         ip_address: Optional[str] = None,
+        record_login_activity: bool = False,
     ) -> tuple[str, str]:
         """Mint access + refresh JWTs and allowlist the refresh token.
 
         Each call creates a new independent session. Other active refresh
         tokens for the same user (other browsers/devices) remain valid.
 
+        Login history is written only when ``record_login_activity`` is true
+        (explicit ``POST /auth/login``). Token rotation / refresh must leave
+        this flag false so the activity log is not polluted.
+
         Args:
             user: Authenticated public profile.
             remember_me: Persist the refresh cookie across browser restarts.
             user_agent: Optional client user-agent for the session row.
             ip_address: Optional client IP for the session row.
+            record_login_activity: When true, append a ``login`` activity row.
 
         Returns:
             ``(access_token, refresh_token)`` raw JWT strings.
@@ -391,15 +397,17 @@ class AuthService:
             user_agent=user_agent,
             ip_address=ip_address,
         )
-        await UserActivity.record(
-            self._repository.session,
-            user_id=user.id,
-            event_type=UserActivityType.LOGIN,
-            metadata=None,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            commit=True,
-        )
+
+        if record_login_activity:
+            await UserActivity.record(
+                self._repository.session,
+                user_id=user.id,
+                event_type=UserActivityType.LOGIN,
+                metadata=None,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                commit=True,
+            )
 
         return access, refresh
 
