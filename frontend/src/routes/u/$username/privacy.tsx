@@ -11,7 +11,11 @@ export const Route = createFileRoute("/u/$username/privacy")({
 
 function PrivacyPage() {
   const { username } = Route.useParams();
-  const { isOwner, isRestoring } = useResolvedOwner(username);
+  const { isOwner, authUser, isRestoring } = useResolvedOwner(username);
+
+  if (!isRestoring && authUser != null && authUser.username !== username) {
+    return <Navigate to="/u/$username/privacy" params={{ username: authUser.username }} replace />;
+  }
 
   if (!isRestoring && !isOwner) {
     return <Navigate to="/u/$username" params={{ username }} />;

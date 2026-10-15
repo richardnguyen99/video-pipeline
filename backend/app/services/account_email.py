@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import uuid
+
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 
 from app.config import settings
+from app.models.user import User
 from app.models.user_activity import UserActivity, UserActivityType
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
@@ -287,6 +290,44 @@ class AccountEmailService:
     ) -> ChangeEmailConfirmResponse:
         """Apply or stage an email change after form + intent checks."""
 
+        user = await self.__resolve_change_email_user(payload, redis)
+        new_email = payload.new_email
+
+        if new_email.lower() == user.email.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New email must be different from the current email.",
+            )
+
+        await self.__ensure_email_available(new_email, user_id=user.id)
+
+        if not user.email_verified:
+            return await self.__apply_unverified_email_change(user, new_email)
+
+        await self.__stage_verified_email_change(
+            user,
+            new_email,
+            redis=redis,
+            email_service=email_service,
+        )
+
+        return ChangeEmailConfirmResponse(
+            success=True,
+            detail=(
+                "Check the new inbox and open the confirmation link to "
+                "finish updating your email."
+            ),
+            requires_new_email_verification=True,
+            user=None,
+        )
+
+    async def __resolve_change_email_user(
+        self,
+        payload: ChangeEmailConfirmRequest,
+        redis: AsyncKeyValueStore,
+    ) -> User:
+        """Validate form session, XSRF, and intent token; return the user."""
+
         session = await load_form_session(redis, payload.form_id)
 
         if session is None:
@@ -327,60 +368,80 @@ class AccountEmailService:
                 detail="Change-email link is invalid or has expired.",
             )
 
-        new_email = payload.new_email
+        return user
 
-        if new_email.lower() == user.email.lower():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="New email must be different from the current email.",
-            )
+    async def __ensure_email_available(
+        self,
+        new_email: str,
+        *,
+        user_id: uuid.UUID,
+    ) -> None:
+        """Raise when another account already owns ``new_email``."""
 
         existing = await self._repository.get_by_email(new_email)
 
-        if existing is not None and existing.id != user.id:
+        if existing is not None and existing.id != user_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="That email address is already in use.",
             )
 
-        if not user.email_verified:
-            previous_email = user.email
+    async def __apply_unverified_email_change(
+        self,
+        user: User,
+        new_email: str,
+    ) -> ChangeEmailConfirmResponse:
+        """Update email immediately when the current address is unverified."""
 
-            try:
-                updated = await self._repository.update_email(
-                    user.id,
-                    email=new_email,
-                    email_verified=False,
-                )
-            except IntegrityError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="That email address is already in use.",
-                ) from exc
+        previous_email = user.email
 
-            if updated is None:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Unable to update email.",
-                )
+        try:
+            updated = await self._repository.update_email(
+                user.id,
+                email=new_email,
+                email_verified=False,
+            )
+        except IntegrityError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="That email address is already in use.",
+            ) from exc
 
-            await UserActivity.record(
-                self._repository.session,
-                user_id=user.id,
-                event_type=UserActivityType.EMAIL_CHANGE,
-                metadata={
-                    "old_email": previous_email,
-                    "new_email": new_email,
-                },
-                commit=True,
+        if updated is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to update email.",
             )
 
-            return ChangeEmailConfirmResponse(
-                success=True,
-                detail="Email updated. Verify the new address when ready.",
-                requires_new_email_verification=False,
-                user=UserResponse.model_validate(updated),
-            )
+        response_user = UserResponse.model_validate(updated)
+
+        await UserActivity.record(
+            self._repository.session,
+            user_id=user.id,
+            event_type=UserActivityType.EMAIL_CHANGE,
+            metadata={
+                "old_email": previous_email,
+                "new_email": new_email,
+            },
+            commit=True,
+        )
+
+        return ChangeEmailConfirmResponse(
+            success=True,
+            detail="Email updated. Verify the new address when ready.",
+            requires_new_email_verification=False,
+            user=response_user,
+        )
+
+    async def __stage_verified_email_change(
+        self,
+        user: User,
+        new_email: str,
+        *,
+        redis: AsyncKeyValueStore,
+        email_service: EmailService,
+    ) -> None:
+        """Store a pending change and email a confirmation link to the new inbox."""
 
         raw_pending = generate_token()
         ttl_seconds = max(
@@ -417,16 +478,6 @@ class AccountEmailService:
             subject="Confirm your new Velvet email",
             html=html,
             text=text,
-        )
-
-        return ChangeEmailConfirmResponse(
-            success=True,
-            detail=(
-                "Check the new inbox and open the confirmation link to "
-                "finish updating your email."
-            ),
-            requires_new_email_verification=True,
-            user=None,
         )
 
     async def confirm_new_email_change(
@@ -475,6 +526,8 @@ class AccountEmailService:
                 detail="Email-change link is invalid or has expired.",
             )
 
+        response = UserResponse.model_validate(updated)
+
         await UserActivity.record(
             self._repository.session,
             user_id=user_id,
@@ -486,4 +539,4 @@ class AccountEmailService:
             commit=True,
         )
 
-        return UserResponse.model_validate(updated)
+        return response

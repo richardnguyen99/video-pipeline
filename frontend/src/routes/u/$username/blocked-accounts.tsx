@@ -11,8 +11,12 @@ export const Route = createFileRoute("/u/$username/blocked-accounts")({
 
 function BlockedAccountsPage() {
   const { username } = Route.useParams();
-  const { isOwner, isRestoring } = useResolvedOwner(username);
+  const { isOwner, authUser, isRestoring } = useResolvedOwner(username);
   const blockedQuery = useOwnerBlocked(username);
+
+  if (!isRestoring && authUser != null && authUser.username !== username) {
+    return <Navigate to="/u/$username/blocked-accounts" params={{ username: authUser.username }} replace />;
+  }
 
   if (!isRestoring && !isOwner) {
     return <Navigate to="/u/$username" params={{ username }} />;
@@ -26,5 +30,5 @@ function BlockedAccountsPage() {
     return <SettingsContentSkeleton />;
   }
 
-  return <BlockedAccountsPanel username={username} accounts={blockedQuery.data ?? []} />;
+  return <BlockedAccountsPanel username={authUser?.username ?? username} accounts={blockedQuery.data ?? []} />;
 }

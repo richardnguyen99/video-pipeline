@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import type { SyntheticEvent } from "react";
 import { useForm } from "@tanstack/react-form";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
@@ -14,6 +14,7 @@ import { toast } from "@/components/ui/toast";
 import { changeUsername, getApiErrorMessage } from "@/libs/auth";
 import type { UserProfile } from "@/libs/auth";
 import { authQueryKeys } from "@/queries/auth";
+import { userBioQueryKeys } from "@/queries/user-bio";
 import { useAuthStore } from "@/stores/auth-store";
 
 const usernameSchema = z.object({
@@ -48,7 +49,7 @@ function fieldErrors(errors: Array<unknown>): Array<{ message?: string } | undef
 }
 
 export function ChangeUsernameDialog({ open, currentUsername, onOpenChange }: ChangeUsernameDialogProps) {
-  const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const setUser = useAuthStore((state) => state.setUser);
   const [formError, setFormError] = useState<string | null>(null);
@@ -73,11 +74,19 @@ export function ChangeUsernameDialog({ open, currentUsername, onOpenChange }: Ch
 
       try {
         const profile = await changeUsername(nextUsername);
+        const previousUsername = currentUsername;
         const current = useAuthStore.getState().user;
         const next: UserProfile = current != null && current.id === profile.id ? { ...current, ...profile } : profile;
 
-        setUser(next);
         queryClient.setQueryData(authQueryKeys.me(), next);
+        queryClient.removeQueries({
+          queryKey: userBioQueryKeys.byUsername(previousUsername),
+        });
+        queryClient.removeQueries({
+          queryKey: ["user-profile", previousUsername],
+        });
+
+        router.history.replace(`/u/${encodeURIComponent(profile.username)}/security`);
 
         toast.add({
           type: "success",
@@ -86,12 +95,7 @@ export function ChangeUsernameDialog({ open, currentUsername, onOpenChange }: Ch
         });
 
         onOpenChange(false);
-
-        void navigate({
-          to: "/u/$username/security",
-          params: { username: profile.username },
-          replace: true,
-        });
+        setUser(next);
       } catch (error) {
         setFormError(getApiErrorMessage(error));
       }

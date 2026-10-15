@@ -114,6 +114,8 @@ class AuthService:
                 detail="Username or email is already registered.",
             ) from exc
 
+        response = UserResponse.model_validate(user)
+
         await UserActivity.record(
             self._repository.session,
             user_id=user.id,
@@ -125,7 +127,7 @@ class AuthService:
             commit=True,
         )
 
-        return UserResponse.model_validate(user)
+        return response
 
     async def login(self, payload: LoginRequest) -> UserResponse:
         """Authenticate a user by email and password.
@@ -839,6 +841,8 @@ class AuthService:
                 detail="Not authenticated.",
             )
 
+        response = UserResponse.model_validate(updated)
+
         await UserActivity.record(
             self._repository.session,
             user_id=user.id,
@@ -850,7 +854,7 @@ class AuthService:
             commit=True,
         )
 
-        return UserResponse.model_validate(updated)
+        return response
 
     async def list_activity(
         self,

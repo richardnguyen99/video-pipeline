@@ -1,8 +1,12 @@
-import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router";
+import { createFileRoute, notFound, Outlet, useRouterState } from "@tanstack/react-router";
 
+import { NotFoundPage } from "@/components/not-found/not-found-page";
 import type { SettingsNavKey } from "@/layouts/user-profile/settings-nav";
 import { SettingsShell } from "@/layouts/user-profile/settings-shell";
 import type { UserProfile } from "@/libs/auth";
+import { ApiError } from "@/libs/api-client";
+import { HttpStatus } from "@/libs/http-status";
+import { publicUserBioQueryOptions } from "@/queries/user-bio";
 import { useAuthStore } from "@/stores/auth-store";
 
 type UserProfileRouteContext = {
@@ -56,8 +60,32 @@ export const Route = createFileRoute("/u/$username")({
       authUser,
     };
   },
+  loader: async ({ context, params }) => {
+    try {
+      await context.queryClient.query({
+        ...publicUserBioQueryOptions(params.username),
+        staleTime: "static",
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.status === HttpStatus.NOT_FOUND) {
+        throw notFound();
+      }
+
+      throw error;
+    }
+  },
+  notFoundComponent: UserProfileNotFound,
   component: UserProfileLayout,
 });
+
+function UserProfileNotFound() {
+  return (
+    <NotFoundPage
+      title="User not found"
+      description="No account exists with this username. It may have been changed or never registered."
+    />
+  );
+}
 
 function UserProfileLayout() {
   const { username } = Route.useParams();

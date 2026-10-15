@@ -13,7 +13,11 @@ function UserSecurityPage() {
   const { username } = Route.useParams();
   const { isOwner, authUser, isRestoring } = useResolvedOwner(username);
 
-  if (!isRestoring && (!isOwner || authUser == null)) {
+  if (!isRestoring && authUser != null && authUser.username !== username) {
+    return <Navigate to="/u/$username/security" params={{ username: authUser.username }} replace />;
+  }
+
+  if (!isRestoring && (authUser == null || !isOwner)) {
     return <Navigate to="/u/$username" params={{ username }} />;
   }
 
