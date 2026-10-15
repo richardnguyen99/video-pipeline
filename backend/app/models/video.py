@@ -167,7 +167,7 @@ class VideoAka(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["fk_id"],
-            ["public.video.id"],
+            ["video.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),
@@ -227,7 +227,7 @@ class VideoImageUrl(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["fk_id"],
-            ["public.video.id"],
+            ["video.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),
@@ -273,7 +273,7 @@ class VideoM3u8(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             columns=["fk_id"],
-            refcolumns=["public.video.id"],
+            refcolumns=["video.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),
@@ -315,7 +315,7 @@ class VideoSampleImageUrl(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             columns=["fk_id"],
-            refcolumns=["public.video.id"],
+            refcolumns=["video.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),
@@ -361,7 +361,7 @@ class VideoSampleMovieUrl(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["fk_id"],
-            ["public.video.id"],
+            ["video.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),

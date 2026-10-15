@@ -22,7 +22,7 @@ class ActressEngagementStats(SQLModel, table=True):
 
     actress_id: int = Field(
         primary_key=True,
-        foreign_key="public.actress.id",
+        foreign_key="actress.id",
     )
     video_cnt: int = Field(default=0, ge=0)
     sub_cnt: int = Field(default=0, ge=0)

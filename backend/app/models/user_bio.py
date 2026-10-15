@@ -40,7 +40,7 @@ class UserBio(SQLModel, table=True):
         primary_key=True,
     )
     user_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         unique=True,
         index=True,
     )

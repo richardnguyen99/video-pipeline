@@ -49,7 +49,7 @@ class DirectorAka(AkaMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             columns=["fk_id"],
-            refcolumns=["public.director.id"],
+            refcolumns=["director.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),

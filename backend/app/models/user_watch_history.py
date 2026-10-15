@@ -26,8 +26,8 @@ class UserWatchHistory(SQLModel, table=True):
     )
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    user_id: uuid.UUID = Field(foreign_key="public.user.id", index=True)
-    video_id: int = Field(foreign_key="public.video.id", index=True)
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True)
+    video_id: int = Field(foreign_key="video.id", index=True)
     position_seconds: float = Field(default=0.0, ge=0)
     total_view_count: int = Field(default=0, ge=0)
     last_watched_at: datetime.datetime = Field(default_factory=now)

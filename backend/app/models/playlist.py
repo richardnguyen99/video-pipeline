@@ -62,7 +62,7 @@ class Playlist(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     owner_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
     name: str = Field(max_length=255, sa_type=AutoString)
@@ -390,10 +390,10 @@ class PlaylistVideo(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     playlist_id: uuid.UUID = Field(
-        foreign_key="public.playlist.id",
+        foreign_key="playlist.id",
         index=True,
     )
-    video_id: int = Field(foreign_key="public.video.id", index=True)
+    video_id: int = Field(foreign_key="video.id", index=True)
     position: int = Field(default=0)
     added_at: datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(
@@ -644,11 +644,11 @@ class PlaylistShare(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     playlist_id: uuid.UUID = Field(
-        foreign_key="public.playlist.id",
+        foreign_key="playlist.id",
         index=True,
     )
     shared_with_user_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
     can_edit: bool = Field(default=False)

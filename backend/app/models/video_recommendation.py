@@ -21,12 +21,12 @@ class VideoRecommendation(IdTimestampMixin, table=True):
     )
 
     video_id: int = Field(
-        foreign_key="public.video.id",
+        foreign_key="video.id",
         index=True,
         nullable=False,
     )
     recommended_video_id: int = Field(
-        foreign_key="public.video.id",
+        foreign_key="video.id",
         index=True,
         nullable=False,
     )

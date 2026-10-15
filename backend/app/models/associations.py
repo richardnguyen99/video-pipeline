@@ -12,6 +12,11 @@ from sqlalchemy import (
 )
 from sqlmodel import SQLModel
 
+# Parent tables may not be registered yet; MetaData.schema lets FK targets
+# like ``actress.id`` resolve to ``public.actress`` at mapper configure time.
+if not SQLModel.metadata.schema:
+    SQLModel.metadata.schema = "public"
+
 t_video_actress = Table(
     "video_actress",
     SQLModel.metadata,
@@ -39,12 +44,12 @@ t_video_actress = Table(
     ),
     ForeignKeyConstraint(
         ["fk_id"],
-        ["public.actress.id"],
+        ["actress.id"],
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
         ["video_id"],
-        ["public.video.id"],
+        ["video.id"],
         ondelete="CASCADE",
     ),
     PrimaryKeyConstraint(
@@ -91,12 +96,12 @@ t_video_director = Table(
     ),
     ForeignKeyConstraint(
         ["fk_id"],
-        ["public.director.id"],
+        ["director.id"],
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
         ["video_id"],
-        ["public.video.id"],
+        ["video.id"],
         ondelete="CASCADE",
     ),
     Index(None, "fk_id"),
@@ -133,12 +138,12 @@ t_video_genre = Table(
     ),
     ForeignKeyConstraint(
         ["fk_id"],
-        ["public.genre.id"],
+        ["genre.id"],
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
         ["video_id"],
-        ["public.video.id"],
+        ["video.id"],
         ondelete="CASCADE",
     ),
     Index(None, "fk_id"),
@@ -175,12 +180,12 @@ t_video_label = Table(
     ),
     ForeignKeyConstraint(
         ["fk_id"],
-        ["public.label.id"],
+        ["label.id"],
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
         ["video_id"],
-        ["public.video.id"],
+        ["video.id"],
         ondelete="CASCADE",
     ),
     Index(None, "fk_id"),
@@ -217,12 +222,12 @@ t_video_maker = Table(
     ),
     ForeignKeyConstraint(
         ["fk_id"],
-        ["public.maker.id"],
+        ["maker.id"],
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
         ["video_id"],
-        ["public.video.id"],
+        ["video.id"],
         ondelete="CASCADE",
     ),
     Index(None, "fk_id"),
@@ -259,12 +264,12 @@ t_video_series = Table(
     ),
     ForeignKeyConstraint(
         ["fk_id"],
-        ["public.series.id"],
+        ["series.id"],
         ondelete="CASCADE",
     ),
     ForeignKeyConstraint(
         ["video_id"],
-        ["public.video.id"],
+        ["video.id"],
         ondelete="CASCADE",
     ),
     Index(None, "fk_id"),

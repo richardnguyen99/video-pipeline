@@ -1,7 +1,7 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 
+import { ContentPreferencePanel } from "@/layouts/user-profile/content-preference-panel";
 import { SettingsContentSkeleton } from "@/layouts/user-profile/settings-shell";
-import { TagEditor } from "@/layouts/user-profile/tag-editor";
 import { requireOwnerBeforeLoad, useResolvedOwner } from "@/layouts/user-profile/use-user-settings";
 
 export const Route = createFileRoute("/u/$username/content-preference")({
@@ -25,19 +25,5 @@ function ContentPreferencePage() {
     return <SettingsContentSkeleton />;
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <TagEditor
-        label="Interests"
-        description="Tell Velvet what you enjoy so your recommendations feel more personal."
-        initialTags={["Documentaries", "Street photography", "Independent cinema"]}
-      />
-
-      <TagEditor
-        label="Dislikes"
-        description="Add topics you would rather see less often in your recommendations."
-        initialTags={["Spoilers", "Loud jump cuts"]}
-      />
-    </div>
-  );
+  return <ContentPreferencePanel />;
 }

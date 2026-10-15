@@ -35,11 +35,11 @@ class VideoWatchProgress(SQLModel, table=True):
         primary_key=True,
     )
     user_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
     video_id: int = Field(
-        foreign_key="public.video.id",
+        foreign_key="video.id",
         index=True,
     )
     position_seconds: float = Field(

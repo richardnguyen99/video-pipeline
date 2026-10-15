@@ -27,10 +27,10 @@ class VideoView(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
-    video_id: int = Field(foreign_key="public.video.id", index=True)
+    video_id: int = Field(foreign_key="video.id", index=True)
     created_at: datetime.datetime = Field(
         default_factory=now,
         sa_column_kwargs={

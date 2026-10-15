@@ -46,7 +46,7 @@ class UserActivity(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
     event_type: str = Field(

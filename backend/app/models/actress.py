@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 class Actress(IdTimestampMixin, table=True):
     """Represents an actress entity."""
 
+    __tablename__ = "actress"
     __table_args__ = (
         PrimaryKeyConstraint("id"),
         UniqueConstraint("dmm_id"),
@@ -203,7 +204,7 @@ class ActressAka(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["fk_id"],
-            ["public.actress.id"],
+            ["actress.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),
@@ -263,7 +264,7 @@ class ActressImage(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["fk_id"],
-            ["public.actress.id"],
+            ["actress.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),
@@ -312,7 +313,7 @@ class ActressBanner(IdTimestampMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             ["fk_id"],
-            ["public.actress.id"],
+            ["actress.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),

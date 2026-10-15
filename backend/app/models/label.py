@@ -49,7 +49,7 @@ class LabelAka(AkaMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             columns=["fk_id"],
-            refcolumns=["public.label.id"],
+            refcolumns=["label.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),

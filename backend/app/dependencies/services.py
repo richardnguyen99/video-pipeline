@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from app.config import settings
+from app.dependencies.database import SessionDep
 from app.dependencies.repositories import (
     ActressRepositoryDep,
     DirectorRepositoryDep,
@@ -26,6 +27,7 @@ from app.services.account_password import AccountPasswordService
 from app.services.actress import ActressService
 from app.services.actress_subscribe import ActressSubscribeService
 from app.services.auth import AuthService
+from app.services.content_preference import ContentPreferenceService
 from app.services.director import DirectorService
 from app.services.email import EmailService
 from app.services.genre import GenreService
@@ -190,6 +192,14 @@ def get_actress_subscribe_service(
     return ActressSubscribeService(repository=repository)
 
 
+def get_content_preference_service(
+    session: SessionDep,
+) -> ContentPreferenceService:
+    """Build a request-scoped ``ContentPreferenceService``."""
+
+    return ContentPreferenceService(session=session)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 ActressSubscribeServiceDep = Annotated[
@@ -214,3 +224,7 @@ AccountPasswordServiceDep = Annotated[
 ]
 EmailServiceDep = Annotated[EmailService, Depends(get_email_service)]
 PlaylistServiceDep = Annotated[PlaylistService, Depends(get_playlist_service)]
+ContentPreferenceServiceDep = Annotated[
+    ContentPreferenceService,
+    Depends(get_content_preference_service),
+]

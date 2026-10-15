@@ -8,9 +8,15 @@ from app.dependencies import CurrentUserDep
 from app.dependencies.repositories import UserRepositoryDep
 from app.dependencies.services import (
     ActressSubscribeServiceDep,
+    ContentPreferenceServiceDep,
     PlaylistServiceDep,
 )
 from app.schemas.actress_subscribe import ActressSubscribeListResponse
+from app.schemas.content_preference import (
+    ContentPreferenceCreateRequest,
+    ContentPreferenceItem,
+    ContentPreferenceListResponse,
+)
 from app.schemas.playlist import PlaylistListResponse
 from app.schemas.user import UserSearchItem, UserSearchResponse
 from app.schemas.user_bio import UserBioResponse
@@ -141,6 +147,112 @@ async def list_public_user_playlists(
         username=username,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get(
+    "/me/content-preferences",
+    response_model=ContentPreferenceListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List the authenticated user's content preferences",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def list_my_content_preferences(
+    current_user: CurrentUserDep,
+    service: ContentPreferenceServiceDep,
+) -> ContentPreferenceListResponse:
+    """Return interest and dislike entity tags for recommendation filtering."""
+
+    return await service.list_preferences(user_id=current_user.id)
+
+
+@router.post(
+    "/me/content-preferences",
+    response_model=ContentPreferenceItem,
+    status_code=status.HTTP_200_OK,
+    summary="Add or update a content preference",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid polarity or entity type",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Catalog entity not found",
+        },
+    },
+)
+async def upsert_my_content_preference(
+    payload: ContentPreferenceCreateRequest,
+    current_user: CurrentUserDep,
+    service: ContentPreferenceServiceDep,
+) -> ContentPreferenceItem:
+    """Add an interest or dislike; switching polarity replaces the existing row."""
+
+    return await service.upsert_preference(
+        user_id=current_user.id,
+        payload=payload,
+    )
+
+
+@router.delete(
+    "/me/content-preferences/{entity_type}/{entity_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove a content preference",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def remove_my_content_preference(
+    entity_type: str,
+    entity_id: int,
+    current_user: CurrentUserDep,
+    service: ContentPreferenceServiceDep,
+) -> None:
+    """Delete the preference for the given catalog entity."""
+
+    await service.remove_preference(
+        user_id=current_user.id,
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
+
+
+@router.delete(
+    "/me/content-preferences",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Clear all preferences of one polarity",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid polarity",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def clear_my_content_preferences(
+    current_user: CurrentUserDep,
+    service: ContentPreferenceServiceDep,
+    polarity: Annotated[
+        str,
+        Query(
+            description="Preference polarity to clear: interest or dislike.",
+        ),
+    ],
+) -> None:
+    """Remove every interest or dislike for the authenticated user."""
+
+    await service.clear_polarity(
+        user_id=current_user.id,
+        polarity=polarity,
     )
 
 

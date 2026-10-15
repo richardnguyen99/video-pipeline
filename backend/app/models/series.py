@@ -49,7 +49,7 @@ class SeriesAka(AkaMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             columns=["fk_id"],
-            refcolumns=["public.series.id"],
+            refcolumns=["series.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),

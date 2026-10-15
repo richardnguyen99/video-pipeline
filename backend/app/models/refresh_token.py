@@ -48,7 +48,7 @@ class RefreshToken(SQLModel, table=True):
         primary_key=True,
     )
     user_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
 
@@ -67,7 +67,7 @@ class RefreshToken(SQLModel, table=True):
 
     replaced_by_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="public.refresh_token.id",
+        foreign_key="refresh_token.id",
     )
 
     user_agent: Optional[str] = Field(

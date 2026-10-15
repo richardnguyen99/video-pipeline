@@ -14,6 +14,19 @@ from typing import Any, Optional, cast
 from sqlalchemy import Text, text
 from sqlmodel import Field, SQLModel
 
+# Ensure schema/naming are set for any import path (not only app.models).
+if not SQLModel.metadata.schema:
+    SQLModel.metadata.schema = "public"
+
+if not SQLModel.metadata.naming_convention:
+    SQLModel.metadata.naming_convention = {
+        "ix": "ix_%(table_name)s_%(column_0_label)s",
+        "uq": "uq_%(table_name)s_%(column_0_name)s",
+        "ck": "ck_%(table_name)s_%(constraint_name)s",
+        "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+        "pk": "pk_%(table_name)s",
+    }
+
 
 class IdMixin(SQLModel):
     """Integer primary key with autoincrement."""

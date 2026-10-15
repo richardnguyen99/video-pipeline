@@ -41,13 +41,13 @@ class Comment(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
-    video_id: int = Field(foreign_key="public.video.id", index=True)
+    video_id: int = Field(foreign_key="video.id", index=True)
     parent_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="public.comment.id",
+        foreign_key="comment.id",
         index=True,
     )
 

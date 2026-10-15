@@ -4,14 +4,16 @@ from sqlmodel import SQLModel
 
 # pylint: disable=wrong-import-position
 
+# Default schema so unqualified FK targets (e.g. ``actress.id``) resolve to
+# ``public.actress`` and match tables that declare ``schema="public"``.
+SQLModel.metadata.schema = "public"
 SQLModel.metadata.naming_convention = {
-    "ix": "ix_%(column_0_label)s",
+    "ix": "ix_%(table_name)s_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
     "ck": "ck_%(table_name)s_%(constraint_name)s",
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s",
 }
-
 
 from app.models import associations  # noqa: F401 — registers junction tables
 from app.models.actress import (
@@ -35,10 +37,17 @@ from app.models.playlist import (
 )
 from app.models.refresh_token import RefreshToken
 from app.models.series import Series, SeriesAka
+
+# Parent catalog / identity tables before association tables that FK to them.
 from app.models.user import User
 from app.models.user_activity import UserActivity, UserActivityType
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.models.user_bio import UserBio
+from app.models.user_content_preference import (
+    PreferenceEntityType,
+    PreferencePolarity,
+    UserContentPreference,
+)
 from app.models.user_watch_history import UserWatchHistory
 from app.models.video import (
     Video,

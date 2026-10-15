@@ -20,10 +20,10 @@ class WatchEvent(SQLModel, table=True):
     playback_session_id: uuid.UUID = Field(index=True)
     user_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
-    video_id: int = Field(foreign_key="public.video.id", index=True)
+    video_id: int = Field(foreign_key="video.id", index=True)
     event_type: str = Field(max_length=32, index=True)
     position_seconds: float = Field(default=0.0, ge=0)
     is_eligible: bool = Field(default=False)

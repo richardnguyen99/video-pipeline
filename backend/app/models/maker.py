@@ -49,7 +49,7 @@ class MakerAka(AkaMixin, table=True):
     __table_args__ = (
         ForeignKeyConstraint(
             columns=["fk_id"],
-            refcolumns=["public.maker.id"],
+            refcolumns=["maker.id"],
             ondelete="CASCADE",
         ),
         PrimaryKeyConstraint("id"),

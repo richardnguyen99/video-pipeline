@@ -46,11 +46,11 @@ class UserActressSubscribe(SQLModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     user_id: uuid.UUID = Field(
-        foreign_key="public.user.id",
+        foreign_key="user.id",
         index=True,
     )
     actress_id: int = Field(
-        foreign_key="public.actress.id",
+        foreign_key="actress.id",
         index=True,
     )
     created_at: datetime.datetime = Field(
