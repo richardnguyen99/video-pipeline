@@ -1,8 +1,8 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { ChangeEmailRequestButton } from "@/layouts/user-profile/security/change-email-request";
-import { ChangePasswordRequestButton } from "@/layouts/user-profile/security/change-password-request";
+import { ChangeEmailSection } from "@/layouts/user-profile/security/change-email-request";
+import { ChangePasswordSection } from "@/layouts/user-profile/security/change-password-request";
 import { ChangeUsernameDialog } from "@/layouts/user-profile/security/change-username-dialog";
 import { HistorySection } from "@/layouts/user-profile/security/history-section";
 import { SessionsSection } from "@/layouts/user-profile/security/sessions-section";
@@ -18,23 +18,7 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <SettingsCard
-        title="Change email"
-        description="Update the email address used to sign in and receive account notices."
-        action={<ChangeEmailRequestButton />}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium">Current email</p>
-
-            <p className="text-sm text-muted-foreground">{user.email}</p>
-          </div>
-
-          <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-medium text-primary">
-            {user.email_verified ? "Verified" : "Unverified"}
-          </span>
-        </div>
-      </SettingsCard>
+      <ChangeEmailSection email={user.email} emailVerified={user.email_verified} />
 
       <SettingsCard
         title="Change username"
@@ -70,16 +54,7 @@ export function SecurityPanel({ user }: SecurityPanelProps) {
         onOpenChange={setUsernameDialogOpen}
       />
 
-      <SettingsCard
-        title="Change password"
-        description="We email a temporary link so you can confirm your identity and set a new password. All devices are signed out when the change completes."
-        action={<ChangePasswordRequestButton />}
-      >
-        <p className="text-sm text-muted-foreground">
-          Use the button to send a password-change link to{" "}
-          <span className="font-medium text-foreground">{user.email}</span>.
-        </p>
-      </SettingsCard>
+      <ChangePasswordSection email={user.email} />
 
       <SessionsSection />
 

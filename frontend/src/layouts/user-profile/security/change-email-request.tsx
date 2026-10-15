@@ -2,51 +2,76 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
+import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { getApiErrorMessage, requestChangeEmailLink } from "@/libs/auth";
 
-export function ChangeEmailRequestButton() {
+type ChangeEmailSectionProps = {
+  email: string;
+  emailVerified: boolean;
+};
+
+export function ChangeEmailSection({ email, emailVerified }: ChangeEmailSectionProps) {
   const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleRequest() {
     setPending(true);
-    setMessage(null);
-    setError(null);
 
     try {
       const result = await requestChangeEmailLink();
-      setMessage(result.detail);
+      toast.add({
+        type: "success",
+        title: "Email link sent",
+        description: result.detail,
+        timeout: 4000,
+      });
     } catch (err) {
-      setError(getApiErrorMessage(err));
+      toast.add({
+        type: "error",
+        title: "Could not send email link",
+        description: getApiErrorMessage(err),
+        timeout: 4000,
+      });
     } finally {
       setPending(false);
     }
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
-      <Button
-        type="button"
-        size="sm"
-        disabled={pending}
-        onClick={() => {
-          void handleRequest();
-        }}
-      >
-        {pending ? (
-          <>
-            <Loader2 className="size-4 animate-spin" aria-hidden />
-            Sending…
-          </>
-        ) : (
-          "Change email"
-        )}
-      </Button>
+    <SettingsCard
+      title="Change email"
+      description="Update the email address used to sign in and receive account notices."
+      action={
+        <Button
+          type="button"
+          size="sm"
+          disabled={pending}
+          onClick={() => {
+            void handleRequest();
+          }}
+        >
+          {pending ? (
+            <>
+              <Loader2 className="size-4 animate-spin" aria-hidden />
+              Sending…
+            </>
+          ) : (
+            "Change email"
+          )}
+        </Button>
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium">Current email</p>
 
-      {message ? <p className="max-w-xs text-right text-xs text-muted-foreground">{message}</p> : null}
+          <p className="text-sm text-muted-foreground">{email}</p>
+        </div>
 
-      {error ? <p className="max-w-xs text-right text-xs text-destructive">{error}</p> : null}
-    </div>
+        <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-medium text-primary">
+          {emailVerified ? "Verified" : "Unverified"}
+        </span>
+      </div>
+    </SettingsCard>
   );
 }

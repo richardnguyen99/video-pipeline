@@ -116,14 +116,14 @@ type SettingsCardProps = {
 export function SettingsCard({ title, description, action, children, className }: SettingsCardProps) {
   return (
     <div className={`rounded-xl border border-border/60 bg-card/40 p-5 ${className ?? ""}`}>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
           <h3 className="text-sm font-semibold tracking-tight">{title}</h3>
 
           {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
         </div>
 
-        {action}
+        {action != null ? <div className="shrink-0">{action}</div> : null}
       </div>
 
       {children}
