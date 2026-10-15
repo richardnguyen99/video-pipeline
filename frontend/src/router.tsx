@@ -1,6 +1,7 @@
 import { QueryClientProvider, dehydrate, hydrate } from "@tanstack/react-query";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 
+import { ErrorPage } from "@/components/error/error-page";
 import { NotFoundPage } from "@/components/not-found/not-found-page";
 import type { UserProfile } from "@/libs/auth";
 import { readIdentityUsername } from "@/libs/auth-identity-cookie";
@@ -26,6 +27,7 @@ export function getRouter() {
     scrollRestoration: true,
     defaultPreload: "intent",
     defaultPreloadStaleTime: 0,
+    defaultErrorComponent: ErrorPage,
     defaultNotFoundComponent: NotFoundPage,
     parseSearch,
     stringifySearch,

@@ -3,6 +3,7 @@ import { createRootRouteWithContext } from "@tanstack/react-router";
 
 import appCss from "../styles/styles.css?url";
 import { AuthPendingShell } from "@/components/auth/auth-pending-shell";
+import { ErrorPage } from "@/components/error/error-page";
 import { NotFoundPage } from "@/components/not-found/not-found-page";
 import RootComponent from "@/layouts/root/root-component";
 import RootDocument from "@/layouts/root/root-document";
@@ -46,6 +47,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     ],
   }),
   pendingComponent: AuthPendingShell,
+  errorComponent: ErrorPage,
   notFoundComponent: NotFoundPage,
   shellComponent: RootDocument,
   component: RootComponent,

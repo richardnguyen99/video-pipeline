@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
+import type { NotFoundRouteProps } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 
-type NotFoundPageProps = {
+type NotFoundPageProps = NotFoundRouteProps & {
   title?: string;
   description?: string;
 };
