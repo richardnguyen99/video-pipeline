@@ -36,6 +36,7 @@ from app.services.label import LabelService
 from app.services.maker import MakerService
 from app.services.notification_settings import NotificationSettingsService
 from app.services.playlist import PlaylistService
+from app.services.privacy_settings import PrivacySettingsService
 from app.services.series import SeriesService
 from app.services.video import VideoService
 from app.services.video_watch import WatchService
@@ -209,6 +210,14 @@ def get_notification_settings_service(
     return NotificationSettingsService(session=session)
 
 
+def get_privacy_settings_service(
+    session: SessionDep,
+) -> PrivacySettingsService:
+    """Build a request-scoped ``PrivacySettingsService``."""
+
+    return PrivacySettingsService(session=session)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 ActressSubscribeServiceDep = Annotated[
@@ -240,4 +249,8 @@ ContentPreferenceServiceDep = Annotated[
 NotificationSettingsServiceDep = Annotated[
     NotificationSettingsService,
     Depends(get_notification_settings_service),
+]
+PrivacySettingsServiceDep = Annotated[
+    PrivacySettingsService,
+    Depends(get_privacy_settings_service),
 ]

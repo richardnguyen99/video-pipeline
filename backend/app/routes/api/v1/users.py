@@ -11,6 +11,7 @@ from app.dependencies.services import (
     ContentPreferenceServiceDep,
     NotificationSettingsServiceDep,
     PlaylistServiceDep,
+    PrivacySettingsServiceDep,
 )
 from app.schemas.actress_subscribe import ActressSubscribeListResponse
 from app.schemas.content_preference import (
@@ -23,6 +24,10 @@ from app.schemas.notification_settings import (
     NotificationSettingsUpdateRequest,
 )
 from app.schemas.playlist import PlaylistListResponse
+from app.schemas.privacy_settings import (
+    PrivacySettingsResponse,
+    PrivacySettingsUpdateRequest,
+)
 from app.schemas.user import UserSearchItem, UserSearchResponse
 from app.schemas.user_bio import UserBioResponse
 
@@ -323,6 +328,53 @@ async def update_my_notification_settings(
     service: NotificationSettingsServiceDep,
 ) -> NotificationSettingsResponse:
     """Create or replace notification settings for the authenticated user."""
+
+    return await service.update_settings(
+        user_id=current_user.id,
+        payload=payload,
+    )
+
+
+@router.get(
+    "/me/privacy-settings",
+    response_model=PrivacySettingsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get the authenticated user's privacy settings",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def get_my_privacy_settings(
+    current_user: CurrentUserDep,
+    service: PrivacySettingsServiceDep,
+) -> PrivacySettingsResponse:
+    """Return profile activity visibility toggles for the caller."""
+
+    return await service.get_settings(user_id=current_user.id)
+
+
+@router.put(
+    "/me/privacy-settings",
+    response_model=PrivacySettingsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update the authenticated user's privacy settings",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid payload",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def update_my_privacy_settings(
+    payload: PrivacySettingsUpdateRequest,
+    current_user: CurrentUserDep,
+    service: PrivacySettingsServiceDep,
+) -> PrivacySettingsResponse:
+    """Create or replace privacy settings for the authenticated user."""
 
     return await service.update_settings(
         user_id=current_user.id,
