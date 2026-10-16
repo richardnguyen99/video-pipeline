@@ -24,20 +24,46 @@ import {
   removeContentPreference,
   upsertContentPreference,
 } from "@/queries/content-preference";
-import type { ContentPreferenceItem, PreferenceEntityType, PreferencePolarity } from "@/queries/content-preference";
+import type {
+  ContentPreferenceCreateRequest,
+  ContentPreferenceItem,
+  ContentPreferenceListResponse,
+  PreferenceEntityType,
+  PreferencePolarity,
+} from "@/queries/content-preference";
 
-const ENTITY_SECTIONS: Array<{
-  type: PreferenceEntityType;
-  label: string;
-  config: EntityMultiFilterConfig;
-}> = [
-  { type: "actress", label: "Actresses", config: actressMultiFilterConfig },
-  { type: "maker", label: "Makers", config: makerMultiFilterConfig },
-  { type: "genre", label: "Genres", config: genreMultiFilterConfig },
-  { type: "series", label: "Series", config: seriesMultiFilterConfig },
-  { type: "label", label: "Labels", config: labelMultiFilterConfig },
-  { type: "director", label: "Directors", config: directorMultiFilterConfig },
-];
+const ENTITY_SECTIONS = [
+  {
+    type: "actress" as const,
+    label: "Actresses",
+    config: actressMultiFilterConfig,
+  },
+  {
+    type: "maker" as const,
+    label: "Makers",
+    config: makerMultiFilterConfig,
+  },
+  {
+    type: "genre" as const,
+    label: "Genres",
+    config: genreMultiFilterConfig,
+  },
+  {
+    type: "series" as const,
+    label: "Series",
+    config: seriesMultiFilterConfig,
+  },
+  {
+    type: "label" as const,
+    label: "Labels",
+    config: labelMultiFilterConfig,
+  },
+  {
+    type: "director" as const,
+    label: "Directors",
+    config: directorMultiFilterConfig,
+  },
+] as const;
 
 type PreferenceSectionProps = {
   polarity: PreferencePolarity;
@@ -50,7 +76,7 @@ function PreferenceSection({ polarity, title, description, items }: PreferenceSe
   const queryClient = useQueryClient();
 
   const upsertMutation = useMutation({
-    mutationFn: upsertContentPreference,
+    mutationFn: (payload: ContentPreferenceCreateRequest) => upsertContentPreference(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: contentPreferenceQueryKeys.me(),
@@ -163,7 +189,7 @@ function PreferenceSection({ polarity, title, description, items }: PreferenceSe
 
                 <EntityMultiFilter
                   selected={selectedIds}
-                  config={section.config}
+                  config={section.config as unknown as EntityMultiFilterConfig}
                   onChange={(nextIds) => {
                     const added = nextIds.filter((id) => !selectedIds.includes(id));
                     const removed = selectedIds.filter((id) => !nextIds.includes(id));
@@ -220,23 +246,30 @@ function PreferenceSection({ polarity, title, description, items }: PreferenceSe
   );
 }
 
-export function ContentPreferencePanel() {
-  const { data, isPending, isError, error } = useQuery(myContentPreferencesQueryOptions());
+type ContentPreferencePanelProps = {
+  initialPreferences?: ContentPreferenceListResponse | null;
+};
 
-  if (isPending) {
+export function ContentPreferencePanel({ initialPreferences = null }: ContentPreferencePanelProps) {
+  const { data, isError, error } = useQuery({
+    ...myContentPreferencesQueryOptions(),
+    ...(initialPreferences != null ? { initialData: initialPreferences } : {}),
+  });
+
+  if (!data) {
+    if (isError) {
+      return (
+        <p className="text-sm text-destructive" role="alert">
+          {getApiErrorMessage(error)}
+        </p>
+      );
+    }
+
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="size-4 animate-spin" aria-hidden />
         Loading preferences…
       </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <p className="text-sm text-destructive" role="alert">
-        {getApiErrorMessage(error)}
-      </p>
     );
   }
 
@@ -252,7 +285,7 @@ export function ContentPreferencePanel() {
       <PreferenceSection
         polarity="dislike"
         title="Dislikes"
-        description="Entities you would rather see less often. These can be used to deprioritize or filter matching videos."
+        description="Entities you would rather see less often. These can be used to de-prioritize or filter matching videos."
         items={data.dislikes}
       />
     </div>

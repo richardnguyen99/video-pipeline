@@ -26,19 +26,30 @@ export type ContentPreferenceCreateRequest = {
   entity_id: number;
 };
 
+/** Display locale for aka-translated preference labels. */
+export const CONTENT_PREFERENCE_LOCALE = "en-us";
+
 export const contentPreferenceQueryKeys = {
   all: ["content-preferences"] as const,
-  me: () => [...contentPreferenceQueryKeys.all, "me"] as const,
+  me: (locale: string = CONTENT_PREFERENCE_LOCALE) => [...contentPreferenceQueryKeys.all, "me", locale] as const,
 };
 
-export async function fetchMyContentPreferences(): Promise<ContentPreferenceListResponse> {
-  return apiFetch<ContentPreferenceListResponse>("/users/me/content-preferences");
+export async function fetchMyContentPreferences(
+  locale: string = CONTENT_PREFERENCE_LOCALE,
+): Promise<ContentPreferenceListResponse> {
+  return apiFetch<ContentPreferenceListResponse>("/users/me/content-preferences", {
+    searchParams: { locale },
+  });
 }
 
-export async function upsertContentPreference(payload: ContentPreferenceCreateRequest): Promise<ContentPreferenceItem> {
+export async function upsertContentPreference(
+  payload: ContentPreferenceCreateRequest,
+  locale: string = CONTENT_PREFERENCE_LOCALE,
+): Promise<ContentPreferenceItem> {
   return apiFetch<ContentPreferenceItem>("/users/me/content-preferences", {
     method: "POST",
     data: payload,
+    searchParams: { locale },
   });
 }
 
@@ -55,9 +66,9 @@ export async function clearContentPreferences(polarity: PreferencePolarity): Pro
   });
 }
 
-export function myContentPreferencesQueryOptions() {
+export function myContentPreferencesQueryOptions(locale: string = CONTENT_PREFERENCE_LOCALE) {
   return queryOptions({
-    queryKey: contentPreferenceQueryKeys.me(),
-    queryFn: fetchMyContentPreferences,
+    queryKey: contentPreferenceQueryKeys.me(locale),
+    queryFn: () => fetchMyContentPreferences(locale),
   });
 }
