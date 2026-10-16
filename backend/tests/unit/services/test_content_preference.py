@@ -75,7 +75,6 @@ def _preference(
     polarity: str = PreferencePolarity.INTEREST.value,
     entity_type: str = PreferenceEntityType.GENRE.value,
     entity_id: int = 1,
-    entity_name: str = "Action",
 ) -> UserContentPreference:
     return UserContentPreference(
         id=uuid4(),
@@ -83,7 +82,6 @@ def _preference(
         polarity=polarity,
         entity_type=entity_type,
         entity_id=entity_id,
-        entity_name=entity_name,
         created_at=_now(),
     )
 
@@ -102,7 +100,6 @@ async def test_list_preferences_splits_interests_and_dislikes(
         user_id=user_id,
         polarity=PreferencePolarity.DISLIKE.value,
         entity_id=2,
-        entity_name="Horror",
     )
     session = _SessionSpy()
 
@@ -207,7 +204,6 @@ async def test_upsert_preference_updates_polarity(
         user_id=user_id,
         polarity=PreferencePolarity.INTEREST.value,
         entity_id=7,
-        entity_name="Action",
     )
     session = _SessionSpy()
     session.exec_results.append(SimpleNamespace(id=7, name="Action"))

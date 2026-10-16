@@ -173,10 +173,23 @@ class ContentPreferenceService:
         )
 
     @staticmethod
-    def __to_item(row: UserContentPreference) -> ContentPreferenceItem:
-        """Map an ORM row to the API item schema."""
+    def __to_item(
+        row: UserContentPreference,
+        *,
+        entity_name: str,
+    ) -> ContentPreferenceItem:
+        """Map an ORM row plus resolved display name to the API item schema."""
 
-        return ContentPreferenceItem.model_validate(row)
+        return ContentPreferenceItem.model_validate(
+            {
+                "id": row.id,
+                "polarity": row.polarity,
+                "entity_type": row.entity_type,
+                "entity_id": row.entity_id,
+                "entity_name": entity_name,
+                "created_at": row.created_at,
+            }
+        )
 
     async def list_preferences(
         self,
@@ -186,9 +199,8 @@ class ContentPreferenceService:
     ) -> ContentPreferenceListResponse:
         """Return all interests and dislikes for the user.
 
-        Display names are resolved from aka records for ``locale`` (default
-        ``en-us``) so stored Japanese native names are not shown when a
-        translation exists.
+        Display names are resolved at read time by joining the catalog entity
+        (and aka rows) for ``locale`` (default ``en-us``).
         """
 
         rows = await UserContentPreference.list_for_user(
@@ -207,12 +219,9 @@ class ContentPreferenceService:
                     locale=locale_key,
                 )
             except HTTPException:
-                display_name = row.entity_name or ""
+                display_name = f"{row.entity_type}:{row.entity_id}"
 
-            item = self.__to_item(row)
-
-            if display_name and display_name != item.entity_name:
-                item = item.model_copy(update={"entity_name": display_name})
+            item = self.__to_item(row, entity_name=display_name)
 
             if row.polarity == PreferencePolarity.INTEREST.value:
                 interests.append(item)
@@ -233,6 +242,8 @@ class ContentPreferenceService:
     ) -> ContentPreferenceItem:
         """Add or update a preference; opposite polarity replaces the row."""
 
+        # Validate the catalog entity exists and resolve display name for the
+        # response payload only (name is not persisted).
         entity_name = await self.__resolve_entity_name(
             payload.entity_type,
             payload.entity_id,
@@ -247,25 +258,23 @@ class ContentPreferenceService:
 
         if existing is not None:
             existing.polarity = payload.polarity
-            existing.entity_name = entity_name
             self._session.add(existing)
             await self._session.commit()
             await self._session.refresh(existing)
 
-            return self.__to_item(existing)
+            return self.__to_item(existing, entity_name=entity_name)
 
         row = UserContentPreference(
             user_id=user_id,
             polarity=payload.polarity,
             entity_type=payload.entity_type,
             entity_id=payload.entity_id,
-            entity_name=entity_name,
         )
         self._session.add(row)
         await self._session.commit()
         await self._session.refresh(row)
 
-        return self.__to_item(row)
+        return self.__to_item(row, entity_name=entity_name)
 
     async def remove_preference(
         self,

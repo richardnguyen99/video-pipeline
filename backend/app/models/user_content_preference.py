@@ -65,11 +65,6 @@ class UserContentPreference(SQLModel, table=True):
         index=True,
     )
     entity_id: int = Field(index=True)
-    entity_name: Optional[str] = Field(
-        default=None,
-        max_length=255,
-        sa_type=AutoString,
-    )
     created_at: datetime.datetime = Field(
         default_factory=lambda: datetime.datetime.now(
             datetime.timezone.utc,
