@@ -10,8 +10,10 @@ import { fetchMyNotificationSettingsServer } from "@/server/notification-setting
 export const Route = createFileRoute("/u/$username/notifications")({
   beforeLoad: requireOwnerBeforeLoad,
   loader: async ({ context }) => {
-    if (!context.auth.isReady || context.auth.user == null) {
-      return { settings: null as NotificationSettings | null };
+    const cached = context.queryClient.getQueryData<NotificationSettings>(notificationSettingsQueryKeys.me());
+
+    if (cached != null) {
+      return { settings: cached };
     }
 
     if (typeof window === "undefined") {
@@ -22,6 +24,10 @@ export const Route = createFileRoute("/u/$username/notifications")({
       }
 
       return { settings };
+    }
+
+    if (!context.auth.isReady || context.auth.user == null) {
+      return { settings: null as NotificationSettings | null };
     }
 
     try {

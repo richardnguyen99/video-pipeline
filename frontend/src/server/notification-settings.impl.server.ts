@@ -1,3 +1,5 @@
+import { getCookie } from "@tanstack/react-start/server";
+
 import { HttpStatus } from "@/libs/http-status";
 import type { NotificationSettings } from "@/queries/notification-settings";
 import { readSsrAccessToken, rememberSsrAccessToken } from "@/server/auth.impl.server";
@@ -73,7 +75,19 @@ async function resolveAccessToken(cookieHeader?: string | null): Promise<string 
     return existing;
   }
 
-  const refresh = parseRefreshTokenFromCookieHeader(cookieHeader);
+  let refresh = parseRefreshTokenFromCookieHeader(cookieHeader);
+
+  if (refresh == null || refresh.trim() === "") {
+    try {
+      const fromCookie = getCookie(REFRESH_TOKEN_COOKIE);
+
+      if (fromCookie != null && fromCookie.trim() !== "") {
+        refresh = fromCookie;
+      }
+    } catch {
+      // Outside a request context.
+    }
+  }
 
   if (refresh == null || refresh.trim() === "") {
     return null;

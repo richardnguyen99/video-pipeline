@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
@@ -64,6 +65,16 @@ function toUpdatePayload(settings: NotificationSettings): NotificationSettingsUp
   };
 }
 
+function payloadsEqual(a: NotificationSettingsUpdateRequest, b: NotificationSettingsUpdateRequest): boolean {
+  return (
+    a.preferred_language === b.preferred_language &&
+    a.notify_followed_videos === b.notify_followed_videos &&
+    a.notify_public_video_activity === b.notify_public_video_activity &&
+    a.notify_public_playlist_activity === b.notify_public_playlist_activity &&
+    a.notify_comment_replies === b.notify_comment_replies
+  );
+}
+
 type NotificationsPanelProps = {
   initialSettings?: NotificationSettings | null;
 };
@@ -75,26 +86,34 @@ export function NotificationsPanel({ initialSettings = null }: NotificationsPane
     ...(initialSettings != null ? { initialData: initialSettings } : {}),
   });
 
+  const seed = initialSettings != null ? toUpdatePayload(initialSettings) : data != null ? toUpdatePayload(data) : null;
+
+  const [draft, setDraft] = useState<NotificationSettingsUpdateRequest | null>(seed);
+  const lastSavedRef = useRef<NotificationSettingsUpdateRequest | null>(seed);
+
+  useEffect(() => {
+    if (data == null) {
+      return;
+    }
+
+    const payload = toUpdatePayload(data);
+
+    if (lastSavedRef.current == null) {
+      lastSavedRef.current = payload;
+      setDraft(payload);
+    }
+  }, [data]);
+
   const updateMutation = useMutation({
     mutationFn: updateMyNotificationSettings,
-    onMutate: async (payload) => {
-      await queryClient.cancelQueries({
-        queryKey: notificationSettingsQueryKeys.me(),
-      });
-      const previous = queryClient.getQueryData<NotificationSettings>(notificationSettingsQueryKeys.me());
-
-      if (previous != null) {
-        queryClient.setQueryData<NotificationSettings>(notificationSettingsQueryKeys.me(), {
-          ...previous,
-          ...payload,
-        });
-      }
-
-      return { previous };
+    onSuccess: (next) => {
+      const payload = toUpdatePayload(next);
+      lastSavedRef.current = payload;
+      queryClient.setQueryData(notificationSettingsQueryKeys.me(), next);
     },
-    onError: (mutationError, _payload, context) => {
-      if (context?.previous != null) {
-        queryClient.setQueryData(notificationSettingsQueryKeys.me(), context.previous);
+    onError: (mutationError) => {
+      if (lastSavedRef.current != null) {
+        setDraft(lastSavedRef.current);
       }
 
       toast.add({
@@ -104,12 +123,26 @@ export function NotificationsPanel({ initialSettings = null }: NotificationsPane
         timeout: 4000,
       });
     },
-    onSuccess: (next) => {
-      queryClient.setQueryData(notificationSettingsQueryKeys.me(), next);
-    },
   });
 
-  if (!data) {
+  const applyChange = (nextDraft: NotificationSettingsUpdateRequest) => {
+    setDraft(nextDraft);
+
+    const saved = lastSavedRef.current;
+
+    if (saved != null && payloadsEqual(nextDraft, saved)) {
+      return;
+    }
+
+    updateMutation.mutate(nextDraft);
+  };
+
+  const display =
+    draft ??
+    (data != null ? toUpdatePayload(data) : null) ??
+    (initialSettings != null ? toUpdatePayload(initialSettings) : null);
+
+  if (display == null) {
     if (isError) {
       return (
         <p className="text-sm text-destructive" role="alert">
@@ -126,8 +159,6 @@ export function NotificationsPanel({ initialSettings = null }: NotificationsPane
     );
   }
 
-  const pending = updateMutation.isPending;
-
   return (
     <div className="flex flex-col gap-4">
       <SettingsCard
@@ -135,15 +166,14 @@ export function NotificationsPanel({ initialSettings = null }: NotificationsPane
         description="Choose the language used for account notices and recommendations."
         action={
           <Select
-            value={data.preferred_language}
-            disabled={pending}
+            value={display.preferred_language}
             onValueChange={(value) => {
               if (value == null) {
                 return;
               }
 
-              updateMutation.mutate({
-                ...toUpdatePayload(data),
+              applyChange({
+                ...display,
                 preferred_language: value,
               });
             }}
@@ -177,12 +207,11 @@ export function NotificationsPanel({ initialSettings = null }: NotificationsPane
               </div>
 
               <SettingsSwitch
-                checked={data[row.key]}
+                checked={display[row.key]}
                 label={row.title}
-                disabled={pending}
                 onCheckedChange={(checked) => {
-                  updateMutation.mutate({
-                    ...toUpdatePayload(data),
+                  applyChange({
+                    ...display,
                     [row.key]: checked,
                   });
                 }}
