@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, X } from "lucide-react";
 
@@ -14,6 +14,14 @@ import { EntityMultiFilter } from "@/components/entity-multi-filter/index";
 import type { EntityMultiFilterConfig } from "@/components/entity-multi-filter/index";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
 import { getApiErrorMessage } from "@/libs/auth";
@@ -64,6 +72,78 @@ const ENTITY_SECTIONS = [
     config: directorMultiFilterConfig,
   },
 ] as const;
+
+type ClearAllConfirmButtonProps = {
+  polarity: PreferencePolarity;
+  title: string;
+  disabled: boolean;
+  isPending: boolean;
+  onConfirm: () => void;
+};
+
+function ClearAllConfirmButton({ polarity, title, disabled, isPending, onConfirm }: ClearAllConfirmButtonProps) {
+  const [open, setOpen] = useState(false);
+  const subject = polarity === "interest" ? "interests" : "dislikes";
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger render={<Button type="button" variant="ghost" size="sm" disabled={disabled} />}>
+        {isPending ? (
+          <>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+            Clearing…
+          </>
+        ) : (
+          "Clear all"
+        )}
+      </DialogTrigger>
+
+      <DialogContent className="max-w-md gap-0">
+        <div className="px-5 py-4">
+          <DialogTitle className="text-lg font-semibold">Clear all {subject}?</DialogTitle>
+
+          <DialogDescription className="mt-2 text-sm text-muted-foreground">
+            This removes every entity from your {title.toLowerCase()} list. You can add them again later if you change
+            your mind.
+          </DialogDescription>
+        </div>
+
+        <DialogFooter className="items-center justify-end gap-2 border-t border-border">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setOpen(false);
+            }}
+          >
+            Cancel
+          </Button>
+
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            disabled={isPending}
+            onClick={() => {
+              setOpen(false);
+              onConfirm();
+            }}
+          >
+            {isPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+                Clearing…
+              </>
+            ) : (
+              "Clear all"
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 type PreferenceSectionProps = {
   polarity: PreferencePolarity;
@@ -157,24 +237,15 @@ function PreferenceSection({ polarity, title, description, items }: PreferenceSe
       title={title}
       description={description}
       action={
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
+        <ClearAllConfirmButton
+          polarity={polarity}
+          title={title}
           disabled={items.length === 0 || pending}
-          onClick={() => {
+          isPending={clearMutation.isPending}
+          onConfirm={() => {
             clearMutation.mutate();
           }}
-        >
-          {clearMutation.isPending ? (
-            <>
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-              Clearing…
-            </>
-          ) : (
-            "Clear all"
-          )}
-        </Button>
+        />
       }
     >
       <div className="flex flex-col gap-6">
@@ -285,7 +356,7 @@ export function ContentPreferencePanel({ initialPreferences = null }: ContentPre
       <PreferenceSection
         polarity="dislike"
         title="Dislikes"
-        description="Entities you would rather see less often. These can be used to de-prioritize or filter matching videos."
+        description="Entities you would rather see less often. These can be used to deprioritize or filter matching videos."
         items={data.dislikes}
       />
     </div>
