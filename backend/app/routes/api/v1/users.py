@@ -1,6 +1,6 @@
 """Public user profile endpoints."""
 
-from typing import Annotated
+from typing import Annotated, Optional
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
 
@@ -164,10 +164,22 @@ async def list_public_user_playlists(
 async def list_my_content_preferences(
     current_user: CurrentUserDep,
     service: ContentPreferenceServiceDep,
+    locale: Annotated[
+        Optional[str],
+        Query(
+            description=(
+                "Locale for aka display names (default en-us). "
+                "Falls back to the native name when no translation exists."
+            ),
+        ),
+    ] = None,
 ) -> ContentPreferenceListResponse:
     """Return interest and dislike entity tags for recommendation filtering."""
 
-    return await service.list_preferences(user_id=current_user.id)
+    return await service.list_preferences(
+        user_id=current_user.id,
+        locale=locale,
+    )
 
 
 @router.post(
@@ -191,12 +203,22 @@ async def upsert_my_content_preference(
     payload: ContentPreferenceCreateRequest,
     current_user: CurrentUserDep,
     service: ContentPreferenceServiceDep,
+    locale: Annotated[
+        Optional[str],
+        Query(
+            description=(
+                "Locale for aka display names stored on the preference "
+                "(default en-us)."
+            ),
+        ),
+    ] = None,
 ) -> ContentPreferenceItem:
     """Add an interest or dislike; switching polarity replaces the existing row."""
 
     return await service.upsert_preference(
         user_id=current_user.id,
         payload=payload,
+        locale=locale,
     )
 
 

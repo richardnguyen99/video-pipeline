@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, Optional
 
 from fastapi import HTTPException, status
+from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
@@ -24,14 +26,26 @@ from app.schemas.content_preference import (
     ContentPreferenceItem,
     ContentPreferenceListResponse,
 )
+from app.utils import relationship_attr
 
-_ENTITY_MODELS = {
+_DEFAULT_LOCALE = "en-us"
+
+_ENTITY_MODELS: dict[str, type[Any]] = {
     PreferenceEntityType.ACTRESS.value: Actress,
     PreferenceEntityType.MAKER.value: Maker,
     PreferenceEntityType.GENRE.value: Genre,
     PreferenceEntityType.SERIES.value: Series,
     PreferenceEntityType.LABEL.value: Label,
     PreferenceEntityType.DIRECTOR.value: Director,
+}
+
+_AKA_RELATION: dict[str, str] = {
+    PreferenceEntityType.ACTRESS.value: "actress_aka",
+    PreferenceEntityType.MAKER.value: "maker_aka",
+    PreferenceEntityType.GENRE.value: "genre_aka",
+    PreferenceEntityType.SERIES.value: "series_aka",
+    PreferenceEntityType.LABEL.value: "label_aka",
+    PreferenceEntityType.DIRECTOR.value: "director_aka",
 }
 
 
@@ -43,12 +57,74 @@ class ContentPreferenceService:
 
         self._session = session
 
-    async def __resolve_entity_name(
+    @staticmethod
+    def __normalize_locale(locale: Optional[str]) -> str:
+        """Normalize locale; empty falls back to the default display locale."""
+
+        if locale is None or locale.strip() == "":
+            return _DEFAULT_LOCALE
+
+        return locale.strip().lower()
+
+    @staticmethod
+    def __resolve_display_name(
+        entity: Any,
+        *,
+        entity_type: str,
+        locale_key: str,
+    ) -> str:
+        """Prefer aka translated name for ``locale_key``, else native name."""
+
+        native = getattr(entity, "name", None)
+        native_name = native.strip() if isinstance(native, str) else ""
+        aka_attr = _AKA_RELATION.get(entity_type)
+        akas_raw = getattr(entity, aka_attr, None) if aka_attr else None
+
+        if akas_raw is None:
+            return native_name or f"{entity_type}:{getattr(entity, 'id', '?')}"
+
+        if not isinstance(akas_raw, list):
+            akas: list[Any] = [akas_raw]
+        else:
+            akas = list(akas_raw)
+
+        candidates = [locale_key]
+
+        if locale_key.startswith("en") and "en" not in candidates:
+            candidates.append("en")
+
+        for candidate in candidates:
+            for aka in akas:
+                language = (getattr(aka, "language", None) or "").lower()
+
+                if language != candidate:
+                    continue
+
+                translated = (
+                    getattr(aka, "translated_name", None) or ""
+                ).strip()
+
+                if translated != "":
+                    return translated
+
+        # Any non-empty translated name as last resort before native Japanese.
+        for aka in akas:
+            translated = (getattr(aka, "translated_name", None) or "").strip()
+
+            if translated != "":
+                return translated
+
+        if native_name != "":
+            return native_name
+
+        return f"{entity_type}:{getattr(entity, 'id', '?')}"
+
+    async def __load_entity(
         self,
         entity_type: str,
         entity_id: int,
-    ) -> str:
-        """Load the catalog entity display name or raise 404."""
+    ) -> Any:
+        """Load a catalog entity with aka rows or raise 404."""
 
         model = _ENTITY_MODELS.get(entity_type)
 
@@ -58,7 +134,15 @@ class ContentPreferenceService:
                 detail="Unsupported entity type.",
             )
 
+        aka_attr = _AKA_RELATION.get(entity_type)
         statement = select(model).where(col(model.id) == entity_id)
+
+        if aka_attr is not None:
+            aka_relationship = getattr(model, aka_attr)
+            statement = statement.options(
+                selectinload(relationship_attr(aka_relationship)),
+            )
+
         result = await self._session.exec(statement)
         entity = result.first()
 
@@ -68,12 +152,25 @@ class ContentPreferenceService:
                 detail=f"{entity_type.capitalize()} not found.",
             )
 
-        name = getattr(entity, "name", None)
+        return entity
 
-        if not isinstance(name, str) or not name.strip():
-            return f"{entity_type}:{entity_id}"
+    async def __resolve_entity_name(
+        self,
+        entity_type: str,
+        entity_id: int,
+        *,
+        locale: Optional[str] = None,
+    ) -> str:
+        """Load the catalog entity and return the preferred display name."""
 
-        return name.strip()
+        entity = await self.__load_entity(entity_type, entity_id)
+        locale_key = self.__normalize_locale(locale)
+
+        return self.__resolve_display_name(
+            entity,
+            entity_type=entity_type,
+            locale_key=locale_key,
+        )
 
     @staticmethod
     def __to_item(row: UserContentPreference) -> ContentPreferenceItem:
@@ -85,18 +182,37 @@ class ContentPreferenceService:
         self,
         *,
         user_id: uuid.UUID,
+        locale: Optional[str] = None,
     ) -> ContentPreferenceListResponse:
-        """Return all interests and dislikes for the user."""
+        """Return all interests and dislikes for the user.
+
+        Display names are resolved from aka records for ``locale`` (default
+        ``en-us``) so stored Japanese native names are not shown when a
+        translation exists.
+        """
 
         rows = await UserContentPreference.list_for_user(
             self._session,
             user_id=user_id,
         )
+        locale_key = self.__normalize_locale(locale)
         interests: list[ContentPreferenceItem] = []
         dislikes: list[ContentPreferenceItem] = []
 
         for row in rows:
+            try:
+                display_name = await self.__resolve_entity_name(
+                    row.entity_type,
+                    row.entity_id,
+                    locale=locale_key,
+                )
+            except HTTPException:
+                display_name = row.entity_name or ""
+
             item = self.__to_item(row)
+
+            if display_name and display_name != item.entity_name:
+                item = item.model_copy(update={"entity_name": display_name})
 
             if row.polarity == PreferencePolarity.INTEREST.value:
                 interests.append(item)
@@ -113,12 +229,14 @@ class ContentPreferenceService:
         *,
         user_id: uuid.UUID,
         payload: ContentPreferenceCreateRequest,
+        locale: Optional[str] = None,
     ) -> ContentPreferenceItem:
         """Add or update a preference; opposite polarity replaces the row."""
 
         entity_name = await self.__resolve_entity_name(
             payload.entity_type,
             payload.entity_id,
+            locale=locale,
         )
         existing = await UserContentPreference.get_by_user_and_entity(
             self._session,
