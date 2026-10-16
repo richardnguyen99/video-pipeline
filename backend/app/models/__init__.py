@@ -48,6 +48,7 @@ from app.models.user_content_preference import (
     PreferencePolarity,
     UserContentPreference,
 )
+from app.models.user_notification_settings import UserNotificationSettings
 from app.models.user_watch_history import UserWatchHistory
 from app.models.video import (
     Video,

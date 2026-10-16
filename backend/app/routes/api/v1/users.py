@@ -9,6 +9,7 @@ from app.dependencies.repositories import UserRepositoryDep
 from app.dependencies.services import (
     ActressSubscribeServiceDep,
     ContentPreferenceServiceDep,
+    NotificationSettingsServiceDep,
     PlaylistServiceDep,
 )
 from app.schemas.actress_subscribe import ActressSubscribeListResponse
@@ -16,6 +17,10 @@ from app.schemas.content_preference import (
     ContentPreferenceCreateRequest,
     ContentPreferenceItem,
     ContentPreferenceListResponse,
+)
+from app.schemas.notification_settings import (
+    NotificationSettingsResponse,
+    NotificationSettingsUpdateRequest,
 )
 from app.schemas.playlist import PlaylistListResponse
 from app.schemas.user import UserSearchItem, UserSearchResponse
@@ -275,6 +280,53 @@ async def clear_my_content_preferences(
     await service.clear_polarity(
         user_id=current_user.id,
         polarity=polarity,
+    )
+
+
+@router.get(
+    "/me/notification-settings",
+    response_model=NotificationSettingsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get the authenticated user's notification settings",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def get_my_notification_settings(
+    current_user: CurrentUserDep,
+    service: NotificationSettingsServiceDep,
+) -> NotificationSettingsResponse:
+    """Return notification toggles and preferred language for the caller."""
+
+    return await service.get_settings(user_id=current_user.id)
+
+
+@router.put(
+    "/me/notification-settings",
+    response_model=NotificationSettingsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update the authenticated user's notification settings",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid payload",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def update_my_notification_settings(
+    payload: NotificationSettingsUpdateRequest,
+    current_user: CurrentUserDep,
+    service: NotificationSettingsServiceDep,
+) -> NotificationSettingsResponse:
+    """Create or replace notification settings for the authenticated user."""
+
+    return await service.update_settings(
+        user_id=current_user.id,
+        payload=payload,
     )
 
 
