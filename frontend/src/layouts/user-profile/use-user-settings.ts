@@ -7,10 +7,10 @@ import type { UserProfile } from "@/libs/auth";
 import { userActressSubscriptionsQueryOptions } from "@/queries/actress-subscribe";
 import {
   publicUserProfileQueryOptions,
-  userBlockedAccountsQueryOptions,
   userPlaylistsQueryOptions,
   userVideosQueryOptions,
 } from "@/queries/user-profile";
+import { myBlockedAccountsQueryOptions } from "@/queries/blocked-accounts";
 import { useAuthStore } from "@/stores/auth-store";
 
 const parentRouteApi = getRouteApi("/u/$username");
@@ -70,6 +70,10 @@ export function useResolvedOwner(username: string): {
  * Shared ``beforeLoad`` guard for owner-only ``/u/$username/*`` sections.
  * Redirects confirmed non-owners (and settled guests) to the public profile.
  *
+ * When the session user is authenticated but the URL handle does not match
+ * (e.g. right after a username change), redirect to the same sub-path under
+ * the current handle instead of the stale public profile (which 404s).
+ *
  * SSR: when ``loadAuthSession`` already resolved guest (``user`` null),
  * redirect immediately so hard refresh after revoke-all does not hang on a
  * skeleton. When a username hint is present, allow paint and let the client
@@ -80,9 +84,11 @@ export function useResolvedOwner(username: string): {
 export function requireOwnerBeforeLoad({
   context,
   params,
+  location,
 }: {
   context: { auth: AuthRouterContext };
   params: { username: string };
+  location: { pathname: string };
 }): void {
   if (!context.auth.isReady) {
     return;
@@ -103,6 +109,15 @@ export function requireOwnerBeforeLoad({
 
     if (store.isRestoring) {
       return;
+    }
+
+    if (store.user != null) {
+      const rest = location.pathname.replace(/^\/u\/[^/]+/, "") || "";
+
+      throw redirect({
+        href: `/u/${encodeURIComponent(store.user.username)}${rest}`,
+        replace: true,
+      });
     }
 
     throw redirect({
@@ -131,6 +146,6 @@ export function useOwnerSubscriptions(username: string) {
   return useQuery(userActressSubscriptionsQueryOptions(username));
 }
 
-export function useOwnerBlocked(username: string) {
-  return useQuery(userBlockedAccountsQueryOptions(username));
+export function useOwnerBlocked(_username: string) {
+  return useQuery(myBlockedAccountsQueryOptions());
 }

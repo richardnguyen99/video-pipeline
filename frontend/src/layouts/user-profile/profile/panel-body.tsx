@@ -1,6 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { BioForm } from "@/layouts/user-profile/profile/bio-form";
+import { BlockUserButton } from "@/layouts/user-profile/profile/block-user-button";
 import { IdentityCard } from "@/layouts/user-profile/profile/identity-card";
 import type { UserProfile } from "@/libs/auth";
 import type { PublicUserProfile } from "@/queries/user-profile";
@@ -26,10 +27,17 @@ export function PanelBody({ profile, isOwner, authUser }: PanelBodyProps) {
   const username = profile.username;
   const fullName = bio.full_name ?? (isOwner ? authUser?.display_name : null) ?? profile.display_name;
   const initials = initialsFromName(fullName || username);
+  const showBlock = !isOwner && authUser != null && authUser.username !== username;
 
   return (
     <div className="flex flex-col gap-4">
-      <IdentityCard bio={bio} username={username} fullName={fullName || ""} initials={initials} />
+      <IdentityCard
+        bio={bio}
+        username={username}
+        fullName={fullName || ""}
+        initials={initials}
+        action={showBlock ? <BlockUserButton username={username} displayName={fullName || username} /> : null}
+      />
 
       {isOwner ? <BioForm key={`${username}-${bio.updated_at ?? "empty"}`} bio={bio} username={username} /> : null}
     </div>

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { AtSign, Link as LinkIcon } from "lucide-react";
 
 import { resolveCountryDisplay } from "@/libs/country";
@@ -8,6 +9,7 @@ type IdentityCardProps = {
   username: string;
   fullName: string;
   initials: string;
+  action?: ReactNode;
 };
 
 function ageFromDateOfBirth(dateOfBirth: string | null): number | null {
@@ -65,7 +67,7 @@ function buildMetaLine(bio: UserBio, username: string): string {
   return `${username} · ${parts.join(" · ")}`;
 }
 
-export function IdentityCard({ bio, username, fullName, initials }: IdentityCardProps) {
+export function IdentityCard({ bio, username, fullName, initials, action = null }: IdentityCardProps) {
   const metaLine = buildMetaLine(bio, username);
 
   return (
@@ -82,13 +84,19 @@ export function IdentityCard({ bio, username, fullName, initials }: IdentityCard
         </div>
 
         <div className="min-w-0 flex-1 flex flex-col gap-1.5">
-          {fullName ? <h3 className="text-base font-semibold tracking-tight">{fullName}</h3> : null}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0 flex flex-col gap-1.5">
+              {fullName ? <h3 className="text-base font-semibold tracking-tight">{fullName}</h3> : null}
 
-          <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-            <AtSign className="size-3.5 shrink-0" aria-hidden />
+              <p className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+                <AtSign className="size-3.5 shrink-0" aria-hidden />
 
-            <span>{metaLine}</span>
-          </p>
+                <span>{metaLine}</span>
+              </p>
+            </div>
+
+            {action}
+          </div>
 
           {bio.link ? (
             <p className="flex flex-wrap items-center gap-1.5 text-sm">

@@ -16,14 +16,6 @@ export type FollowedCreator = {
   initials: string;
 };
 
-export type BlockedAccount = {
-  id: string;
-  name: string;
-  username: string;
-  blocked_at: string;
-  initials: string;
-};
-
 export type UserVideoItem = {
   id: string;
   title: string;
@@ -40,30 +32,6 @@ const DEMO_FOLLOWED: Array<FollowedCreator> = [
   { id: "1", name: "Maya Chen", role: "Creator", initials: "MC" },
   { id: "2", name: "Noah Williams", role: "Actress", initials: "NW" },
   { id: "3", name: "Sofia Laurent", role: "Creator", initials: "SL" },
-];
-
-const DEMO_BLOCKED: Array<BlockedAccount> = [
-  {
-    id: "1",
-    name: "Maya Chen",
-    username: "@mayachen",
-    blocked_at: "Blocked Mar 14, 2026",
-    initials: "MC",
-  },
-  {
-    id: "2",
-    name: "Theo Brooks",
-    username: "@theobrooks",
-    blocked_at: "Blocked Feb 28, 2026",
-    initials: "TB",
-  },
-  {
-    id: "3",
-    name: "Sofia Laurent",
-    username: "@sofialaurent",
-    blocked_at: "Blocked Jan 09, 2026",
-    initials: "SL",
-  },
 ];
 
 const DEMO_VIDEOS: Array<UserVideoItem> = [
@@ -104,14 +72,6 @@ export function userFollowedCreatorsQueryOptions(username: string) {
   return queryOptions({
     queryKey: ["user-followed", username] as const,
     queryFn: (): Array<FollowedCreator> => DEMO_FOLLOWED,
-    staleTime: 60_000,
-  });
-}
-
-export function userBlockedAccountsQueryOptions(username: string) {
-  return queryOptions({
-    queryKey: ["user-blocked", username] as const,
-    queryFn: (): Array<BlockedAccount> => DEMO_BLOCKED,
     staleTime: 60_000,
   });
 }

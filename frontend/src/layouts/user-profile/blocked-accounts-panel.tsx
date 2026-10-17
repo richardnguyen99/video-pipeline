@@ -1,16 +1,105 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 import { SettingsCard } from "@/layouts/user-profile/settings-shell";
-import type { BlockedAccount } from "@/queries/user-profile";
+import { getApiErrorMessage } from "@/libs/auth";
+import { blockedAccountsQueryKeys, myBlockedAccountsQueryOptions, unblockUser } from "@/queries/blocked-accounts";
+import type { BlockedAccount, BlockedAccountListResponse } from "@/queries/blocked-accounts";
+
+function formatBlockedAt(value: string): string {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return `Blocked ${date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })}`;
+}
+
+function displayNameFor(account: BlockedAccount): string {
+  const name = account.display_name?.trim();
+
+  if (name != null && name.length > 0) {
+    return name;
+  }
+
+  return account.username;
+}
 
 type BlockedAccountsPanelProps = {
-  username: string;
-  accounts: Array<BlockedAccount>;
+  initialBlocked?: BlockedAccountListResponse | null;
 };
 
-export function BlockedAccountsPanel({ username, accounts }: BlockedAccountsPanelProps) {
+export function BlockedAccountsPanel({ initialBlocked = null }: BlockedAccountsPanelProps) {
   const queryClient = useQueryClient();
+  const { data, isError, error } = useQuery({
+    ...myBlockedAccountsQueryOptions(),
+    ...(initialBlocked != null ? { initialData: initialBlocked } : {}),
+  });
+
+  const unblockMutation = useMutation({
+    mutationFn: (blockedUserId: string) => unblockUser(blockedUserId),
+    onMutate: async (blockedUserId) => {
+      await queryClient.cancelQueries({
+        queryKey: blockedAccountsQueryKeys.me(),
+      });
+
+      const previous = queryClient.getQueryData<BlockedAccountListResponse>(blockedAccountsQueryKeys.me());
+
+      if (previous != null) {
+        const items = previous.items.filter((row) => row.id !== blockedUserId);
+
+        queryClient.setQueryData<BlockedAccountListResponse>(blockedAccountsQueryKeys.me(), {
+          items,
+          total: items.length,
+        });
+      }
+
+      return { previous };
+    },
+    onError: (mutationError, _blockedUserId, context) => {
+      if (context?.previous != null) {
+        queryClient.setQueryData(blockedAccountsQueryKeys.me(), context.previous);
+      }
+
+      toast.add({
+        type: "error",
+        title: "Could not unblock account",
+        description: getApiErrorMessage(mutationError),
+        timeout: 4000,
+      });
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: blockedAccountsQueryKeys.me(),
+      });
+    },
+  });
+
+  const accounts = data?.items ?? initialBlocked?.items ?? null;
+
+  if (accounts == null) {
+    if (isError) {
+      return (
+        <p className="text-sm text-destructive" role="alert">
+          {getApiErrorMessage(error)}
+        </p>
+      );
+    }
+
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" aria-hidden />
+        Loading blocked accounts…
+      </div>
+    );
+  }
 
   return (
     <SettingsCard
@@ -30,10 +119,10 @@ export function BlockedAccountsPanel({ username, accounts }: BlockedAccountsPane
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{account.name}</p>
+              <p className="text-sm font-medium">{displayNameFor(account)}</p>
 
               <p className="text-xs text-muted-foreground">
-                {account.username} · {account.blocked_at}
+                @{account.username} · {formatBlockedAt(account.blocked_at)}
               </p>
             </div>
 
@@ -41,10 +130,9 @@ export function BlockedAccountsPanel({ username, accounts }: BlockedAccountsPane
               type="button"
               variant="outline"
               size="sm"
+              disabled={unblockMutation.isPending && unblockMutation.variables === account.id}
               onClick={() => {
-                queryClient.setQueryData<Array<BlockedAccount>>(["user-blocked", username], (current) =>
-                  (current ?? []).filter((row) => row.id !== account.id),
-                );
+                unblockMutation.mutate(account.id);
               }}
             >
               Unblock
