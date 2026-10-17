@@ -31,6 +31,8 @@ class User(SQLModel, table=True):
         role: Application role label (e.g. ``user``, ``creator``, ``admin``).
         is_active: Soft-disable flag; false blocks login without
             deleting the row.
+        deactivated_at: When the account was soft-deactivated;
+            ``None`` while active.
         email_verified: Whether the contact email has been confirmed.
         created_at: UTC timestamp set on creation.
         updated_at: UTC timestamp updated on every write.
@@ -66,6 +68,10 @@ class User(SQLModel, table=True):
         sa_type=AutoString,
     )
     is_active: bool = Field(default=True)
+    deactivated_at: Optional[datetime.datetime] = Field(
+        default=None,
+        description="UTC timestamp when the account was soft-deactivated.",
+    )
     email_verified: bool = Field(default=False)
     created_at: datetime.datetime = Field(
         default_factory=now,

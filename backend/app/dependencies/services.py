@@ -22,6 +22,7 @@ from app.dependencies.settings import SettingsDep
 from app.search.actress_service import ActressSearchService
 from app.search.client import get_elasticsearch
 from app.search.service import VideoSearchService
+from app.services.account_deactivate import AccountDeactivateService
 from app.services.account_email import AccountEmailService
 from app.services.account_password import AccountPasswordService
 from app.services.actress import ActressService
@@ -227,6 +228,20 @@ def get_blocked_account_service(
     return BlockedAccountService(session=session)
 
 
+def get_account_deactivate_service(
+    session: SessionDep,
+    users: UserRepositoryDep,
+    refresh_tokens: RefreshTokenRepositoryDep,
+) -> AccountDeactivateService:
+    """Build a request-scoped ``AccountDeactivateService``."""
+
+    return AccountDeactivateService(
+        session,
+        users=users,
+        refresh_tokens=refresh_tokens,
+    )
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 ActressSubscribeServiceDep = Annotated[
@@ -266,4 +281,8 @@ PrivacySettingsServiceDep = Annotated[
 BlockedAccountServiceDep = Annotated[
     BlockedAccountService,
     Depends(get_blocked_account_service),
+]
+AccountDeactivateServiceDep = Annotated[
+    AccountDeactivateService,
+    Depends(get_account_deactivate_service),
 ]

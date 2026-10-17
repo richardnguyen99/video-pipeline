@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Path, Query, status
 from app.dependencies import CurrentUserDep
 from app.dependencies.repositories import UserRepositoryDep
 from app.dependencies.services import (
+    AccountDeactivateServiceDep,
     ActressSubscribeServiceDep,
     BlockedAccountServiceDep,
     ContentPreferenceServiceDep,
@@ -15,6 +16,7 @@ from app.dependencies.services import (
     PlaylistServiceDep,
     PrivacySettingsServiceDep,
 )
+from app.schemas.account_deactivate import DeactivateAccountResponse
 from app.schemas.actress_subscribe import ActressSubscribeListResponse
 from app.schemas.blocked_account import (
     BlockedAccountItem,
@@ -489,6 +491,36 @@ async def unblock_user(
         blocker_id=current_user.id,
         blocked_id=blocked_user_id,
     )
+
+
+@router.post(
+    "/me/deactivate",
+    response_model=DeactivateAccountResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Soft-deactivate the authenticated account",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Account is already deactivated",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "User not found",
+        },
+    },
+)
+async def deactivate_my_account(
+    current_user: CurrentUserDep,
+    service: AccountDeactivateServiceDep,
+) -> DeactivateAccountResponse:
+    """Mark the account inactive and end all sessions.
+
+    Related data rows are retained. Login remains blocked until a
+    future reactivation flow is introduced.
+    """
+
+    return await service.deactivate(user_id=current_user.id)
 
 
 @router.get(
