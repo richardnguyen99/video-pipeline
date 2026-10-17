@@ -167,6 +167,7 @@ class BlockedAccountService:
         self._session.add(row)
         await self._session.commit()
         await self._session.refresh(row)
+        await self._session.refresh(target)
 
         return self.__to_item(
             blocked_user=target,
