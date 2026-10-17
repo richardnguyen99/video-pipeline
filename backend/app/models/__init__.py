@@ -43,6 +43,7 @@ from app.models.user import User
 from app.models.user_activity import UserActivity, UserActivityType
 from app.models.user_actress_subscribe import UserActressSubscribe
 from app.models.user_bio import UserBio
+from app.models.user_blocked_account import UserBlockedAccount
 from app.models.user_content_preference import (
     PreferenceEntityType,
     PreferencePolarity,

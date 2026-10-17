@@ -27,6 +27,7 @@ from app.services.account_password import AccountPasswordService
 from app.services.actress import ActressService
 from app.services.actress_subscribe import ActressSubscribeService
 from app.services.auth import AuthService
+from app.services.blocked_account import BlockedAccountService
 from app.services.content_preference import ContentPreferenceService
 from app.services.director import DirectorService
 from app.services.email import EmailService
@@ -218,6 +219,14 @@ def get_privacy_settings_service(
     return PrivacySettingsService(session=session)
 
 
+def get_blocked_account_service(
+    session: SessionDep,
+) -> BlockedAccountService:
+    """Build a request-scoped ``BlockedAccountService``."""
+
+    return BlockedAccountService(session=session)
+
+
 HealthServiceDep = Annotated[HealthService, Depends(get_health_service)]
 ActressServiceDep = Annotated[ActressService, Depends(get_actress_service)]
 ActressSubscribeServiceDep = Annotated[
@@ -253,4 +262,8 @@ NotificationSettingsServiceDep = Annotated[
 PrivacySettingsServiceDep = Annotated[
     PrivacySettingsService,
     Depends(get_privacy_settings_service),
+]
+BlockedAccountServiceDep = Annotated[
+    BlockedAccountService,
+    Depends(get_blocked_account_service),
 ]

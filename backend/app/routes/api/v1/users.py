@@ -1,5 +1,6 @@
 """Public user profile endpoints."""
 
+import uuid
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, HTTPException, Path, Query, status
@@ -8,12 +9,18 @@ from app.dependencies import CurrentUserDep
 from app.dependencies.repositories import UserRepositoryDep
 from app.dependencies.services import (
     ActressSubscribeServiceDep,
+    BlockedAccountServiceDep,
     ContentPreferenceServiceDep,
     NotificationSettingsServiceDep,
     PlaylistServiceDep,
     PrivacySettingsServiceDep,
 )
 from app.schemas.actress_subscribe import ActressSubscribeListResponse
+from app.schemas.blocked_account import (
+    BlockedAccountItem,
+    BlockedAccountListResponse,
+    BlockUserRequest,
+)
 from app.schemas.content_preference import (
     ContentPreferenceCreateRequest,
     ContentPreferenceItem,
@@ -405,6 +412,82 @@ async def list_my_actress_subscriptions(
         user_id=current_user.id,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get(
+    "/me/blocked-accounts",
+    response_model=BlockedAccountListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List accounts blocked by the authenticated user",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+    },
+)
+async def list_my_blocked_accounts(
+    current_user: CurrentUserDep,
+    service: BlockedAccountServiceDep,
+) -> BlockedAccountListResponse:
+    """Return every account the caller has blocked."""
+
+    return await service.list_blocked(blocker_id=current_user.id)
+
+
+@router.post(
+    "/me/blocked-accounts",
+    response_model=BlockedAccountItem,
+    status_code=status.HTTP_200_OK,
+    summary="Block another user",
+    responses={
+        status.HTTP_400_BAD_REQUEST: {
+            "description": "Invalid payload or self-block",
+        },
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Target user not found",
+        },
+    },
+)
+async def block_user(
+    payload: BlockUserRequest,
+    current_user: CurrentUserDep,
+    service: BlockedAccountServiceDep,
+) -> BlockedAccountItem:
+    """Block a user by id or username. Idempotent if already blocked."""
+
+    return await service.block_user(
+        blocker_id=current_user.id,
+        payload=payload,
+    )
+
+
+@router.delete(
+    "/me/blocked-accounts/{blocked_user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Unblock a previously blocked user",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Block not found",
+        },
+    },
+)
+async def unblock_user(
+    blocked_user_id: uuid.UUID,
+    current_user: CurrentUserDep,
+    service: BlockedAccountServiceDep,
+) -> None:
+    """Remove a block relationship created by the caller."""
+
+    await service.unblock_user(
+        blocker_id=current_user.id,
+        blocked_id=blocked_user_id,
     )
 
 
