@@ -25,5 +25,5 @@ function DeactivatePage() {
     return <SettingsContentSkeleton />;
   }
 
-  return <DeactivatePanel />;
+  return <DeactivatePanel username={authUser?.username ?? username} />;
 }

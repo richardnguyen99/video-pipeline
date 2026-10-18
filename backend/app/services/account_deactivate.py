@@ -64,12 +64,14 @@ class AccountDeactivateService:
         await self._session.commit()
         await self._session.refresh(user)
 
-        await self._refresh_tokens.revoke_all_for_user(user_id)
-        await self._users.bump_sessions_revoked_at(user_id)
-
-        return DeactivateAccountResponse(
+        response = DeactivateAccountResponse(
             id=user.id,
             username=user.username,
             is_active=user.is_active,
             deactivated_at=user.deactivated_at or now,
         )
+
+        await self._refresh_tokens.revoke_all_for_user(user_id)
+        await self._users.bump_sessions_revoked_at(user_id)
+
+        return response
