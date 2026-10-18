@@ -34,12 +34,6 @@ const DEMO_FOLLOWED: Array<FollowedCreator> = [
   { id: "3", name: "Sofia Laurent", role: "Creator", initials: "SL" },
 ];
 
-const DEMO_VIDEOS: Array<UserVideoItem> = [
-  { id: "1", title: "The quiet art of street light", views: 124 },
-  { id: "2", title: "A weekend in the redwoods", views: 86 },
-  { id: "3", title: "Making room for wonder", views: 48 },
-];
-
 const DEMO_PLAYLISTS: Array<UserPlaylistItem> = [
   { id: "1", title: "Slow cinema Sundays", video_count: 5 },
   { id: "2", title: "Field notes: California", video_count: 4 },
@@ -79,7 +73,7 @@ export function userFollowedCreatorsQueryOptions(username: string) {
 export function userVideosQueryOptions(username: string) {
   return queryOptions({
     queryKey: ["user-videos", username] as const,
-    queryFn: (): Array<UserVideoItem> => DEMO_VIDEOS,
+    queryFn: (): Array<UserVideoItem> => [],
     staleTime: 60_000,
   });
 }

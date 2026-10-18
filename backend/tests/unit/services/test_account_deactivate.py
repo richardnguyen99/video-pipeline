@@ -1,4 +1,4 @@
-"""Unit tests for ``app.services.account_deactivate``."""
+"""Unit tests for AccountDeactivateService."""
 
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ def _now() -> datetime:
 
 class _SessionSpy:
     def __init__(self) -> None:
-        self.added: list[Any] = []
         self.committed = 0
+        self.added: list[Any] = []
         self.refreshed: list[Any] = []
 
     def add(self, obj: Any) -> None:
@@ -34,7 +34,7 @@ class _SessionSpy:
 
 
 class _UserRepoSpy:
-    def __init__(self, user: Optional[User] = None) -> None:
+    def __init__(self, user: Optional[User]) -> None:
         self._user = user
         self.bumped: list[UUID] = []
 
@@ -74,11 +74,31 @@ def _user(*, is_active: bool = True) -> User:
 
 
 @pytest.mark.asyncio
-async def test_deactivate_marks_inactive_and_revokes_sessions() -> None:
+async def test_deactivate_marks_inactive_and_revokes_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     user = _user()
     session = _SessionSpy()
     users = _UserRepoSpy(user)
     refresh = _RefreshRepoSpy()
+    share_calls: list[UUID] = []
+
+    async def _revoke_shares(
+        _session: Any,
+        shared_with_user_id: UUID,
+        *,
+        commit: bool = True,
+    ) -> int:
+        _ = commit
+        share_calls.append(shared_with_user_id)
+
+        return 2
+
+    monkeypatch.setattr(
+        "app.services.account_deactivate.PlaylistShare.revoke_all_for_user",
+        _revoke_shares,
+    )
+
     service = AccountDeactivateService(
         cast(Any, session),
         users=cast(Any, users),
@@ -92,6 +112,7 @@ async def test_deactivate_marks_inactive_and_revokes_sessions() -> None:
     assert user.is_active is False
     assert user.deactivated_at is not None
     assert session.committed == 1
+    assert share_calls == [user.id]
     assert refresh.revoked == [user.id]
     assert users.bumped == [user.id]
 

@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.playlist import PlaylistShare
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.account_deactivate import DeactivateAccountResponse
@@ -36,7 +37,9 @@ class AccountDeactivateService:
     ) -> DeactivateAccountResponse:
         """Mark the account inactive and revoke every refresh session.
 
-        Related rows (comments, playlists, preferences, etc.) are left
+        Playlist shares granted to the user are removed so restricted
+        playlists no longer list the deactivated account. Other related
+        rows (comments, owned playlists, preferences, etc.) are left
         unchanged. Login and authenticated API access are blocked while
         ``is_active`` is false.
         """
@@ -71,6 +74,10 @@ class AccountDeactivateService:
             deactivated_at=user.deactivated_at or now,
         )
 
+        await PlaylistShare.revoke_all_for_user(
+            self._session,
+            user_id,
+        )
         await self._refresh_tokens.revoke_all_for_user(user_id)
         await self._users.bump_sessions_revoked_at(user_id)
 

@@ -769,3 +769,34 @@ class PlaylistShare(SQLModel, table=True):
             await session.commit()
 
         return deleted
+
+    @staticmethod
+    async def revoke_all_for_user(
+        session: AsyncSession,
+        shared_with_user_id: uuid.UUID,
+        *,
+        commit: bool = True,
+    ) -> int:
+        """Remove every share granted to ``shared_with_user_id``.
+
+        Used when an account is deactivated so restricted playlists no
+        longer list the inactive user.
+
+        Returns:
+            Number of shares deleted.
+        """
+
+        statement = select(PlaylistShare).where(
+            PlaylistShare.shared_with_user_id == shared_with_user_id,
+        )
+        shares = list((await session.exec(statement)).all())
+        deleted = 0
+
+        for share in shares:
+            await session.delete(share)
+            deleted += 1
+
+        if commit and deleted > 0:
+            await session.commit()
+
+        return deleted

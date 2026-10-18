@@ -115,11 +115,17 @@ export function LibrarySection({
       {section.kind === "liked" ? <LikedSection videos={likedVideos} isLoading={isLikedLoading} /> : null}
 
       {section.kind === "videos" ? (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {videos.map((video, index) => (
-            <LibraryVideoCard key={`${section.title}-${video.id}`} video={video} index={index} isOwner={isOwner} />
-          ))}
-        </div>
+        videos.length > 0 ? (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {videos.map((video, index) => (
+              <LibraryVideoCard key={`${section.title}-${video.id}`} video={video} index={index} isOwner={isOwner} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {isOwner ? "Public videos you upload will show up here." : "Public videos will show up here."}
+          </p>
+        )
       ) : null}
 
       {section.kind === "playlists" ? (
