@@ -9,6 +9,7 @@ from fastapi import HTTPException, status
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.playlist import PlaylistShare
 from app.models.user import User
 from app.models.user_blocked_account import UserBlockedAccount
 from app.schemas.blocked_account import (
@@ -168,6 +169,12 @@ class BlockedAccountService:
         await self._session.commit()
         await self._session.refresh(row)
         await self._session.refresh(target)
+
+        await PlaylistShare.revoke_for_owner_and_user(
+            self._session,
+            owner_id=blocker_id,
+            shared_with_user_id=target.id,
+        )
 
         return self.__to_item(
             blocked_user=target,

@@ -195,6 +195,7 @@ async def test_block_user_creates_row(
     target = _user(username="target", display_name="T User")
     session = _SessionSpy()
     session.register_user(target)
+    share_calls: list[tuple[UUID, UUID]] = []
 
     async def _get(
         _session: object,
@@ -204,10 +205,26 @@ async def test_block_user_creates_row(
     ) -> Optional[UserBlockedAccount]:
         return None
 
+    async def _revoke_shares(
+        _session: object,
+        *,
+        owner_id: UUID,
+        shared_with_user_id: UUID,
+        commit: bool = True,
+    ) -> int:
+        _ = commit
+        share_calls.append((owner_id, shared_with_user_id))
+
+        return 1
+
     monkeypatch.setattr(
         UserBlockedAccount,
         "get_by_blocker_and_blocked",
         _get,
+    )
+    monkeypatch.setattr(
+        "app.services.blocked_account.PlaylistShare.revoke_for_owner_and_user",
+        _revoke_shares,
     )
 
     service = BlockedAccountService(session=cast(Any, session))
@@ -220,6 +237,7 @@ async def test_block_user_creates_row(
     assert result.username == "target"
     assert len(session.added) == 1
     assert session.committed == 1
+    assert share_calls == [(blocker_id, target.id)]
 
 
 @pytest.mark.asyncio
@@ -233,6 +251,7 @@ async def test_block_user_idempotent(
     existing = _block(blocker_id=blocker_id, blocked_id=target.id)
     session = _SessionSpy()
     session.register_user(target)
+    share_calls: list[tuple[UUID, UUID]] = []
 
     async def _get(
         _session: object,
@@ -242,10 +261,26 @@ async def test_block_user_idempotent(
     ) -> Optional[UserBlockedAccount]:
         return existing
 
+    async def _revoke_shares(
+        _session: object,
+        *,
+        owner_id: UUID,
+        shared_with_user_id: UUID,
+        commit: bool = True,
+    ) -> int:
+        _ = commit
+        share_calls.append((owner_id, shared_with_user_id))
+
+        return 1
+
     monkeypatch.setattr(
         UserBlockedAccount,
         "get_by_blocker_and_blocked",
         _get,
+    )
+    monkeypatch.setattr(
+        "app.services.blocked_account.PlaylistShare.revoke_for_owner_and_user",
+        _revoke_shares,
     )
 
     service = BlockedAccountService(session=cast(Any, session))
@@ -257,6 +292,7 @@ async def test_block_user_idempotent(
     assert result.id == target.id
     assert not session.added
     assert session.committed == 0
+    assert share_calls == []
 
 
 @pytest.mark.asyncio

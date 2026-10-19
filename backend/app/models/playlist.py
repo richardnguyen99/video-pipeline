@@ -800,3 +800,43 @@ class PlaylistShare(SQLModel, table=True):
             await session.commit()
 
         return deleted
+
+    @staticmethod
+    async def revoke_for_owner_and_user(
+        session: AsyncSession,
+        *,
+        owner_id: uuid.UUID,
+        shared_with_user_id: uuid.UUID,
+        commit: bool = True,
+    ) -> int:
+        """Remove shares granted by ``owner_id`` to ``shared_with_user_id``.
+
+        Used when the playlist owner blocks the shared user so restricted
+        playlists no longer list them.
+
+        Returns:
+            Number of shares deleted.
+        """
+
+        statement = (
+            select(PlaylistShare)
+            .join(
+                Playlist,
+                col(PlaylistShare.playlist_id) == col(Playlist.id),
+            )
+            .where(
+                Playlist.owner_id == owner_id,
+                PlaylistShare.shared_with_user_id == shared_with_user_id,
+            )
+        )
+        shares = list((await session.exec(statement)).all())
+        deleted = 0
+
+        for share in shares:
+            await session.delete(share)
+            deleted += 1
+
+        if commit and deleted > 0:
+            await session.commit()
+
+        return deleted
