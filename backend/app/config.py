@@ -118,10 +118,16 @@ class Settings(BaseSettings):
     object_storage_access_key: str = "minioadmin"
     object_storage_secret_key: str = "minioadmin"
     object_storage_bucket: str = "video-samples"
+    object_storage_streams_bucket: str = "streams"
+    object_storage_raw_uploads_bucket: str = "raw-uploads"
     object_storage_region: str = "us-east-1"
     object_storage_use_ssl: bool = False
     # Public URL prefix returned to clients (CDN or virtual-host/path style).
+    # Prefer STREAMS_BASE_URL / object_storage_streams_public_base_url for HLS.
     object_storage_public_base_url: str = "http://localhost:9000/video-samples"
+    object_storage_streams_public_base_url: str = (
+        "http://localhost:9000/streams"
+    )
 
     # Elasticsearch (optional; when disabled, video ``q`` uses Postgres).
     elasticsearch_enabled: bool = Field(

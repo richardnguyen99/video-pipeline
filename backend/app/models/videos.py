@@ -24,6 +24,7 @@ from app.models.video import (
     VideoAka,
     VideoImageUrl,
     VideoM3u8,
+    VideoRendition,
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
 )
@@ -46,6 +47,7 @@ __all__ = [
     "VideoAka",
     "VideoImageUrl",
     "VideoM3u8",
+    "VideoRendition",
     "VideoSampleImageUrl",
     "VideoSampleMovieUrl",
     "t_video_actress",

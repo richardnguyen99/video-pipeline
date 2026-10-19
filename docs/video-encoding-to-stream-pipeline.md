@@ -1,6 +1,9 @@
-# Video Encoding-to-Stream Pipeline: System Design
+---
+date: 2026-10-18
+author: root
+---
 
-Oct 18, 2026 · @root
+# Video Encoding-to-Stream Pipeline
 
 ## Overview and requirements
 
@@ -9,7 +12,7 @@ Users upload MP4 or MKV files straight to object storage, an asynchronous worker
 ### Functional requirements
 
 - Accept MP4 and MKV uploads (and tolerate other containers such as MOV or WebM) from a web frontend, including multi-GB files and flaky connections.
-- Produce an HLS package: one master playlist (`master.m3u8`), one media playlist per rendition, and segments.
+- Produce an HLS package: one master playlist (`index.m3u8`), one media playlist per rendition, and segments.
 - Offer multiple renditions (240p up to a 1080p cap) but only those at or below the source resolution. Never upscale.
 - Store metadata in a database and segments, playlists and thumbnails in object storage.
 - Report upload, queue and encoding progress to the user in near real time.
@@ -56,8 +59,8 @@ Each upload (not each video) moves through one state machine: `CREATED → UPLOA
 3. **Complete.** The frontend calls `POST /api/v1/uploads/{upload_id}/complete` with the part ETags. The API finishes the multipart upload, checks the object size, moves the row to `UPLOADED`, and enqueues one `transcode` message containing only the `upload_id`.
 4. **Probe.** A worker takes the message, marks the row `PROBING`, and runs `ffprobe` against a presigned URL of the source. It records duration, resolution, frame rate, codecs, rotation and audio tracks on the `video_upload` row, fills `video.duration` if it is empty, rejects files with no video stream, and builds the rendition plan (see the encoding section).
 5. **Encode.** The orchestrator fans the plan out into one task per rendition, each tracked in `video_rendition`. Each task runs ffmpeg into local scratch space; a sidecar uploads every finished segment to the `streams` bucket as it appears and writes the rendition's media playlist.
-6. **Package.** When all rendition tasks succeed, a finalizer writes `master.m3u8`, generates a poster and a thumbnail sprite, then in one database transaction sets the upload to `READY` and inserts the `video_m3u8` row (primary if the video has none yet). It then publishes an `upload.ready` event.
-7. **Play.** The player asks for the video's primary `video_m3u8` URL, loads `master.m3u8` through the CDN, and lets the HLS client (hls.js or native Safari) switch renditions on bandwidth.
+6. **Package.** When all rendition tasks succeed, a finalizer writes `index.m3u8`, generates a poster and a thumbnail sprite, then in one database transaction sets the upload to `READY` and inserts the `video_m3u8` row (primary if the video has none yet). It then publishes an `upload.ready` event.
+7. **Play.** The player asks for the video's primary `video_m3u8` URL, loads `index.m3u8` through the CDN, and lets the HLS client (hls.js or native Safari) switch renditions on bandwidth.
 
 **Why direct upload:** large files never pass through API servers, so the API tier stays small, scales on request rate only, and has no long-lived connections to babysit. If policy requires every byte to pass through the backend, run the same flow against a resumable endpoint such as tus on the API and stream each chunk into the same multipart upload.
 
@@ -219,21 +222,20 @@ UPDATE video_m3u8 m SET is_primary = true
 CREATE UNIQUE INDEX uq_video_m3u8_primary ON video_m3u8 (fk_id) WHERE is_primary;
 ```
 
-When an upload reaches READY, the finalizer inserts a `video_m3u8` row in the same transaction as the status change: `m3u8_url` is the full CDN URL of `master.m3u8`, `upload_id` is set, and `is_primary` is true only if the video has no primary row yet. The existing unique constraint on `(fk_id, m3u8_url)` makes a retried finalizer harmless (`ON CONFLICT DO NOTHING`). Changing which upload is primary is one update of two rows.
+When an upload reaches READY, the finalizer inserts a `video_m3u8` row in the same transaction as the status change: `m3u8_url` is the full CDN URL of `index.m3u8`, `upload_id` is set, and `is_primary` is true only if the video has no primary row yet. The existing unique constraint on `(fk_id, m3u8_url)` makes a retried finalizer harmless (`ON CONFLICT DO NOTHING`). Changing which upload is primary is one update of two rows.
 
 ### Storage layout
   
 ```txt
 raw-uploads/{upload_public_id}/source.{ext}
-streams/{video.id}/{upload_public_id}/master.m3u8
-streams/{video.id}/{upload_public_id}/{label}/index.m3u8
-streams/{video.id}/{upload_public_id}/{label}/init.mp4
-streams/{video.id}/{upload_public_id}/{label}/seg_00000.m4s ...
-streams/{video.id}/{upload_public_id}/poster.jpg
-streams/{video.id}/{upload_public_id}/thumbs/sprite.jpg
+streams/{video_hash}/index.m3u8
+streams/{video_hash}/review.mp4
+streams/{video_hash}/{resolution}/playlist.m3u8
+streams/{video_hash}/{resolution}/seg_{segment_number}.ts
+streams/{video_hash}/samples/sample_{sample_number}.jpg
 ```
 
-Segments and VOD playlists are immutable once written, so serve them with `Cache-Control: public, max-age=31536000, immutable` through the CDN. Give `master.m3u8` a short max-age until the video is READY. Apply a lifecycle rule to the raw bucket (for example, delete 30 days after READY) unless you want to keep sources for re-encoding.
+Segments and VOD playlists are immutable once written, so serve them with `Cache-Control: public, max-age=31536000, immutable` through the CDN. Give `index.m3u8` a short max-age until the video is READY. Apply a lifecycle rule to the raw bucket (for example, delete 30 days after READY) unless you want to keep sources for re-encoding.
 
 ### API
 
@@ -455,7 +457,7 @@ This plan moves every existing video folder from the `video-samples` bucket into
 - `video_m3u8.m3u8_url` stores a full URL with a hard-coded LAN address: `http://10.0.0.157:9000/video-samples/{uuid}/index.m3u8`. Sixteen rows point at MinIO. The one row on an external host (`id` 1, `fk_id` 16725) is out of scope and stays untouched.
 - The folder UUID is not `video.id` (video 42 maps to folder `0703d5f7...`). The only link between a video and its folder is the URL, so the migration reads folder names from the URLs and never recomputes them.
 
-### Decisions
+### Migration Decisions
 
 | Decision | Recommendation | Why |
 | --- | --- | --- |
@@ -477,7 +479,7 @@ streams/{public_id}/samples/sample_{nn}.jpg
 streams/{public_id}/review.mp4
 ```
 
-### Phases
+### Migration Phases
 
 `mc mv` copies each object and then deletes the source, so nothing can be recovered from the old bucket once a folder has moved. Each folder is therefore verified as it goes, and the script stops at the first mismatch.
 
@@ -565,7 +567,7 @@ When `mc ls local/video-samples` shows nothing and no old paths are being reques
 mc rb local/video-samples
 ```
 
-### Risks, verification and rollback
+### Migration Risks, Verification and Rollback
 
 | Risk | Mitigation |
 | --- | --- |
@@ -586,7 +588,7 @@ mc rb local/video-samples
 - `video_m3u8` has the same number of rows as before, and none of the sixteen URLs contains `/video-samples/`.
 - After phase 3, each of the sixteen videos has a `public_id` equal to its folder name.
 
-#### Rollback
+#### Migration Rollback
 
 - A move is reversible with the same low space need. For one folder, move it back and restore its URL from the backup table.
 

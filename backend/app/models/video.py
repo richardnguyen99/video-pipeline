@@ -1,6 +1,7 @@
 """Video-related SQLModel models."""
 
 import datetime
+import uuid
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
@@ -9,10 +10,12 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     PrimaryKeyConstraint,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.sql import func
 from sqlmodel import Field, Relationship
@@ -118,6 +121,36 @@ class Video(IdTimestampMixin, table=True):
             String(50),
         ),
     )
+
+    origin: str = Field(
+        default="legacy",
+        max_length=20,
+        sa_column_kwargs={"server_default": text("'legacy'")},
+    )
+    public_id: Optional[uuid.UUID] = Field(default=None)
+    uploader_id: Optional[uuid.UUID] = Field(
+        default=None,
+        foreign_key="user.id",
+    )
+    original_filename: Optional[str] = Field(default=None)
+    source_key: Optional[str] = Field(default=None)
+    source_bytes: Optional[int] = Field(default=None)
+    status: Optional[str] = Field(default=None, max_length=20)
+    width: Optional[int] = Field(default=None)
+    height: Optional[int] = Field(default=None)
+    fps: Optional[float] = Field(
+        default=None,
+        sa_column=Column(
+            "fps",
+            Numeric,
+            nullable=True,
+        ),
+    )
+    video_codec: Optional[str] = Field(default=None, max_length=50)
+    audio_codec: Optional[str] = Field(default=None, max_length=50)
+    error_code: Optional[str] = Field(default=None, max_length=50)
+    error_message: Optional[str] = Field(default=None)
+    ready_at: Optional[datetime.datetime] = Field(default=None)
 
     video_aka: list["VideoAka"] = Relationship(back_populates="fk")
     video_image_url: list["VideoImageUrl"] = Relationship(back_populates="fk")
@@ -401,3 +434,89 @@ class VideoSampleMovieUrl(IdTimestampMixin, table=True):
         """Return a string representation."""
 
         return f"VideoSampleMovieUrl(id={self.id!r}, fk_id={self.fk_id!r})"
+
+
+class VideoRendition(IdTimestampMixin, table=True):
+    """One encoded ladder rung for a user upload (Model B)."""
+
+    __tablename__ = "video_rendition"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["video_id"],
+            ["video.id"],
+            ondelete="CASCADE",
+        ),
+        PrimaryKeyConstraint("id"),
+        UniqueConstraint("video_id", "label"),
+        Index(None, "video_id"),
+        {"schema": "public", "extend_existing": True},
+    )
+
+    video_id: int = Field(
+        sa_column=Column(
+            "video_id",
+            Integer,
+            nullable=False,
+        ),
+    )
+    label: str = Field(
+        sa_column=Column(
+            "label",
+            String(10),
+            nullable=False,
+        ),
+    )
+    width: int = Field(
+        sa_column=Column(
+            "width",
+            Integer,
+            nullable=False,
+        ),
+    )
+    height: int = Field(
+        sa_column=Column(
+            "height",
+            Integer,
+            nullable=False,
+        ),
+    )
+    video_kbps: int = Field(
+        sa_column=Column(
+            "video_kbps",
+            Integer,
+            nullable=False,
+        ),
+    )
+    playlist_key: Optional[str] = Field(default=None)
+    segment_count: Optional[int] = Field(default=None)
+    status: str = Field(
+        default="PENDING",
+        max_length=20,
+        sa_column_kwargs={"server_default": text("'PENDING'")},
+    )
+    progress_pct: int = Field(
+        default=0,
+        sa_column=Column(
+            "progress_pct",
+            Integer,
+            nullable=False,
+            server_default=text("0"),
+        ),
+    )
+    attempt: int = Field(
+        default=0,
+        sa_column=Column(
+            "attempt",
+            Integer,
+            nullable=False,
+            server_default=text("0"),
+        ),
+    )
+
+    def __repr__(self) -> str:
+        """Return a string representation."""
+
+        return (
+            f"VideoRendition(id={self.id!r}, video_id={self.video_id!r}, "
+            f"label={self.label!r})"
+        )

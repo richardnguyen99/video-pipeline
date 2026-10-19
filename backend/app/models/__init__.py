@@ -57,6 +57,7 @@ from app.models.video import (
     VideoAka,
     VideoImageUrl,
     VideoM3u8,
+    VideoRendition,
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
 )
