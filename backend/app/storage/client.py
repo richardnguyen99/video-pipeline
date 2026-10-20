@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import BinaryIO, Optional, Union
+from typing import BinaryIO, Optional, Sequence, Union
 
 import aioboto3
 from aiobotocore.config import AioConfig
 from aiobotocore.session import ClientCreatorContext
 from botocore.exceptions import ClientError
 from types_aiobotocore_s3.client import S3Client
+from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
 
 from app.config import Settings, settings
 
@@ -337,6 +338,130 @@ class ObjectStorageClient:
         """Backward-compatible alias for ``ensure_local_media_public_url``."""
 
         return await self.ensure_local_media_public_url(local_path)
+
+    @property
+    def raw_uploads_bucket(self) -> str:
+        """Return the private raw-uploads bucket name."""
+
+        return self._settings.object_storage_raw_uploads_bucket
+
+    @property
+    def streams_bucket(self) -> str:
+        """Return the public streams bucket name."""
+
+        return self._settings.object_storage_streams_bucket
+
+    async def create_multipart_upload(
+        self,
+        *,
+        object_key: str,
+        content_type: str = "application/octet-stream",
+        bucket: str | None = None,
+    ) -> str:
+        """Start a multipart upload; return the S3 upload id."""
+
+        target = bucket or self.raw_uploads_bucket
+
+        async with self.s3_client() as s3:
+            response = await s3.create_multipart_upload(
+                Bucket=target,
+                Key=object_key,
+                ContentType=content_type,
+            )
+
+        return response["UploadId"]
+
+    async def generate_presigned_upload_part_url(
+        self,
+        *,
+        object_key: str,
+        upload_id: str,
+        part_number: int,
+        expires_in: int = 14_400,
+        bucket: str | None = None,
+    ) -> str:
+        """Return a presigned URL for uploading one multipart part.
+
+        Default expiry is 4 hours so large multi-GB uploads can finish
+        without the part URLs expiring mid-flight.
+        """
+
+        target = bucket or self.raw_uploads_bucket
+
+        async with self.s3_client() as s3:
+            url = await s3.generate_presigned_url(
+                ClientMethod="upload_part",
+                Params={
+                    "Bucket": target,
+                    "Key": object_key,
+                    "UploadId": upload_id,
+                    "PartNumber": part_number,
+                },
+                ExpiresIn=expires_in,
+            )
+
+        return url
+
+    async def complete_multipart_upload(
+        self,
+        *,
+        object_key: str,
+        upload_id: str,
+        parts: Sequence[CompletedPartTypeDef],
+        bucket: str | None = None,
+    ) -> None:
+        """Finalize a multipart upload with ordered part ETags."""
+
+        target = bucket or self.raw_uploads_bucket
+
+        async with self.s3_client() as s3:
+            await s3.complete_multipart_upload(
+                Bucket=target,
+                Key=object_key,
+                UploadId=upload_id,
+                MultipartUpload={"Parts": list(parts)},
+            )
+
+    async def abort_multipart_upload(
+        self,
+        *,
+        object_key: str,
+        upload_id: str,
+        bucket: str | None = None,
+    ) -> None:
+        """Abort an in-progress multipart upload."""
+
+        target = bucket or self.raw_uploads_bucket
+
+        async with self.s3_client() as s3:
+            await s3.abort_multipart_upload(
+                Bucket=target,
+                Key=object_key,
+                UploadId=upload_id,
+            )
+
+    async def head_object_size(
+        self,
+        *,
+        object_key: str,
+        bucket: str | None = None,
+    ) -> int | None:
+        """Return object size in bytes, or None if missing."""
+
+        target = bucket or self.raw_uploads_bucket
+
+        try:
+            async with self.s3_client() as s3:
+                response = await s3.head_object(Bucket=target, Key=object_key)
+        except ClientError as exc:
+            code = exc.response.get("Error", {}).get("Code", "")
+
+            if code in {"404", "NoSuchKey", "NotFound", "404 Not Found"}:
+                return None
+
+            raise
+
+        return int(response["ContentLength"])
 
 
 @lru_cache

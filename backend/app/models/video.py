@@ -5,6 +5,7 @@ import uuid
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import (
+    BigInteger,
     Column,
     DateTime,
     ForeignKeyConstraint,
@@ -134,17 +135,16 @@ class Video(IdTimestampMixin, table=True):
     )
     original_filename: Optional[str] = Field(default=None)
     source_key: Optional[str] = Field(default=None)
-    source_bytes: Optional[int] = Field(default=None)
+    source_bytes: Optional[int] = Field(
+        default=None,
+        sa_column=Column("source_bytes", BigInteger, nullable=True),
+    )
     status: Optional[str] = Field(default=None, max_length=20)
     width: Optional[int] = Field(default=None)
     height: Optional[int] = Field(default=None)
     fps: Optional[float] = Field(
         default=None,
-        sa_column=Column(
-            "fps",
-            Numeric,
-            nullable=True,
-        ),
+        sa_column=Column("fps", Numeric, nullable=True),
     )
     video_codec: Optional[str] = Field(default=None, max_length=50)
     audio_codec: Optional[str] = Field(default=None, max_length=50)

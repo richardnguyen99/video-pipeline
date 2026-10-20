@@ -1,8 +1,3 @@
----
-date: 2026-10-18
-author: root
----
-
 # Video Encoding-to-Stream Pipeline
 
 ## Overview and requirements
@@ -16,8 +11,11 @@ Users upload MP4 or MKV files straight to object storage, an asynchronous worker
 - Offer multiple renditions (240p up to a 1080p cap) but only those at or below the source resolution. Never upscale.
 - Store metadata in a database and segments, playlists and thumbnails in object storage.
 - Report upload, queue and encoding progress to the user in near real time.
+- Support resumable uploads and recovery from network interruptions within a reasonable timeframe
+- Support parallel uploads and encoding tasks to maximize throughput
+- Allow frontend app to specify video
 
-### Non-functional targets (assumptions to confirm)
+### Non-functional requirements
 
 | Concern | Target |
 | --- | --- |

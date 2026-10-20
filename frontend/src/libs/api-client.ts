@@ -217,9 +217,28 @@ api.interceptors.request.use(
 export type SilentRefreshResult =
   { status: "ok"; session: SessionPayload } | { status: "unauthorized" } | { status: "transient" };
 
-const SILENT_REFRESH_TIMEOUT_MS = 5_000;
+/** Allow slow responses while large uploads saturate the connection pool. */
+const SILENT_REFRESH_TIMEOUT_MS = 30_000;
 
 let refreshInFlightResult: Promise<SilentRefreshResult> | null = null;
+
+function isRequestAborted(error: unknown): boolean {
+  if (isAxiosError(error)) {
+    if (error.code === "ERR_CANCELED" || error.code === "ECONNABORTED") {
+      return true;
+    }
+
+    const message = String(error.message).toLowerCase();
+
+    return message.includes("abort") || message.includes("canceled") || message.includes("cancelled");
+  }
+
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+
+  return false;
+}
 
 /**
  * Silent refresh: exchange the HttpOnly refresh cookie for a new access token.
@@ -274,7 +293,17 @@ export async function silentRefreshSessionDetailed(): Promise<SilentRefreshResul
         return { status: "unauthorized" };
       }
 
-      useAuthStore.getState().setAccessToken(null);
+      // Aborts / timeouts / network blips must not wipe a still-valid access
+      // token — that forces another refresh during long multipart uploads and
+      // produces cascading NS_BINDING_ABORTED refresh rows in the network panel.
+      const existing = getAccessToken();
+      const exp = getAccessTokenExpiryUnix(existing);
+      const nowUnix = Math.floor(Date.now() / 1000);
+      const stillValid = existing != null && exp != null && exp - nowUnix > 15;
+
+      if (!stillValid && !isRequestAborted(error)) {
+        useAuthStore.getState().setAccessToken(null);
+      }
 
       return { status: "transient" };
     } finally {
@@ -307,6 +336,69 @@ export async function ensureAccessToken(): Promise<string | null> {
   return session.access_token;
 }
 
+/**
+ * Read ``exp`` from a JWT access token without verifying the signature.
+ * Returns unix seconds, or null when the token is missing/malformed.
+ */
+export function getAccessTokenExpiryUnix(token: string | null | undefined): number | null {
+  if (token == null || token.length === 0) {
+    return null;
+  }
+
+  const parts = token.split(".");
+
+  if (parts.length < 2) {
+    return null;
+  }
+
+  try {
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4);
+    const json = atob(padded);
+    const parsed = JSON.parse(json) as { exp?: unknown };
+
+    return typeof parsed.exp === "number" ? parsed.exp : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ensure the in-memory access token has at least ``minTtlSeconds`` left.
+ *
+ * Only calls ``/auth/refresh`` (which rotates the refresh cookie) when the
+ * current access token is missing or about to expire. Prefer this over
+ * blind periodic refresh during long operations such as multi-GB uploads.
+ */
+export async function ensureFreshAccessToken(minTtlSeconds = 90): Promise<string | null> {
+  const existing = getAccessToken();
+  const exp = getAccessTokenExpiryUnix(existing);
+  const nowUnix = Math.floor(Date.now() / 1000);
+
+  if (existing != null && existing.length > 0 && exp != null && exp - nowUnix > minTtlSeconds) {
+    return existing;
+  }
+
+  const result = await silentRefreshSessionDetailed();
+
+  if (result.status === "ok") {
+    return result.session.access_token;
+  }
+
+  // Transient abort/timeout: keep using the current access token if it is
+  // still unexpired. Only fail hard when the token is gone or already expired.
+  if (result.status === "transient") {
+    const current = getAccessToken();
+    const currentExp = getAccessTokenExpiryUnix(current);
+
+    if (current != null && currentExp != null && currentExp - Math.floor(Date.now() / 1000) > 0) {
+      return current;
+    }
+  }
+
+  return null;
+}
+
 api.interceptors.response.use(
   (response) => {
     if (isSessionPayload(response.data)) {
@@ -329,6 +421,7 @@ api.interceptors.response.use(
     const status = error.response.status;
     const skipRefresh = originalRequest.skipAuthRefresh === true;
     const alreadyRetried = originalRequest._retry === true;
+    const isAuthStatus = status === HttpStatus.UNAUTHORIZED || status === HttpStatus.FORBIDDEN;
     const mayRefresh =
       status === HttpStatus.UNAUTHORIZED &&
       !skipRefresh &&
@@ -336,6 +429,11 @@ api.interceptors.response.use(
       shouldAttemptAuthRefresh(originalRequest.url);
 
     if (!mayRefresh) {
+      if (isAuthStatus && !skipRefresh && useAuthStore.getState().user != null) {
+        useAuthStore.getState().clearUser();
+        dispatchSessionEndedEvent();
+      }
+
       return Promise.reject(axiosErrorToApiError(error));
     }
 
@@ -344,7 +442,7 @@ api.interceptors.response.use(
     const refresh = await silentRefreshSessionDetailed();
 
     if (refresh.status !== "ok") {
-      if (refresh.status === "unauthorized") {
+      if (refresh.status === "unauthorized" || useAuthStore.getState().user != null) {
         useAuthStore.getState().clearUser();
         dispatchSessionEndedEvent();
       }

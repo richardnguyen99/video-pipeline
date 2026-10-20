@@ -2,7 +2,7 @@
 
 Access tokens are returned in JSON response bodies and held in client
 memory (Zustand). Only the long-lived refresh token is stored as an
-HttpOnly cookie, scoped to the refresh endpoint path.
+HttpOnly cookie (Path configurable; default ``/`` so SSR can read it).
 """
 
 from __future__ import annotations
@@ -54,9 +54,13 @@ def set_refresh_token_cookie(
 ) -> None:
     """Attach a refresh JWT as an HttpOnly cookie.
 
-    ``Path`` is limited to ``settings.jwt_refresh_cookie_path`` (default
-    ``/api/v1/auth/``) so the browser only attaches the cookie on auth
-    routes (refresh, logout).
+    ``Path`` follows ``settings.jwt_refresh_cookie_path`` (default ``/``)
+    so document navigations include the cookie for SSR session resolution.
+
+    Before setting the new cookie, expire the same name on alternate paths
+    that older configs used (``/api/v1/auth/``, etc.) so the browser never
+    keeps a second ``refresh_token`` cookie that would be sent after rotation
+    and surface as ``Refresh token has been revoked.``.
 
     Args:
         response: Outgoing HTTP response.
@@ -70,9 +74,24 @@ def set_refresh_token_cookie(
     secure = _cookie_secure(samesite)
     path = settings.jwt_refresh_cookie_path
     max_age = refresh_token_max_age_seconds() if remember_me else None
+    key = settings.jwt_refresh_cookie_name
+    legacy_paths = {"/", "/api/v1/auth/", "/api/v1/auth/refresh"} - {path}
+
+    for cookie_path in legacy_paths:
+        response.set_cookie(
+            key=key,
+            value="",
+            max_age=0,
+            expires=0,
+            path=cookie_path,
+            domain=None,
+            httponly=True,
+            secure=secure,
+            samesite=samesite,
+        )
 
     response.set_cookie(
-        key=settings.jwt_refresh_cookie_name,
+        key=key,
         value=token,
         max_age=max_age,
         path=path,

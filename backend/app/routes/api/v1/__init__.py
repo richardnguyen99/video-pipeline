@@ -18,6 +18,7 @@ from app.routes.api.v1.playlists import router as playlists_router
 from app.routes.api.v1.search_ui import router as search_ui_router
 from app.routes.api.v1.series import router as series_router
 from app.routes.api.v1.users import router as users_router
+from app.routes.api.v1.video_upload import router as video_upload_router
 from app.routes.api.v1.videos import router as videos_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -45,6 +46,10 @@ api_v1_router.include_router(
 api_v1_router.include_router(
     videos_router,
     tags=["videos"],
+)
+api_v1_router.include_router(
+    video_upload_router,
+    tags=["video-uploads"],
 )
 api_v1_router.include_router(
     playlists_router,

@@ -19,6 +19,7 @@ from app.dependencies.repositories import (
     VideoRepositoryDep,
 )
 from app.dependencies.settings import SettingsDep
+from app.dependencies.storage import ObjectStorageDep
 from app.search.actress_service import ActressSearchService
 from app.search.client import get_elasticsearch
 from app.search.service import VideoSearchService
@@ -41,6 +42,7 @@ from app.services.playlist import PlaylistService
 from app.services.privacy_settings import PrivacySettingsService
 from app.services.series import SeriesService
 from app.services.video import VideoService
+from app.services.video_upload import VideoUploadService
 from app.services.video_watch import WatchService
 
 _logger = logging.getLogger("uvicorn.error")
@@ -285,4 +287,18 @@ BlockedAccountServiceDep = Annotated[
 AccountDeactivateServiceDep = Annotated[
     AccountDeactivateService,
     Depends(get_account_deactivate_service),
+]
+
+
+def get_video_upload_service(
+    session: SessionDep,
+    storage: ObjectStorageDep,
+) -> VideoUploadService:
+    """Build a request-scoped VideoUploadService."""
+
+    return VideoUploadService(session=session, storage=storage)
+
+
+VideoUploadServiceDep = Annotated[
+    VideoUploadService, Depends(get_video_upload_service)
 ]

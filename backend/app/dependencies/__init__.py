@@ -49,6 +49,7 @@ from app.dependencies.services import (
     PlaylistServiceDep,
     SeriesServiceDep,
     VideoServiceDep,
+    VideoUploadServiceDep,
     WatchServiceDep,
     get_account_email_service,
     get_account_password_service,
@@ -64,6 +65,7 @@ from app.dependencies.services import (
     get_playlist_service,
     get_series_service,
     get_video_service,
+    get_video_upload_service,
     get_watch_service,
 )
 from app.dependencies.settings import SettingsDep, get_settings
@@ -96,6 +98,7 @@ __all__ = [
     "UserRepositoryDep",
     "VideoRepositoryDep",
     "VideoServiceDep",
+    "VideoUploadServiceDep",
     "PlaylistServiceDep",
     "WatchServiceDep",
     "get_current_user",
@@ -124,6 +127,7 @@ __all__ = [
     "get_storage",
     "get_video_repository",
     "get_video_service",
+    "get_video_upload_service",
     "get_playlist_service",
     "get_watch_service",
     "AsyncRedisDep",

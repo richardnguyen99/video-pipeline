@@ -20,6 +20,7 @@ import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as VerifyEmailChangeRouteImport } from './routes/verify-email-change'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
+import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
 import { Route as GuestForgotPasswordRouteImport } from './routes/_guest/forgot-password'
 import { Route as GuestRegisterRouteImport } from './routes/_guest/register'
 import { Route as GuestSignInRouteImport } from './routes/_guest/sign-in'
@@ -95,6 +96,11 @@ const VideosRouteRoute = VideosRouteRouteImport.update({
 const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
   id: '/account',
   path: '/account',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedUploadRoute = AuthenticatedUploadRouteImport.update({
+  id: '/upload',
+  path: '/upload',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const GuestForgotPasswordRoute = GuestForgotPasswordRouteImport.update({
@@ -227,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/verify-email-change': typeof VerifyEmailChangeRoute
   '/u/$username': typeof UUsernameRouteRouteWithChildren
   '/account': typeof AuthenticatedAccountRoute
+  '/upload': typeof AuthenticatedUploadRoute
   '/forgot-password': typeof GuestForgotPasswordRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
@@ -259,6 +266,7 @@ export interface FileRoutesByTo {
   '/verify-email': typeof VerifyEmailRoute
   '/verify-email-change': typeof VerifyEmailChangeRoute
   '/account': typeof AuthenticatedAccountRoute
+  '/upload': typeof AuthenticatedUploadRoute
   '/forgot-password': typeof GuestForgotPasswordRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   '/verify-email-change': typeof VerifyEmailChangeRoute
   '/u/$username': typeof UUsernameRouteRouteWithChildren
   '/_authenticated/account': typeof AuthenticatedAccountRoute
+  '/_authenticated/upload': typeof AuthenticatedUploadRoute
   '/_guest/forgot-password': typeof GuestForgotPasswordRoute
   '/_guest/register': typeof GuestRegisterRoute
   '/_guest/sign-in': typeof GuestSignInRoute
@@ -330,6 +339,7 @@ export interface FileRouteTypes {
     | '/verify-email-change'
     | '/u/$username'
     | '/account'
+    | '/upload'
     | '/forgot-password'
     | '/register'
     | '/sign-in'
@@ -362,6 +372,7 @@ export interface FileRouteTypes {
     | '/verify-email'
     | '/verify-email-change'
     | '/account'
+    | '/upload'
     | '/forgot-password'
     | '/register'
     | '/sign-in'
@@ -396,6 +407,7 @@ export interface FileRouteTypes {
     | '/verify-email-change'
     | '/u/$username'
     | '/_authenticated/account'
+    | '/_authenticated/upload'
     | '/_guest/forgot-password'
     | '/_guest/register'
     | '/_guest/sign-in'
@@ -513,6 +525,13 @@ declare module '@tanstack/react-router' {
       path: '/account'
       fullPath: '/account'
       preLoaderRoute: typeof AuthenticatedAccountRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/upload': {
+      id: '/_authenticated/upload'
+      path: '/upload'
+      fullPath: '/upload'
+      preLoaderRoute: typeof AuthenticatedUploadRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_guest/forgot-password': {
@@ -695,10 +714,12 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
 
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
+  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
+  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
