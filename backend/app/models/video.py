@@ -49,7 +49,6 @@ class Video(IdTimestampMixin, table=True):
 
     __table_args__ = (
         PrimaryKeyConstraint("id"),
-        UniqueConstraint("video_id"),
         Index(None, "video_id"),
         Index(
             None,

@@ -36,6 +36,7 @@ export type CreateVideoUploadInput = {
   content_type: string;
   size_bytes: number;
   title?: string;
+  video_code?: string;
   part_size_bytes?: number;
 };
 
