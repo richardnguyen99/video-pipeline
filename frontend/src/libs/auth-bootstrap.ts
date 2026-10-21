@@ -31,6 +31,7 @@ function sessionToUser(session: SessionPayload): UserProfile {
     username: session.username,
     email: session.email,
     display_name: session.display_name,
+    role: session.role ?? "user",
     is_active: session.is_active,
     email_verified: session.email_verified === true,
     created_at: session.created_at,

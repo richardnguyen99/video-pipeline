@@ -32,6 +32,7 @@ async def create_video_upload(
 
     return await service.create_upload(
         uploader_id=current_user.id,
+        uploader_role=current_user.role,
         payload=payload,
     )
 

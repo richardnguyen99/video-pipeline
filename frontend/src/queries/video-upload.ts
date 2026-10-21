@@ -37,8 +37,108 @@ export type CreateVideoUploadInput = {
   size_bytes: number;
   title?: string;
   video_code?: string;
+  allow_upsert?: boolean;
   part_size_bytes?: number;
 };
+
+export type ExistingVideoSummary = {
+  id: number;
+  video_id: string;
+  title: string | null;
+  cid: string | null;
+  jancode: string | null;
+  maker_product: string | null;
+  release_date: string | null;
+  status: string | null;
+  public_id: string | null;
+  actress_ids: Array<number>;
+  maker_ids: Array<number>;
+  genre_ids: Array<number>;
+  series_ids: Array<number>;
+  label_ids: Array<number>;
+  director_ids: Array<number>;
+};
+
+export type VideoCodeConflictDetail = {
+  code: string;
+  message: string;
+  existing: ExistingVideoSummary;
+};
+
+function isExistingVideoSummary(value: unknown): value is ExistingVideoSummary {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  const id = record.id;
+  const videoId = record.video_id;
+
+  return (
+    (typeof id === "number" || (typeof id === "string" && id.length > 0)) &&
+    typeof videoId === "string" &&
+    videoId.length > 0
+  );
+}
+
+function normalizeExistingSummary(value: ExistingVideoSummary): ExistingVideoSummary {
+  return {
+    ...value,
+    id: typeof value.id === "number" ? value.id : Number(value.id),
+    actress_ids: Array.isArray(value.actress_ids) ? value.actress_ids : [],
+    maker_ids: Array.isArray(value.maker_ids) ? value.maker_ids : [],
+    genre_ids: Array.isArray(value.genre_ids) ? value.genre_ids : [],
+    series_ids: Array.isArray(value.series_ids) ? value.series_ids : [],
+    label_ids: Array.isArray(value.label_ids) ? value.label_ids : [],
+    director_ids: Array.isArray(value.director_ids) ? value.director_ids : [],
+  };
+}
+
+/** Parse structured 409 body from create upload when video_code already exists. */
+export function parseVideoCodeConflict(error: unknown): VideoCodeConflictDetail | null {
+  if (typeof error !== "object" || error === null || !("body" in error)) {
+    return null;
+  }
+
+  const body = error.body;
+
+  if (typeof body !== "object" || body === null) {
+    return null;
+  }
+
+  const record = body as Record<string, unknown>;
+  let detail: unknown = record.detail;
+
+  // Some error envelopes nest under `error.detail`.
+  if (
+    (detail == null || typeof detail !== "object") &&
+    typeof record.error === "object" &&
+    record.error !== null &&
+    "detail" in record.error
+  ) {
+    detail = record.error.detail;
+  }
+
+  if (typeof detail !== "object" || detail === null) {
+    return null;
+  }
+
+  const detailRecord = detail as Record<string, unknown>;
+
+  if (typeof detailRecord.message !== "string") {
+    return null;
+  }
+
+  if (!isExistingVideoSummary(detailRecord.existing)) {
+    return null;
+  }
+
+  return {
+    code: typeof detailRecord.code === "string" ? detailRecord.code : "VIDEO_ID_EXISTS",
+    message: detailRecord.message,
+    existing: normalizeExistingSummary(detailRecord.existing),
+  };
+}
 
 export type CompletedPart = {
   part_number: number;

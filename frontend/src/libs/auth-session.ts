@@ -136,6 +136,7 @@ export async function loadAuthSession(queryClient: QueryClient): Promise<AuthRou
       username: identityUsername,
       email: "",
       display_name: null,
+      role: "user",
       is_active: true,
       email_verified: false,
       created_at: "",

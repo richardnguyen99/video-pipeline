@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
-import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check, CloudUpload, FileVideo, Loader2, X } from "lucide-react";
 
 import {
@@ -15,11 +14,13 @@ import { EntityMultiFilter } from "@/components/entity-multi-filter/index";
 import type { EntityMultiFilterConfig } from "@/components/entity-multi-filter/index";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, ensureFreshAccessToken } from "@/libs/api-client";
+import { getApiErrorMessage } from "@/libs/auth";
 import { HttpStatus } from "@/libs/http-status";
 import { cn } from "@/libs/utils";
 import {
@@ -27,9 +28,10 @@ import {
   createVideoUpload,
   DEFAULT_PART_SIZE_BYTES,
   MAX_PARALLEL_PARTS,
+  parseVideoCodeConflict,
   presignVideoUploadParts,
 } from "@/queries/video-upload";
-import type { CompletedPart, VideoUploadStatusResponse } from "@/queries/video-upload";
+import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } from "@/queries/video-upload";
 
 const RELATION_FILTERS = [
   { key: "actresses", label: "Actresses", config: actressMultiFilterConfig },
@@ -89,7 +91,7 @@ const PROCESSING_LABELS = ["Generate M3U8 stream", "Generate sample images", "Ge
 const SESSION_KEEPALIVE_CHECK_MS = 60 * 1000;
 const ACCESS_TOKEN_MIN_TTL_SECONDS = 120;
 
-type UploadPhase = "idle" | "preparing" | "uploading" | "completing" | "done" | "error";
+type UploadPhase = "idle" | "preparing" | "uploading" | "completing" | "done" | "error" | "conflict";
 
 function etagFromResponse(response: Response): string {
   const raw = response.headers.get("etag") ?? response.headers.get("ETag");
@@ -192,6 +194,9 @@ export function UploadStudio() {
   const [progressPct, setProgressPct] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<VideoUploadStatusResponse | null>(null);
+  const [upsertDialogOpen, setUpsertDialogOpen] = useState(false);
+  const [conflictExisting, setConflictExisting] = useState<ExistingVideoSummary | null>(null);
+  const [conflictMessage, setConflictMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!file) {
@@ -322,131 +327,198 @@ export function UploadStudio() {
     }
   }, []);
 
-  const runUpload = useCallback(async () => {
-    if (!file || uploadStartedRef.current) {
+  const runUpload = useCallback(
+    async (allowUpsert = false) => {
+      if (!file || uploadStartedRef.current) {
+        return;
+      }
+
+      uploadStartedRef.current = true;
+      setPhase("preparing");
+      setProgressPct(0);
+      setMessage(null);
+      setStatus(null);
+      setUpsertDialogOpen(false);
+
+      let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
+
+      try {
+        const created = await createVideoUpload({
+          filename: file.name,
+          content_type: file.type || "application/octet-stream",
+          size_bytes: file.size,
+          title: title.trim() || file.name.replace(/\.[^.]+$/, ""),
+          video_code: videoCode.trim() || undefined,
+          allow_upsert: allowUpsert || undefined,
+          part_size_bytes: DEFAULT_PART_SIZE_BYTES,
+        });
+
+        setPhase("uploading");
+
+        keepaliveTimer = setInterval(() => {
+          void ensureFreshAccessToken(ACCESS_TOKEN_MIN_TTL_SECONDS);
+        }, SESSION_KEEPALIVE_CHECK_MS);
+
+        const partCount = created.part_count;
+        const partSize = created.part_size_bytes;
+        const partNumbers = Array.from({ length: partCount }, (_, index) => index + 1);
+
+        const urlByPart = new Map<number, string>(created.parts.map((part) => [part.part_number, part.url]));
+
+        const missing = partNumbers.filter((n) => !urlByPart.has(n));
+
+        if (missing.length > 0) {
+          const extra = await presignVideoUploadParts(created.public_id, created.multipart_upload_id, missing);
+
+          for (const part of extra) {
+            urlByPart.set(part.part_number, part.url);
+          }
+        }
+
+        let finishedBytes = 0;
+        const completed: Array<CompletedPart> = await mapPool(partNumbers, MAX_PARALLEL_PARTS, async (partNumber) => {
+          const start = (partNumber - 1) * partSize;
+          const end = Math.min(start + partSize, file.size);
+          const blob = file.slice(start, end);
+          let url = urlByPart.get(partNumber);
+
+          if (!url) {
+            const [refreshed] = await presignVideoUploadParts(created.public_id, created.multipart_upload_id, [
+              partNumber,
+            ]);
+            url = refreshed.url;
+            urlByPart.set(partNumber, url);
+          }
+
+          const etag = await putPart(url, blob);
+          finishedBytes += blob.size;
+          setProgressPct(Math.min(99, Math.round((finishedBytes / file.size) * 100)));
+
+          return { part_number: partNumber, etag };
+        });
+
+        setPhase("completing");
+        setProgressPct(99);
+
+        const accessToken = await ensureFreshAccessToken(ACCESS_TOKEN_MIN_TTL_SECONDS);
+
+        if (accessToken === null) {
+          throw new Error(
+            "Session expired during upload. Sign in again, then retry. " +
+              "Uploaded parts may still be in object storage until completed.",
+          );
+        }
+
+        const orderedParts = completed.sort((a, b) => a.part_number - b.part_number);
+        let finalStatus: VideoUploadStatusResponse;
+
+        try {
+          finalStatus = await completeVideoUpload(created.public_id, created.multipart_upload_id, orderedParts);
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status !== HttpStatus.UNAUTHORIZED) {
+            throw error;
+          }
+
+          const retried = await ensureFreshAccessToken(0);
+
+          if (retried === null) {
+            throw new Error("Session expired while completing the upload. Sign in again and retry.", { cause: error });
+          }
+
+          finalStatus = await completeVideoUpload(created.public_id, created.multipart_upload_id, orderedParts);
+        }
+
+        setStatus(finalStatus);
+        setPhase("done");
+        setProgressPct(100);
+        setMessage(`Uploaded. Status: ${finalStatus.status}`);
+
+        if (autoProcess) {
+          window.setTimeout(() => {
+            setProcessingStep(0);
+            setActiveStep(5);
+          }, 450);
+        }
+      } catch (error) {
+        const apiMessage = getApiErrorMessage(error);
+
+        if (
+          error instanceof ApiError &&
+          error.status === HttpStatus.CONFLICT &&
+          videoCode.trim().length > 0 &&
+          !allowUpsert
+        ) {
+          // Structured body is only returned for admins by the API.
+          const conflict = parseVideoCodeConflict(error);
+
+          if (conflict != null) {
+            uploadStartedRef.current = true;
+            setPhase("conflict");
+            setProgressPct(0);
+            setMessage(conflict.message);
+            setConflictMessage(conflict.message);
+            setConflictExisting(conflict.existing);
+            setUpsertDialogOpen(true);
+
+            return;
+          }
+        }
+
+        uploadStartedRef.current = false;
+        setPhase("error");
+        setMessage(apiMessage);
+        setConflictMessage(null);
+        setConflictExisting(null);
+        setUpsertDialogOpen(false);
+      } finally {
+        if (keepaliveTimer != null) {
+          clearInterval(keepaliveTimer);
+        }
+      }
+    },
+    [autoProcess, file, title, videoCode],
+  );
+
+  const loadExistingInfo = useCallback(() => {
+    if (conflictExisting == null) {
       return;
     }
 
-    uploadStartedRef.current = true;
-    setPhase("preparing");
-    setProgressPct(0);
-    setMessage(null);
-    setStatus(null);
+    const existing = conflictExisting;
 
-    let keepaliveTimer: ReturnType<typeof setInterval> | null = null;
-
-    try {
-      const created = await createVideoUpload({
-        filename: file.name,
-        content_type: file.type || "application/octet-stream",
-        size_bytes: file.size,
-        title: title.trim() || file.name.replace(/\.[^.]+$/, ""),
-        video_code: videoCode.trim() || undefined,
-        part_size_bytes: DEFAULT_PART_SIZE_BYTES,
-      });
-
-      setPhase("uploading");
-
-      keepaliveTimer = setInterval(() => {
-        void ensureFreshAccessToken(ACCESS_TOKEN_MIN_TTL_SECONDS);
-      }, SESSION_KEEPALIVE_CHECK_MS);
-
-      const partCount = created.part_count;
-      const partSize = created.part_size_bytes;
-      const partNumbers = Array.from({ length: partCount }, (_, index) => index + 1);
-
-      const urlByPart = new Map<number, string>(created.parts.map((part) => [part.part_number, part.url]));
-
-      const missing = partNumbers.filter((n) => !urlByPart.has(n));
-
-      if (missing.length > 0) {
-        const extra = await presignVideoUploadParts(created.public_id, created.multipart_upload_id, missing);
-
-        for (const part of extra) {
-          urlByPart.set(part.part_number, part.url);
-        }
-      }
-
-      let finishedBytes = 0;
-      const completed: Array<CompletedPart> = await mapPool(partNumbers, MAX_PARALLEL_PARTS, async (partNumber) => {
-        const start = (partNumber - 1) * partSize;
-        const end = Math.min(start + partSize, file.size);
-        const blob = file.slice(start, end);
-        let url = urlByPart.get(partNumber);
-
-        if (!url) {
-          const [refreshed] = await presignVideoUploadParts(created.public_id, created.multipart_upload_id, [
-            partNumber,
-          ]);
-          url = refreshed.url;
-          urlByPart.set(partNumber, url);
-        }
-
-        const etag = await putPart(url, blob);
-        finishedBytes += blob.size;
-        setProgressPct(Math.min(99, Math.round((finishedBytes / file.size) * 100)));
-
-        return { part_number: partNumber, etag };
-      });
-
-      setPhase("completing");
-      setProgressPct(99);
-
-      const accessToken = await ensureFreshAccessToken(ACCESS_TOKEN_MIN_TTL_SECONDS);
-
-      if (accessToken === null) {
-        throw new Error(
-          "Session expired during upload. Sign in again, then retry. " +
-            "Uploaded parts may still be in object storage until completed.",
-        );
-      }
-
-      const orderedParts = completed.sort((a, b) => a.part_number - b.part_number);
-      let finalStatus: VideoUploadStatusResponse;
-
-      try {
-        finalStatus = await completeVideoUpload(created.public_id, created.multipart_upload_id, orderedParts);
-      } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== HttpStatus.UNAUTHORIZED) {
-          throw error;
-        }
-
-        const retried = await ensureFreshAccessToken(0);
-
-        if (retried === null) {
-          throw new Error("Session expired while completing the upload. Sign in again and retry.", { cause: error });
-        }
-
-        finalStatus = await completeVideoUpload(created.public_id, created.multipart_upload_id, orderedParts);
-      }
-
-      setStatus(finalStatus);
-      setPhase("done");
-      setProgressPct(100);
-      setMessage(`Uploaded. Status: ${finalStatus.status}`);
-
-      if (autoProcess) {
-        window.setTimeout(() => {
-          setProcessingStep(0);
-          setActiveStep(5);
-        }, 450);
-      }
-    } catch (error) {
-      setPhase("error");
-      setMessage(error instanceof Error ? error.message : "Upload failed.");
-      uploadStartedRef.current = false;
-    } finally {
-      if (keepaliveTimer != null) {
-        clearInterval(keepaliveTimer);
-      }
-    }
-  }, [autoProcess, file, title, videoCode]);
+    setTitle(existing.title ?? "");
+    setVideoCode(existing.video_id);
+    setCid(existing.cid ?? "");
+    setJancode(existing.jancode ?? "");
+    setMakerProduct(existing.maker_product ?? "");
+    setReleaseDate(
+      existing.release_date != null && existing.release_date.length >= 10 ? existing.release_date.slice(0, 10) : "",
+    );
+    setRelations({
+      actresses: existing.actress_ids,
+      makers: existing.maker_ids,
+      genres: existing.genre_ids,
+      series: existing.series_ids,
+      labels: existing.label_ids,
+      directors: existing.director_ids,
+    });
+    setUpsertDialogOpen(false);
+    setConflictExisting(null);
+    setMessage(
+      `Loaded catalog fields for ${existing.video_id}` +
+        (existing.status != null ? ` (status: ${existing.status})` : "") +
+        ". Review details, then continue when ready to upload a new source.",
+    );
+    setPhase("idle");
+    uploadStartedRef.current = false;
+    setActiveStep(2);
+  }, [conflictExisting]);
 
   useEffect(() => {
-    if (activeStep === 4 && file && phase === "idle" && !uploadStartedRef.current) {
+    if (activeStep === 4 && file && phase === "idle" && !uploadStartedRef.current && !upsertDialogOpen) {
       void runUpload();
     }
-  }, [activeStep, file, phase, runUpload]);
+  }, [activeStep, file, phase, runUpload, upsertDialogOpen]);
 
   const canContinue = useMemo(() => {
     if (activeStep === 1) {
@@ -500,24 +572,10 @@ export function UploadStudio() {
   };
 
   return (
-    <main className="flex w-full flex-col gap-8 px-6 py-8 sm:px-10 lg:px-16">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Studio</h1>
-
-          <p className="text-muted-foreground text-sm">
-            Upload to object storage with multipart presigned URLs. Encoding is not started in this skeleton.
-          </p>
-        </div>
-
-        <Button variant="outline" size="sm" nativeButton={false} render={<Link to="/" />}>
-          Exit studio
-        </Button>
-      </header>
-
-      <nav className="flex flex-wrap items-center gap-2" aria-label="Upload progress">
-        {STEPS.map((step, index) => (
-          <div key={step.number} className="flex items-center gap-2">
+    <main className="flex w-full flex-col gap-8 px-6 py-8 sm:px-10 lg:px-16 lg:py-32">
+      <nav className="flex flex-wrap items-center gap-2 w-full" aria-label="Upload progress">
+        {STEPS.map((step, _) => (
+          <div key={step.number} className="flex items-center gap-2 flex-1">
             <div
               className={cn(
                 "flex size-8 items-center justify-center rounded-full border text-xs font-medium",
@@ -529,15 +587,18 @@ export function UploadStudio() {
               {activeStep > step.number ? <Check className="size-3.5" /> : step.number}
             </div>
 
-            <span className={cn("text-sm", activeStep >= step.number ? "text-foreground" : "text-muted-foreground")}>
+            <span
+              className={cn(
+                "text-sm whitespace-nowrap",
+                activeStep >= step.number ? "text-foreground" : "text-muted-foreground",
+              )}
+            >
               {step.label}
             </span>
 
-            {index < STEPS.length - 1 ? (
-              <div
-                className={cn("mx-1 hidden h-px w-6 sm:block", activeStep > step.number ? "bg-primary" : "bg-border")}
-              />
-            ) : null}
+            <div
+              className={cn("mx-1 hidden h-px grow sm:block", activeStep > step.number ? "bg-primary" : "bg-border")}
+            />
           </div>
         ))}
       </nav>
@@ -826,7 +887,7 @@ export function UploadStudio() {
                     <Loader2 className="size-5 animate-spin" />
                   ) : phase === "done" ? (
                     <Check className="size-5 text-emerald-500" />
-                  ) : phase === "error" ? (
+                  ) : phase === "error" || phase === "conflict" ? (
                     <X className="size-5 text-destructive" />
                   ) : (
                     <CloudUpload className="size-5" />
@@ -839,20 +900,22 @@ export function UploadStudio() {
                       ? "Upload complete"
                       : phase === "error"
                         ? "Upload failed"
-                        : "Uploading your video"}
+                        : phase === "conflict"
+                          ? "Video code already exists"
+                          : "Uploading your video"}
                   </h3>
 
                   <p
                     className={cn(
                       "text-sm",
-                      phase === "error"
+                      phase === "error" || phase === "conflict"
                         ? "text-destructive"
                         : phase === "done"
                           ? "text-emerald-500"
                           : "text-muted-foreground",
                     )}
                   >
-                    {phase === "error"
+                    {phase === "error" || phase === "conflict"
                       ? (message ?? "Something went wrong.")
                       : phase === "done"
                         ? (message ?? "Your video finished uploading.")
@@ -882,6 +945,19 @@ export function UploadStudio() {
 
                 <span>Automatically continue to processing when upload completes</span>
               </label>
+
+              {phase === "conflict" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => {
+                    setUpsertDialogOpen(true);
+                  }}
+                >
+                  Resolve conflict
+                </Button>
+              ) : null}
 
               {phase === "error" ? (
                 <Button
@@ -1070,10 +1146,13 @@ export function UploadStudio() {
             </div>
           ) : null}
 
-          {message && activeStep !== 4 ? (
+          {message && (activeStep !== 4 || phase === "idle" || phase === "error" || phase === "conflict") ? (
             <p
-              className={cn("text-sm", phase === "error" ? "text-destructive" : "text-emerald-500")}
-              role={phase === "error" ? "alert" : "status"}
+              className={cn(
+                "text-sm",
+                phase === "error" || phase === "conflict" ? "text-destructive" : "text-emerald-500",
+              )}
+              role={phase === "error" || phase === "conflict" ? "alert" : "status"}
             >
               {message}
             </p>
@@ -1160,11 +1239,116 @@ export function UploadStudio() {
                 {phase === "completing" && "Finalizing…"}
                 {phase === "done" && "Complete"}
                 {phase === "error" && "Failed"}
+                {phase === "conflict" && "Code in use"}
               </dd>
             </div>
           </dl>
         </aside>
       </section>
+
+      <Dialog
+        open={upsertDialogOpen && phase === "conflict"}
+        onOpenChange={(open) => {
+          setUpsertDialogOpen(open);
+
+          if (!open && phase === "conflict") {
+            uploadStartedRef.current = true;
+          }
+        }}
+      >
+        <DialogContent className="max-w-md gap-0">
+          <div className="flex flex-col gap-3 px-5 py-4">
+            <DialogTitle className="text-lg font-semibold">Video code already exists</DialogTitle>
+
+            <DialogDescription className="text-muted-foreground text-sm leading-relaxed">
+              {conflictMessage ?? "This video code is already in use."}
+            </DialogDescription>
+
+            {conflictExisting != null ? (
+              <dl className="bg-muted/40 grid grid-cols-2 gap-x-4 gap-y-2 rounded-lg border p-3 text-left text-xs">
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-muted-foreground">Record id</dt>
+
+                  <dd className="font-medium tabular-nums">{conflictExisting.id}</dd>
+                </div>
+
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-muted-foreground">Status</dt>
+
+                  <dd className="font-medium">{conflictExisting.status ?? "—"}</dd>
+                </div>
+
+                <div className="col-span-2 flex flex-col gap-0.5">
+                  <dt className="text-muted-foreground">Title</dt>
+
+                  <dd className="font-medium">{conflictExisting.title ?? "—"}</dd>
+                </div>
+
+                {conflictExisting.cid != null && conflictExisting.cid.length > 0 ? (
+                  <div className="flex flex-col gap-0.5">
+                    <dt className="text-muted-foreground">CID</dt>
+
+                    <dd className="font-medium">{conflictExisting.cid}</dd>
+                  </div>
+                ) : null}
+
+                {conflictExisting.jancode != null && conflictExisting.jancode.length > 0 ? (
+                  <div className="flex flex-col gap-0.5">
+                    <dt className="text-muted-foreground">JAN</dt>
+
+                    <dd className="font-medium">{conflictExisting.jancode}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : null}
+          </div>
+
+          <DialogFooter className="border-border flex flex-col gap-3 border-t px-5 py-4 sm:flex-col">
+            <p className="text-muted-foreground text-xs">
+              Load fills the form without uploading. Update replaces the source file.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setUpsertDialogOpen(false);
+                  setPhase("conflict");
+                  uploadStartedRef.current = true;
+                }}
+              >
+                Cancel
+              </Button>
+
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={conflictExisting == null}
+                onClick={() => {
+                  loadExistingInfo();
+                }}
+              >
+                Load existing info
+              </Button>
+
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() => {
+                  uploadStartedRef.current = false;
+                  void runUpload(true);
+                }}
+              >
+                Update existing
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }

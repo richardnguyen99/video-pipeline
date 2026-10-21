@@ -77,6 +77,7 @@ export type SessionPayload = {
   username: string;
   email: string;
   display_name: string | null;
+  role?: string;
   is_active: boolean;
   email_verified: boolean;
   created_at: string;
@@ -135,6 +136,7 @@ export function applySessionFromBody(body: unknown): void {
       username: body.username,
       email: body.email,
       display_name: body.display_name,
+      role: body.role ?? "user",
       is_active: body.is_active,
       email_verified: body.email_verified === true,
       created_at: body.created_at,

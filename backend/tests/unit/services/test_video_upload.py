@@ -240,6 +240,161 @@ async def test_create_upload_uses_bin_extension_for_unknown_suffix() -> None:
 
 
 @pytest.mark.asyncio
+async def test_create_upload_rejects_duplicate_video_code_without_upsert() -> (
+    None
+):
+    existing = Video(
+        id=7,
+        video_id="TEAM-055",
+        title="Old title",
+        origin="legacy",
+        public_id=uuid4(),
+        status="READY",
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    session = _SessionSpy(video=existing)
+    storage = _StorageSpy()
+    service = _service(session, storage)
+    payload = VideoUploadCreateRequest(
+        filename="new.mp4",
+        size_bytes=8 * 1024 * 1024,
+        video_code="TEAM-055",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.create_upload(
+            uploader_id=uuid4(),
+            uploader_role="user",
+            payload=payload,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == (
+        "This video code is already in use. Choose a different code."
+    )
+    assert storage.create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_create_upload_duplicate_video_code_admin_gets_structured_detail() -> (
+    None
+):
+    existing = Video(
+        id=798,
+        video_id="TEAM-055",
+        title="Old title",
+        origin="legacy",
+        public_id=uuid4(),
+        status=None,
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    session = _SessionSpy(video=existing)
+    storage = _StorageSpy()
+    service = _service(session, storage)
+    payload = VideoUploadCreateRequest(
+        filename="new.mp4",
+        size_bytes=8 * 1024 * 1024,
+        video_code="TEAM-055",
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.create_upload(
+            uploader_id=uuid4(),
+            uploader_role="admin",
+            payload=payload,
+        )
+
+    assert exc_info.value.status_code == 409
+    detail = exc_info.value.detail
+    assert isinstance(detail, dict)
+    assert detail.get("code") == "VIDEO_ID_EXISTS"
+    assert "id=798" in str(detail.get("message", ""))
+    assert detail.get("existing", {}).get("video_id") == "TEAM-055"
+    assert storage.create_calls == []
+
+
+@pytest.mark.asyncio
+async def test_create_upload_upsert_forbidden_for_non_admin() -> None:
+    existing = Video(
+        id=7,
+        video_id="TEAM-055",
+        title="Old title",
+        origin="legacy",
+        public_id=uuid4(),
+        status="READY",
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    session = _SessionSpy(video=existing)
+    storage = _StorageSpy()
+    service = _service(session, storage)
+    payload = VideoUploadCreateRequest(
+        filename="new.mp4",
+        size_bytes=8 * 1024 * 1024,
+        video_code="TEAM-055",
+        allow_upsert=True,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.create_upload(
+            uploader_id=uuid4(),
+            uploader_role="user",
+            payload=payload,
+        )
+
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_create_upload_admin_upserts_existing_video_code() -> None:
+    public_id = uuid4()
+    existing = Video(
+        id=7,
+        video_id="TEAM-055",
+        title="Old title",
+        origin="legacy",
+        public_id=public_id,
+        status="READY",
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    session = _SessionSpy(video=existing)
+    storage = _StorageSpy()
+    service = _service(session, storage)
+    admin_id = uuid4()
+    payload = VideoUploadCreateRequest(
+        filename="backfill.mp4",
+        content_type="video/mp4",
+        size_bytes=16 * 1024 * 1024,
+        title="Backfilled",
+        video_code="TEAM-055",
+        allow_upsert=True,
+        part_size_bytes=8 * 1024 * 1024,
+    )
+
+    result = await service.create_upload(
+        uploader_id=admin_id,
+        uploader_role="admin",
+        payload=payload,
+    )
+
+    assert session.committed == 1
+    assert len(session.added) == 0
+    assert existing.title == "Backfilled"
+    assert existing.origin == "upload"
+    assert existing.uploader_id == admin_id
+    assert existing.status == "PENDING"
+    assert existing.source_key is not None
+    assert existing.source_key.endswith("/source.mp4")
+    assert result.id == 7
+    assert result.public_id == public_id
+    assert result.status == "PENDING"
+    assert len(storage.create_calls) == 1
+
+
+@pytest.mark.asyncio
 async def test_presign_parts_returns_requested_urls() -> None:
     uploader_id = uuid4()
     public_id = uuid4()

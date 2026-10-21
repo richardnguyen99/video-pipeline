@@ -293,6 +293,7 @@ function toUserProfile(session: SessionPayload): UserProfile {
     username: session.username,
     email: session.email,
     display_name: session.display_name,
+    role: session.role,
     is_active: session.is_active,
     email_verified: session.email_verified === true,
     created_at: session.created_at,
@@ -421,6 +422,7 @@ export async function resolveAuthMe(cookieHeader?: string | null): Promise<UserP
       email_verified: false,
       created_at: "",
       updated_at: "",
+      role: "user",
     };
   }
 

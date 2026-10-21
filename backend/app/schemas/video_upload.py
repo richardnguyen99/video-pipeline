@@ -22,11 +22,49 @@ class VideoUploadCreateRequest(BaseModel):
         max_length=255,
         description="Optional business code used to prefill metadata.",
     )
+    allow_upsert: bool = Field(
+        default=False,
+        description=(
+            "When true and the caller is an admin, update an existing "
+            "video row that already uses this video_code instead of "
+            "rejecting the upload."
+        ),
+    )
     part_size_bytes: int = Field(
         default=8 * 1024 * 1024,
         ge=5 * 1024 * 1024,
         le=64 * 1024 * 1024,
     )
+
+
+class ExistingVideoSummary(BaseModel):
+    """Catalog fields returned when a video_code already exists (409)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    video_id: str
+    title: Optional[str] = None
+    cid: Optional[str] = None
+    jancode: Optional[str] = None
+    maker_product: Optional[str] = None
+    release_date: Optional[datetime] = None
+    status: Optional[str] = None
+    public_id: Optional[UUID] = None
+    actress_ids: list[int] = Field(default_factory=list)
+    maker_ids: list[int] = Field(default_factory=list)
+    genre_ids: list[int] = Field(default_factory=list)
+    series_ids: list[int] = Field(default_factory=list)
+    label_ids: list[int] = Field(default_factory=list)
+    director_ids: list[int] = Field(default_factory=list)
+
+
+class VideoCodeConflictDetail(BaseModel):
+    """Structured 409 body when create collides on video_code."""
+
+    code: str = "VIDEO_ID_EXISTS"
+    message: str
+    existing: ExistingVideoSummary
 
 
 class PresignedPart(BaseModel):

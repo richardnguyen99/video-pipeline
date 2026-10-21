@@ -27,6 +27,7 @@ export type UserProfile = {
   username: string;
   email: string;
   display_name: string | null;
+  role: string;
   is_active: boolean;
   email_verified: boolean;
   created_at: string;
@@ -39,11 +40,46 @@ function toUserProfile(session: SessionPayload): UserProfile {
     username: session.username,
     email: session.email,
     display_name: session.display_name,
+    role: session.role ?? "user",
     is_active: session.is_active,
     email_verified: session.email_verified === true,
     created_at: session.created_at,
     updated_at: session.updated_at,
   };
+}
+
+function detailToMessage(detail: unknown): string | null {
+  if (typeof detail === "string" && detail.trim().length > 0) {
+    return detail;
+  }
+
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (typeof item === "object" && item !== null && "msg" in item) {
+          return String((item as { msg: unknown }).msg);
+        }
+
+        return String(item);
+      })
+      .filter(Boolean);
+
+    return parts.length > 0 ? parts.join(" ") : null;
+  }
+
+  if (typeof detail === "object" && detail !== null) {
+    const record = detail as Record<string, unknown>;
+
+    if (typeof record.message === "string" && record.message.trim().length > 0) {
+      return record.message;
+    }
+
+    if (typeof record.detail === "string" && record.detail.trim().length > 0) {
+      return record.detail;
+    }
+  }
+
+  return null;
 }
 
 export function getApiErrorMessage(error: unknown): string {
@@ -54,35 +90,26 @@ export function getApiErrorMessage(error: unknown): string {
       const record = body as Record<string, unknown>;
 
       if (typeof record.error === "object" && record.error !== null && "detail" in record.error) {
-        const detail = record.error.detail;
+        const fromNested = detailToMessage(record.error.detail);
 
-        if (typeof detail === "string") {
-          return detail;
-        }
-
-        if (Array.isArray(detail)) {
-          return detail
-            .map((item) => {
-              if (typeof item === "object" && item !== null && "msg" in item) {
-                return String((item as { msg: unknown }).msg);
-              }
-
-              return String(item);
-            })
-            .filter(Boolean)
-            .join(" ");
+        if (fromNested != null) {
+          return fromNested;
         }
       }
 
-      if (typeof record.detail === "string") {
-        return record.detail;
+      const fromDetail = detailToMessage(record.detail);
+
+      if (fromDetail != null) {
+        return fromDetail;
       }
     }
 
-    return error.message;
+    if (error.message.trim().length > 0) {
+      return error.message;
+    }
   }
 
-  if (error instanceof Error) {
+  if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
 
