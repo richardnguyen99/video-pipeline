@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     )
     rabbitmq_watch_queue: str = "watch.events"
     rabbitmq_engagement_queue: str = "engagement.flush"
+    rabbitmq_transcode_queue: str = "transcode.jobs"
     rabbitmq_enabled: bool = True
 
     # Engagement read-through / write-behind cache.

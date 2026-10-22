@@ -90,12 +90,23 @@ class ObjectStorageClient:
 
         return f"{base}/{key}"
 
+    def streams_public_url(self, object_key: str) -> str:
+        """Build a public URL under the streams CDN/base prefix."""
+
+        key = object_key.lstrip("/")
+        base = self._settings.object_storage_streams_public_base_url.rstrip(
+            "/"
+        )
+
+        return f"{base}/{key}"
+
     async def upload_file(
         self,
         *,
         object_key: str,
         file_path: Union[str, Path],
         content_type: Optional[str] = None,
+        bucket: str | None = None,
     ) -> str:
         """Upload a local file and return its public URL.
 
@@ -103,6 +114,7 @@ class ObjectStorageClient:
             object_key: Destination key in the bucket.
             file_path: Path to a file on disk.
             content_type: Optional MIME type.
+            bucket: Override target bucket (default primary media bucket).
 
         Returns:
             Public URL for the uploaded object.
@@ -114,16 +126,53 @@ class ObjectStorageClient:
             extra["ContentType"] = content_type
 
         key = object_key.lstrip("/")
+        target = bucket or self.bucket
 
         async with self.s3_client() as s3:
             await s3.upload_file(
                 Filename=str(file_path),
-                Bucket=self.bucket,
+                Bucket=target,
                 Key=key,
                 ExtraArgs=extra,
             )
 
+        if target == self.streams_bucket:
+            return self.streams_public_url(object_key)
+
         return self.public_url(object_key)
+
+    async def upload_directory(
+        self,
+        *,
+        local_dir: Union[str, Path],
+        key_prefix: str,
+        bucket: str | None = None,
+        content_type_map: Optional[dict[str, str]] = None,
+    ) -> list[str]:
+        """Upload every file under ``local_dir`` preserving relative paths."""
+
+        root = Path(local_dir)
+        prefix = key_prefix.strip("/")
+        uploaded: list[str] = []
+        type_map = content_type_map or {}
+
+        for path in sorted(root.rglob("*")):
+            if not path.is_file():
+                continue
+
+            rel = path.relative_to(root).as_posix()
+            object_key = f"{prefix}/{rel}" if prefix else rel
+            suffix = path.suffix.lower()
+            content_type = type_map.get(suffix)
+            url = await self.upload_file(
+                object_key=object_key,
+                file_path=path,
+                content_type=content_type,
+                bucket=bucket,
+            )
+            uploaded.append(url)
+
+        return uploaded
 
     async def upload_fileobj(
         self,
@@ -243,7 +292,7 @@ class ObjectStorageClient:
                 f"sample_gen file not found on API host: {local_path}",
             )
 
-        key = self.object_key_from_local_path(local_path)
+        key = self._object_key_from_local_path(local_path)
 
         if not await self.object_exists(key):
             await self.upload_file(
@@ -254,7 +303,7 @@ class ObjectStorageClient:
 
         return self.public_url(key)
 
-    def object_key_from_local_path(self, local_path: str) -> str:
+    def _object_key_from_local_path(self, local_path: str) -> str:
         """Derive a stable object key from a local HLS media path.
 
         Examples:
@@ -313,7 +362,7 @@ class ObjectStorageClient:
             )
 
         package_dir = master.parent
-        master_key = self.object_key_from_local_path(str(master))
+        master_key = self._object_key_from_local_path(str(master))
 
         if await self.object_exists(master_key):
             return self.public_url(master_key)
@@ -462,6 +511,29 @@ class ObjectStorageClient:
             raise
 
         return int(response["ContentLength"])
+
+    async def generate_presigned_get_url(
+        self,
+        *,
+        object_key: str,
+        expires_in: int = 3600,
+        bucket: str | None = None,
+    ) -> str:
+        """Return a presigned GET URL for reading an object (probe / workers)."""
+
+        target = bucket or self.raw_uploads_bucket
+
+        async with self.s3_client() as s3:
+            url = await s3.generate_presigned_url(
+                ClientMethod="get_object",
+                Params={
+                    "Bucket": target,
+                    "Key": object_key,
+                },
+                ExpiresIn=expires_in,
+            )
+
+        return url
 
 
 @lru_cache

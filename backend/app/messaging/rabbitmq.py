@@ -1,5 +1,7 @@
 """RabbitMQ connection, publish, and consumer lifecycle (aio-pika)."""
 
+# pylint: disable=broad-exception-caught
+
 from __future__ import annotations
 
 import json
@@ -16,6 +18,7 @@ from aio_pika.abc import (
 
 from app.config import settings
 from app.messaging.engagement_worker import process_engagement_flush_message
+from app.messaging.transcode_worker import process_transcode_message
 from app.messaging.watch_worker import process_watch_message
 
 _logger = logging.getLogger("uvicorn.error")
@@ -29,6 +32,7 @@ class RabbitMQClient:
         self._channel: Optional[AbstractChannel] = None
         self._watch_consumer_tag: Optional[str] = None
         self._engagement_consumer_tag: Optional[str] = None
+        self._transcode_consumer_tag: Optional[str] = None
 
     async def _get_connection(self) -> AbstractRobustConnection:
         """Return a robust connection, creating it if needed."""
@@ -54,6 +58,10 @@ class RabbitMQClient:
             )
             await self._channel.declare_queue(
                 settings.rabbitmq_engagement_queue,
+                durable=True,
+            )
+            await self._channel.declare_queue(
+                settings.rabbitmq_transcode_queue,
                 durable=True,
             )
 
@@ -103,6 +111,26 @@ class RabbitMQClient:
         await channel.default_exchange.publish(
             message,
             routing_key=settings.rabbitmq_engagement_queue,
+        )
+
+    async def publish_transcode_message(self, payload: dict[str, Any]) -> None:
+        """Publish a transcode/probe job after multipart complete."""
+
+        if not settings.rabbitmq_enabled:
+            await process_transcode_message(payload)
+
+            return
+
+        channel = await self._get_channel()
+        body = json.dumps(payload, default=str).encode("utf-8")
+        message = Message(
+            body=body,
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            content_type="application/json",
+        )
+        await channel.default_exchange.publish(
+            message,
+            routing_key=settings.rabbitmq_transcode_queue,
         )
 
     async def start_watch_consumer(self) -> None:
@@ -170,11 +198,40 @@ class RabbitMQClient:
             settings.rabbitmq_engagement_queue,
         )
 
+    async def start_transcode_consumer(self) -> None:
+        """Start consuming the transcode/probe queue."""
+
+        if not settings.rabbitmq_enabled:
+            _logger.info("RabbitMQ disabled — transcode consumer not started")
+
+            return
+
+        channel = await self._get_channel()
+        queue = await channel.declare_queue(
+            settings.rabbitmq_transcode_queue,
+            durable=True,
+        )
+
+        async def on_message(message: AbstractIncomingMessage) -> None:
+            async with message.process(requeue=False):
+                try:
+                    payload = json.loads(message.body.decode("utf-8"))
+                    await process_transcode_message(payload)
+                except Exception:
+                    _logger.exception("Failed to process transcode message")
+
+        self._transcode_consumer_tag = await queue.consume(on_message)
+        _logger.info(
+            "RabbitMQ transcode consumer started queue=%s",
+            settings.rabbitmq_transcode_queue,
+        )
+
     async def close(self) -> None:
         """Close channel and connection."""
 
         self._watch_consumer_tag = None
         self._engagement_consumer_tag = None
+        self._transcode_consumer_tag = None
 
         if self._channel is not None and not self._channel.is_closed:
             await self._channel.close()
@@ -202,6 +259,12 @@ async def publish_engagement_flush(payload: dict[str, Any]) -> None:
     await _client.publish_engagement_flush(payload)
 
 
+async def publish_transcode_message(payload: dict[str, Any]) -> None:
+    """Publish a transcode/probe job via the shared client."""
+
+    await _client.publish_transcode_message(payload)
+
+
 async def start_watch_consumer() -> None:
     """Start the shared client's watch consumer."""
 
@@ -212,6 +275,12 @@ async def start_engagement_consumer() -> None:
     """Start the shared client's engagement consumer."""
 
     await _client.start_engagement_consumer()
+
+
+async def start_transcode_consumer() -> None:
+    """Start the shared client's transcode consumer."""
+
+    await _client.start_transcode_consumer()
 
 
 async def close_rabbitmq() -> None:

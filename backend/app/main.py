@@ -20,6 +20,7 @@ from app.database import create_db_and_tables
 from app.messaging import (
     close_rabbitmq,
     start_engagement_consumer,
+    start_transcode_consumer,
     start_watch_consumer,
     start_watch_event_archiver,
     stop_watch_event_archiver,
@@ -39,6 +40,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     await start_watch_event_archiver()
     await start_watch_consumer()
     await start_engagement_consumer()
+    await start_transcode_consumer()
 
     logger = logging.getLogger("uvicorn.error")
 

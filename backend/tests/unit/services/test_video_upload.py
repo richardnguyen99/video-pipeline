@@ -482,7 +482,32 @@ async def test_presign_parts_rejects_non_pending_status() -> None:
 
 
 @pytest.mark.asyncio
-async def test_complete_upload_marks_uploaded_and_quotes_etags() -> None:
+async def test_complete_upload_marks_uploaded_and_quotes_etags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    published: list[dict[str, object]] = []
+
+    async def _publish(payload: dict[str, object]) -> None:
+        published.append(payload)
+
+    monkeypatch.setattr(
+        "app.services.video_upload.publish_transcode_message",
+        _publish,
+    )
+
+    async def _noop_probe(_self: object, _video: object) -> None:
+        return None
+
+    monkeypatch.setattr(
+        VideoUploadService,
+        "_VideoUploadService__probe_source_metadata",
+        _noop_probe,
+    )
+    monkeypatch.setattr(
+        "app.services.video_upload.asyncio.create_task",
+        lambda *_args, **_kwargs: None,
+    )
+
     uploader_id = uuid4()
     public_id = uuid4()
     video = _pending_video(uploader_id=uploader_id, public_id=public_id)
@@ -511,6 +536,8 @@ async def test_complete_upload_marks_uploaded_and_quotes_etags() -> None:
         {"ETag": '"aaa"', "PartNumber": 1},
         {"ETag": '"bbb"', "PartNumber": 2},
     ]
+    assert len(published) == 1
+    assert published[0]["public_id"] == str(public_id)
 
 
 @pytest.mark.asyncio

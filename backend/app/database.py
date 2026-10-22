@@ -30,6 +30,11 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 def async_session_factory() -> AsyncSession:
-    """Return a new async session context manager for background workers."""
+    """Return a new async session context manager for background workers.
 
-    return AsyncSession(engine)
+    ``expire_on_commit=False`` keeps loaded attributes usable after
+    ``commit`` so workers can read fields across ``await`` without
+    triggering sync lazy-loads (MissingGreenlet).
+    """
+
+    return AsyncSession(engine, expire_on_commit=False)

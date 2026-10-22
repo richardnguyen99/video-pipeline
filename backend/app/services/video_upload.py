@@ -1,7 +1,11 @@
 """User video upload service: create row, presign multipart, complete."""
 
+# pylint: disable=broad-exception-caught
+
 from __future__ import annotations
 
+import asyncio
+import logging
 import math
 import re
 import uuid
@@ -13,6 +17,9 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import select
 from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
 
+from app.config import settings
+from app.messaging.rabbitmq import publish_transcode_message
+from app.messaging.transcode_worker import process_transcode_message
 from app.models.video import Video
 from app.schemas.video_upload import (
     ExistingVideoSummary,
@@ -25,7 +32,10 @@ from app.schemas.video_upload import (
     VideoUploadStatusResponse,
 )
 from app.storage.client import ObjectStorageClient
+from app.utils.media_probe import probe_media
 from app.utils.query import relationship_attr
+
+_logger = logging.getLogger("uvicorn.error")
 
 _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 _STATUS_PENDING = "PENDING"
@@ -275,6 +285,43 @@ class VideoUploadService:
         await self._session.commit()
         await self._session.refresh(video)
 
+        # Fill width/height/fps/codecs immediately (does not depend on the worker).
+        try:
+            await self.__probe_source_metadata(video)
+            await self._session.commit()
+            await self._session.refresh(video)
+        except Exception:
+            _logger.exception(
+                "source probe after complete failed public_id=%s",
+                video.public_id,
+            )
+
+        if video.public_id is not None:
+            job_payload: dict[str, object] = {
+                "public_id": str(video.public_id),
+                "video_id": video.id,
+            }
+            # Exactly one runner: RabbitMQ consumer when enabled, otherwise an
+            # in-process task. Doing both starts two ffmpeg jobs for the same rung.
+            if settings.rabbitmq_enabled:
+                try:
+                    await publish_transcode_message(job_payload)
+                except Exception:
+                    _logger.exception(
+                        "publish transcode failed; falling back to in-process "
+                        "public_id=%s",
+                        video.public_id,
+                    )
+                    asyncio.create_task(
+                        self.__run_transcode_safe(job_payload),
+                        name=f"transcode-{video.public_id}",
+                    )
+            else:
+                asyncio.create_task(
+                    self.__run_transcode_safe(job_payload),
+                    name=f"transcode-{video.public_id}",
+                )
+
         return self.__to_status(video)
 
     async def get_status(
@@ -408,6 +455,64 @@ class VideoUploadService:
             return value
 
         return f'"{value}"'
+
+    async def __probe_source_metadata(self, video: Video) -> None:
+        """Run ffprobe on the uploaded source and fill media columns."""
+
+        if not video.source_key:
+            return
+
+        source_url = await self._storage.generate_presigned_get_url(
+            object_key=video.source_key,
+        )
+        probe = await probe_media(source_url)
+
+        if not probe.has_video:
+            _logger.warning(
+                "probe found no video stream public_id=%s",
+                video.public_id,
+            )
+
+            return
+
+        if video.duration is None and probe.duration_s is not None:
+            video.duration = probe.duration_s
+
+        if probe.width is not None:
+            video.width = probe.width
+
+        if probe.height is not None:
+            video.height = probe.height
+
+        if probe.fps is not None:
+            video.fps = probe.fps
+
+        if probe.video_codec:
+            video.video_codec = probe.video_codec[:50]
+
+        if probe.audio_codec:
+            video.audio_codec = probe.audio_codec[:50]
+
+        _logger.info(
+            "probed source public_id=%s %sx%s codec=%s/%s",
+            video.public_id,
+            video.width,
+            video.height,
+            video.video_codec,
+            video.audio_codec,
+        )
+
+    @staticmethod
+    async def __run_transcode_safe(payload: dict[str, object]) -> None:
+        """Background encode; errors are logged, never raised to the request."""
+
+        try:
+            await process_transcode_message(payload)
+        except Exception:
+            _logger.exception(
+                "background transcode failed payload=%s",
+                payload,
+            )
 
     @staticmethod
     def __to_status(video: Video) -> VideoUploadStatusResponse:
