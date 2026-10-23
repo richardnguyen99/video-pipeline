@@ -45,8 +45,8 @@ export function PreviewStep({ model }: PreviewStepProps) {
           <h3 className="text-base font-medium">Preview and publish</h3>
 
           <p className="text-muted-foreground text-sm">
-            Review title, visibility, and encoding status. Open the video page to watch the HLS stream when processing
-            has finished.
+            Review title and visibility, then open the video page. Playback uses resolutions that are already ready;
+            higher rungs appear as encoding continues.
           </p>
         </div>
       </div>

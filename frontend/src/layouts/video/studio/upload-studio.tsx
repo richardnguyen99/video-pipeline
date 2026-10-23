@@ -416,11 +416,12 @@ export function UploadStudio() {
         return false;
       }
 
-      if (status.renditions.length === 0) {
-        return status.status === "READY";
+      // Progressive encode: first READY rung publishes a playable master playlist.
+      if (status.status.toUpperCase() === "READY") {
+        return true;
       }
 
-      return status.renditions.every((row) => row.status.toUpperCase() === "READY");
+      return status.renditions.some((row) => row.status.toUpperCase() === "READY");
     }
 
     return true;
@@ -631,7 +632,15 @@ export function UploadStudio() {
                 goNext();
               }}
             >
-              {activeStep === 6 ? "Open video page" : activeStep === 5 ? "Preview video" : "Continue"}
+              {activeStep === 6
+                ? "Open video page"
+                : activeStep === 5
+                  ? status != null &&
+                    status.renditions.length > 0 &&
+                    status.renditions.every((row) => row.status.toUpperCase() === "READY")
+                    ? "Preview video"
+                    : "Preview available stream"
+                  : "Continue"}
               <ArrowRight data-icon="inline-end" className="size-4" />
             </Button>
           </div>
