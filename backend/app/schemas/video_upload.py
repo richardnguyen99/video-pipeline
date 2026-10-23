@@ -116,6 +116,20 @@ class VideoUploadCompleteRequest(BaseModel):
     parts: list[CompletedPart] = Field(min_length=1)
 
 
+class VideoRenditionProgress(BaseModel):
+    """Per-rung HLS encode progress for the process wizard."""
+
+    label: str
+    width: int
+    height: int
+    video_kbps: int
+    status: str
+    progress_pct: int
+    attempt: int
+    segment_count: Optional[int] = None
+    playlist_key: Optional[str] = None
+
+
 class VideoUploadStatusResponse(BaseModel):
     """Upload/processing status for a user-owned video row."""
 
@@ -133,3 +147,5 @@ class VideoUploadStatusResponse(BaseModel):
     ready_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    overall_progress_pct: float = 0.0
+    renditions: list[VideoRenditionProgress] = Field(default_factory=list)

@@ -22,20 +22,40 @@ def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+class _ScalarsSpy:
+    def __init__(self, rows: list[Any]) -> None:
+        self._rows = rows
+
+    def all(self) -> list[Any]:
+        return list(self._rows)
+
+
 class _ResultSpy:
-    def __init__(self, row: Any = None) -> None:
+    def __init__(
+        self, row: Any = None, *, rows: Optional[list[Any]] = None
+    ) -> None:
         self._row = row
+        self._rows = rows if rows is not None else []
 
     def scalar_one_or_none(self) -> Any:
         return self._row
 
+    def scalars(self) -> _ScalarsSpy:
+        return _ScalarsSpy(self._rows)
+
 
 class _SessionSpy:
-    def __init__(self, *, video: Optional[Video] = None) -> None:
+    def __init__(
+        self,
+        *,
+        video: Optional[Video] = None,
+        renditions: Optional[list[Any]] = None,
+    ) -> None:
         self.added: list[Any] = []
         self.committed = 0
         self.refreshed: list[Any] = []
         self._video = video
+        self._renditions = list(renditions or [])
         self._next_id = 1
 
     def add(self, obj: Any) -> None:
@@ -59,7 +79,7 @@ class _SessionSpy:
         self.refreshed.append(obj)
 
     async def execute(self, _statement: Any) -> _ResultSpy:
-        return _ResultSpy(self._video)
+        return _ResultSpy(self._video, rows=self._renditions)
 
 
 class _StorageSpy:
@@ -587,6 +607,8 @@ async def test_get_status_returns_owned_upload() -> None:
     assert result.public_id == public_id
     assert result.status == "UPLOADED"
     assert result.original_filename == "clip.mp4"
+    assert result.renditions == []
+    assert result.overall_progress_pct == 5.0
 
 
 @pytest.mark.asyncio

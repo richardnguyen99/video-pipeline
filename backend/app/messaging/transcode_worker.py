@@ -685,16 +685,34 @@ async def _encode_and_upload_one(
     rendition.status = _RENDITION_ENCODING
     rendition.attempt = (rendition.attempt or 0) + 1
     rendition.progress_pct = 0
+    rendition.segment_count = 0
     await session.commit()
 
+    last_committed_pct = -1
+
     async def on_progress(pct: float) -> None:
-        rendition.progress_pct = int(pct)
+        nonlocal last_committed_pct
+
+        rounded = int(pct)
+        rendition.progress_pct = rounded
+
+        if work_dir.is_dir():
+            rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
+
         await _set_progress(
             public_id,
             status=_STATUS_ENCODING,
             overall_pct=progress_base + (pct / 100.0) * progress_span,
-            message=f"{label} {int(pct)}%",
+            message=f"{label} {rounded}%",
         )
+
+        # Persist often enough for the Process wizard poll (2s) without
+        # committing on every ffmpeg progress line.
+        if rounded - last_committed_pct < 2 and rounded < 100:
+            return
+
+        last_committed_pct = rounded
+        await session.commit()
 
     audio_kbps = _AUDIO_KBPS_BY_HEIGHT.get(rendition.height, 128)
 

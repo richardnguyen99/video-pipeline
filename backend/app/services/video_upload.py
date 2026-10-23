@@ -14,17 +14,18 @@ from pathlib import PurePosixPath
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlmodel import select
+from sqlmodel import col, select
 from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
 
 from app.config import settings
 from app.messaging.rabbitmq import publish_transcode_message
 from app.messaging.transcode_worker import process_transcode_message
-from app.models.video import Video
+from app.models.video import Video, VideoRendition
 from app.schemas.video_upload import (
     ExistingVideoSummary,
     PresignedPart,
     VideoCodeConflictDetail,
+    VideoRenditionProgress,
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
     VideoUploadCreateResponse,
@@ -41,8 +42,27 @@ _SAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 _STATUS_PENDING = "PENDING"
 _STATUS_UPLOADED = "UPLOADED"
 _STATUS_FAILED = "FAILED"
+_STATUS_READY = "READY"
 _ORIGIN_UPLOAD = "upload"
 _MAX_PRESIGN_BATCH = 100
+# Overall progress when no ladder rows exist yet (probe / queue phase).
+_PROGRESS_PRE_LADDER_PCT = 5.0
+# Overall progress once encoding has started but rungs are still empty.
+_PROGRESS_ENCODING_START_PCT = 8.0
+# Share of the bar reserved for post-upload encode work (after start offset).
+_PROGRESS_ENCODE_SPAN_PCT = 92.0
+_PROGRESS_COMPLETE_PCT = 100.0
+_PROGRESS_NONE_PCT = 0.0
+# Video statuses that report zero overall progress.
+_PROGRESS_IDLE_STATUSES = frozenset({"PENDING", "UPLOADING"})
+# Video statuses that share the pre-ladder progress value.
+_PROGRESS_PRE_LADDER_BY_STATUS: dict[str, float] = {
+    "UPLOADED": _PROGRESS_PRE_LADDER_PCT,
+    "PROBING": _PROGRESS_PRE_LADDER_PCT,
+    "QUEUED": _PROGRESS_PRE_LADDER_PCT,
+    "FAILED": _PROGRESS_NONE_PCT,
+    "READY": _PROGRESS_COMPLETE_PCT,
+}
 
 
 class VideoUploadService:
@@ -333,8 +353,9 @@ class VideoUploadService:
         """Return status for an upload owned by the current user."""
 
         video = await self.__get_owned_upload(public_id, uploader_id)
+        renditions = await self.__list_renditions(video.id)
 
-        return self.__to_status(video)
+        return self.__to_status(video, renditions=renditions)
 
     async def __find_by_video_id(self, video_id: str) -> Video | None:
         """Return the video row for a business video_id, if any."""
@@ -514,11 +535,46 @@ class VideoUploadService:
                 payload,
             )
 
+    async def __list_renditions(self, video_id: int) -> list[VideoRendition]:
+        """Load ladder rows ordered by height ascending."""
+
+        result = await self._session.execute(
+            select(VideoRendition)
+            .where(VideoRendition.video_id == video_id)
+            .order_by(col(VideoRendition.height).asc()),
+        )
+
+        return list(result.scalars().all())
+
     @staticmethod
-    def __to_status(video: Video) -> VideoUploadStatusResponse:
+    def __to_status(
+        video: Video,
+        *,
+        renditions: list[VideoRendition] | None = None,
+    ) -> VideoUploadStatusResponse:
         """Map a Video row to the status response schema."""
 
         assert video.public_id is not None
+
+        rows = renditions or []
+        progress_rows = [
+            VideoRenditionProgress(
+                label=row.label,
+                width=row.width,
+                height=row.height,
+                video_kbps=row.video_kbps,
+                status=row.status,
+                progress_pct=row.progress_pct,
+                attempt=row.attempt,
+                segment_count=row.segment_count,
+                playlist_key=row.playlist_key,
+            )
+            for row in rows
+        ]
+        overall = VideoUploadService.__overall_progress(
+            status=video.status or _STATUS_PENDING,
+            renditions=progress_rows,
+        )
 
         return VideoUploadStatusResponse(
             id=video.id,
@@ -533,4 +589,52 @@ class VideoUploadService:
             ready_at=video.ready_at,
             created_at=video.created_at,
             updated_at=video.updated_at,
+            overall_progress_pct=overall,
+            renditions=progress_rows,
         )
+
+    @staticmethod
+    def __rung_progress_pct(row: VideoRenditionProgress) -> float:
+        """Normalize a single ladder row to 0–100 progress."""
+
+        normalized = row.status.upper()
+
+        if normalized == _STATUS_READY:
+            return _PROGRESS_COMPLETE_PCT
+
+        if normalized == _STATUS_FAILED:
+            return _PROGRESS_NONE_PCT
+
+        return max(
+            _PROGRESS_NONE_PCT,
+            min(_PROGRESS_COMPLETE_PCT, float(row.progress_pct)),
+        )
+
+    @staticmethod
+    def __overall_progress(
+        *,
+        status: str,
+        renditions: list[VideoRenditionProgress],
+    ) -> float:
+        if status in _PROGRESS_IDLE_STATUSES:
+            return _PROGRESS_NONE_PCT
+
+        if not renditions:
+            return _PROGRESS_PRE_LADDER_BY_STATUS.get(
+                status,
+                _PROGRESS_ENCODING_START_PCT,
+            )
+
+        rung_avg = sum(
+            VideoUploadService.__rung_progress_pct(row) for row in renditions
+        ) / max(len(renditions), 1)
+
+        if rung_avg >= _PROGRESS_COMPLETE_PCT:
+            return _PROGRESS_COMPLETE_PCT
+
+        # Map average rung progress onto the post-upload portion of the bar.
+        encode_share = (
+            rung_avg / _PROGRESS_COMPLETE_PCT
+        ) * _PROGRESS_ENCODE_SPAN_PCT
+
+        return round(_PROGRESS_ENCODING_START_PCT + encode_share, 1)

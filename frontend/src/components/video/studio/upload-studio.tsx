@@ -23,10 +23,12 @@ import { ApiError, ensureFreshAccessToken } from "@/libs/api-client";
 import { getApiErrorMessage } from "@/libs/auth";
 import { HttpStatus } from "@/libs/http-status";
 import { cn } from "@/libs/utils";
+import { ProcessTrace } from "@/components/video/studio/process-trace";
 import {
   completeVideoUpload,
   createVideoUpload,
   DEFAULT_PART_SIZE_BYTES,
+  getVideoUploadStatus,
   MAX_PARALLEL_PARTS,
   parseVideoCodeConflict,
   presignVideoUploadParts,
@@ -85,8 +87,6 @@ const VISIBILITY_OPTIONS = [
 ] as const;
 
 type VisibilityValue = (typeof VISIBILITY_OPTIONS)[number]["value"];
-
-const PROCESSING_LABELS = ["Generate M3U8 stream", "Generate sample images", "Generate review videos"] as const;
 
 const SESSION_KEEPALIVE_CHECK_MS = 60 * 1000;
 const ACCESS_TOKEN_MIN_TTL_SECONDS = 120;
@@ -188,7 +188,6 @@ export function UploadStudio() {
   const [notifySubscribers, setNotifySubscribers] = useState(true);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [autoProcess, setAutoProcess] = useState(true);
-  const [processingStep, setProcessingStep] = useState(0);
 
   const [phase, setPhase] = useState<UploadPhase>("idle");
   const [progressPct, setProgressPct] = useState(0);
@@ -234,18 +233,35 @@ export function UploadStudio() {
   }, [file]);
 
   useEffect(() => {
-    if (activeStep !== 5 || phase !== "done") {
+    if (activeStep !== 5 || status?.public_id == null) {
       return;
     }
 
+    let cancelled = false;
+    const publicId = status.public_id;
+
+    const poll = async () => {
+      try {
+        const next = await getVideoUploadStatus(publicId);
+
+        if (!cancelled) {
+          setStatus(next);
+        }
+      } catch {
+        // Keep last known status; next tick retries.
+      }
+    };
+
+    void poll();
     const timer = window.setInterval(() => {
-      setProcessingStep((current) => Math.min(PROCESSING_LABELS.length, current + 1));
-    }, 1100);
+      void poll();
+    }, 2000);
 
     return () => {
+      cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeStep, phase]);
+  }, [activeStep, status?.public_id]);
 
   const fileSizeLabel = useMemo(() => {
     if (!file) {
@@ -435,7 +451,6 @@ export function UploadStudio() {
 
         if (autoProcess) {
           window.setTimeout(() => {
-            setProcessingStep(0);
             setActiveStep(5);
           }, 450);
         }
@@ -534,11 +549,11 @@ export function UploadStudio() {
     }
 
     if (activeStep === 5) {
-      return processingStep >= PROCESSING_LABELS.length;
+      return status?.status === "READY";
     }
 
     return true;
-  }, [activeStep, file, phase, processingStep, title]);
+  }, [activeStep, file, phase, status?.status, title]);
 
   const busy = phase === "preparing" || phase === "uploading" || phase === "completing";
 
@@ -554,10 +569,6 @@ export function UploadStudio() {
   const goNext = () => {
     if (activeStep === 6) {
       return;
-    }
-
-    if (activeStep === 4) {
-      setProcessingStep(0);
     }
 
     setActiveStep((step) => Math.min(6, step + 1));
@@ -981,10 +992,12 @@ export function UploadStudio() {
             <div className="flex w-full flex-col gap-4 py-2">
               <div className="flex items-start gap-4">
                 <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
-                  {processingStep < PROCESSING_LABELS.length ? (
-                    <Loader2 className="size-5 animate-spin" />
-                  ) : (
+                  {status?.status === "READY" ? (
                     <Check className="size-5 text-emerald-500" />
+                  ) : status?.status === "FAILED" ? (
+                    <X className="size-5 text-destructive" />
+                  ) : (
+                    <Loader2 className="size-5 animate-spin" />
                   )}
                 </div>
 
@@ -992,34 +1005,16 @@ export function UploadStudio() {
                   <h3 className="text-base font-medium">Processing your video</h3>
 
                   <p className="text-muted-foreground text-sm">
-                    Encoding workers are not wired yet. This step is a UI placeholder for the pipeline skeleton.
+                    {status?.status === "READY"
+                      ? "HLS ladder is ready. Continue to preview."
+                      : status?.status === "FAILED"
+                        ? (status.error_message ?? "Encoding failed.")
+                        : "Encoding each resolution into HLS streams. Lower rungs finish first so playback can start early."}
                   </p>
                 </div>
               </div>
 
-              <div className="flex w-full flex-col gap-2">
-                {PROCESSING_LABELS.map((label, index) => (
-                  <div
-                    key={label}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm",
-                      processingStep > index
-                        ? "border-primary/40 bg-primary/5"
-                        : processingStep === index
-                          ? "border-border"
-                          : "border-border opacity-60",
-                    )}
-                  >
-                    <span className="flex size-6 items-center justify-center rounded-full border text-xs">
-                      {processingStep > index ? <Check className="size-3.5" /> : index + 1}
-                    </span>
-
-                    <strong className="flex-1 font-medium">{label}</strong>
-
-                    {processingStep > index ? <small className="text-muted-foreground text-xs">Complete</small> : null}
-                  </div>
-                ))}
-              </div>
+              <ProcessTrace status={status} />
             </div>
           ) : null}
 

@@ -16,6 +16,18 @@ export type VideoUploadCreateResponse = {
   parts: Array<PresignedPart>;
 };
 
+export type VideoRenditionProgress = {
+  label: string;
+  width: number;
+  height: number;
+  video_kbps: number;
+  status: string;
+  progress_pct: number;
+  attempt: number;
+  segment_count: number | null;
+  playlist_key: string | null;
+};
+
 export type VideoUploadStatusResponse = {
   id: number;
   public_id: string;
@@ -29,6 +41,8 @@ export type VideoUploadStatusResponse = {
   ready_at: string | null;
   created_at: string;
   updated_at: string;
+  overall_progress_pct: number;
+  renditions: Array<VideoRenditionProgress>;
 };
 
 export type CreateVideoUploadInput = {
