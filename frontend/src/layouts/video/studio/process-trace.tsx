@@ -53,7 +53,7 @@ function descriptionFor(row: VideoRenditionProgress): string {
   const normalized = row.status.toUpperCase();
 
   if (normalized === "READY") {
-    const segments = row.segment_count != null ? ` · ${row.segment_count} segments` : "";
+    const segments = row.segment_count != null && row.segment_count > 0 ? ` · ${row.segment_count} segments` : "";
 
     return `Complete${segments}`;
   }
@@ -63,7 +63,9 @@ function descriptionFor(row: VideoRenditionProgress): string {
   }
 
   if (normalized === "ENCODING") {
-    return `${row.progress_pct}%`;
+    const segments = row.segment_count != null && row.segment_count > 0 ? ` · ${row.segment_count} seg` : "";
+
+    return `${row.progress_pct}%${segments}`;
   }
 
   return "Queued";
