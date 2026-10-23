@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Optional
 
 from redis.asyncio import Redis
@@ -14,17 +15,40 @@ class RedisClientHolder:
 
     def __init__(self) -> None:
         self._client: Optional[Redis] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def _build(self) -> Redis:
+        return Redis(
+            host=settings.redis_host,
+            port=settings.redis_port,
+            password=settings.redis_password or None,
+            decode_responses=True,
+        )
 
     async def get(self) -> Redis:
-        """Return a shared asyncio Redis client, creating it if needed."""
+        """Return a shared asyncio Redis client, creating it if needed.
+
+        Recreates the client when the event loop changes (pytest-asyncio
+        and other environments that close loops between tasks).
+        """
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if self._client is not None and self._loop is not loop:
+            try:
+                await self._client.aclose()
+            except RuntimeError, OSError:
+                pass
+
+            self._client = None
+            self._loop = None
 
         if self._client is None:
-            self._client = Redis(
-                host=settings.redis_host,
-                port=settings.redis_port,
-                password=settings.redis_password or None,
-                decode_responses=True,
-            )
+            self._client = self._build()
+            self._loop = loop
 
         return self._client
 
@@ -32,8 +56,13 @@ class RedisClientHolder:
         """Close the shared client."""
 
         if self._client is not None:
-            await self._client.aclose()
+            try:
+                await self._client.aclose()
+            except RuntimeError, OSError:
+                pass
+
             self._client = None
+            self._loop = None
 
 
 _holder = RedisClientHolder()

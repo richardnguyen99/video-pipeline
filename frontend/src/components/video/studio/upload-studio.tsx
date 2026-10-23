@@ -28,10 +28,11 @@ import {
   completeVideoUpload,
   createVideoUpload,
   DEFAULT_PART_SIZE_BYTES,
-  getVideoUploadStatus,
   MAX_PARALLEL_PARTS,
+  mergeLiveProgress,
   parseVideoCodeConflict,
   presignVideoUploadParts,
+  subscribeVideoUploadProgress,
 } from "@/queries/video-upload";
 import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } from "@/queries/video-upload";
 
@@ -237,30 +238,23 @@ export function UploadStudio() {
       return;
     }
 
-    let cancelled = false;
     const publicId = status.public_id;
 
-    const poll = async () => {
-      try {
-        const next = await getVideoUploadStatus(publicId);
+    return subscribeVideoUploadProgress(
+      publicId,
+      (live) => {
+        setStatus((previous) => {
+          if (previous == null) {
+            return previous;
+          }
 
-        if (!cancelled) {
-          setStatus(next);
-        }
-      } catch {
-        // Keep last known status; next tick retries.
-      }
-    };
-
-    void poll();
-    const timer = window.setInterval(() => {
-      void poll();
-    }, 2000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
+          return mergeLiveProgress(previous, live);
+        });
+      },
+      (next) => {
+        setStatus(next);
+      },
+    );
   }, [activeStep, status?.public_id]);
 
   const fileSizeLabel = useMemo(() => {
@@ -549,11 +543,19 @@ export function UploadStudio() {
     }
 
     if (activeStep === 5) {
-      return status?.status === "READY";
+      if (status == null) {
+        return false;
+      }
+
+      if (status.renditions.length === 0) {
+        return status.status === "READY";
+      }
+
+      return status.renditions.every((row) => row.status.toUpperCase() === "READY");
     }
 
     return true;
-  }, [activeStep, file, phase, status?.status, title]);
+  }, [activeStep, file, phase, status, title]);
 
   const busy = phase === "preparing" || phase === "uploading" || phase === "completing";
 
@@ -992,10 +994,12 @@ export function UploadStudio() {
             <div className="flex w-full flex-col gap-4 py-2">
               <div className="flex items-start gap-4">
                 <div className="bg-muted flex size-12 shrink-0 items-center justify-center rounded-full">
-                  {status?.status === "READY" ? (
-                    <Check className="size-5 text-emerald-500" />
-                  ) : status?.status === "FAILED" ? (
+                  {status?.status === "FAILED" ? (
                     <X className="size-5 text-destructive" />
+                  ) : status != null &&
+                    status.renditions.length > 0 &&
+                    status.renditions.every((row) => row.status.toUpperCase() === "READY") ? (
+                    <Check className="size-5 text-emerald-500" />
                   ) : (
                     <Loader2 className="size-5 animate-spin" />
                   )}
@@ -1005,10 +1009,12 @@ export function UploadStudio() {
                   <h3 className="text-base font-medium">Processing your video</h3>
 
                   <p className="text-muted-foreground text-sm">
-                    {status?.status === "READY"
-                      ? "HLS ladder is ready. Continue to preview."
-                      : status?.status === "FAILED"
-                        ? (status.error_message ?? "Encoding failed.")
+                    {status?.status === "FAILED"
+                      ? (status.error_message ?? "Encoding failed.")
+                      : status != null &&
+                          status.renditions.length > 0 &&
+                          status.renditions.every((row) => row.status.toUpperCase() === "READY")
+                        ? "All resolutions encoded. Continue to preview."
                         : "Encoding each resolution into HLS streams. Lower rungs finish first so playback can start early."}
                   </p>
                 </div>

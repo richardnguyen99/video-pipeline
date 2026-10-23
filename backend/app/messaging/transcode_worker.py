@@ -16,6 +16,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.database import async_session_factory
 from app.messaging.redis_client import get_redis_client
+from app.messaging.transcode_progress import (
+    RungProgressSnapshot,
+    TranscodeProgressSnapshot,
+    set_progress_snapshot,
+)
 from app.models.video import Video, VideoM3u8, VideoRendition
 from app.storage.client import ObjectStorageClient, get_object_storage_client
 from app.utils.hls_encode import build_master_playlist, encode_hls_rendition
@@ -45,7 +50,6 @@ _HLS_CONTENT_TYPES = {
     ".ts": "video/mp2t",
 }
 
-_PROGRESS_KEY = "transcode:progress:{public_id}"
 _JOB_LOCK_KEY = "transcode:lock:{public_id}"
 _JOB_LOCK_TTL_S = 86_400
 
@@ -87,28 +91,51 @@ def _spec_from_rendition(row: VideoRendition) -> ReadySpec:
     return (row.label, row.width, row.height, row.video_kbps)
 
 
+def _rung_snapshot(row: VideoRendition) -> RungProgressSnapshot:
+    return RungProgressSnapshot(
+        label=row.label,
+        width=row.width,
+        height=row.height,
+        video_kbps=row.video_kbps,
+        status=row.status or _RENDITION_PENDING,
+        progress_pct=int(row.progress_pct or 0),
+        segment_count=row.segment_count,
+        playlist_key=row.playlist_key,
+    )
+
+
+def _sync_rung_in_list(
+    rungs: list[RungProgressSnapshot],
+    row: VideoRendition,
+) -> None:
+    snap = _rung_snapshot(row)
+
+    for index, existing in enumerate(rungs):
+        if existing.label == snap.label:
+            rungs[index] = snap
+
+            return
+
+    rungs.append(snap)
+
+
 async def _set_progress(
     public_id: uuid.UUID,
     *,
     status: str,
     overall_pct: float,
     message: str = "",
+    rungs: Optional[list[RungProgressSnapshot]] = None,
 ) -> None:
-    try:
-        redis = await get_redis_client()
-        key = _PROGRESS_KEY.format(public_id=public_id)
-        await redis.hset(
-            key,
-            mapping={
-                "status": status,
-                "overall_pct": f"{overall_pct:.2f}",
-                "message": message,
-                "updated_at": _utcnow().isoformat(),
-            },
-        )
-        await redis.expire(key, 86_400)
-    except Exception:
-        _logger.debug("transcode progress redis write failed", exc_info=True)
+    await set_progress_snapshot(
+        public_id,
+        TranscodeProgressSnapshot(
+            status=status,
+            overall_pct=overall_pct,
+            message=message,
+            rungs=list(rungs or []),
+        ),
+    )
 
 
 async def _try_acquire_job_lock(public_id: uuid.UUID) -> bool:
@@ -380,9 +407,19 @@ async def _run_locked_pipeline(
     video.status = _STATUS_ENCODING
     await session.commit()
     await session.refresh(video)
-    await _set_progress(public_id, status=_STATUS_ENCODING, overall_pct=8.0)
 
     renditions = await _load_renditions(session, video_db_id)
+    live_rungs = [
+        _rung_snapshot(row)
+        for row in sorted(renditions, key=lambda r: r.height)
+    ]
+    await _set_progress(
+        public_id,
+        status=_STATUS_ENCODING,
+        overall_pct=8.0,
+        message="Encoding ladder",
+        rungs=live_rungs,
+    )
 
     if not renditions:
         await _mark_failed(
@@ -409,6 +446,7 @@ async def _run_locked_pipeline(
             source_url=source_url,
             duration_s=duration_s,
             renditions=renditions,
+            live_rungs=live_rungs,
         )
     except Exception as exc:
         await _handle_encode_error(session, video, public_id, exc)
@@ -426,7 +464,13 @@ async def _run_locked_pipeline(
 
         return
 
-    await _set_progress(public_id, status=_STATUS_READY, overall_pct=100.0)
+    await _set_progress(
+        public_id,
+        status=_STATUS_READY,
+        overall_pct=100.0,
+        message="Ladder complete",
+        rungs=live_rungs,
+    )
     _logger.info(
         "transcode ladder complete public_id=%s renditions=%s",
         public_id,
@@ -521,6 +565,7 @@ async def _encode_progressive_ladder(
     source_url: str,
     duration_s: Optional[float],
     renditions: list[VideoRendition],
+    live_rungs: list[RungProgressSnapshot],
 ) -> list[ReadySpec]:
     """Encode lowest rungs first; publish a playable master as soon as possible."""
 
@@ -558,6 +603,7 @@ async def _encode_progressive_ladder(
             progress_base=8.0,
             progress_span=max(12.0, 85.0 / max(total, 1)),
             label=f"first:{first.label}",
+            live_rungs=live_rungs,
         )
         ready_specs.append(_spec_from_rendition(first))
         done += 1
@@ -589,6 +635,7 @@ async def _encode_progressive_ladder(
             duration_s=duration_s,
             done=done,
             total=total,
+            live_rungs=live_rungs,
         )
 
     return ready_specs
@@ -607,6 +654,7 @@ async def _encode_higher_rungs(
     duration_s: Optional[float],
     done: int,
     total: int,
+    live_rungs: list[RungProgressSnapshot],
 ) -> None:
     if not rest:
         return
@@ -633,6 +681,7 @@ async def _encode_higher_rungs(
                 progress_base=progress_base,
                 progress_span=progress_span,
                 label=f"upgrade:{row.label}",
+                live_rungs=live_rungs,
             )
         except Exception as exc:
             row.status = _RENDITION_FAILED
@@ -679,19 +728,32 @@ async def _encode_and_upload_one(
     progress_base: float,
     progress_span: float,
     label: str,
+    live_rungs: list[RungProgressSnapshot],
 ) -> None:
-    """Encode a single rung, upload to streams, mark rendition READY."""
+    """Encode a single rung, upload to streams, mark rendition READY.
+
+    Hot progress ticks go to Redis only. Postgres is updated on
+    ENCODING start and on READY / FAILED.
+    """
 
     rendition.status = _RENDITION_ENCODING
     rendition.attempt = (rendition.attempt or 0) + 1
     rendition.progress_pct = 0
     rendition.segment_count = 0
     await session.commit()
+    _sync_rung_in_list(live_rungs, rendition)
+    await _set_progress(
+        public_id,
+        status=_STATUS_ENCODING,
+        overall_pct=progress_base,
+        message=f"{label} started",
+        rungs=live_rungs,
+    )
 
-    last_committed_pct = -1
+    last_published_pct = -1
 
     async def on_progress(pct: float) -> None:
-        nonlocal last_committed_pct
+        nonlocal last_published_pct
 
         rounded = int(pct)
         rendition.progress_pct = rounded
@@ -699,20 +761,19 @@ async def _encode_and_upload_one(
         if work_dir.is_dir():
             rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
 
+        # Throttle Pub/Sub noise; clients still see ~2% steps.
+        if rounded - last_published_pct < 2 and rounded < 100:
+            return
+
+        last_published_pct = rounded
+        _sync_rung_in_list(live_rungs, rendition)
         await _set_progress(
             public_id,
             status=_STATUS_ENCODING,
             overall_pct=progress_base + (pct / 100.0) * progress_span,
             message=f"{label} {rounded}%",
+            rungs=live_rungs,
         )
-
-        # Persist often enough for the Process wizard poll (2s) without
-        # committing on every ffmpeg progress line.
-        if rounded - last_committed_pct < 2 and rounded < 100:
-            return
-
-        last_committed_pct = rounded
-        await session.commit()
 
     audio_kbps = _AUDIO_KBPS_BY_HEIGHT.get(rendition.height, 128)
 
@@ -738,10 +799,26 @@ async def _encode_and_upload_one(
         rendition.progress_pct = 100
         rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
         await session.commit()
+        _sync_rung_in_list(live_rungs, rendition)
+        await _set_progress(
+            public_id,
+            status=_STATUS_ENCODING,
+            overall_pct=progress_base + progress_span,
+            message=f"{label} ready",
+            rungs=live_rungs,
+        )
     except Exception as exc:
         rendition.status = _RENDITION_FAILED
         rendition.progress_pct = 0
         await session.commit()
+        _sync_rung_in_list(live_rungs, rendition)
+        await _set_progress(
+            public_id,
+            status=_STATUS_ENCODING,
+            overall_pct=progress_base,
+            message=f"{label} failed",
+            rungs=live_rungs,
+        )
 
         raise RuntimeError(
             f"Rendition {rendition.label} failed: {exc}",

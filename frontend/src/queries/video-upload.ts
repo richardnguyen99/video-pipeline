@@ -1,4 +1,5 @@
-import { apiFetch } from "@/libs/api-client";
+import { apiFetch, getApiBaseUrl } from "@/libs/api-client";
+import { getAccessToken } from "@/stores/auth-store";
 
 export type PresignedPart = {
   part_number: number;
@@ -211,6 +212,191 @@ export async function completeVideoUpload(
 export async function getVideoUploadStatus(publicId: string): Promise<VideoUploadStatusResponse> {
   return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}`);
 }
+
+export type LiveRungProgress = {
+  label: string;
+  width: number;
+  height: number;
+  video_kbps: number;
+  status: string;
+  progress_pct: number;
+  segment_count: number | null;
+  playlist_key: string | null;
+};
+
+export type LiveTranscodeProgress = {
+  status: string;
+  overall_pct: number;
+  message: string;
+  updated_at: string;
+  rungs: Array<LiveRungProgress>;
+};
+
+function isLiveTranscodeProgress(value: unknown): value is LiveTranscodeProgress {
+  if (value == null || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return typeof record.status === "string" && Array.isArray(record.rungs);
+}
+
+function mergeLiveProgress(
+  previous: VideoUploadStatusResponse,
+  live: LiveTranscodeProgress,
+): VideoUploadStatusResponse {
+  return {
+    ...previous,
+    status: live.status.length > 0 ? live.status : previous.status,
+    overall_progress_pct: live.overall_pct,
+    renditions: live.rungs.map((rung) => ({
+      label: rung.label,
+      width: rung.width,
+      height: rung.height,
+      video_kbps: rung.video_kbps,
+      status: rung.status,
+      progress_pct: rung.progress_pct,
+      attempt: 0,
+      segment_count: rung.segment_count,
+      playlist_key: rung.playlist_key,
+    })),
+  };
+}
+
+/**
+ * Subscribe to Redis-backed SSE progress. Falls back to polling when the
+ * stream cannot be opened (proxy, offline, auth).
+ *
+ * ``onLive`` receives each progress frame; ``onStatus`` receives full
+ * status responses from the polling fallback.
+ */
+export function subscribeVideoUploadProgress(
+  publicId: string,
+  onLive: (live: LiveTranscodeProgress) => void,
+  onStatus: (next: VideoUploadStatusResponse) => void,
+): () => void {
+  const controller = new AbortController();
+  let closed = false;
+  let pollTimer: number | null = null;
+
+  const stopPoll = () => {
+    if (pollTimer != null) {
+      window.clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  };
+
+  const startPoll = () => {
+    if (pollTimer != null || closed) {
+      return;
+    }
+
+    const tick = async () => {
+      try {
+        const next = await getVideoUploadStatus(publicId);
+
+        if (!closed) {
+          onStatus(next);
+        }
+      } catch (error: unknown) {
+        void error;
+      }
+    };
+
+    void tick();
+    pollTimer = window.setInterval(() => {
+      void tick();
+    }, 2000);
+  };
+
+  const runStream = async () => {
+    const token = getAccessToken();
+
+    if (token == null || token.length === 0) {
+      startPoll();
+
+      return;
+    }
+
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/videos/uploads/${publicId}/events`, {
+        method: "GET",
+        headers: {
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${token}`,
+        },
+        signal: controller.signal,
+      });
+
+      if (!response.ok || response.body == null) {
+        startPoll();
+
+        return;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (!closed) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split("\n\n");
+        buffer = chunks.pop() ?? "";
+
+        for (const chunk of chunks) {
+          const dataLine = chunk.split("\n").find((line) => line.startsWith("data:"));
+
+          if (dataLine == null) {
+            continue;
+          }
+
+          const raw = dataLine.slice(5).trim();
+
+          if (raw.length === 0) {
+            continue;
+          }
+
+          try {
+            const parsed: unknown = JSON.parse(raw);
+
+            if (isLiveTranscodeProgress(parsed)) {
+              onLive(parsed);
+            }
+          } catch (error: unknown) {
+            void error;
+          }
+        }
+      }
+
+      if (!closed) {
+        startPoll();
+      }
+    } catch (error: unknown) {
+      if (!closed && !controller.signal.aborted) {
+        startPoll();
+      }
+
+      void error;
+    }
+  };
+
+  void runStream();
+
+  return () => {
+    closed = true;
+    controller.abort();
+    stopPoll();
+  };
+}
+
+export { mergeLiveProgress };
 
 export const DEFAULT_PART_SIZE_BYTES = 8 * 1024 * 1024;
 export const MAX_PARALLEL_PARTS = 4;

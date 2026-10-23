@@ -588,7 +588,17 @@ async def test_complete_upload_marks_failed_when_storage_errors() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_status_returns_owned_upload() -> None:
+async def test_get_status_returns_owned_upload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _no_live(_public_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.services.video_upload.get_progress_snapshot",
+        _no_live,
+    )
+
     uploader_id = uuid4()
     public_id = uuid4()
     video = _pending_video(
@@ -612,7 +622,17 @@ async def test_get_status_returns_owned_upload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_status_raises_not_found_when_missing() -> None:
+async def test_get_status_raises_not_found_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _no_live(_public_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "app.services.video_upload.get_progress_snapshot",
+        _no_live,
+    )
+
     session = _SessionSpy(video=None)
     service = _service(session, _StorageSpy())
 

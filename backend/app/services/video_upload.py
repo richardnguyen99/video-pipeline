@@ -19,6 +19,7 @@ from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
 
 from app.config import settings
 from app.messaging.rabbitmq import publish_transcode_message
+from app.messaging.transcode_progress import get_progress_snapshot
 from app.messaging.transcode_worker import process_transcode_message
 from app.models.video import Video, VideoRendition
 from app.schemas.video_upload import (
@@ -350,12 +351,52 @@ class VideoUploadService:
         public_id: uuid.UUID,
         uploader_id: uuid.UUID,
     ) -> VideoUploadStatusResponse:
-        """Return status for an upload owned by the current user."""
+        """Return status for an upload owned by the current user.
+
+        Live progress is preferred from Redis; Postgres is the durable
+        source when the job is not running or Redis is empty.
+        """
 
         video = await self.__get_owned_upload(public_id, uploader_id)
+        live = await get_progress_snapshot(public_id)
+
+        if live is not None and live.rungs:
+            progress_rows = [
+                VideoRenditionProgress(
+                    label=rung.label,
+                    width=rung.width,
+                    height=rung.height,
+                    video_kbps=rung.video_kbps,
+                    status=rung.status,
+                    progress_pct=rung.progress_pct,
+                    attempt=0,
+                    segment_count=rung.segment_count,
+                    playlist_key=rung.playlist_key,
+                )
+                for rung in live.rungs
+            ]
+
+            return self.__to_status(
+                video,
+                renditions=None,
+                progress_rows=progress_rows,
+                status_override=live.status,
+                overall_override=live.overall_pct,
+            )
+
         renditions = await self.__list_renditions(video.id)
 
         return self.__to_status(video, renditions=renditions)
+
+    async def assert_owned_upload(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+    ) -> Video:
+        """Return the owned video row or raise 404 (SSE / status auth)."""
+
+        return await self.__get_owned_upload(public_id, uploader_id)
 
     async def __find_by_video_id(self, video_id: str) -> Video | None:
         """Return the video row for a business video_id, if any."""
@@ -551,35 +592,45 @@ class VideoUploadService:
         video: Video,
         *,
         renditions: list[VideoRendition] | None = None,
+        progress_rows: list[VideoRenditionProgress] | None = None,
+        status_override: str | None = None,
+        overall_override: float | None = None,
     ) -> VideoUploadStatusResponse:
         """Map a Video row to the status response schema."""
 
         assert video.public_id is not None
 
-        rows = renditions or []
-        progress_rows = [
-            VideoRenditionProgress(
-                label=row.label,
-                width=row.width,
-                height=row.height,
-                video_kbps=row.video_kbps,
-                status=row.status,
-                progress_pct=row.progress_pct,
-                attempt=row.attempt,
-                segment_count=row.segment_count,
-                playlist_key=row.playlist_key,
+        if progress_rows is None:
+            rows = renditions or []
+            progress_rows = [
+                VideoRenditionProgress(
+                    label=row.label,
+                    width=row.width,
+                    height=row.height,
+                    video_kbps=row.video_kbps,
+                    status=row.status,
+                    progress_pct=row.progress_pct,
+                    attempt=row.attempt,
+                    segment_count=row.segment_count,
+                    playlist_key=row.playlist_key,
+                )
+                for row in rows
+            ]
+
+        status_value = status_override or video.status or _STATUS_PENDING
+        overall = (
+            overall_override
+            if overall_override is not None
+            else VideoUploadService.__overall_progress(
+                status=status_value,
+                renditions=progress_rows,
             )
-            for row in rows
-        ]
-        overall = VideoUploadService.__overall_progress(
-            status=video.status or _STATUS_PENDING,
-            renditions=progress_rows,
         )
 
         return VideoUploadStatusResponse(
             id=video.id,
             public_id=video.public_id,
-            status=video.status or _STATUS_PENDING,
+            status=status_value,
             original_filename=video.original_filename,
             source_key=video.source_key,
             source_bytes=video.source_bytes,
