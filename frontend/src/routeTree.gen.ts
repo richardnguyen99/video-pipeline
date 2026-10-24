@@ -19,8 +19,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as VerifyEmailChangeRouteImport } from './routes/verify-email-change'
 import { Route as VideosRouteRouteImport } from './routes/videos/route'
-import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
-import { Route as AuthenticatedUploadRouteImport } from './routes/_authenticated/upload'
+import { Route as AuthenticatedStudioRouteRouteImport } from './routes/_authenticated/studio/route'
 import { Route as GuestForgotPasswordRouteImport } from './routes/_guest/forgot-password'
 import { Route as GuestRegisterRouteImport } from './routes/_guest/register'
 import { Route as GuestSignInRouteImport } from './routes/_guest/sign-in'
@@ -95,16 +94,12 @@ const VideosRouteRoute = VideosRouteRouteImport.update({
   path: '/videos',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedUploadRoute = AuthenticatedUploadRouteImport.update({
-  id: '/upload',
-  path: '/upload',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
+const AuthenticatedStudioRouteRoute =
+  AuthenticatedStudioRouteRouteImport.update({
+    id: '/studio',
+    path: '/studio',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const GuestForgotPasswordRoute = GuestForgotPasswordRouteImport.update({
   id: '/forgot-password',
   path: '/forgot-password',
@@ -147,15 +142,15 @@ const VideosIdRoute = VideosIdRouteImport.update({
 } as any)
 const AuthenticatedStudioIndexRoute =
   AuthenticatedStudioIndexRouteImport.update({
-    id: '/studio/',
-    path: '/studio/',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
   } as any)
 const AuthenticatedStudioUploadRoute =
   AuthenticatedStudioUploadRouteImport.update({
-    id: '/studio/upload',
-    path: '/studio/upload',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/upload',
+    path: '/upload',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
   } as any)
 const UUsernameIndexRoute = UUsernameIndexRouteImport.update({
   id: '/',
@@ -245,9 +240,8 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/verify-email-change': typeof VerifyEmailChangeRoute
+  '/studio': typeof AuthenticatedStudioRouteRouteWithChildren
   '/u/$username': typeof UUsernameRouteRouteWithChildren
-  '/account': typeof AuthenticatedAccountRoute
-  '/upload': typeof AuthenticatedUploadRoute
   '/forgot-password': typeof GuestForgotPasswordRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
@@ -281,8 +275,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/verify-email-change': typeof VerifyEmailChangeRoute
-  '/account': typeof AuthenticatedAccountRoute
-  '/upload': typeof AuthenticatedUploadRoute
   '/forgot-password': typeof GuestForgotPasswordRoute
   '/register': typeof GuestRegisterRoute
   '/sign-in': typeof GuestSignInRoute
@@ -318,9 +310,8 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/verify-email-change': typeof VerifyEmailChangeRoute
+  '/_authenticated/studio': typeof AuthenticatedStudioRouteRouteWithChildren
   '/u/$username': typeof UUsernameRouteRouteWithChildren
-  '/_authenticated/account': typeof AuthenticatedAccountRoute
-  '/_authenticated/upload': typeof AuthenticatedUploadRoute
   '/_guest/forgot-password': typeof GuestForgotPasswordRoute
   '/_guest/register': typeof GuestRegisterRoute
   '/_guest/sign-in': typeof GuestSignInRoute
@@ -357,9 +348,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/verify-email-change'
+    | '/studio'
     | '/u/$username'
-    | '/account'
-    | '/upload'
     | '/forgot-password'
     | '/register'
     | '/sign-in'
@@ -393,8 +383,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/verify-email-change'
-    | '/account'
-    | '/upload'
     | '/forgot-password'
     | '/register'
     | '/sign-in'
@@ -429,9 +417,8 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/verify-email-change'
+    | '/_authenticated/studio'
     | '/u/$username'
-    | '/_authenticated/account'
-    | '/_authenticated/upload'
     | '/_guest/forgot-password'
     | '/_guest/register'
     | '/_guest/sign-in'
@@ -546,18 +533,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VideosRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/account': {
-      id: '/_authenticated/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AuthenticatedAccountRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/upload': {
-      id: '/_authenticated/upload'
-      path: '/upload'
-      fullPath: '/upload'
-      preLoaderRoute: typeof AuthenticatedUploadRouteImport
+    '/_authenticated/studio': {
+      id: '/_authenticated/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof AuthenticatedStudioRouteRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_guest/forgot-password': {
@@ -618,17 +598,17 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/studio/': {
       id: '/_authenticated/studio/'
-      path: '/studio'
+      path: '/'
       fullPath: '/studio/'
       preLoaderRoute: typeof AuthenticatedStudioIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedStudioRouteRoute
     }
     '/_authenticated/studio/upload': {
       id: '/_authenticated/studio/upload'
-      path: '/studio/upload'
+      path: '/upload'
       fullPath: '/studio/upload'
       preLoaderRoute: typeof AuthenticatedStudioUploadRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedStudioRouteRoute
     }
     '/u/$username/': {
       id: '/u/$username/'
@@ -752,18 +732,28 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
   VideosRouteRouteChildren,
 )
 
-interface AuthenticatedRouteChildren {
-  AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
-  AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
+interface AuthenticatedStudioRouteRouteChildren {
   AuthenticatedStudioUploadRoute: typeof AuthenticatedStudioUploadRoute
   AuthenticatedStudioIndexRoute: typeof AuthenticatedStudioIndexRoute
 }
 
+const AuthenticatedStudioRouteRouteChildren: AuthenticatedStudioRouteRouteChildren =
+  {
+    AuthenticatedStudioUploadRoute: AuthenticatedStudioUploadRoute,
+    AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
+  }
+
+const AuthenticatedStudioRouteRouteWithChildren =
+  AuthenticatedStudioRouteRoute._addFileChildren(
+    AuthenticatedStudioRouteRouteChildren,
+  )
+
+interface AuthenticatedRouteChildren {
+  AuthenticatedStudioRouteRoute: typeof AuthenticatedStudioRouteRouteWithChildren
+}
+
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedAccountRoute: AuthenticatedAccountRoute,
-  AuthenticatedUploadRoute: AuthenticatedUploadRoute,
-  AuthenticatedStudioUploadRoute: AuthenticatedStudioUploadRoute,
-  AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
+  AuthenticatedStudioRouteRoute: AuthenticatedStudioRouteRouteWithChildren,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

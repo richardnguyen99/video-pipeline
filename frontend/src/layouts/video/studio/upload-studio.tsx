@@ -47,7 +47,7 @@ import {
 } from "@/queries/video-upload";
 import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } from "@/queries/video-upload";
 
-const uploadRouteApi = getRouteApi("/_authenticated/upload");
+const uploadRouteApi = getRouteApi("/_authenticated/studio/upload");
 
 export function UploadStudio() {
   const navigate = useNavigate();
@@ -228,7 +228,7 @@ export function UploadStudio() {
     }
 
     void navigate({
-      to: "/upload",
+      to: "/studio/upload",
       search: { publicId, step: activeStep },
       replace: true,
     });
@@ -582,7 +582,7 @@ export function UploadStudio() {
   };
 
   return (
-    <main className="flex w-full flex-col gap-8 px-6 py-8 sm:px-10 lg:px-16 lg:py-32">
+    <main className="flex w-full flex-col gap-8 ">
       <nav className="flex w-full flex-wrap items-center gap-2" aria-label="Upload progress">
         {STEPS.map((step) => (
           <div key={step.number} className="flex flex-1 items-center gap-2">

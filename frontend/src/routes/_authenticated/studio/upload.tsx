@@ -1,5 +1,7 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
+
+import { UploadStudio } from "@/layouts/video/studio/upload-studio";
 
 const studioUploadSearchSchema = z.object({
   publicId: z.uuid().optional().catch(undefined),
@@ -8,13 +10,9 @@ const studioUploadSearchSchema = z.object({
 
 export const Route = createFileRoute("/_authenticated/studio/upload")({
   validateSearch: studioUploadSearchSchema,
-  beforeLoad: ({ search }) => {
-    throw redirect({
-      to: "/upload",
-      search: {
-        publicId: search.publicId,
-        step: search.step,
-      },
-    });
-  },
+  component: StudioUploadPage,
 });
+
+function StudioUploadPage() {
+  return <UploadStudio />;
+}
