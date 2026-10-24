@@ -148,6 +148,21 @@ export default function SiteHeader() {
                   nativeButton
                   render={<button type="button" />}
                   onClick={() => {
+                    setUserMenuOpen(false);
+
+                    void navigate({ to: "/studio" });
+                  }}
+                >
+                  <Clapperboard className="size-4 shrink-0" aria-hidden />
+                  Studio
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  className={menuItemClassName}
+                  closeOnClick={false}
+                  nativeButton
+                  render={<button type="button" />}
+                  onClick={() => {
                     void handleSignOut();
                   }}
                 >
@@ -205,6 +220,14 @@ export default function SiteHeader() {
                     Account
                   </Link>
                 ) : null}
+
+                <Link
+                  to="/studio"
+                  onClick={() => setOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  Studio
+                </Link>
 
                 <Button
                   size="sm"

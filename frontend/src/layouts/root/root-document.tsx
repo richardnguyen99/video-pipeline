@@ -2,7 +2,6 @@ import { HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 
-import Footer from "@/layouts/root/footer";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -19,10 +18,7 @@ export default function RootDocument({ children }: { children: React.ReactNode }
       <body className="font-sans antialiased">
         <TooltipProvider>
           <Toaster>
-            <main className="relative min-h-screen bg-background text-foreground">
-              {children}
-              <Footer />
-            </main>
+            <main className="bg-background text-foreground relative min-h-screen">{children}</main>
           </Toaster>
           <TanStackDevtools
             config={{

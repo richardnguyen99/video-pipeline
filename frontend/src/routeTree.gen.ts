@@ -29,6 +29,8 @@ import { Route as ActressesActressIdRouteImport } from './routes/actresses/$actr
 import { Route as UUsernameRouteRouteImport } from './routes/u/$username/route'
 import { Route as VideosIndexRouteImport } from './routes/videos/index'
 import { Route as VideosIdRouteImport } from './routes/videos/$id'
+import { Route as AuthenticatedStudioIndexRouteImport } from './routes/_authenticated/studio/index'
+import { Route as AuthenticatedStudioUploadRouteImport } from './routes/_authenticated/studio/upload'
 import { Route as UUsernameIndexRouteImport } from './routes/u/$username/index'
 import { Route as UUsernameBlockedAccountsRouteImport } from './routes/u/$username/blocked-accounts'
 import { Route as UUsernameContentPreferenceRouteImport } from './routes/u/$username/content-preference'
@@ -143,6 +145,18 @@ const VideosIdRoute = VideosIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => VideosRouteRoute,
 } as any)
+const AuthenticatedStudioIndexRoute =
+  AuthenticatedStudioIndexRouteImport.update({
+    id: '/studio/',
+    path: '/studio/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedStudioUploadRoute =
+  AuthenticatedStudioUploadRouteImport.update({
+    id: '/studio/upload',
+    path: '/studio/upload',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const UUsernameIndexRoute = UUsernameIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -243,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/videos/': typeof VideosIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
+  '/studio/upload': typeof AuthenticatedStudioUploadRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -250,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/u/$username/privacy': typeof UUsernamePrivacyRoute
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
+  '/studio/': typeof AuthenticatedStudioIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
@@ -274,6 +290,7 @@ export interface FileRoutesByTo {
   '/videos/$id': typeof VideosIdRoute
   '/actresses': typeof ActressesIndexRoute
   '/videos': typeof VideosIndexRoute
+  '/studio/upload': typeof AuthenticatedStudioUploadRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -281,6 +298,7 @@ export interface FileRoutesByTo {
   '/u/$username/privacy': typeof UUsernamePrivacyRoute
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
+  '/studio': typeof AuthenticatedStudioIndexRoute
   '/u/$username': typeof UUsernameIndexRoute
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
@@ -312,6 +330,7 @@ export interface FileRoutesById {
   '/videos/': typeof VideosIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
+  '/_authenticated/studio/upload': typeof AuthenticatedStudioUploadRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -319,6 +338,7 @@ export interface FileRoutesById {
   '/u/$username/privacy': typeof UUsernamePrivacyRoute
   '/u/$username/security': typeof UUsernameSecurityRoute
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
+  '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
@@ -349,6 +369,7 @@ export interface FileRouteTypes {
     | '/videos/'
     | '/u/$username/playlists'
     | '/u/$username/videos'
+    | '/studio/upload'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -356,6 +377,7 @@ export interface FileRouteTypes {
     | '/u/$username/privacy'
     | '/u/$username/security'
     | '/u/$username/subscriptions'
+    | '/studio/'
     | '/u/$username/'
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
@@ -380,6 +402,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/actresses'
     | '/videos'
+    | '/studio/upload'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -387,6 +410,7 @@ export interface FileRouteTypes {
     | '/u/$username/privacy'
     | '/u/$username/security'
     | '/u/$username/subscriptions'
+    | '/studio'
     | '/u/$username'
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
@@ -417,6 +441,7 @@ export interface FileRouteTypes {
     | '/videos/'
     | '/u/$username/playlists'
     | '/u/$username/videos'
+    | '/_authenticated/studio/upload'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -424,6 +449,7 @@ export interface FileRouteTypes {
     | '/u/$username/privacy'
     | '/u/$username/security'
     | '/u/$username/subscriptions'
+    | '/_authenticated/studio/'
     | '/u/$username/'
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
@@ -590,6 +616,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VideosIdRouteImport
       parentRoute: typeof VideosRouteRoute
     }
+    '/_authenticated/studio/': {
+      id: '/_authenticated/studio/'
+      path: '/studio'
+      fullPath: '/studio/'
+      preLoaderRoute: typeof AuthenticatedStudioIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/studio/upload': {
+      id: '/_authenticated/studio/upload'
+      path: '/studio/upload'
+      fullPath: '/studio/upload'
+      preLoaderRoute: typeof AuthenticatedStudioUploadRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/u/$username/': {
       id: '/u/$username/'
       path: '/'
@@ -715,11 +755,15 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
 interface AuthenticatedRouteChildren {
   AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
   AuthenticatedUploadRoute: typeof AuthenticatedUploadRoute
+  AuthenticatedStudioUploadRoute: typeof AuthenticatedStudioUploadRoute
+  AuthenticatedStudioIndexRoute: typeof AuthenticatedStudioIndexRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountRoute: AuthenticatedAccountRoute,
   AuthenticatedUploadRoute: AuthenticatedUploadRoute,
+  AuthenticatedStudioUploadRoute: AuthenticatedStudioUploadRoute,
+  AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
