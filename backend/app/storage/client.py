@@ -100,6 +100,49 @@ class ObjectStorageClient:
 
         return f"{base}/{key}"
 
+    def object_key_from_streams_url(self, url: str) -> Optional[str]:
+        """Extract the object key from a streams public URL, if possible."""
+
+        base = (
+            self._settings.object_storage_streams_public_base_url.rstrip("/")
+            + "/"
+        )
+
+        if not url.startswith(base):
+            return None
+
+        key = url[len(base) :].lstrip("/")
+
+        return key or None
+
+    async def delete_object(
+        self,
+        *,
+        object_key: str,
+        bucket: str | None = None,
+    ) -> None:
+        """Delete an object; missing keys are ignored."""
+
+        key = object_key.lstrip("/")
+        target = bucket or self.bucket
+
+        async with self.s3_client() as s3:
+            try:
+                await s3.delete_object(Bucket=target, Key=key)
+            except ClientError as exc:
+                error_code = exc.response.get("Error", {}).get("Code", "")
+                status = exc.response.get("ResponseMetadata", {}).get(
+                    "HTTPStatusCode",
+                )
+
+                if (
+                    error_code in {"404", "NoSuchKey", "NotFound"}
+                    or status == 404
+                ):
+                    return
+
+                raise
+
     async def upload_file(
         self,
         *,
@@ -388,8 +431,8 @@ class ObjectStorageClient:
 
         return self.public_url(master_key)
 
-    async def ensure_sample_gen_public_url(self, local_path: str) -> str:
-        """Backward-compatible alias for ``ensure_local_media_public_url``."""
+    async def _ensure_sample_gen_public_url(self, local_path: str) -> str:
+        """Internal alias for ``ensure_local_media_public_url``."""
 
         return await self.ensure_local_media_public_url(local_path)
 
@@ -476,14 +519,14 @@ class ObjectStorageClient:
                 MultipartUpload={"Parts": list(parts)},
             )
 
-    async def abort_multipart_upload(
+    async def _abort_multipart_upload(
         self,
         *,
         object_key: str,
         upload_id: str,
         bucket: str | None = None,
     ) -> None:
-        """Abort an in-progress multipart upload."""
+        """Abort an in-progress multipart upload (internal)."""
 
         target = bucket or self.raw_uploads_bucket
 

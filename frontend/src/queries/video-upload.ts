@@ -266,6 +266,12 @@ export async function uploadVideoSamples(
   });
 }
 
+export async function deleteVideoSample(publicId: string, sampleId: number): Promise<VideoMediaResponse> {
+  return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media/samples/${sampleId}`, {
+    method: "DELETE",
+  });
+}
+
 export type LiveRungProgress = {
   label: string;
   width: number;

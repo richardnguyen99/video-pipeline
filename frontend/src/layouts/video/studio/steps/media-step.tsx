@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
-import { ImagePlus, Loader2 } from "lucide-react";
+import { ImagePlus, Loader2, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { getApiErrorMessage } from "@/libs/auth";
 import { cn } from "@/libs/utils";
-import { listVideoUploadMedia, uploadVideoSamples, uploadVideoThumbnail } from "@/queries/video-upload";
+import {
+  deleteVideoSample,
+  listVideoUploadMedia,
+  uploadVideoSamples,
+  uploadVideoThumbnail,
+} from "@/queries/video-upload";
 import type {
   SampleImageType,
   ThumbnailImageType,
@@ -122,6 +128,20 @@ export function MediaStep({ publicId }: MediaStepProps) {
       setMedia(next);
     } catch (uploadError) {
       setError(getApiErrorMessage(uploadError));
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
+  const onDeleteSample = async (sampleId: number) => {
+    setBusyKey(`delete-sample-${sampleId}`);
+    setError(null);
+
+    try {
+      const next = await deleteVideoSample(publicId, sampleId);
+      setMedia(next);
+    } catch (deleteError) {
+      setError(getApiErrorMessage(deleteError));
     } finally {
       setBusyKey(null);
     }
@@ -249,14 +269,33 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
               {items.length > 0 ? (
                 <div className="flex flex-wrap items-start gap-2">
-                  {items.map((item) => (
-                    <img
-                      key={item.id}
-                      src={item.url}
-                      alt={`${entry.label} ${item.id}`}
-                      className="bg-muted h-36 w-auto max-w-full rounded-md object-contain sm:h-44"
-                    />
-                  ))}
+                  {items.map((item) => {
+                    const deleting = busyKey === `delete-sample-${item.id}`;
+
+                    return (
+                      <div key={item.id} className="relative inline-flex">
+                        <img
+                          src={item.url}
+                          alt={`${entry.label} ${item.id}`}
+                          className="bg-muted h-36 w-auto max-w-full rounded-md object-contain sm:h-44"
+                        />
+
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon-sm"
+                          className="absolute top-1 right-1 size-7 shadow-sm"
+                          disabled={deleting || busyKey != null}
+                          aria-label={`Remove sample image ${item.id}`}
+                          onClick={() => {
+                            void onDeleteSample(item.id);
+                          }}
+                        >
+                          {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-muted-foreground text-xs">No images yet.</p>

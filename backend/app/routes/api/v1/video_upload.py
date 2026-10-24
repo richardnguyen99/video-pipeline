@@ -238,3 +238,24 @@ async def upload_video_samples(
         image_type=image_type,
         uploads=files,
     )
+
+
+@router.delete(
+    "/videos/uploads/{public_id}/media/samples/{sample_id}",
+    response_model=VideoMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete one sample review image",
+)
+async def delete_video_sample(
+    public_id: UUID,
+    sample_id: int,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoMediaResponse:
+    """Remove a sample image from object storage and the catalog table."""
+
+    return await service.delete_sample(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        sample_id=sample_id,
+    )

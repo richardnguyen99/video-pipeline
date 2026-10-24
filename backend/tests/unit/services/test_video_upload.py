@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Optional, cast
 from uuid import UUID, uuid4
 
 import pytest
@@ -16,179 +14,22 @@ from app.schemas.video_upload import (
     VideoUploadCreateRequest,
 )
 from app.services.video_upload import VideoUploadService
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc).replace(tzinfo=None)
-
-
-class _ScalarsSpy:
-    def __init__(self, rows: list[Any]) -> None:
-        self._rows = rows
-
-    def all(self) -> list[Any]:
-        return list(self._rows)
-
-
-class _ResultSpy:
-    def __init__(
-        self, row: Any = None, *, rows: Optional[list[Any]] = None
-    ) -> None:
-        self._row = row
-        self._rows = rows if rows is not None else []
-
-    def scalar_one_or_none(self) -> Any:
-        return self._row
-
-    def scalars(self) -> _ScalarsSpy:
-        return _ScalarsSpy(self._rows)
-
-
-class _SessionSpy:
-    def __init__(
-        self,
-        *,
-        video: Optional[Video] = None,
-        renditions: Optional[list[Any]] = None,
-    ) -> None:
-        self.added: list[Any] = []
-        self.committed = 0
-        self.refreshed: list[Any] = []
-        self._video = video
-        self._renditions = list(renditions or [])
-        self._next_id = 1
-
-    def add(self, obj: Any) -> None:
-        if isinstance(obj, Video) and getattr(obj, "id", None) is None:
-            obj.id = self._next_id
-            self._next_id += 1
-
-        if isinstance(obj, Video) and obj.created_at is None:
-            obj.created_at = _now()
-
-        if isinstance(obj, Video) and obj.updated_at is None:
-            obj.updated_at = _now()
-
-        self.added.append(obj)
-        self._video = obj
-
-    async def commit(self) -> None:
-        self.committed += 1
-
-    async def refresh(self, obj: Any) -> None:
-        self.refreshed.append(obj)
-
-    async def execute(self, _statement: Any) -> _ResultSpy:
-        return _ResultSpy(self._video, rows=self._renditions)
-
-
-class _StorageSpy:
-    def __init__(self) -> None:
-        self.create_calls: list[dict[str, str]] = []
-        self.presign_calls: list[dict[str, Any]] = []
-        self.complete_calls: list[dict[str, Any]] = []
-        self.head_calls: list[str] = []
-        self.complete_error: Optional[Exception] = None
-        self.head_size: Optional[int] = 1024
-
-    async def create_multipart_upload(
-        self,
-        *,
-        object_key: str,
-        content_type: str,
-    ) -> str:
-        self.create_calls.append(
-            {
-                "object_key": object_key,
-                "content_type": content_type,
-            }
-        )
-
-        return "upload-id-1"
-
-    async def generate_presigned_upload_part_url(
-        self,
-        *,
-        object_key: str,
-        upload_id: str,
-        part_number: int,
-    ) -> str:
-        self.presign_calls.append(
-            {
-                "object_key": object_key,
-                "upload_id": upload_id,
-                "part_number": part_number,
-            }
-        )
-
-        return f"https://example.test/{object_key}?partNumber={part_number}"
-
-    async def complete_multipart_upload(
-        self,
-        *,
-        object_key: str,
-        upload_id: str,
-        parts: list[dict[str, object]],
-    ) -> None:
-        self.complete_calls.append(
-            {
-                "object_key": object_key,
-                "upload_id": upload_id,
-                "parts": parts,
-            }
-        )
-
-        if self.complete_error is not None:
-            raise self.complete_error
-
-    async def head_object_size(self, *, object_key: str) -> Optional[int]:
-        self.head_calls.append(object_key)
-
-        return self.head_size
-
-
-def _service(
-    session: _SessionSpy,
-    storage: _StorageSpy,
-) -> VideoUploadService:
-    return VideoUploadService(
-        session=cast(Any, session),
-        storage=cast(Any, storage),
-    )
-
-
-def _pending_video(
-    *,
-    uploader_id: UUID,
-    public_id: Optional[UUID] = None,
-    status: str = "PENDING",
-    source_key: str = "pid/source.mp4",
-) -> Video:
-    pid = public_id or uuid4()
-
-    return Video(
-        id=42,
-        video_id=f"upl-{pid.hex}",
-        title="clip",
-        origin="upload",
-        public_id=pid,
-        uploader_id=uploader_id,
-        original_filename="clip.mp4",
-        source_key=source_key,
-        source_bytes=16 * 1024 * 1024,
-        status=status,
-        created_at=_now(),
-        updated_at=_now(),
-    )
+from tests.unit.services.video_upload_fakes import (
+    SessionSpy,
+    StorageSpy,
+    make_service,
+    now_naive,
+    pending_video,
+)
 
 
 @pytest.mark.asyncio
 async def test_create_upload_persists_pending_row_and_presigns_first_batch() -> (
     None
 ):
-    session = _SessionSpy()
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    session = SessionSpy()
+    storage = StorageSpy()
+    service = make_service(session, storage)
     uploader_id = uuid4()
     payload = VideoUploadCreateRequest(
         filename="Aimi Yoshikawa - TEAM-058.mp4",
@@ -222,9 +63,9 @@ async def test_create_upload_persists_pending_row_and_presigns_first_batch() -> 
 
 @pytest.mark.asyncio
 async def test_create_upload_caps_initial_presign_batch_at_100() -> None:
-    session = _SessionSpy()
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    session = SessionSpy()
+    storage = StorageSpy()
+    service = make_service(session, storage)
     payload = VideoUploadCreateRequest(
         filename="large.mp4",
         size_bytes=900 * 8 * 1024 * 1024,
@@ -243,9 +84,9 @@ async def test_create_upload_caps_initial_presign_batch_at_100() -> None:
 
 @pytest.mark.asyncio
 async def test_create_upload_uses_bin_extension_for_unknown_suffix() -> None:
-    session = _SessionSpy()
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    session = SessionSpy()
+    storage = StorageSpy()
+    service = make_service(session, storage)
     payload = VideoUploadCreateRequest(
         filename="archive",
         size_bytes=1024 * 1024 * 8,
@@ -270,12 +111,12 @@ async def test_create_upload_rejects_duplicate_video_code_without_upsert() -> (
         origin="legacy",
         public_id=uuid4(),
         status="READY",
-        created_at=_now(),
-        updated_at=_now(),
+        created_at=now_naive(),
+        updated_at=now_naive(),
     )
-    session = _SessionSpy(video=existing)
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    session = SessionSpy(video=existing)
+    storage = StorageSpy()
+    service = make_service(session, storage)
     payload = VideoUploadCreateRequest(
         filename="new.mp4",
         size_bytes=8 * 1024 * 1024,
@@ -307,12 +148,12 @@ async def test_create_upload_duplicate_video_code_admin_gets_structured_detail()
         origin="legacy",
         public_id=uuid4(),
         status=None,
-        created_at=_now(),
-        updated_at=_now(),
+        created_at=now_naive(),
+        updated_at=now_naive(),
     )
-    session = _SessionSpy(video=existing)
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    session = SessionSpy(video=existing)
+    storage = StorageSpy()
+    service = make_service(session, storage)
     payload = VideoUploadCreateRequest(
         filename="new.mp4",
         size_bytes=8 * 1024 * 1024,
@@ -344,12 +185,12 @@ async def test_create_upload_upsert_forbidden_for_non_admin() -> None:
         origin="legacy",
         public_id=uuid4(),
         status="READY",
-        created_at=_now(),
-        updated_at=_now(),
+        created_at=now_naive(),
+        updated_at=now_naive(),
     )
-    session = _SessionSpy(video=existing)
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    session = SessionSpy(video=existing)
+    storage = StorageSpy()
+    service = make_service(session, storage)
     payload = VideoUploadCreateRequest(
         filename="new.mp4",
         size_bytes=8 * 1024 * 1024,
@@ -377,12 +218,12 @@ async def test_create_upload_admin_upserts_existing_video_code() -> None:
         origin="legacy",
         public_id=public_id,
         status="READY",
-        created_at=_now(),
-        updated_at=_now(),
+        created_at=now_naive(),
+        updated_at=now_naive(),
     )
-    session = _SessionSpy(video=existing)
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    session = SessionSpy(video=existing)
+    storage = StorageSpy()
+    service = make_service(session, storage)
     admin_id = uuid4()
     payload = VideoUploadCreateRequest(
         filename="backfill.mp4",
@@ -418,10 +259,10 @@ async def test_create_upload_admin_upserts_existing_video_code() -> None:
 async def test_presign_parts_returns_requested_urls() -> None:
     uploader_id = uuid4()
     public_id = uuid4()
-    video = _pending_video(uploader_id=uploader_id, public_id=public_id)
-    session = _SessionSpy(video=video)
-    storage = _StorageSpy()
-    service = _service(session, storage)
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    session = SessionSpy(video=video)
+    storage = StorageSpy()
+    service = make_service(session, storage)
 
     result = await service.presign_parts(
         public_id=public_id,
@@ -438,10 +279,10 @@ async def test_presign_parts_returns_requested_urls() -> None:
 async def test_presign_parts_rejects_empty_part_numbers() -> None:
     uploader_id = uuid4()
     public_id = uuid4()
-    session = _SessionSpy(
-        video=_pending_video(uploader_id=uploader_id, public_id=public_id),
+    session = SessionSpy(
+        video=pending_video(uploader_id=uploader_id, public_id=public_id),
     )
-    service = _service(session, _StorageSpy())
+    service = make_service(session, StorageSpy())
 
     with pytest.raises(HTTPException) as exc_info:
         await service.presign_parts(
@@ -459,10 +300,10 @@ async def test_presign_parts_rejects_empty_part_numbers() -> None:
 async def test_presign_parts_rejects_more_than_100_parts() -> None:
     uploader_id = uuid4()
     public_id = uuid4()
-    session = _SessionSpy(
-        video=_pending_video(uploader_id=uploader_id, public_id=public_id),
+    session = SessionSpy(
+        video=pending_video(uploader_id=uploader_id, public_id=public_id),
     )
-    service = _service(session, _StorageSpy())
+    service = make_service(session, StorageSpy())
 
     with pytest.raises(HTTPException) as exc_info:
         await service.presign_parts(
@@ -480,14 +321,14 @@ async def test_presign_parts_rejects_more_than_100_parts() -> None:
 async def test_presign_parts_rejects_non_pending_status() -> None:
     uploader_id = uuid4()
     public_id = uuid4()
-    session = _SessionSpy(
-        video=_pending_video(
+    session = SessionSpy(
+        video=pending_video(
             uploader_id=uploader_id,
             public_id=public_id,
             status="UPLOADED",
         ),
     )
-    service = _service(session, _StorageSpy())
+    service = make_service(session, StorageSpy())
 
     with pytest.raises(HTTPException) as exc_info:
         await service.presign_parts(
@@ -530,11 +371,11 @@ async def test_complete_upload_marks_uploaded_and_quotes_etags(
 
     uploader_id = uuid4()
     public_id = uuid4()
-    video = _pending_video(uploader_id=uploader_id, public_id=public_id)
-    session = _SessionSpy(video=video)
-    storage = _StorageSpy()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    session = SessionSpy(video=video)
+    storage = StorageSpy()
     storage.head_size = 3412766169
-    service = _service(session, storage)
+    service = make_service(session, storage)
     payload = VideoUploadCompleteRequest(
         multipart_upload_id="upload-id-1",
         parts=[
@@ -564,11 +405,11 @@ async def test_complete_upload_marks_uploaded_and_quotes_etags(
 async def test_complete_upload_marks_failed_when_storage_errors() -> None:
     uploader_id = uuid4()
     public_id = uuid4()
-    video = _pending_video(uploader_id=uploader_id, public_id=public_id)
-    session = _SessionSpy(video=video)
-    storage = _StorageSpy()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    session = SessionSpy(video=video)
+    storage = StorageSpy()
     storage.complete_error = RuntimeError("incomplete parts")
-    service = _service(session, storage)
+    service = make_service(session, storage)
     payload = VideoUploadCompleteRequest(
         multipart_upload_id="upload-id-1",
         parts=[CompletedPart(part_number=1, etag="etag")],
@@ -601,13 +442,13 @@ async def test_get_status_returns_owned_upload(
 
     uploader_id = uuid4()
     public_id = uuid4()
-    video = _pending_video(
+    video = pending_video(
         uploader_id=uploader_id,
         public_id=public_id,
         status="UPLOADED",
     )
-    session = _SessionSpy(video=video)
-    service = _service(session, _StorageSpy())
+    session = SessionSpy(video=video)
+    service = make_service(session, StorageSpy())
 
     result = await service.get_status(
         public_id=public_id,
@@ -633,8 +474,8 @@ async def test_get_status_raises_not_found_when_missing(
         _no_live,
     )
 
-    session = _SessionSpy(video=None)
-    service = _service(session, _StorageSpy())
+    session = SessionSpy(video=None)
+    service = make_service(session, StorageSpy())
 
     with pytest.raises(HTTPException) as exc_info:
         await service.get_status(
