@@ -180,6 +180,7 @@ class ObjectStorageClient:
         object_key: str,
         fileobj: BinaryIO,
         content_type: Optional[str] = None,
+        bucket: str | None = None,
     ) -> str:
         """Upload a file-like object and return its public URL."""
 
@@ -189,14 +190,18 @@ class ObjectStorageClient:
             extra["ContentType"] = content_type
 
         key = object_key.lstrip("/")
+        target = bucket or self.bucket
 
         async with self.s3_client() as s3:
             await s3.upload_fileobj(
                 Fileobj=fileobj,
-                Bucket=self.bucket,
+                Bucket=target,
                 Key=key,
                 ExtraArgs=extra,
             )
+
+        if target == self.streams_bucket:
+            return self.streams_public_url(object_key)
 
         return self.public_url(object_key)
 

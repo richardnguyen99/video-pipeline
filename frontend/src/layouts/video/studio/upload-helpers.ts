@@ -73,6 +73,8 @@ export function stepTitle(step: number): string {
     case 5:
       return "Process your video";
     case 6:
+      return "Add thumbnails and samples";
+    case 7:
       return "Preview and publish";
     default:
       return "Studio";

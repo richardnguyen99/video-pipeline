@@ -46,6 +46,22 @@ export type VideoUploadStatusResponse = {
   renditions: Array<VideoRenditionProgress>;
 };
 
+export type VideoMediaImageItem = {
+  id: number;
+  url: string;
+  type: string | null;
+};
+
+export type VideoMediaResponse = {
+  public_id: string;
+  video_id: number;
+  thumbnails: Array<VideoMediaImageItem>;
+  samples: Array<VideoMediaImageItem>;
+};
+
+export type ThumbnailImageType = "large" | "list" | "small";
+export type SampleImageType = "sample_l" | "sample_s";
+
 export type CreateVideoUploadInput = {
   filename: string;
   content_type: string;
@@ -115,7 +131,7 @@ export function parseVideoCodeConflict(error: unknown): VideoCodeConflictDetail 
     return null;
   }
 
-  const body = error.body;
+  const body: unknown = error.body;
 
   if (typeof body !== "object" || body === null) {
     return null;
@@ -211,6 +227,43 @@ export async function completeVideoUpload(
 
 export async function getVideoUploadStatus(publicId: string): Promise<VideoUploadStatusResponse> {
   return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}`);
+}
+
+export async function listVideoUploadMedia(publicId: string): Promise<VideoMediaResponse> {
+  return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media`);
+}
+
+export async function uploadVideoThumbnail(
+  publicId: string,
+  imageType: ThumbnailImageType,
+  file: File,
+): Promise<VideoMediaResponse> {
+  const body = new FormData();
+  body.append("image_type", imageType);
+  body.append("file", file);
+
+  return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media/thumbnails`, {
+    method: "POST",
+    data: body,
+  });
+}
+
+export async function uploadVideoSamples(
+  publicId: string,
+  imageType: SampleImageType,
+  files: Array<File>,
+): Promise<VideoMediaResponse> {
+  const body = new FormData();
+  body.append("image_type", imageType);
+
+  for (const file of files) {
+    body.append("files", file);
+  }
+
+  return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media/samples`, {
+    method: "POST",
+    data: body,
+  });
 }
 
 export type LiveRungProgress = {

@@ -149,3 +149,22 @@ class VideoUploadStatusResponse(BaseModel):
     updated_at: datetime
     overall_progress_pct: float = 0.0
     renditions: list[VideoRenditionProgress] = Field(default_factory=list)
+
+
+class VideoMediaImageItem(BaseModel):
+    """One catalog image row (thumbnail or sample)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    url: str
+    type: Optional[str] = None
+
+
+class VideoMediaResponse(BaseModel):
+    """Thumbnails and sample review images for an upload."""
+
+    public_id: UUID
+    video_id: int
+    thumbnails: list[VideoMediaImageItem] = Field(default_factory=list)
+    samples: list[VideoMediaImageItem] = Field(default_factory=list)

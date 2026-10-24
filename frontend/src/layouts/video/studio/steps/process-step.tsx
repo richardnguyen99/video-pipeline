@@ -1,5 +1,7 @@
-import { Check, Loader2, X } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Check, ExternalLink, Loader2, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { ProcessTrace } from "@/layouts/video/studio/process-trace";
 import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 
@@ -64,17 +66,36 @@ export function ProcessStep({ status }: ProcessStepProps) {
 
           <p className="text-muted-foreground text-sm">
             {failed
-              ? status.error_message
+              ? (status.error_message ?? "Encoding failed.")
               : complete
-                ? "All resolutions encoded. Continue to preview."
+                ? "All resolutions encoded. Continue to media or open the stream in a new tab."
                 : playable
                   ? totalCount > 0
-                    ? `${readyCount} of ${totalCount} resolutions ready. You can open the video page now — the player uses available rungs while higher ones finish.`
-                    : "A playable stream is ready. You can open the video page while remaining resolutions encode."
+                    ? `${readyCount} of ${totalCount} resolutions ready. Open the stream in a new tab — this page keeps processing.`
+                    : "A playable stream is ready. Open it in a new tab while remaining resolutions encode."
                   : "Encoding each resolution into HLS streams. Lower rungs finish first so playback can start early."}
           </p>
         </div>
       </div>
+
+      {playable && status != null ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            nativeButton={false}
+            render={<Link to="/videos/$id" params={{ id: String(status.id) }} target="_blank" rel="noreferrer" />}
+          >
+            Open stream in new tab
+            <ExternalLink data-icon="inline-end" className="size-4" />
+          </Button>
+
+          <span className="text-muted-foreground text-xs">
+            Bookmark or return via /upload?publicId={status.public_id}
+          </span>
+        </div>
+      ) : null}
 
       <ProcessTrace status={status} />
     </div>

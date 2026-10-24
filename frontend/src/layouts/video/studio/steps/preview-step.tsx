@@ -66,7 +66,7 @@ export function PreviewStep({ model }: PreviewStepProps) {
             variant="outline"
             className="shrink-0"
             nativeButton={false}
-            render={<Link to="/videos/$id" params={{ id: String(status.id) }} />}
+            render={<Link to="/videos/$id" params={{ id: String(status.id) }} target="_blank" rel="noreferrer" />}
           >
             Open video page
             <ExternalLink data-icon="inline-end" className="size-4" />

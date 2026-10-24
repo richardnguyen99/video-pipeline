@@ -21,7 +21,8 @@ export const STEPS = [
   { number: 3, label: "Visibility" },
   { number: 4, label: "Upload" },
   { number: 5, label: "Process" },
-  { number: 6, label: "Preview & publish" },
+  { number: 6, label: "Thumbnails & samples" },
+  { number: 7, label: "Preview & publish" },
 ] as const;
 
 export const ALLOWED_EXTENSIONS = ["mp4", "mkv", "mov", "webm"] as const;

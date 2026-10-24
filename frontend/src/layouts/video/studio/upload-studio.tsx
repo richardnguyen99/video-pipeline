@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { ConflictDialog } from "@/layouts/video/studio/conflict-dialog";
+import {
+  defaultStepForStatus,
+  loadUploadStudioSession,
+  saveUploadStudioSession,
+} from "@/layouts/video/studio/session-persist";
 import { SessionSummary } from "@/layouts/video/studio/session-summary";
 import { DetailsStep } from "@/layouts/video/studio/steps/details-step";
+import { MediaStep } from "@/layouts/video/studio/steps/media-step";
 import { PreviewStep } from "@/layouts/video/studio/steps/preview-step";
 import { ProcessStep } from "@/layouts/video/studio/steps/process-step";
 import { SelectFileStep } from "@/layouts/video/studio/steps/select-file-step";
@@ -32,6 +38,7 @@ import {
   completeVideoUpload,
   createVideoUpload,
   DEFAULT_PART_SIZE_BYTES,
+  getVideoUploadStatus,
   MAX_PARALLEL_PARTS,
   mergeLiveProgress,
   parseVideoCodeConflict,
@@ -40,10 +47,15 @@ import {
 } from "@/queries/video-upload";
 import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } from "@/queries/video-upload";
 
+const uploadRouteApi = getRouteApi("/_authenticated/upload");
+
 export function UploadStudio() {
   const navigate = useNavigate();
+  const search = uploadRouteApi.useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadStartedRef = useRef(false);
+  const resumeAppliedRef = useRef<string | null>(null);
+  const [sessionFilename, setSessionFilename] = useState<string | null>(null);
 
   const [activeStep, setActiveStep] = useState(1);
   const [isDragging, setIsDragging] = useState(false);
@@ -126,6 +138,119 @@ export function UploadStudio() {
       },
     );
   }, [activeStep, status?.public_id]);
+
+  useEffect(() => {
+    const resumeId = search.publicId;
+
+    if (resumeId == null || resumeAppliedRef.current === resumeId) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const resume = async () => {
+      try {
+        const next = await getVideoUploadStatus(resumeId);
+
+        if (cancelled) {
+          return;
+        }
+
+        const draft = loadUploadStudioSession(resumeId);
+        const preferredStep = search.step ?? draft?.activeStep ?? defaultStepForStatus(next);
+        const clampedStep = Math.min(7, Math.max(5, preferredStep));
+
+        resumeAppliedRef.current = resumeId;
+        setStatus(next);
+        setPhase("done");
+        setProgressPct(100);
+        uploadStartedRef.current = true;
+        setActiveStep(clampedStep);
+        setMessage(`Resumed upload ${next.status}`);
+
+        if (draft != null) {
+          setTitle(draft.title || next.title || "");
+          setDescription(draft.description);
+          setVideoCode(draft.videoCode);
+          setCid(draft.cid);
+          setJancode(draft.jancode);
+          setMakerProduct(draft.makerProduct);
+          setReleaseDate(draft.releaseDate);
+          setVisibility(draft.visibility);
+          setNotifySubscribers(draft.notifySubscribers);
+          setRelations(draft.relations);
+          setSessionFilename(draft.originalFilename ?? next.original_filename);
+        } else {
+          setTitle(next.title ?? "");
+          setSessionFilename(next.original_filename);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(getApiErrorMessage(error));
+          setPhase("error");
+        }
+      }
+    };
+
+    void resume();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [search.publicId, search.step]);
+
+  useEffect(() => {
+    const publicId = status?.public_id;
+
+    if (publicId == null) {
+      return;
+    }
+
+    saveUploadStudioSession({
+      publicId,
+      activeStep,
+      title,
+      description,
+      videoCode,
+      cid,
+      jancode,
+      makerProduct,
+      releaseDate,
+      visibility,
+      notifySubscribers,
+      relations,
+      originalFilename: file?.name ?? sessionFilename ?? status.original_filename,
+      videoRowId: status.id,
+    });
+
+    if (search.publicId === publicId && search.step === activeStep) {
+      return;
+    }
+
+    void navigate({
+      to: "/upload",
+      search: { publicId, step: activeStep },
+      replace: true,
+    });
+  }, [
+    activeStep,
+    cid,
+    description,
+    file?.name,
+    jancode,
+    makerProduct,
+    navigate,
+    notifySubscribers,
+    releaseDate,
+    relations,
+    search.publicId,
+    search.step,
+    sessionFilename,
+    status,
+    title,
+    videoCode,
+    visibility,
+  ]);
 
   const fileSizeLabel = useMemo(() => {
     if (!file) {
@@ -438,11 +563,11 @@ export function UploadStudio() {
   };
 
   const goNext = () => {
-    if (activeStep === 6) {
+    if (activeStep === 7) {
       return;
     }
 
-    setActiveStep((step) => Math.min(6, step + 1));
+    setActiveStep((step) => Math.min(7, step + 1));
   };
 
   const goBack = () => {
@@ -450,7 +575,10 @@ export function UploadStudio() {
       return;
     }
 
-    setActiveStep((step) => Math.max(1, step - 1));
+    // Resumed sessions have no local File — do not drop below Process.
+    const minStep = file == null && status != null ? 5 : 1;
+
+    setActiveStep((step) => Math.max(minStep, step - 1));
   };
 
   return (
@@ -571,7 +699,9 @@ export function UploadStudio() {
 
           {activeStep === 5 ? <ProcessStep status={status} /> : null}
 
-          {activeStep === 6 ? (
+          {activeStep === 6 ? <MediaStep publicId={status?.public_id ?? null} /> : null}
+
+          {activeStep === 7 ? (
             <PreviewStep
               model={{
                 fileName: file?.name ?? null,
@@ -614,17 +744,14 @@ export function UploadStudio() {
 
             <Button
               type="button"
-              disabled={!canContinue || (activeStep === 6 && (status == null || phase === "error"))}
+              disabled={!canContinue || (activeStep === 7 && (status == null || phase === "error"))}
               onClick={() => {
-                if (activeStep === 6) {
+                if (activeStep === 7) {
                   if (status == null) {
                     return;
                   }
 
-                  void navigate({
-                    to: "/videos/$id",
-                    params: { id: String(status.id) },
-                  });
+                  window.open(`/videos/${status.id}`, "_blank", "noopener,noreferrer");
 
                   return;
                 }
@@ -632,22 +759,24 @@ export function UploadStudio() {
                 goNext();
               }}
             >
-              {activeStep === 6
+              {activeStep === 7
                 ? "Open video page"
                 : activeStep === 5
                   ? status != null &&
                     status.renditions.length > 0 &&
                     status.renditions.every((row) => row.status.toUpperCase() === "READY")
-                    ? "Preview video"
-                    : "Preview available stream"
-                  : "Continue"}
+                    ? "Continue to media"
+                    : "Continue with available stream"
+                  : activeStep === 6
+                    ? "Continue to preview"
+                    : "Continue"}
               <ArrowRight data-icon="inline-end" className="size-4" />
             </Button>
           </div>
         </div>
 
         <SessionSummary
-          fileName={file?.name ?? null}
+          fileName={file?.name ?? sessionFilename}
           fileSizeLabel={fileSizeLabel}
           videoCode={videoCode}
           visibility={visibility}

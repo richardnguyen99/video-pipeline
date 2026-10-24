@@ -1,11 +1,18 @@
 """User video upload endpoints (presigned multipart to raw-uploads)."""
 
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, File, Form, UploadFile, status
+from fastapi.responses import StreamingResponse
 
 from app.dependencies import CurrentUserDep, VideoUploadServiceDep
+from app.messaging.transcode_progress import iter_progress_events
 from app.schemas.video_upload import (
+    VideoMediaResponse,
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
     VideoUploadCreateResponse,
@@ -96,4 +103,138 @@ async def get_video_upload_status(
     return await service.get_status(
         public_id=public_id,
         uploader_id=current_user.id,
+    )
+
+
+@router.get(
+    "/videos/uploads/{public_id}/events",
+    summary="Stream live transcode progress (SSE)",
+)
+async def stream_video_upload_progress(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> StreamingResponse:
+    """Server-Sent Events of Redis-backed encode progress.
+
+    Auth is the normal Bearer dependency. Prefer this over polling
+    ``GET /videos/uploads/{public_id}`` on the Process step.
+    """
+
+    # Auth + durable snapshot for the first frame when Redis is cold.
+    baseline = await service.get_status(
+        public_id=public_id,
+        uploader_id=current_user.id,
+    )
+
+    async def event_stream() -> AsyncIterator[str]:
+        baseline_payload = {
+            "status": baseline.status,
+            "overall_pct": baseline.overall_progress_pct,
+            "message": baseline.error_message or "",
+            "updated_at": baseline.updated_at.isoformat(),
+            "rungs": [
+                {
+                    "label": row.label,
+                    "width": row.width,
+                    "height": row.height,
+                    "video_kbps": row.video_kbps,
+                    "status": row.status,
+                    "progress_pct": row.progress_pct,
+                    "segment_count": row.segment_count,
+                    "playlist_key": row.playlist_key,
+                }
+                for row in baseline.renditions
+            ],
+        }
+        yield f"event: progress\ndata: {json.dumps(baseline_payload)}\n\n"
+
+        if baseline.status in {"READY", "FAILED"}:
+            return
+
+        try:
+            async for snapshot in iter_progress_events(public_id):
+                payload = json.dumps(snapshot.to_public_dict())
+                yield f"event: progress\ndata: {payload}\n\n"
+
+                if snapshot.status in {"READY", "FAILED"}:
+                    return
+
+                await asyncio.sleep(0)
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get(
+    "/videos/uploads/{public_id}/media",
+    response_model=VideoMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List thumbnails and sample images for an upload",
+)
+async def list_video_upload_media(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoMediaResponse:
+    """Return existing catalog images for the owned upload."""
+
+    return await service.list_media(
+        public_id=public_id,
+        uploader_id=current_user.id,
+    )
+
+
+@router.post(
+    "/videos/uploads/{public_id}/media/thumbnails",
+    response_model=VideoMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Upload a catalog thumbnail (large / list / small)",
+)
+async def upload_video_thumbnail(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+    image_type: Annotated[str, Form()],
+    file: Annotated[UploadFile, File()],
+) -> VideoMediaResponse:
+    """Store one thumbnail under ``{public_id}/thumbnails/`` on streams."""
+
+    return await service.upload_thumbnail(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        image_type=image_type,
+        upload=file,
+    )
+
+
+@router.post(
+    "/videos/uploads/{public_id}/media/samples",
+    response_model=VideoMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Upload sample review images (sample_l / sample_s)",
+)
+async def upload_video_samples(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+    image_type: Annotated[str, Form()],
+    files: Annotated[list[UploadFile], File()],
+) -> VideoMediaResponse:
+    """Store sample images under ``{public_id}/samples/`` on streams."""
+
+    return await service.upload_samples(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        image_type=image_type,
+        uploads=files,
     )
