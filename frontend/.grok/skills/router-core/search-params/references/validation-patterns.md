@@ -1,0 +1,1 @@
+/home/youknowwho/github/video-pipeline/frontend/.agents/skills/router-core/search-params/references/validation-patterns.md

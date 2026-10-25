@@ -44,12 +44,12 @@ api_v1_router.include_router(
     tags=["actresses"],
 )
 api_v1_router.include_router(
-    videos_router,
-    tags=["videos"],
-)
-api_v1_router.include_router(
     video_upload_router,
     tags=["video-uploads"],
+)
+api_v1_router.include_router(
+    videos_router,
+    tags=["videos"],
 )
 api_v1_router.include_router(
     playlists_router,

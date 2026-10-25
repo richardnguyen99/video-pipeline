@@ -24,16 +24,46 @@ class ScalarsSpy:
 
 class ResultSpy:
     def __init__(
-        self, row: Any = None, *, rows: Optional[list[Any]] = None
+        self,
+        row: Any = None,
+        *,
+        rows: Optional[list[Any]] = None,
+        scalar_value: Any = None,
     ) -> None:
         self._row = row
         self._rows = rows if rows is not None else []
+        self._scalar_value = scalar_value
 
     def scalar_one_or_none(self) -> Any:
         return self._row
 
+    def scalar_one(self) -> Any:
+        if self._scalar_value is not None:
+            return self._scalar_value
+
+        return self._row
+
     def scalars(self) -> ScalarsSpy:
         return ScalarsSpy(self._rows)
+
+
+class ListSessionSpy:
+    """Session double that returns count then a list of upload rows."""
+
+    def __init__(
+        self, *, rows: list[Video], total: Optional[int] = None
+    ) -> None:
+        self._rows = list(rows)
+        self._total = total if total is not None else len(self._rows)
+        self._calls = 0
+
+    async def execute(self, _statement: Any) -> ResultSpy:
+        self._calls += 1
+
+        if self._calls == 1:
+            return ResultSpy(scalar_value=self._total)
+
+        return ResultSpy(rows=self._rows)
 
 
 class SessionSpy:

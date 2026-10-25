@@ -46,6 +46,27 @@ export type VideoUploadStatusResponse = {
   renditions: Array<VideoRenditionProgress>;
 };
 
+export type VideoUploadListItem = {
+  id: number;
+  public_id: string;
+  video_id: string;
+  status: string;
+  title: string | null;
+  original_filename: string | null;
+  source_bytes: number | null;
+  error_code: string | null;
+  error_message: string | null;
+  overall_progress_pct: number;
+  resumable: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VideoUploadListResponse = {
+  items: Array<VideoUploadListItem>;
+  total: number;
+};
+
 export type VideoMediaImageItem = {
   id: number;
   url: string;
@@ -227,6 +248,16 @@ export async function completeVideoUpload(
 
 export async function getVideoUploadStatus(publicId: string): Promise<VideoUploadStatusResponse> {
   return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}`);
+}
+
+export async function listVideoUploads(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<VideoUploadListResponse> {
+  const limit = options?.limit ?? 50;
+  const offset = options?.offset ?? 0;
+
+  return apiFetch<VideoUploadListResponse>(`/videos/uploads?limit=${String(limit)}&offset=${String(offset)}`);
 }
 
 export async function listVideoUploadMedia(publicId: string): Promise<VideoMediaResponse> {

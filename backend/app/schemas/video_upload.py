@@ -151,6 +151,33 @@ class VideoUploadStatusResponse(BaseModel):
     renditions: list[VideoRenditionProgress] = Field(default_factory=list)
 
 
+class VideoUploadListItem(BaseModel):
+    """One row in the authenticated user's upload history."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    public_id: UUID
+    video_id: str
+    status: str
+    title: Optional[str] = None
+    original_filename: Optional[str] = None
+    source_bytes: Optional[int] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    overall_progress_pct: float = 0.0
+    resumable: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class VideoUploadListResponse(BaseModel):
+    """Paginated list of uploads owned by the current user."""
+
+    items: list[VideoUploadListItem] = Field(default_factory=list)
+    total: int = 0
+
+
 class VideoMediaImageItem(BaseModel):
     """One catalog image row (thumbnail or sample)."""
 

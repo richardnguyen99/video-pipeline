@@ -30,6 +30,7 @@
     "@tanstack/react-router": "latest",
     "@tanstack/react-router-devtools": "latest",
     "@tanstack/react-start": "latest",
+    "@tanstack/react-table": "^9.3.1",
     "@tanstack/router-plugin": "^1.132.0",
     "axios": "^1.20.0",
     "class-variance-authority": "^0.7.1",
@@ -81,6 +82,11 @@
     "onlyBuiltDependencies": [
       "esbuild",
       "lightningcss"
+    ]
+  },
+  "intent": {
+    "skills": [
+      "*"
     ]
   }
 }

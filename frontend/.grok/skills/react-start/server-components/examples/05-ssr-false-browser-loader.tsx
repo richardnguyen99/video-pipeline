@@ -1,0 +1,1 @@
+/home/youknowwho/github/video-pipeline/frontend/.agents/skills/react-start/server-components/examples/05-ssr-false-browser-loader.tsx

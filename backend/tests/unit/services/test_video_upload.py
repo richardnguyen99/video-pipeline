@@ -15,6 +15,7 @@ from app.schemas.video_upload import (
 )
 from app.services.video_upload import VideoUploadService
 from tests.unit.services.video_upload_fakes import (
+    ListSessionSpy,
     SessionSpy,
     StorageSpy,
     make_service,
@@ -485,3 +486,50 @@ async def test_get_status_raises_not_found_when_missing(
 
     assert exc_info.value.status_code == 404
     assert "not found" in str(exc_info.value.detail).lower()
+
+
+@pytest.mark.asyncio
+async def test_list_uploads_marks_resumable_after_raw_upload() -> None:
+    uploader_id = uuid4()
+    uploaded = pending_video(
+        uploader_id=uploader_id,
+        public_id=uuid4(),
+        status="UPLOADED",
+    )
+    uploaded.title = "Resume me"
+    uploaded.origin = "upload"
+
+    pending = pending_video(
+        uploader_id=uploader_id,
+        public_id=uuid4(),
+        status="PENDING",
+    )
+    pending.origin = "upload"
+
+    failed = pending_video(
+        uploader_id=uploader_id,
+        public_id=uuid4(),
+        status="FAILED",
+    )
+    failed.origin = "upload"
+
+    ready = pending_video(
+        uploader_id=uploader_id,
+        public_id=uuid4(),
+        status="READY",
+    )
+    ready.origin = "upload"
+
+    session = ListSessionSpy(rows=[uploaded, pending, failed, ready])
+    service = make_service(session, StorageSpy())
+
+    result = await service.list_uploads(uploader_id=uploader_id)
+
+    assert result.total == 4
+    by_status = {item.status: item for item in result.items}
+
+    assert by_status["UPLOADED"].resumable is True
+    assert by_status["READY"].resumable is True
+    assert by_status["PENDING"].resumable is False
+    assert by_status["FAILED"].resumable is False
+    assert by_status["UPLOADED"].title == "Resume me"

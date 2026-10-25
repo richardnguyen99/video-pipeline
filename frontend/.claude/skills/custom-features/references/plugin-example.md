@@ -1,0 +1,1 @@
+/home/youknowwho/github/video-pipeline/frontend/.agents/skills/./custom-features/references/plugin-example.md

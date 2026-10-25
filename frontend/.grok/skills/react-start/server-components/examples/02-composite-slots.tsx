@@ -1,0 +1,1 @@
+/home/youknowwho/github/video-pipeline/frontend/.agents/skills/react-start/server-components/examples/02-composite-slots.tsx

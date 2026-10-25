@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Form, UploadFile, status
+from fastapi import APIRouter, File, Form, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from app.dependencies import CurrentUserDep, VideoUploadServiceDep
@@ -16,6 +16,7 @@ from app.schemas.video_upload import (
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
     VideoUploadCreateResponse,
+    VideoUploadListResponse,
     VideoUploadPartsRequest,
     VideoUploadPartsResponse,
     VideoUploadStatusResponse,
@@ -41,6 +42,27 @@ async def create_video_upload(
         uploader_id=current_user.id,
         uploader_role=current_user.role,
         payload=payload,
+    )
+
+
+@router.get(
+    "/videos/uploads",
+    response_model=VideoUploadListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List uploads for the current user",
+)
+async def list_video_uploads(
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> VideoUploadListResponse:
+    """Return the authenticated user's recent uploads."""
+
+    return await service.list_uploads(
+        uploader_id=current_user.id,
+        limit=limit,
+        offset=offset,
     )
 
 

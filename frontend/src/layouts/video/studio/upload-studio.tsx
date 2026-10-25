@@ -12,6 +12,7 @@ import {
   saveUploadStudioSession,
 } from "@/layouts/video/studio/session-persist";
 import { SessionSummary } from "@/layouts/video/studio/session-summary";
+import { UploadsList } from "@/layouts/video/studio/uploads-list";
 import { DetailsStep } from "@/layouts/video/studio/steps/details-step";
 import { MediaStep } from "@/layouts/video/studio/steps/media-step";
 import { PreviewStep } from "@/layouts/video/studio/steps/preview-step";
@@ -785,6 +786,8 @@ export function UploadStudio() {
           progressPct={progressPct}
         />
       </section>
+
+      <UploadsList />
 
       <ConflictDialog
         open={upsertDialogOpen && phase === "conflict"}

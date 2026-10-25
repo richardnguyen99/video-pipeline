@@ -1,0 +1,1 @@
+/home/youknowwho/github/video-pipeline/frontend/.agents/skills/./devtools-vite-plugin/references/vite-options.md

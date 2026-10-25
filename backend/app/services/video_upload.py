@@ -12,6 +12,7 @@ import uuid
 from pathlib import PurePosixPath
 
 from fastapi import HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -30,6 +31,8 @@ from app.schemas.video_upload import (
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
     VideoUploadCreateResponse,
+    VideoUploadListItem,
+    VideoUploadListResponse,
     VideoUploadPartsResponse,
     VideoUploadStatusResponse,
 )
@@ -65,6 +68,18 @@ _PROGRESS_PRE_LADDER_BY_STATUS: dict[str, float] = {
     "FAILED": _PROGRESS_NONE_PCT,
     "READY": _PROGRESS_COMPLETE_PCT,
 }
+# Raw multipart finished; wizard can resume past the binary upload step.
+_RESUMABLE_STATUSES = frozenset(
+    {
+        "UPLOADED",
+        "PROBING",
+        "QUEUED",
+        "ENCODING",
+        "READY",
+    }
+)
+_DEFAULT_LIST_LIMIT = 50
+_MAX_LIST_LIMIT = 100
 
 
 class VideoUploadService(VideoUploadMediaMixin):
@@ -389,6 +404,42 @@ class VideoUploadService(VideoUploadMediaMixin):
 
         return self.__to_status(video, renditions=renditions)
 
+    async def list_uploads(
+        self,
+        *,
+        uploader_id: uuid.UUID,
+        limit: int = _DEFAULT_LIST_LIMIT,
+        offset: int = 0,
+    ) -> VideoUploadListResponse:
+        """Return recent uploads owned by the user, newest first."""
+
+        safe_limit = max(1, min(limit, _MAX_LIST_LIMIT))
+        safe_offset = max(0, offset)
+
+        count_statement = (
+            select(func.count())
+            .select_from(Video)
+            .where(col(Video.uploader_id) == uploader_id)
+            .where(col(Video.origin) == _ORIGIN_UPLOAD)
+        )
+        count_result = await self._session.execute(count_statement)
+        total = int(count_result.scalar_one())
+
+        statement = (
+            select(Video)
+            .where(col(Video.uploader_id) == uploader_id)
+            .where(col(Video.origin) == _ORIGIN_UPLOAD)
+            .order_by(col(Video.updated_at).desc())
+            .offset(safe_offset)
+            .limit(safe_limit)
+        )
+        result = await self._session.execute(statement)
+        rows = list(result.scalars().all())
+
+        items = [self.__to_list_item(row) for row in rows]
+
+        return VideoUploadListResponse(items=items, total=total)
+
     async def assert_owned_upload(
         self,
         *,
@@ -643,6 +694,34 @@ class VideoUploadService(VideoUploadMediaMixin):
             updated_at=video.updated_at,
             overall_progress_pct=overall,
             renditions=progress_rows,
+        )
+
+    @staticmethod
+    def __to_list_item(video: Video) -> VideoUploadListItem:
+        """Map a Video row to a compact list item for the studio UI."""
+
+        assert video.public_id is not None
+
+        status_value = video.status or _STATUS_PENDING
+        overall = VideoUploadService.__overall_progress(
+            status=status_value,
+            renditions=[],
+        )
+
+        return VideoUploadListItem(
+            id=video.id,
+            public_id=video.public_id,
+            video_id=video.video_id,
+            status=status_value,
+            title=video.title,
+            original_filename=video.original_filename,
+            source_bytes=video.source_bytes,
+            error_code=video.error_code,
+            error_message=video.error_message,
+            overall_progress_pct=overall,
+            resumable=status_value.upper() in _RESUMABLE_STATUSES,
+            created_at=video.created_at,
+            updated_at=video.updated_at,
         )
 
     @staticmethod
