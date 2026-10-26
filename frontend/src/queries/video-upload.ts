@@ -356,9 +356,43 @@ function mergeLiveProgress(
   };
 }
 
+const TERMINAL_UPLOAD_STATUSES = new Set(["READY", "FAILED"]);
+
+function isTerminalUploadStatus(status: string): boolean {
+  return TERMINAL_UPLOAD_STATUSES.has(status.toUpperCase());
+}
+
+function isTerminalLiveProgress(live: LiveTranscodeProgress): boolean {
+  if (isTerminalUploadStatus(live.status)) {
+    return true;
+  }
+
+  if (live.rungs.length === 0) {
+    return false;
+  }
+
+  return live.rungs.every((row) => row.status.toUpperCase() === "READY");
+}
+
+function isTerminalStatusResponse(next: VideoUploadStatusResponse): boolean {
+  if (isTerminalUploadStatus(next.status)) {
+    return true;
+  }
+
+  if (next.renditions.length === 0) {
+    return false;
+  }
+
+  return next.renditions.every((row) => row.status.toUpperCase() === "READY");
+}
+
 /**
  * Subscribe to Redis-backed SSE progress. Falls back to polling when the
  * stream cannot be opened (proxy, offline, auth).
+ *
+ * Stops automatically when the upload reaches a terminal state (READY /
+ * FAILED, or every rendition READY). Does not keep polling after encode
+ * finishes.
  *
  * ``onLive`` receives each progress frame; ``onStatus`` receives full
  * status responses from the polling fallback.
@@ -369,27 +403,44 @@ export function subscribeVideoUploadProgress(
   onStatus: (next: VideoUploadStatusResponse) => void,
 ): () => void {
   const controller = new AbortController();
-  let closed = false;
+  let generation = 0;
   let pollTimer: number | null = null;
 
-  const stopPoll = () => {
+  const stop = () => {
+    generation += 1;
+    controller.abort();
+
     if (pollTimer != null) {
       window.clearInterval(pollTimer);
       pollTimer = null;
     }
   };
 
+  const isActive = (snapshot: number): boolean => snapshot === generation;
+
   const startPoll = () => {
-    if (pollTimer != null || closed) {
+    if (pollTimer != null) {
       return;
     }
 
+    const snapshot = generation;
+
     const tick = async () => {
+      if (!isActive(snapshot)) {
+        return;
+      }
+
       try {
         const next = await getVideoUploadStatus(publicId);
 
-        if (!closed) {
-          onStatus(next);
+        if (!isActive(snapshot)) {
+          return;
+        }
+
+        onStatus(next);
+
+        if (isTerminalStatusResponse(next)) {
+          stop();
         }
       } catch (error: unknown) {
         void error;
@@ -404,6 +455,7 @@ export function subscribeVideoUploadProgress(
 
   const runStream = async () => {
     const token = getAccessToken();
+    const snapshot = generation;
 
     if (token == null || token.length === 0) {
       startPoll();
@@ -421,6 +473,10 @@ export function subscribeVideoUploadProgress(
         signal: controller.signal,
       });
 
+      if (!isActive(snapshot)) {
+        return;
+      }
+
       if (!response.ok || response.body == null) {
         startPoll();
 
@@ -431,11 +487,15 @@ export function subscribeVideoUploadProgress(
       const decoder = new TextDecoder();
       let buffer = "";
 
-      while (!closed) {
+      while (isActive(snapshot)) {
         const { done, value } = await reader.read();
 
         if (done) {
           break;
+        }
+
+        if (!isActive(snapshot)) {
+          return;
         }
 
         buffer += decoder.decode(value, { stream: true });
@@ -458,8 +518,16 @@ export function subscribeVideoUploadProgress(
           try {
             const parsed: unknown = JSON.parse(raw);
 
-            if (isLiveTranscodeProgress(parsed)) {
-              onLive(parsed);
+            if (!isLiveTranscodeProgress(parsed)) {
+              continue;
+            }
+
+            onLive(parsed);
+
+            if (isTerminalLiveProgress(parsed)) {
+              stop();
+
+              return;
             }
           } catch (error: unknown) {
             void error;
@@ -467,11 +535,11 @@ export function subscribeVideoUploadProgress(
         }
       }
 
-      if (!closed) {
+      if (isActive(snapshot)) {
         startPoll();
       }
     } catch (error: unknown) {
-      if (!closed && !controller.signal.aborted) {
+      if (isActive(snapshot) && !controller.signal.aborted) {
         startPoll();
       }
 
@@ -482,9 +550,7 @@ export function subscribeVideoUploadProgress(
   void runStream();
 
   return () => {
-    closed = true;
-    controller.abort();
-    stopPoll();
+    stop();
   };
 }
 

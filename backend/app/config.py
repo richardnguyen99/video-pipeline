@@ -110,6 +110,14 @@ class Settings(BaseSettings):
     watch_events_flush_interval_seconds: int = 1800
     watch_events_object_prefix: str = "watch-events"
 
+    # Transcode pipeline: fixed ffmpeg concurrency and chunk size.
+    # Caps simultaneous ffmpeg processes across all in-flight jobs.
+    transcode_max_ffmpeg: int = 4
+    # Target segment / work-unit length in seconds for parallel chunk encode.
+    transcode_chunk_seconds: int = 10
+    # RabbitMQ QoS for the transcode queue (messages held per consumer).
+    transcode_prefetch: int = 4
+
     # Object storage (MinIO locally, S3/CDN in production).
     object_storage_provider: ObjectStorageProvider = (
         ObjectStorageProvider.MINIO

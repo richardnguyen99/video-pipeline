@@ -14,8 +14,10 @@ from typing import Any, Optional
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.config import settings
 from app.database import async_session_factory
 from app.messaging.redis_client import get_redis_client
+from app.messaging.transcode_pool import get_transcode_semaphore
 from app.messaging.transcode_progress import (
     RungProgressSnapshot,
     TranscodeProgressSnapshot,
@@ -388,11 +390,14 @@ async def _run_locked_pipeline(
 ) -> None:
     """Probe, encode, and package while the job lock is held."""
 
+    get_transcode_semaphore()
     _logger.info(
-        "transcode: start public_id=%s status=%s source_key=%s",
+        "transcode: start public_id=%s status=%s source_key=%s max_ffmpeg=%s chunk_s=%s",
         public_id,
         video.status,
         video.source_key,
+        settings.transcode_max_ffmpeg,
+        settings.transcode_chunk_seconds,
     )
 
     duration_s = await _probe_and_plan(session, storage, video, public_id)

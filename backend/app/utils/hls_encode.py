@@ -9,11 +9,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from app.config import settings
+from app.messaging.transcode_pool import run_in_transcode_pool
+
 _logger = logging.getLogger("uvicorn.error")
 
 ProgressCallback = Callable[[float], Awaitable[None]]
 
 _DEFAULT_PRESET = "veryfast"
+_MIN_SEGMENT_SECONDS = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +30,10 @@ class RenditionSpec:
     audio_kbps: int
 
 
+def _segment_seconds() -> int:
+    return max(_MIN_SEGMENT_SECONDS, int(settings.transcode_chunk_seconds))
+
+
 def _rate_args(video_kbps: int) -> tuple[str, str]:
     """Return ``(maxrate, bufsize)`` ffmpeg rate strings."""
 
@@ -35,11 +43,13 @@ def _rate_args(video_kbps: int) -> tuple[str, str]:
 def _hls_output_args(playlist: Path, segment_pattern: str) -> list[str]:
     """Shared HLS muxer flags for MPEG-TS VOD output."""
 
+    segment_time = str(_segment_seconds())
+
     return [
         "-f",
         "hls",
         "-hls_time",
-        "6",
+        segment_time,
         "-hls_list_size",
         "0",
         "-hls_playlist_type",
@@ -63,6 +73,7 @@ def _x264_audio_args(
     """libx264 + AAC encode flags for one output."""
 
     maxrate, bufsize = _rate_args(video_kbps)
+    keyframe_interval = _segment_seconds()
 
     return [
         "-c:v",
@@ -78,7 +89,7 @@ def _x264_audio_args(
         "-bufsize",
         bufsize,
         "-force_key_frames",
-        "expr:gte(t,n_forced*6)",
+        f"expr:gte(t,n_forced*{keyframe_interval})",
         "-sc_threshold",
         "0",
         "-c:a",
@@ -99,7 +110,7 @@ def build_ffmpeg_command(
     audio_kbps: int,
     preset: str = _DEFAULT_PRESET,
 ) -> list[str]:
-    """Build the ffmpeg argv for one HLS MPEG-TS rendition."""
+    """Build the ffmpeg argv for one HLS MPEG-TS rendition (single process)."""
 
     playlist = out_dir / "playlist.m3u8"
     segment_pattern = str(out_dir / "seg_%05d.ts")
@@ -443,7 +454,13 @@ async def encode_hls_rendition(
     on_progress: Optional[ProgressCallback] = None,
     preset: str = _DEFAULT_PRESET,
 ) -> Path:
-    """Run ffmpeg for one rendition; return path to media playlist."""
+    """Encode one ladder rung with a single continuous HLS ffmpeg pass.
+
+    Parallel ``-ss/-t`` chunk encodes are intentionally not used here: each
+    chunk resets MPEG-TS timestamps, which breaks seeking and duration in
+    hls.js even when every ``.ts`` object exists in storage. Concurrency is
+    still bounded by the global transcode pool across jobs and rungs.
+    """
 
     out_dir.mkdir(parents=True, exist_ok=True)
     command = build_ffmpeg_command(
@@ -454,12 +471,17 @@ async def encode_hls_rendition(
         audio_kbps=audio_kbps,
         preset=preset,
     )
-    await _run_ffmpeg_with_progress(
-        command,
-        duration_s=duration_s,
-        on_progress=on_progress,
-        label=f"ffmpeg:rendition:{height}p",
-    )
+    label = f"ffmpeg:rendition:{height}p"
+
+    async def _run() -> None:
+        await _run_ffmpeg_with_progress(
+            command,
+            duration_s=duration_s,
+            on_progress=on_progress,
+            label=label,
+        )
+
+    await run_in_transcode_pool(_run, label=label)
 
     playlist = out_dir / "playlist.m3u8"
 
@@ -485,18 +507,23 @@ async def encode_hls_ladder(
 
     work_dir.mkdir(parents=True, exist_ok=True)
     labels = ",".join(spec.label for spec in specs)
+    label = f"ffmpeg:ladder:{labels}"
     command = build_ladder_ffmpeg_command(
         source=source,
         work_dir=work_dir,
         specs=specs,
         preset=preset,
     )
-    await _run_ffmpeg_with_progress(
-        command,
-        duration_s=duration_s,
-        on_progress=on_progress,
-        label=f"ffmpeg:ladder:{labels}",
-    )
+
+    async def _run() -> None:
+        await _run_ffmpeg_with_progress(
+            command,
+            duration_s=duration_s,
+            on_progress=on_progress,
+            label=label,
+        )
+
+    await run_in_transcode_pool(_run, label=label)
 
     playlists: list[Path] = []
 

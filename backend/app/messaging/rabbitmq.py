@@ -207,6 +207,8 @@ class RabbitMQClient:
             return
 
         channel = await self._get_channel()
+        prefetch = max(1, int(settings.transcode_prefetch))
+        await channel.set_qos(prefetch_count=prefetch)
         queue = await channel.declare_queue(
             settings.rabbitmq_transcode_queue,
             durable=True,
@@ -222,8 +224,10 @@ class RabbitMQClient:
 
         self._transcode_consumer_tag = await queue.consume(on_message)
         _logger.info(
-            "RabbitMQ transcode consumer started queue=%s",
+            "RabbitMQ transcode consumer started queue=%s prefetch=%s max_ffmpeg=%s",
             settings.rabbitmq_transcode_queue,
+            prefetch,
+            settings.transcode_max_ffmpeg,
         )
 
     async def close(self) -> None:
