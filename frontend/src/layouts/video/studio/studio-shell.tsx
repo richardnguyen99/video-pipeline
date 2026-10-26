@@ -130,6 +130,8 @@ function SidebarNavLink({
   onNavigate?: () => void;
   children: ReactNode;
 }) {
+  const linkSearch = to === "/studio/upload" ? {} : undefined;
+
   if (!collapsed) {
     return (
       <Button
@@ -138,7 +140,7 @@ function SidebarNavLink({
         className="h-10 w-full justify-start gap-3 px-3"
         aria-label={label}
         nativeButton={false}
-        render={<Link to={to} onClick={onNavigate} />}
+        render={<Link to={to} search={linkSearch} onClick={onNavigate} />}
       >
         {children}
       </Button>
@@ -155,7 +157,7 @@ function SidebarNavLink({
             className="size-10 shrink-0 justify-center p-0"
             aria-label={label}
             nativeButton={false}
-            render={<Link to={to} onClick={onNavigate} />}
+            render={<Link to={to} search={linkSearch} onClick={onNavigate} />}
           />
         }
       >
@@ -220,7 +222,9 @@ export function StudioShell() {
   const username = user?.username ?? null;
 
   return (
-    <div className={cn("bg-background text-foreground flex min-h-screen w-full", collapsed && "studio-collapsed")}>
+    <div
+      className={cn("bg-background text-foreground flex h-svh w-full overflow-hidden", collapsed && "studio-collapsed")}
+    >
       {mobileOpen ? (
         <button
           type="button"
@@ -234,12 +238,14 @@ export function StudioShell() {
 
       <aside
         className={cn(
-          "border-border bg-card fixed inset-y-0 left-0 z-50 flex flex-col border-r transition-[width,transform] duration-200 lg:static lg:translate-x-0",
-          collapsed ? "w-[4.5rem] lg:w-[4.5rem]" : "w-64 lg:w-64",
+          "border-border bg-card fixed inset-y-0 left-0 z-50 flex h-svh flex-col border-r transition-[width,transform] duration-200 lg:static lg:h-full lg:translate-x-0",
+          collapsed ? "w-18 lg:w-18" : "w-64 lg:w-64",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-        <div className={cn("flex items-center border-b py-3", collapsed ? "justify-center px-2" : "gap-2 px-3")}>
+        <div
+          className={cn("flex shrink-0 items-center border-b py-3", collapsed ? "justify-center px-2" : "gap-2 px-3")}
+        >
           {!collapsed ? (
             <Button
               type="button"
@@ -285,7 +291,7 @@ export function StudioShell() {
         </div>
 
         <nav
-          className={cn("flex flex-1 flex-col gap-1 p-2", collapsed && "items-center")}
+          className={cn("flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2", collapsed && "items-center")}
           aria-label="Studio navigation"
         >
           {NAV_ITEMS.map((item) => {
@@ -327,13 +333,13 @@ export function StudioShell() {
           })}
         </nav>
 
-        <div className={cn("flex flex-col gap-1 border-t p-2", collapsed && "items-center")}>
+        <div className={cn("flex shrink-0 flex-col gap-1 border-t p-2", collapsed && "items-center")}>
           {username != null ? <SidebarProfileLink collapsed={collapsed} username={username} /> : null}
         </div>
       </aside>
 
-      <section className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 px-4 pt-4 sm:px-6 lg:hidden">
+      <section data-studio-main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+        <div className="flex shrink-0 items-center gap-2 px-4 pt-4 sm:px-6 lg:hidden">
           <Button
             type="button"
             variant="outline"

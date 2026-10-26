@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -24,7 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatFileSize } from "@/layouts/video/studio/upload-helpers";
 import { cn } from "@/libs/utils";
-import { listVideoUploads } from "@/queries/video-upload";
+import { listVideoUploads, VIDEO_UPLOADS_LIST_QUERY_KEY } from "@/queries/video-upload";
 import type { VideoUploadListItem } from "@/queries/video-upload";
 
 const PAGE_SIZE = 10;
@@ -227,6 +227,10 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
     id: "actions",
     header: () => <span className="sr-only">Action</span>,
     enableSorting: false,
+    meta: {
+      className: "w-12 text-right",
+      size: 48,
+    },
     cell: ({ row }) => {
       const item = row.original;
 
@@ -235,24 +239,30 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
       }
 
       return (
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="ghost"
-          aria-label={`Resume ${displayTitle(item)}`}
-          nativeButton={false}
-          render={<Link to="/studio/upload" search={{ publicId: item.public_id }} />}
-        >
-          <ExternalLink className="size-4" />
-        </Button>
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Resume ${displayTitle(item)}`}
+            nativeButton={false}
+            render={<Link to="/studio/upload" search={{ publicId: item.public_id }} />}
+            onClick={(event) => {
+              event.stopPropagation();
+            }}
+          >
+            <ExternalLink className="size-4" />
+          </Button>
+        </div>
       );
     },
   },
 ];
 
 export function UploadsList() {
+  const navigate = useNavigate();
   const query = useQuery({
-    queryKey: ["video-uploads", "list"],
+    queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY,
     queryFn: () => listVideoUploads({ limit: 100, offset: 0 }),
     staleTime: 15_000,
   });
@@ -370,12 +380,22 @@ export function UploadsList() {
 
       {!query.isLoading && !query.isError ? (
         <>
-          <Table>
+          <Table className="w-full table-fixed">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <TableHead key={header.id}>
+                    <TableHead
+                      key={header.id}
+                      className={cn(
+                        header.column.id === "video" && "w-auto",
+                        header.column.id === "status" && "w-24",
+                        header.column.id === "updated_at" && "w-36",
+                        header.column.id === "size" && "w-24",
+                        header.column.id === "overall_progress_pct" && "w-28",
+                        header.column.id === "actions" && "w-12 text-right",
+                      )}
+                    >
                       {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                     </TableHead>
                   ))}
@@ -385,13 +405,33 @@ export function UploadsList() {
 
             <TableBody>
               {table.getRowModel().rows.length > 0 ? (
-                table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id}>
-                    {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</TableCell>
-                    ))}
-                  </TableRow>
-                ))
+                table.getRowModel().rows.map((row) => {
+                  const item = row.original;
+                  const canResume = item.resumable;
+
+                  return (
+                    <TableRow
+                      key={row.id}
+                      className={cn(canResume && "hover:bg-muted/40 cursor-pointer")}
+                      onClick={() => {
+                        if (!canResume) {
+                          return;
+                        }
+
+                        void navigate({
+                          to: "/studio/upload",
+                          search: { publicId: item.public_id },
+                        });
+                      }}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id} className={cn(cell.column.id === "actions" && "text-right")}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  );
+                })
               ) : (
                 <TableRow>
                   <TableCell colSpan={columns.length} className="text-muted-foreground h-16 text-center">

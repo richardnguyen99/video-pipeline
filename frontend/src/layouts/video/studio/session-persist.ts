@@ -2,6 +2,7 @@ import type { RelationSelections, VisibilityValue } from "@/layouts/video/studio
 import { EMPTY_RELATIONS } from "@/layouts/video/studio/types";
 
 const STORAGE_PREFIX = "vp.upload-studio.session.";
+const ACTIVE_KEY = "vp.upload-studio.active";
 
 export type UploadStudioSessionSnapshot = {
   publicId: string;
@@ -20,6 +21,11 @@ export type UploadStudioSessionSnapshot = {
   videoRowId: number | null;
 };
 
+export type ActiveUploadStudioPointer = {
+  publicId: string;
+  activeStep: number;
+};
+
 function storageKey(publicId: string): string {
   return `${STORAGE_PREFIX}${publicId}`;
 }
@@ -31,8 +37,42 @@ export function saveUploadStudioSession(snapshot: UploadStudioSessionSnapshot): 
 
   try {
     sessionStorage.setItem(storageKey(snapshot.publicId), JSON.stringify(snapshot));
+    sessionStorage.setItem(
+      ACTIVE_KEY,
+      JSON.stringify({
+        publicId: snapshot.publicId,
+        activeStep: snapshot.activeStep,
+      } satisfies ActiveUploadStudioPointer),
+    );
   } catch {
     // Quota / private mode — ignore; URL resume still works.
+  }
+}
+
+export function loadActiveUploadStudioPointer(): ActiveUploadStudioPointer | null {
+  if (typeof sessionStorage === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_KEY);
+
+    if (raw == null || raw.length === 0) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<ActiveUploadStudioPointer>;
+
+    if (typeof parsed.publicId !== "string" || parsed.publicId.length === 0) {
+      return null;
+    }
+
+    const activeStep =
+      typeof parsed.activeStep === "number" && parsed.activeStep >= 1 && parsed.activeStep <= 7 ? parsed.activeStep : 5;
+
+    return { publicId: parsed.publicId, activeStep };
+  } catch {
+    return null;
   }
 }
 
@@ -95,6 +135,24 @@ export function clearUploadStudioSession(publicId: string): void {
 
   try {
     sessionStorage.removeItem(storageKey(publicId));
+
+    const active = loadActiveUploadStudioPointer();
+
+    if (active?.publicId === publicId) {
+      sessionStorage.removeItem(ACTIVE_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function clearActiveUploadStudioPointer(): void {
+  if (typeof sessionStorage === "undefined") {
+    return;
+  }
+
+  try {
+    sessionStorage.removeItem(ACTIVE_KEY);
   } catch {
     // ignore
   }

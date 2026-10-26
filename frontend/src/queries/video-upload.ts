@@ -250,6 +250,8 @@ export async function getVideoUploadStatus(publicId: string): Promise<VideoUploa
   return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}`);
 }
 
+export const VIDEO_UPLOADS_LIST_QUERY_KEY = ["video-uploads", "list"] as const;
+
 export async function listVideoUploads(options?: {
   limit?: number;
   offset?: number;

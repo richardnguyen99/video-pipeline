@@ -27,7 +27,7 @@ _IMAGE_CONTENT_TYPES = frozenset(
     },
 )
 _MAX_IMAGE_BYTES = 12 * 1024 * 1024
-_MAX_SAMPLE_FILES_PER_REQUEST = 20
+_MAX_SAMPLE_FILES_PER_REQUEST = 50
 
 
 class VideoUploadMediaMixin:

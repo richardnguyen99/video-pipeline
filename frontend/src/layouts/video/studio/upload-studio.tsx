@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { ConflictDialog } from "@/layouts/video/studio/conflict-dialog";
 import {
+  clearActiveUploadStudioPointer,
   defaultStepForStatus,
   loadUploadStudioSession,
   saveUploadStudioSession,
@@ -28,7 +29,6 @@ import {
   mapPool,
   putPart,
   SESSION_KEEPALIVE_CHECK_MS,
-  stepPercentComplete,
   stepTitle,
 } from "@/layouts/video/studio/upload-helpers";
 import { ApiError, ensureFreshAccessToken } from "@/libs/api-client";
@@ -45,6 +45,7 @@ import {
   parseVideoCodeConflict,
   presignVideoUploadParts,
   subscribeVideoUploadProgress,
+  VIDEO_UPLOADS_LIST_QUERY_KEY,
 } from "@/queries/video-upload";
 import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } from "@/queries/video-upload";
 
@@ -52,10 +53,12 @@ const uploadRouteApi = getRouteApi("/_authenticated/studio/upload");
 
 export function UploadStudio() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const search = uploadRouteApi.useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadStartedRef = useRef(false);
   const resumeAppliedRef = useRef<string | null>(null);
+  const prevSearchPublicIdRef = useRef<string | undefined>(search.publicId);
   const [sessionFilename, setSessionFilename] = useState<string | null>(null);
 
   const [activeStep, setActiveStep] = useState(1);
@@ -201,6 +204,20 @@ export function UploadStudio() {
   }, [search.publicId, search.step]);
 
   useEffect(() => {
+    if (search.publicId == null) {
+      return;
+    }
+
+    const main = document.querySelector<HTMLElement>("[data-studio-main]");
+
+    if (main == null) {
+      return;
+    }
+
+    main.scrollTo({ top: 0, behavior: "smooth" });
+  }, [search.publicId]);
+
+  useEffect(() => {
     const publicId = status?.public_id;
 
     if (publicId == null) {
@@ -223,8 +240,86 @@ export function UploadStudio() {
       originalFilename: file?.name ?? sessionFilename ?? status.original_filename,
       videoRowId: status.id,
     });
+  }, [
+    activeStep,
+    cid,
+    description,
+    file?.name,
+    jancode,
+    makerProduct,
+    notifySubscribers,
+    releaseDate,
+    relations,
+    sessionFilename,
+    status?.id,
+    status?.original_filename,
+    status?.public_id,
+    title,
+    videoCode,
+    visibility,
+  ]);
 
-    if (search.publicId === publicId && search.step === activeStep) {
+  useEffect(() => {
+    const previousPublicId = prevSearchPublicIdRef.current;
+    prevSearchPublicIdRef.current = search.publicId;
+
+    if (search.publicId != null) {
+      return;
+    }
+
+    // Only reset when the URL explicitly dropped a session publicId.
+    // Fresh drafts and post-upload establish navigations must not be wiped.
+    if (previousPublicId == null) {
+      clearActiveUploadStudioPointer();
+
+      return;
+    }
+
+    resumeAppliedRef.current = null;
+    uploadStartedRef.current = false;
+    clearActiveUploadStudioPointer();
+    setStatus(null);
+    setPhase("idle");
+    setProgressPct(0);
+    setMessage(null);
+    setFile(null);
+    setSessionFilename(null);
+    setTitle("");
+    setDescription("");
+    setVideoCode("");
+    setCid("");
+    setJancode("");
+    setMakerProduct("");
+    setReleaseDate("");
+    setRelations(EMPTY_RELATIONS);
+    setThumbnailUrl("");
+    setVisibility("unlisted");
+    setNotifySubscribers(true);
+    setAutoProcess(true);
+    setUpsertDialogOpen(false);
+    setConflictExisting(null);
+    setConflictMessage(null);
+    setActiveStep(1);
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+  }, [search.publicId]);
+
+  useEffect(() => {
+    const publicId = status?.public_id;
+
+    if (publicId == null) {
+      return;
+    }
+
+    // Only keep step in sync when the URL already targets this upload.
+    // Clean /studio/upload (no publicId) is a new session — do not restore.
+    if (search.publicId !== publicId) {
+      return;
+    }
+
+    if (search.step === activeStep) {
       return;
     }
 
@@ -233,25 +328,7 @@ export function UploadStudio() {
       search: { publicId, step: activeStep },
       replace: true,
     });
-  }, [
-    activeStep,
-    cid,
-    description,
-    file?.name,
-    jancode,
-    makerProduct,
-    navigate,
-    notifySubscribers,
-    releaseDate,
-    relations,
-    search.publicId,
-    search.step,
-    sessionFilename,
-    status,
-    title,
-    videoCode,
-    visibility,
-  ]);
+  }, [activeStep, navigate, search.publicId, search.step, status?.public_id]);
 
   const fileSizeLabel = useMemo(() => {
     if (!file) {
@@ -321,6 +398,8 @@ export function UploadStudio() {
     setReleaseDate("");
     setRelations(EMPTY_RELATIONS);
     setThumbnailUrl("");
+    setVisibility("unlisted");
+    setNotifySubscribers(true);
     setPhase("idle");
     setProgressPct(0);
     setStatus(null);
@@ -438,12 +517,21 @@ export function UploadStudio() {
         setPhase("done");
         setProgressPct(100);
         setMessage(`Uploaded. Status: ${finalStatus.status}`);
+        resumeAppliedRef.current = finalStatus.public_id;
+
+        const nextStep = autoProcess ? 5 : activeStep;
 
         if (autoProcess) {
-          window.setTimeout(() => {
-            setActiveStep(5);
-          }, 450);
+          setActiveStep(5);
         }
+
+        void queryClient.invalidateQueries({ queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY });
+
+        void navigate({
+          to: "/studio/upload",
+          search: { publicId: finalStatus.public_id, step: nextStep },
+          replace: true,
+        });
       } catch (error) {
         const apiMessage = getApiErrorMessage(error);
 
@@ -480,7 +568,7 @@ export function UploadStudio() {
         }
       }
     },
-    [autoProcess, file, title, videoCode],
+    [activeStep, autoProcess, file, navigate, queryClient, title, videoCode],
   );
 
   const loadExistingInfo = useCallback(() => {
@@ -554,7 +642,6 @@ export function UploadStudio() {
   }, [activeStep, file, phase, status, title]);
 
   const busy = phase === "preparing" || phase === "uploading" || phase === "completing";
-  const percentComplete = stepPercentComplete(activeStep);
 
   const onDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -583,8 +670,11 @@ export function UploadStudio() {
   };
 
   return (
-    <main className="flex w-full flex-col gap-8 ">
-      <nav className="flex w-full flex-wrap items-center gap-2" aria-label="Upload progress">
+    <main className="flex w-full flex-col gap-8">
+      <nav
+        className="bg-background/95 border-border sticky top-0 z-20 flex w-full flex-wrap items-center gap-2 border-b py-3 backdrop-blur"
+        aria-label="Upload progress"
+      >
         {STEPS.map((step) => (
           <div key={step.number} className="flex flex-1 items-center gap-2">
             <div
@@ -616,20 +706,12 @@ export function UploadStudio() {
 
       <section className="flex w-full flex-col gap-6">
         <div className="bg-card flex w-full flex-col gap-6 rounded-xl border p-5 sm:p-6">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                  Step {activeStep} of {STEPS.length}
-                </span>
+          <div className="flex flex-col gap-1">
+            <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              Step {activeStep} of {STEPS.length}
+            </span>
 
-                <h2 className="text-xl font-semibold tracking-tight">{stepTitle(activeStep)}</h2>
-              </div>
-
-              <span className="text-muted-foreground text-sm tabular-nums">{percentComplete}%</span>
-            </div>
-
-            <Progress value={percentComplete} className="h-1.5 w-full" />
+            <h2 className="text-xl font-semibold tracking-tight">{stepTitle(activeStep)}</h2>
           </div>
 
           {activeStep === 1 ? (
