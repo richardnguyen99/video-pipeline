@@ -45,6 +45,7 @@ import {
   parseVideoCodeConflict,
   presignVideoUploadParts,
   subscribeVideoUploadProgress,
+  updateVideoUploadMetadata,
   VIDEO_UPLOADS_LIST_QUERY_KEY,
 } from "@/queries/video-upload";
 import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } from "@/queries/video-upload";
@@ -176,16 +177,33 @@ export function UploadStudio() {
           setTitle(draft.title || next.title || "");
           setDescription(draft.description);
           setVideoCode(draft.videoCode);
-          setCid(draft.cid);
-          setJancode(draft.jancode);
-          setMakerProduct(draft.makerProduct);
-          setReleaseDate(draft.releaseDate);
+          setCid(draft.cid || next.cid || "");
+          setJancode(draft.jancode || next.jancode || "");
+          setMakerProduct(draft.makerProduct || next.maker_product || "");
+          setReleaseDate(
+            draft.releaseDate ||
+              (next.release_date != null && next.release_date.length >= 10 ? next.release_date.slice(0, 10) : ""),
+          );
           setVisibility(draft.visibility);
           setNotifySubscribers(draft.notifySubscribers);
           setRelations(draft.relations);
           setSessionFilename(draft.originalFilename ?? next.original_filename);
         } else {
           setTitle(next.title ?? "");
+          setCid(next.cid ?? "");
+          setJancode(next.jancode ?? "");
+          setMakerProduct(next.maker_product ?? "");
+          setReleaseDate(
+            next.release_date != null && next.release_date.length >= 10 ? next.release_date.slice(0, 10) : "",
+          );
+          setRelations({
+            actresses: next.actress_ids,
+            makers: next.maker_ids,
+            genres: next.genre_ids,
+            series: next.series_ids,
+            labels: next.label_ids,
+            directors: next.director_ids,
+          });
           setSessionFilename(next.original_filename);
         }
       } catch (error) {
@@ -237,8 +255,8 @@ export function UploadStudio() {
       visibility,
       notifySubscribers,
       relations,
-      originalFilename: file?.name ?? sessionFilename ?? status.original_filename,
-      videoRowId: status.id,
+      originalFilename: file?.name ?? sessionFilename ?? status?.original_filename ?? null,
+      videoRowId: status?.id ?? null,
     });
   }, [
     activeStep,
@@ -519,6 +537,25 @@ export function UploadStudio() {
         setMessage(`Uploaded. Status: ${finalStatus.status}`);
         resumeAppliedRef.current = finalStatus.public_id;
 
+        try {
+          const withMetadata = await updateVideoUploadMetadata(finalStatus.public_id, {
+            title: title.trim() || finalStatus.title || undefined,
+            cid: cid.trim() || null,
+            jancode: jancode.trim() || null,
+            maker_product: makerProduct.trim() || null,
+            release_date: releaseDate.trim() || null,
+            actress_ids: relations.actresses,
+            maker_ids: relations.makers,
+            genre_ids: relations.genres,
+            series_ids: relations.series,
+            label_ids: relations.labels,
+            director_ids: relations.directors,
+          });
+          setStatus(withMetadata);
+        } catch {
+          // Upload already completed; catalog links can be retried from Details.
+        }
+
         const nextStep = autoProcess ? 5 : activeStep;
 
         if (autoProcess) {
@@ -568,7 +605,20 @@ export function UploadStudio() {
         }
       }
     },
-    [activeStep, autoProcess, file, navigate, queryClient, title, videoCode],
+    [
+      activeStep,
+      autoProcess,
+      cid,
+      file,
+      jancode,
+      makerProduct,
+      navigate,
+      queryClient,
+      relations,
+      releaseDate,
+      title,
+      videoCode,
+    ],
   );
 
   const loadExistingInfo = useCallback(() => {
@@ -650,9 +700,38 @@ export function UploadStudio() {
     }
   };
 
+  const persistCatalogMetadata = useCallback(async () => {
+    const publicId = status?.public_id;
+
+    if (publicId == null) {
+      return;
+    }
+
+    const updated = await updateVideoUploadMetadata(publicId, {
+      title: title.trim() || (status?.title ?? undefined),
+      cid: cid.trim() || null,
+      jancode: jancode.trim() || null,
+      maker_product: makerProduct.trim() || null,
+      release_date: releaseDate.trim() || null,
+      actress_ids: relations.actresses,
+      maker_ids: relations.makers,
+      genre_ids: relations.genres,
+      series_ids: relations.series,
+      label_ids: relations.labels,
+      director_ids: relations.directors,
+    });
+    setStatus(updated);
+  }, [cid, jancode, makerProduct, relations, releaseDate, status, title]);
+
   const goNext = () => {
     if (activeStep === 7) {
       return;
+    }
+
+    if (activeStep === 2 && status?.public_id != null) {
+      void persistCatalogMetadata().catch((error: unknown) => {
+        setMessage(getApiErrorMessage(error));
+      });
     }
 
     setActiveStep((step) => Math.min(7, step + 1));

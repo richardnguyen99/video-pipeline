@@ -34,6 +34,9 @@ class ResultSpy:
         self._rows = rows if rows is not None else []
         self._scalar_value = scalar_value
 
+    def all(self) -> list[Any]:
+        return list(self._rows)
+
     def scalar_one_or_none(self) -> Any:
         return self._row
 
@@ -80,12 +83,14 @@ class SessionSpy:
         *,
         video: Optional[Video] = None,
         renditions: Optional[list[Any]] = None,
+        relation_rows: Optional[dict[str, list[tuple[int]]]] = None,
     ) -> None:
         self.added: list[Any] = []
         self.committed = 0
         self.refreshed: list[Any] = []
         self._video = video
         self._renditions = list(renditions or [])
+        self._relation_rows = dict(relation_rows or {})
         self._next_id = 1
 
     def add(self, obj: Any) -> None:
@@ -108,7 +113,29 @@ class SessionSpy:
     async def refresh(self, obj: Any) -> None:
         self.refreshed.append(obj)
 
-    async def execute(self, _statement: Any) -> ResultSpy:
+    async def execute(self, statement: Any) -> ResultSpy:
+        text = str(statement).lower()
+
+        for table_name, rows in self._relation_rows.items():
+            if table_name in text:
+                return ResultSpy(rows=list(rows))
+
+        if any(
+            name in text
+            for name in (
+                "video_actress",
+                "video_maker",
+                "video_genre",
+                "video_series",
+                "video_label",
+                "video_director",
+            )
+        ):
+            return ResultSpy(rows=[])
+
+        if "videorendition" in text or "video_rendition" in text:
+            return ResultSpy(rows=self._renditions)
+
         return ResultSpy(self._video, rows=self._renditions)
 
 

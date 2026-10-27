@@ -1,6 +1,6 @@
 """User video upload service: create row, presign multipart, complete."""
 
-# pylint: disable=broad-exception-caught
+# pylint: disable=broad-exception-caught,too-many-lines
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ import uuid
 from pathlib import PurePosixPath
 
 from fastapi import HTTPException, status
-from sqlalchemy import func
+from sqlalchemy import Table, delete, func, insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -22,6 +23,14 @@ from app.config import settings
 from app.messaging.rabbitmq import publish_transcode_message
 from app.messaging.transcode_progress import get_progress_snapshot
 from app.messaging.transcode_worker import process_transcode_message
+from app.models.associations import (
+    t_video_actress,
+    t_video_director,
+    t_video_genre,
+    t_video_label,
+    t_video_maker,
+    t_video_series,
+)
 from app.models.video import Video, VideoRendition
 from app.schemas.video_upload import (
     ExistingVideoSummary,
@@ -33,6 +42,7 @@ from app.schemas.video_upload import (
     VideoUploadCreateResponse,
     VideoUploadListItem,
     VideoUploadListResponse,
+    VideoUploadMetadataUpdateRequest,
     VideoUploadPartsResponse,
     VideoUploadStatusResponse,
 )
@@ -374,6 +384,7 @@ class VideoUploadService(VideoUploadMediaMixin):
         """
 
         video = await self.__get_owned_upload(public_id, uploader_id)
+        relation_ids = await self.__load_relation_ids(video.id)
         live = await get_progress_snapshot(public_id)
 
         if live is not None and live.rungs:
@@ -398,11 +409,83 @@ class VideoUploadService(VideoUploadMediaMixin):
                 progress_rows=progress_rows,
                 status_override=live.status,
                 overall_override=live.overall_pct,
+                relation_ids=relation_ids,
             )
 
         renditions = await self.__list_renditions(video.id)
 
-        return self.__to_status(video, renditions=renditions)
+        return self.__to_status(
+            video,
+            renditions=renditions,
+            relation_ids=relation_ids,
+        )
+
+    async def update_metadata(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        payload: VideoUploadMetadataUpdateRequest,
+    ) -> VideoUploadStatusResponse:
+        """Update scalar catalog fields and replace relation association sets."""
+
+        video = await self.__get_owned_upload(public_id, uploader_id)
+
+        if payload.title is not None:
+            trimmed = payload.title.strip()
+            video.title = trimmed or video.title
+
+        if payload.cid is not None:
+            video.cid = payload.cid.strip() or None
+
+        if payload.jancode is not None:
+            video.jancode = payload.jancode.strip() or None
+
+        if payload.maker_product is not None:
+            video.maker_product = payload.maker_product.strip() or None
+
+        if payload.release_date is not None:
+            video.release_date = payload.release_date
+
+        relation_specs: list[tuple[Table, list[int] | None]] = [
+            (t_video_actress, payload.actress_ids),
+            (t_video_maker, payload.maker_ids),
+            (t_video_genre, payload.genre_ids),
+            (t_video_series, payload.series_ids),
+            (t_video_label, payload.label_ids),
+            (t_video_director, payload.director_ids),
+        ]
+
+        for table, ids in relation_specs:
+            if ids is None:
+                continue
+
+            await self.__replace_association_ids(
+                table=table,
+                video_id=video.id,
+                fk_ids=ids,
+            )
+
+        try:
+            await self._session.commit()
+        except IntegrityError as exc:
+            await self._session.rollback()
+
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One or more catalog relation ids are invalid.",
+            ) from exc
+
+        await self._session.refresh(video)
+
+        relation_ids = await self.__load_relation_ids(video.id)
+        renditions = await self.__list_renditions(video.id)
+
+        return self.__to_status(
+            video,
+            renditions=renditions,
+            relation_ids=relation_ids,
+        )
 
     async def list_uploads(
         self,
@@ -741,6 +824,7 @@ class VideoUploadService(VideoUploadMediaMixin):
         progress_rows: list[VideoRenditionProgress] | None = None,
         status_override: str | None = None,
         overall_override: float | None = None,
+        relation_ids: dict[str, list[int]] | None = None,
     ) -> VideoUploadStatusResponse:
         """Map a Video row to the status response schema."""
 
@@ -772,6 +856,7 @@ class VideoUploadService(VideoUploadMediaMixin):
                 renditions=progress_rows,
             )
         )
+        links = relation_ids or {}
 
         return VideoUploadStatusResponse(
             id=video.id,
@@ -781,6 +866,10 @@ class VideoUploadService(VideoUploadMediaMixin):
             source_key=video.source_key,
             source_bytes=video.source_bytes,
             title=video.title,
+            cid=video.cid,
+            jancode=video.jancode,
+            maker_product=video.maker_product,
+            release_date=video.release_date,
             error_code=video.error_code,
             error_message=video.error_message,
             ready_at=video.ready_at,
@@ -788,6 +877,59 @@ class VideoUploadService(VideoUploadMediaMixin):
             updated_at=video.updated_at,
             overall_progress_pct=overall,
             renditions=progress_rows,
+            actress_ids=links.get("actresses", []),
+            maker_ids=links.get("makers", []),
+            genre_ids=links.get("genres", []),
+            series_ids=links.get("series", []),
+            label_ids=links.get("labels", []),
+            director_ids=links.get("directors", []),
+        )
+
+    async def __load_relation_ids(self, video_id: int) -> dict[str, list[int]]:
+        """Load association fk_id lists for each catalog relation type."""
+
+        specs: list[tuple[str, Table]] = [
+            ("actresses", t_video_actress),
+            ("makers", t_video_maker),
+            ("genres", t_video_genre),
+            ("series", t_video_series),
+            ("labels", t_video_label),
+            ("directors", t_video_director),
+        ]
+        result: dict[str, list[int]] = {}
+
+        for key, table in specs:
+            statement = (
+                select(table.c.fk_id)
+                .where(table.c.video_id == video_id)
+                .order_by(table.c.fk_id)
+            )
+            rows = await self._session.execute(statement)
+            result[key] = [int(row[0]) for row in rows.all()]
+
+        return result
+
+    async def __replace_association_ids(
+        self,
+        *,
+        table: Table,
+        video_id: int,
+        fk_ids: list[int],
+    ) -> None:
+        """Replace all association rows for one relation type on a video."""
+
+        unique_ids = sorted({int(fk_id) for fk_id in fk_ids if int(fk_id) > 0})
+
+        await self._session.execute(
+            delete(table).where(table.c.video_id == video_id),
+        )
+
+        if not unique_ids:
+            return
+
+        await self._session.execute(
+            insert(table),
+            [{"video_id": video_id, "fk_id": fk_id} for fk_id in unique_ids],
         )
 
     @staticmethod

@@ -166,8 +166,8 @@ export function DetailsStep({
           <h3 className="text-sm font-medium">Catalog relations</h3>
 
           <p className="text-muted-foreground text-xs">
-            Link actresses, makers, genres, series, labels, and directors. Relation IDs are kept for publish; catalog
-            write APIs are not connected in this skeleton.
+            Link actresses, makers, genres, series, labels, and directors. Selections are saved to the catalog when the
+            upload completes (or when you continue after resuming).
           </p>
         </div>
 

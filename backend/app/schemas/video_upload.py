@@ -116,6 +116,22 @@ class VideoUploadCompleteRequest(BaseModel):
     parts: list[CompletedPart] = Field(min_length=1)
 
 
+class VideoUploadMetadataUpdateRequest(BaseModel):
+    """Patch catalog fields and relation links for an owned upload."""
+
+    title: Optional[str] = Field(default=None, max_length=1024)
+    cid: Optional[str] = Field(default=None, max_length=255)
+    jancode: Optional[str] = Field(default=None, max_length=255)
+    maker_product: Optional[str] = Field(default=None, max_length=255)
+    release_date: Optional[datetime] = None
+    actress_ids: Optional[list[int]] = None
+    maker_ids: Optional[list[int]] = None
+    genre_ids: Optional[list[int]] = None
+    series_ids: Optional[list[int]] = None
+    label_ids: Optional[list[int]] = None
+    director_ids: Optional[list[int]] = None
+
+
 class VideoRenditionProgress(BaseModel):
     """Per-rung HLS encode progress for the process wizard."""
 
@@ -142,6 +158,10 @@ class VideoUploadStatusResponse(BaseModel):
     source_key: Optional[str] = None
     source_bytes: Optional[int] = None
     title: Optional[str] = None
+    cid: Optional[str] = None
+    jancode: Optional[str] = None
+    maker_product: Optional[str] = None
+    release_date: Optional[datetime] = None
     error_code: Optional[str] = None
     error_message: Optional[str] = None
     ready_at: Optional[datetime] = None
@@ -149,6 +169,12 @@ class VideoUploadStatusResponse(BaseModel):
     updated_at: datetime
     overall_progress_pct: float = 0.0
     renditions: list[VideoRenditionProgress] = Field(default_factory=list)
+    actress_ids: list[int] = Field(default_factory=list)
+    maker_ids: list[int] = Field(default_factory=list)
+    genre_ids: list[int] = Field(default_factory=list)
+    series_ids: list[int] = Field(default_factory=list)
+    label_ids: list[int] = Field(default_factory=list)
+    director_ids: list[int] = Field(default_factory=list)
 
 
 class VideoUploadListItem(BaseModel):

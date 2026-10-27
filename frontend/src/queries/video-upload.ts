@@ -37,6 +37,10 @@ export type VideoUploadStatusResponse = {
   source_key: string | null;
   source_bytes: number | null;
   title: string | null;
+  cid: string | null;
+  jancode: string | null;
+  maker_product: string | null;
+  release_date: string | null;
   error_code: string | null;
   error_message: string | null;
   ready_at: string | null;
@@ -44,6 +48,26 @@ export type VideoUploadStatusResponse = {
   updated_at: string;
   overall_progress_pct: number;
   renditions: Array<VideoRenditionProgress>;
+  actress_ids: Array<number>;
+  maker_ids: Array<number>;
+  genre_ids: Array<number>;
+  series_ids: Array<number>;
+  label_ids: Array<number>;
+  director_ids: Array<number>;
+};
+
+export type VideoUploadMetadataUpdateInput = {
+  title?: string;
+  cid?: string | null;
+  jancode?: string | null;
+  maker_product?: string | null;
+  release_date?: string | null;
+  actress_ids?: Array<number>;
+  maker_ids?: Array<number>;
+  genre_ids?: Array<number>;
+  series_ids?: Array<number>;
+  label_ids?: Array<number>;
+  director_ids?: Array<number>;
 };
 
 export type VideoUploadListItem = {
@@ -249,6 +273,16 @@ export async function completeVideoUpload(
 
 export async function getVideoUploadStatus(publicId: string): Promise<VideoUploadStatusResponse> {
   return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}`);
+}
+
+export async function updateVideoUploadMetadata(
+  publicId: string,
+  input: VideoUploadMetadataUpdateInput,
+): Promise<VideoUploadStatusResponse> {
+  return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}/metadata`, {
+    method: "PATCH",
+    data: input,
+  });
 }
 
 export const VIDEO_UPLOADS_LIST_QUERY_KEY = ["video-uploads", "list"] as const;

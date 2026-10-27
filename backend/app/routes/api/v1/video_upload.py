@@ -17,6 +17,7 @@ from app.schemas.video_upload import (
     VideoUploadCreateRequest,
     VideoUploadCreateResponse,
     VideoUploadListResponse,
+    VideoUploadMetadataUpdateRequest,
     VideoUploadPartsRequest,
     VideoUploadPartsResponse,
     VideoUploadStatusResponse,
@@ -125,6 +126,27 @@ async def get_video_upload_status(
     return await service.get_status(
         public_id=public_id,
         uploader_id=current_user.id,
+    )
+
+
+@router.patch(
+    "/videos/uploads/{public_id}/metadata",
+    response_model=VideoUploadStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update catalog metadata and relations for an upload",
+)
+async def update_video_upload_metadata(
+    public_id: UUID,
+    payload: VideoUploadMetadataUpdateRequest,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoUploadStatusResponse:
+    """Persist title, codes, release date, and catalog relation links."""
+
+    return await service.update_metadata(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        payload=payload,
     )
 
 
