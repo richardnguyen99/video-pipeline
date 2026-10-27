@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -17,6 +18,17 @@ from app.storage.client import ObjectStorageClient
 
 _THUMBNAIL_TYPES = frozenset({"large", "list", "small"})
 _SAMPLE_TYPES = frozenset({"sample_l", "sample_s"})
+# DMM-style filename suffixes: large→pl, list→pt, small→ps
+_THUMBNAIL_SUFFIX_BY_TYPE: dict[str, str] = {
+    "large": "pl",
+    "list": "pt",
+    "small": "ps",
+}
+# sample_s → {cid}-{n}.jpg ; sample_l → {cid}jp-{n}.jpg
+_SAMPLE_INFIX_BY_TYPE: dict[str, str] = {
+    "sample_s": "",
+    "sample_l": "jp",
+}
 _IMAGE_CONTENT_TYPES = frozenset(
     {
         "image/jpeg",
@@ -28,6 +40,14 @@ _IMAGE_CONTENT_TYPES = frozenset(
 )
 _MAX_IMAGE_BYTES = 12 * 1024 * 1024
 _MAX_SAMPLE_FILES_PER_REQUEST = 50
+_MAX_SAMPLE_INDEX = 99
+_CID_SAFE_PATTERN = re.compile(r"[^a-z0-9]+")
+_SAMPLE_CATALOG_PATTERN = re.compile(
+    r"^([a-z]*\d+)(jp)?-([1-9]\d*)$",
+)
+_SAMPLE_NEAR_MISS_PATTERN = re.compile(
+    r"^[a-z]*\d+(jp)?-.+$",
+)
 
 
 class VideoUploadMediaMixin:
@@ -80,7 +100,10 @@ class VideoUploadMediaMixin:
         image_type: str,
         upload: UploadFile,
     ) -> VideoMediaResponse:
-        """Store one thumbnail under ``{public_id}/thumbnails/`` on streams."""
+        """Store one thumbnail under ``{public_id}/thumbnails/`` on streams.
+
+        Object basename follows ``{cid}{pl|pt|ps}.jpg`` (catalog convention).
+        """
 
         normalized = image_type.strip().lower()
 
@@ -106,10 +129,22 @@ class VideoUploadMediaMixin:
                 detail="Upload is missing a public identifier.",
             )
 
+        catalog_cid = self.__resolve_catalog_cid(video)
         payload, content_type, extension = await self._read_image_upload(
             upload
         )
-        object_key = f"{resolved_public_id}/thumbnails/{normalized}{extension}"
+        basename = self.__thumbnail_basename(
+            catalog_cid=catalog_cid,
+            image_type=normalized,
+            extension=extension,
+        )
+        self.__assert_optional_filename_matches(
+            upload.filename,
+            video=video,
+            image_type=normalized,
+            kind="thumbnail",
+        )
+        object_key = f"{resolved_public_id}/thumbnails/{basename}"
         url = await self._storage.upload_fileobj(
             object_key=object_key,
             fileobj=BytesIO(payload),
@@ -145,7 +180,11 @@ class VideoUploadMediaMixin:
         image_type: str,
         uploads: list[UploadFile],
     ) -> VideoMediaResponse:
-        """Store sample review images under ``{public_id}/samples/`` on streams."""
+        """Store sample review images under ``{public_id}/samples/`` on streams.
+
+        Object basename follows ``{cid}-{n}.jpg`` (sample_s) or
+        ``{cid}jp-{n}.jpg`` (sample_l).
+        """
 
         normalized = image_type.strip().lower()
 
@@ -186,6 +225,7 @@ class VideoUploadMediaMixin:
                 detail="Upload is missing a public identifier.",
             )
 
+        catalog_cid = self.__resolve_catalog_cid(video)
         existing = await self._session.execute(
             select(VideoSampleImageUrl)
             .where(
@@ -200,10 +240,19 @@ class VideoUploadMediaMixin:
             payload, content_type, extension = await self._read_image_upload(
                 upload
             )
-            object_key = (
-                f"{resolved_public_id}/samples/"
-                f"{normalized}_{next_index:03d}{extension}"
+            basename = self.__sample_basename(
+                catalog_cid=catalog_cid,
+                image_type=normalized,
+                index=next_index,
+                extension=extension,
             )
+            self.__assert_optional_filename_matches(
+                upload.filename,
+                video=video,
+                image_type=normalized,
+                kind="sample",
+            )
+            object_key = f"{resolved_public_id}/samples/{basename}"
             url = await self._storage.upload_fileobj(
                 object_key=object_key,
                 fileobj=BytesIO(payload),
@@ -353,3 +402,202 @@ class VideoUploadMediaMixin:
             extension = ".jpg"
 
         return payload, content_type, extension
+
+    @staticmethod
+    def __resolve_catalog_cid(video: Video) -> str:
+        """Prefer ``video.cid``; fall back to a sanitized ``video_id``."""
+
+        raw = (video.cid or video.video_id or "").strip().lower()
+        cleaned = _CID_SAFE_PATTERN.sub("", raw)
+
+        if not cleaned:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Video is missing a catalog cid. Set cid (or video_id) "
+                    "before uploading thumbnails or sample images."
+                ),
+            )
+
+        return cleaned
+
+    @staticmethod
+    def __thumbnail_basename(
+        *,
+        catalog_cid: str,
+        image_type: str,
+        extension: str,
+    ) -> str:
+        suffix = _THUMBNAIL_SUFFIX_BY_TYPE[image_type]
+
+        return f"{catalog_cid}{suffix}{extension}"
+
+    @staticmethod
+    def __sample_basename(
+        *,
+        catalog_cid: str,
+        image_type: str,
+        index: int,
+        extension: str,
+    ) -> str:
+        infix = _SAMPLE_INFIX_BY_TYPE[image_type]
+
+        return f"{catalog_cid}{infix}-{index}{extension}"
+
+    @staticmethod
+    def __parse_code_token(raw: str) -> tuple[str, int] | None:
+        """Split a product code into ``(letter_prefix, numeric_value)``.
+
+        Separators and letter case are ignored. Leading zeros on the numeric
+        segment do not matter (``xyz004`` and ``xyz00004`` compare equal).
+        Optional trailing letter tails (e.g. ``bod``) are dropped so alias
+        variants still share the same product key.
+        """
+
+        cleaned = _CID_SAFE_PATTERN.sub("", (raw or "").strip().lower())
+
+        if not cleaned:
+            return None
+
+        match = re.match(r"^([a-z]*)(\d+)", cleaned)
+
+        if match is None:
+            return None
+
+        return match.group(1), int(match.group(2))
+
+    @staticmethod
+    def __video_code_keys(video: Video) -> set[tuple[str, int]]:
+        keys: set[tuple[str, int]] = set()
+
+        for raw in (video.cid, video.video_id):
+            parsed = VideoUploadMediaMixin.__parse_code_token(raw or "")
+
+            if parsed is not None:
+                keys.add(parsed)
+
+        return keys
+
+    @staticmethod
+    def __catalog_shape(
+        stem: str,
+        *,
+        kind: str,
+    ) -> tuple[str, str, int | None] | None:
+        """Return catalog parts when ``stem`` matches a known pattern.
+
+        Thumbnails: ``(product_stem, type_marker, None)`` for
+        ``{code}{marker}`` (any trailing letter run).
+
+        Samples: ``(product_stem, type_marker, index)`` for
+        ``{code}-{n}`` / ``{code}jp-{n}`` where ``n`` is a positive integer.
+        """
+
+        lowered = stem.lower()
+
+        if kind == "thumbnail":
+            match = re.match(r"^([a-z]*\d+)([a-z]+)$", lowered)
+
+            if match is None:
+                return None
+
+            return match.group(1), match.group(2), None
+
+        match = _SAMPLE_CATALOG_PATTERN.match(lowered)
+
+        if match is None:
+            return None
+
+        marker = "jp" if match.group(2) else ""
+        index = int(match.group(3))
+
+        return match.group(1), marker, index
+
+    @staticmethod
+    def __assert_optional_filename_matches(
+        filename: str | None,
+        *,
+        video: Video,
+        image_type: str,
+        kind: str,
+    ) -> None:
+        """Loosely validate catalog-shaped upload names against the video code.
+
+        Generic browser names (e.g. ``image.png``, ``DSC_0001.jpg``) are allowed
+        and rewritten to the canonical key.
+
+        Catalog-shaped names must:
+        * share the same letter prefix + numeric value as ``video.cid`` /
+          ``video.video_id`` (zero-padding and separators ignored),
+        * use the type marker that matches the selected image type
+          (``pl``/``pt``/``ps`` or sample ```` / ``jp``), and
+        * for samples, use a positive index not greater than
+          ``_MAX_SAMPLE_INDEX``.
+
+        Near-miss sample names (product code + hyphen + non-numeric junk)
+        are rejected instead of being treated as generic.
+        """
+
+        if filename is None or not filename.strip():
+            return
+
+        stem = PurePosixPath(filename).stem
+        lowered = stem.lower()
+        shape = VideoUploadMediaMixin.__catalog_shape(stem, kind=kind)
+
+        if shape is None:
+
+            if kind == "sample" and _SAMPLE_NEAR_MISS_PATTERN.match(lowered):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Invalid sample filename '{filename}'. "
+                        "Expected '{cid}-{n}.jpg' or '{cid}jp-{n}.jpg' "
+                        "where n is a positive integer."
+                    ),
+                )
+
+            return
+
+        product_stem, type_marker, sample_index = shape
+        file_code = VideoUploadMediaMixin.__parse_code_token(product_stem)
+        video_keys = VideoUploadMediaMixin.__video_code_keys(video)
+
+        if file_code is None or not video_keys:
+            return
+
+        if file_code not in video_keys:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid {kind} filename '{filename}'. "
+                    "Product code does not match this video "
+                    f"(cid={video.cid!r}, video_id={video.video_id!r})."
+                ),
+            )
+
+        if kind == "thumbnail":
+            expected_marker = _THUMBNAIL_SUFFIX_BY_TYPE[image_type]
+        else:
+            expected_marker = _SAMPLE_INFIX_BY_TYPE[image_type]
+
+        if type_marker != expected_marker:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid {kind} filename '{filename}'. "
+                    f"Type marker '{type_marker or '(none)'}' does not match "
+                    f"selected type '{image_type}' "
+                    f"(expected '{expected_marker or '(none)'}')."
+                ),
+            )
+
+        if sample_index is not None and sample_index > _MAX_SAMPLE_INDEX:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"Invalid sample filename '{filename}'. "
+                    f"Sample index {sample_index} exceeds the maximum "
+                    f"allowed ({_MAX_SAMPLE_INDEX})."
+                ),
+            )

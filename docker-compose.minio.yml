@@ -31,7 +31,6 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
     volumes:
       - ${MINIO_DATA_DIR:-minio_data}:/data
-    restart: unless-stopped
 
   minio-init:
     image: minio/mc:latest

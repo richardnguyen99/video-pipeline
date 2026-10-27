@@ -330,13 +330,16 @@ def pending_video(
     public_id: Optional[UUID] = None,
     status: str = "PENDING",
     source_key: str = "pid/source.mp4",
+    cid: Optional[str] = "team00055",
+    video_id: Optional[str] = None,
 ) -> Video:
     pid = public_id or uuid4()
 
     return Video(
         id=42,
-        video_id=f"upl-{pid.hex}",
+        video_id=f"upl-{pid.hex}" if video_id is None else video_id,
         title="clip",
+        cid=cid,
         origin="upload",
         public_id=pid,
         uploader_id=uploader_id,

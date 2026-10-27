@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
-import { ImagePlus, Loader2, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, ImagePlus, Loader2, X } from "lucide-react";
 
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,6 +38,12 @@ type MediaStepProps = {
   publicId: string | null;
 };
 
+type SectionMessage = {
+  tone: "success" | "error";
+  title: string;
+  description: string;
+};
+
 function latestByType(items: Array<VideoMediaImageItem>, type: string): VideoMediaImageItem | null {
   const matches = items.filter((item) => item.type === type);
 
@@ -63,14 +70,73 @@ function filterImageFiles(files: FileList | Array<File> | null): Array<File> {
   return Array.from(files).filter(isImageFile);
 }
 
+function thumbZoneKey(type: ThumbnailImageType): string {
+  return `thumb-${type}`;
+}
+
+function sampleZoneKey(type: SampleImageType): string {
+  return `sample-${type}`;
+}
+
+function SectionAlert({ message, onDismiss }: { message: SectionMessage; onDismiss: () => void }) {
+  const isError = message.tone === "error";
+
+  return (
+    <Alert
+      className={cn(
+        isError
+          ? "border-destructive bg-destructive/10 text-destructive"
+          : "border-success bg-success/10 text-success-foreground",
+      )}
+    >
+      {isError ? <AlertCircle /> : <CheckCircle2 />}
+
+      <AlertTitle>{message.title}</AlertTitle>
+
+      <AlertDescription className={cn(isError ? "text-destructive/90" : "text-success-foreground/90")}>
+        {message.description}
+      </AlertDescription>
+
+      <AlertAction>
+        <button
+          type="button"
+          aria-label="Dismiss alert"
+          className="rounded-md p-1 text-current/70 transition-colors hover:bg-black/5 hover:text-current dark:hover:bg-white/10"
+          onClick={onDismiss}
+        >
+          <X className="size-4" />
+        </button>
+      </AlertAction>
+    </Alert>
+  );
+}
+
 export function MediaStep({ publicId }: MediaStepProps) {
   const [media, setMedia] = useState<VideoMediaResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Partial<Record<string, SectionMessage>>>({});
   const [dragKey, setDragKey] = useState<string | null>(null);
   const thumbInputRefs = useRef<Partial<Record<ThumbnailImageType, HTMLInputElement | null>>>({});
   const sampleInputRefs = useRef<Partial<Record<SampleImageType, HTMLInputElement | null>>>({});
+
+  const setSectionMessage = (key: string, message: SectionMessage | null) => {
+    setMessages((prev) => {
+      if (message == null) {
+        if (prev[key] == null) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[key];
+
+        return next;
+      }
+
+      return { ...prev, [key]: message };
+    });
+  };
 
   useEffect(() => {
     if (publicId == null) {
@@ -81,7 +147,7 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
     const load = async () => {
       setLoading(true);
-      setError(null);
+      setLoadError(null);
 
       try {
         const next = await listVideoUploadMedia(publicId);
@@ -89,9 +155,9 @@ export function MediaStep({ publicId }: MediaStepProps) {
         if (!cancelled) {
           setMedia(next);
         }
-      } catch (loadError) {
+      } catch (error) {
         if (!cancelled) {
-          setError(getApiErrorMessage(loadError));
+          setLoadError(getApiErrorMessage(error));
         }
       } finally {
         if (!cancelled) {
@@ -114,14 +180,25 @@ export function MediaStep({ publicId }: MediaStepProps) {
   }
 
   const uploadThumbnail = async (imageType: ThumbnailImageType, file: File) => {
-    setBusyKey(`thumb-${imageType}`);
-    setError(null);
+    const zoneKey = thumbZoneKey(imageType);
+
+    setBusyKey(zoneKey);
+    setSectionMessage(zoneKey, null);
 
     try {
       const next = await uploadVideoThumbnail(publicId, imageType, file);
       setMedia(next);
-    } catch (uploadError) {
-      setError(getApiErrorMessage(uploadError));
+      setSectionMessage(zoneKey, {
+        tone: "success",
+        title: "Thumbnail saved",
+        description: `${imageType} thumbnail was uploaded successfully.`,
+      });
+    } catch (error) {
+      setSectionMessage(zoneKey, {
+        tone: "error",
+        title: "Thumbnail upload failed",
+        description: getApiErrorMessage(error),
+      });
     } finally {
       setBusyKey(null);
     }
@@ -132,14 +209,28 @@ export function MediaStep({ publicId }: MediaStepProps) {
       return;
     }
 
-    setBusyKey(`sample-${imageType}`);
-    setError(null);
+    const zoneKey = sampleZoneKey(imageType);
+
+    setBusyKey(zoneKey);
+    setSectionMessage(zoneKey, null);
 
     try {
       const next = await uploadVideoSamples(publicId, imageType, files);
       setMedia(next);
-    } catch (uploadError) {
-      setError(getApiErrorMessage(uploadError));
+      setSectionMessage(zoneKey, {
+        tone: "success",
+        title: "Samples saved",
+        description:
+          files.length === 1
+            ? "1 sample image was uploaded successfully."
+            : `${files.length} sample images were uploaded successfully.`,
+      });
+    } catch (error) {
+      setSectionMessage(zoneKey, {
+        tone: "error",
+        title: "Sample upload failed",
+        description: getApiErrorMessage(error),
+      });
     } finally {
       setBusyKey(null);
     }
@@ -163,15 +254,26 @@ export function MediaStep({ publicId }: MediaStepProps) {
     await uploadSamples(imageType, files);
   };
 
-  const onDeleteSample = async (sampleId: number) => {
+  const onDeleteSample = async (imageType: SampleImageType, sampleId: number) => {
+    const zoneKey = sampleZoneKey(imageType);
+
     setBusyKey(`delete-sample-${sampleId}`);
-    setError(null);
+    setSectionMessage(zoneKey, null);
 
     try {
       const next = await deleteVideoSample(publicId, sampleId);
       setMedia(next);
-    } catch (deleteError) {
-      setError(getApiErrorMessage(deleteError));
+      setSectionMessage(zoneKey, {
+        tone: "success",
+        title: "Sample removed",
+        description: "The sample image was deleted.",
+      });
+    } catch (error) {
+      setSectionMessage(zoneKey, {
+        tone: "error",
+        title: "Delete failed",
+        description: getApiErrorMessage(error),
+      });
     } finally {
       setBusyKey(null);
     }
@@ -227,10 +329,27 @@ export function MediaStep({ publicId }: MediaStepProps) {
         </div>
       ) : null}
 
-      {error ? (
-        <p className="text-destructive text-sm" role="alert">
-          {error}
-        </p>
+      {loadError ? (
+        <Alert className="border-destructive bg-destructive/10 text-destructive">
+          <AlertCircle />
+
+          <AlertTitle>Could not load media</AlertTitle>
+
+          <AlertDescription className="text-destructive/90">{loadError}</AlertDescription>
+
+          <AlertAction>
+            <button
+              type="button"
+              aria-label="Dismiss alert"
+              className="rounded-md p-1 text-current/70 transition-colors hover:bg-black/5 hover:text-current dark:hover:bg-white/10"
+              onClick={() => {
+                setLoadError(null);
+              }}
+            >
+              <X className="size-4" />
+            </button>
+          </AlertAction>
+        </Alert>
       ) : null}
 
       <section className="flex flex-col gap-3">
@@ -239,9 +358,10 @@ export function MediaStep({ publicId }: MediaStepProps) {
         <div className="grid gap-3 sm:grid-cols-3">
           {THUMBNAIL_TYPES.map((entry) => {
             const current = latestByType(media?.thumbnails ?? [], entry.type);
-            const zoneKey = `thumb-${entry.type}`;
+            const zoneKey = thumbZoneKey(entry.type);
             const busy = busyKey === zoneKey;
             const dragging = dragKey === zoneKey;
+            const message = messages[zoneKey];
 
             return (
               <div key={entry.type} className="flex flex-col gap-2">
@@ -250,6 +370,15 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
                   <span className="text-muted-foreground text-xs">{entry.hint}</span>
                 </div>
+
+                {message ? (
+                  <SectionAlert
+                    message={message}
+                    onDismiss={() => {
+                      setSectionMessage(zoneKey, null);
+                    }}
+                  />
+                ) : null}
 
                 <div
                   role="button"
@@ -336,9 +465,10 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
         {SAMPLE_TYPES.map((entry) => {
           const items = (media?.samples ?? []).filter((item) => item.type === entry.type);
-          const zoneKey = `sample-${entry.type}`;
+          const zoneKey = sampleZoneKey(entry.type);
           const busy = busyKey === zoneKey;
           const dragging = dragKey === zoneKey;
+          const message = messages[zoneKey];
 
           return (
             <div key={entry.type} className="flex flex-col gap-3 rounded-lg border p-3">
@@ -347,6 +477,15 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
                 <span className="text-muted-foreground text-xs">{entry.hint}</span>
               </div>
+
+              {message ? (
+                <SectionAlert
+                  message={message}
+                  onDismiss={() => {
+                    setSectionMessage(zoneKey, null);
+                  }}
+                />
+              ) : null}
 
               <div
                 role="button"
@@ -427,7 +566,7 @@ export function MediaStep({ publicId }: MediaStepProps) {
                             aria-label={`Remove sample image ${item.id}`}
                             onClick={(event) => {
                               event.stopPropagation();
-                              void onDeleteSample(item.id);
+                              void onDeleteSample(entry.type, item.id);
                             }}
                           >
                             {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
