@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
-import type { ChangeEvent } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
 import { ImagePlus, Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { getApiErrorMessage } from "@/libs/auth";
 import { cn } from "@/libs/utils";
 import {
@@ -18,6 +19,8 @@ import type {
   VideoMediaImageItem,
   VideoMediaResponse,
 } from "@/queries/video-upload";
+
+const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
 
 const THUMBNAIL_TYPES: Array<{ type: ThumbnailImageType; label: string; hint: string }> = [
   { type: "large", label: "Large", hint: "Primary cover (pl)" },
@@ -44,11 +47,30 @@ function latestByType(items: Array<VideoMediaImageItem>, type: string): VideoMed
   return matches[matches.length - 1] ?? null;
 }
 
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith("image/")) {
+    return true;
+  }
+
+  return /\.(jpe?g|png|webp|gif)$/i.test(file.name);
+}
+
+function filterImageFiles(files: FileList | Array<File> | null): Array<File> {
+  if (files == null) {
+    return [];
+  }
+
+  return Array.from(files).filter(isImageFile);
+}
+
 export function MediaStep({ publicId }: MediaStepProps) {
   const [media, setMedia] = useState<VideoMediaResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const thumbInputRefs = useRef<Partial<Record<ThumbnailImageType, HTMLInputElement | null>>>({});
+  const sampleInputRefs = useRef<Partial<Record<SampleImageType, HTMLInputElement | null>>>({});
 
   useEffect(() => {
     if (publicId == null) {
@@ -91,14 +113,7 @@ export function MediaStep({ publicId }: MediaStepProps) {
     );
   }
 
-  const onThumbnailChange = async (imageType: ThumbnailImageType, event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-
-    if (file == null) {
-      return;
-    }
-
+  const uploadThumbnail = async (imageType: ThumbnailImageType, file: File) => {
     setBusyKey(`thumb-${imageType}`);
     setError(null);
 
@@ -112,11 +127,8 @@ export function MediaStep({ publicId }: MediaStepProps) {
     }
   };
 
-  const onSamplesChange = async (imageType: SampleImageType, event: ChangeEvent<HTMLInputElement>) => {
-    const list = event.target.files;
-    event.target.value = "";
-
-    if (list == null || list.length === 0) {
+  const uploadSamples = async (imageType: SampleImageType, files: Array<File>) => {
+    if (files.length === 0) {
       return;
     }
 
@@ -124,13 +136,31 @@ export function MediaStep({ publicId }: MediaStepProps) {
     setError(null);
 
     try {
-      const next = await uploadVideoSamples(publicId, imageType, Array.from(list));
+      const next = await uploadVideoSamples(publicId, imageType, files);
       setMedia(next);
     } catch (uploadError) {
       setError(getApiErrorMessage(uploadError));
     } finally {
       setBusyKey(null);
     }
+  };
+
+  const onThumbnailChange = async (imageType: ThumbnailImageType, event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (file == null || !isImageFile(file)) {
+      return;
+    }
+
+    await uploadThumbnail(imageType, file);
+  };
+
+  const onSamplesChange = async (imageType: SampleImageType, event: ChangeEvent<HTMLInputElement>) => {
+    const files = filterImageFiles(event.target.files);
+    event.target.value = "";
+
+    await uploadSamples(imageType, files);
   };
 
   const onDeleteSample = async (sampleId: number) => {
@@ -147,15 +177,46 @@ export function MediaStep({ publicId }: MediaStepProps) {
     }
   };
 
+  const onThumbDrop = (imageType: ThumbnailImageType, event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragKey(null);
+
+    if (busyKey != null) {
+      return;
+    }
+
+    const file = filterImageFiles(event.dataTransfer.files)[0];
+    void uploadThumbnail(imageType, file);
+  };
+
+  const onSampleDrop = (imageType: SampleImageType, event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragKey(null);
+
+    if (busyKey != null) {
+      return;
+    }
+
+    void uploadSamples(imageType, filterImageFiles(event.dataTransfer.files));
+  };
+
+  const onDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>, open: () => void) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      open();
+    }
+  };
+
   return (
     <div className="flex w-full flex-col gap-6 py-2">
       <div className="flex flex-col gap-1">
         <h3 className="text-base font-medium">Thumbnails and sample images</h3>
 
         <p className="text-muted-foreground text-sm">
-          Optional. Files are stored under the video&apos;s object prefix (
-          <span className="font-mono text-xs">thumbnails/</span>, <span className="font-mono text-xs">samples/</span>)
-          and linked in the catalog tables. You can skip this step and continue.
+          Optional. Drag and drop images onto a zone, or click to browse. Files are stored under the video&apos;s object
+          prefix (<span className="font-mono text-xs">thumbnails/</span>,{" "}
+          <span className="font-mono text-xs">samples/</span>) and linked in the catalog tables. You can skip this step
+          and continue.
         </p>
       </div>
 
@@ -178,49 +239,92 @@ export function MediaStep({ publicId }: MediaStepProps) {
         <div className="grid gap-3 sm:grid-cols-3">
           {THUMBNAIL_TYPES.map((entry) => {
             const current = latestByType(media?.thumbnails ?? [], entry.type);
-            const inputId = `thumb-${entry.type}`;
-            const busy = busyKey === `thumb-${entry.type}`;
+            const zoneKey = `thumb-${entry.type}`;
+            const busy = busyKey === zoneKey;
+            const dragging = dragKey === zoneKey;
 
             return (
-              <div key={entry.type} className="flex flex-col gap-2 rounded-lg border p-3">
+              <div key={entry.type} className="flex flex-col gap-2">
                 <div className="flex flex-col gap-0.5">
-                  <Label htmlFor={inputId}>{entry.label}</Label>
+                  <Label>{entry.label}</Label>
 
                   <span className="text-muted-foreground text-xs">{entry.hint}</span>
                 </div>
 
-                {current ? (
-                  <img
-                    src={current.url}
-                    alt={`${entry.label} thumbnail`}
-                    className="aspect-video w-full rounded-md object-cover"
-                  />
-                ) : (
-                  <div className="bg-muted text-muted-foreground flex aspect-video items-center justify-center rounded-md">
-                    <ImagePlus className="size-5" />
-                  </div>
-                )}
-
-                <label
-                  htmlFor={inputId}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${current ? "Replace" : "Upload"} ${entry.label} thumbnail`}
                   className={cn(
-                    "border-input bg-background hover:bg-accent inline-flex h-8 cursor-pointer items-center justify-center rounded-md border px-3 text-xs font-medium",
-                    busy && "pointer-events-none opacity-50",
+                    "relative flex cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border border-dashed transition-colors",
+                    dragging
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-primary/50 hover:bg-muted/30",
+                    busy && "pointer-events-none opacity-60",
                   )}
-                >
-                  {busy ? "Uploading…" : current ? "Replace" : "Upload"}
-                </label>
-
-                <input
-                  id={inputId}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
-                  className="hidden"
-                  disabled={busy}
-                  onChange={(event) => {
-                    void onThumbnailChange(entry.type, event);
+                  onDragEnter={(event) => {
+                    event.preventDefault();
+                    setDragKey(zoneKey);
                   }}
-                />
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                  }}
+                  onDragLeave={() => {
+                    setDragKey((prev) => (prev === zoneKey ? null : prev));
+                  }}
+                  onDrop={(event) => {
+                    onThumbDrop(entry.type, event);
+                  }}
+                  onClick={() => {
+                    thumbInputRefs.current[entry.type]?.click();
+                  }}
+                  onKeyDown={(event) => {
+                    onDropzoneKeyDown(event, () => {
+                      thumbInputRefs.current[entry.type]?.click();
+                    });
+                  }}
+                >
+                  {current ? (
+                    <img
+                      src={current.url}
+                      alt={`${entry.label} thumbnail`}
+                      className="aspect-video w-full object-cover"
+                    />
+                  ) : (
+                    <div className="text-muted-foreground flex aspect-video w-full flex-col items-center justify-center gap-2 px-3 py-6">
+                      {busy ? <Loader2 className="size-5 animate-spin" /> : <ImagePlus className="size-5" />}
+
+                      <span className="text-center text-xs">
+                        {busy ? "Uploading…" : dragging ? "Drop image here" : "Drop or click to upload"}
+                      </span>
+                    </div>
+                  )}
+
+                  {current && busy ? (
+                    <div className="bg-background/70 absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="size-5 animate-spin" />
+                    </div>
+                  ) : null}
+
+                  {current && !busy ? (
+                    <div className="bg-background/80 text-muted-foreground absolute inset-x-0 bottom-0 px-2 py-1 text-center text-[11px]">
+                      {dragging ? "Drop to replace" : "Drop or click to replace"}
+                    </div>
+                  ) : null}
+
+                  <input
+                    ref={(node) => {
+                      thumbInputRefs.current[entry.type] = node;
+                    }}
+                    type="file"
+                    accept={IMAGE_ACCEPT}
+                    className="hidden"
+                    disabled={busy}
+                    onChange={(event) => {
+                      void onThumbnailChange(entry.type, event);
+                    }}
+                  />
+                </div>
               </div>
             );
           })}
@@ -232,32 +336,65 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
         {SAMPLE_TYPES.map((entry) => {
           const items = (media?.samples ?? []).filter((item) => item.type === entry.type);
-          const inputId = `sample-${entry.type}`;
-          const busy = busyKey === `sample-${entry.type}`;
+          const zoneKey = `sample-${entry.type}`;
+          const busy = busyKey === zoneKey;
+          const dragging = dragKey === zoneKey;
 
           return (
             <div key={entry.type} className="flex flex-col gap-3 rounded-lg border p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-col gap-0.5">
-                  <Label htmlFor={inputId}>{entry.label}</Label>
+              <div className="flex flex-col gap-0.5">
+                <Label>{entry.label}</Label>
 
-                  <span className="text-muted-foreground text-xs">{entry.hint}</span>
-                </div>
+                <span className="text-muted-foreground text-xs">{entry.hint}</span>
+              </div>
 
-                <label
-                  htmlFor={inputId}
-                  className={cn(
-                    "border-input bg-background hover:bg-accent inline-flex h-8 cursor-pointer items-center justify-center rounded-md border px-3 text-xs font-medium",
-                    busy && "pointer-events-none opacity-50",
-                  )}
-                >
-                  {busy ? "Uploading…" : "Add images"}
-                </label>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label={`Add ${entry.label} images`}
+                className={cn(
+                  "flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-5 transition-colors",
+                  dragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30",
+                  busy && "pointer-events-none opacity-60",
+                )}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setDragKey(zoneKey);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                }}
+                onDragLeave={() => {
+                  setDragKey((prev) => (prev === zoneKey ? null : prev));
+                }}
+                onDrop={(event) => {
+                  onSampleDrop(entry.type, event);
+                }}
+                onClick={() => {
+                  sampleInputRefs.current[entry.type]?.click();
+                }}
+                onKeyDown={(event) => {
+                  onDropzoneKeyDown(event, () => {
+                    sampleInputRefs.current[entry.type]?.click();
+                  });
+                }}
+              >
+                {busy ? (
+                  <Loader2 className="text-muted-foreground size-5 animate-spin" />
+                ) : (
+                  <ImagePlus className="text-muted-foreground size-5" />
+                )}
+
+                <span className="text-muted-foreground text-center text-xs">
+                  {busy ? "Uploading…" : dragging ? "Drop images here" : "Drop images here, or click to browse"}
+                </span>
 
                 <input
-                  id={inputId}
+                  ref={(node) => {
+                    sampleInputRefs.current[entry.type] = node;
+                  }}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  accept={IMAGE_ACCEPT}
                   multiple
                   className="hidden"
                   disabled={busy}
@@ -268,35 +405,38 @@ export function MediaStep({ publicId }: MediaStepProps) {
               </div>
 
               {items.length > 0 ? (
-                <div className="flex flex-wrap items-start gap-2">
-                  {items.map((item) => {
-                    const deleting = busyKey === `delete-sample-${item.id}`;
+                <ScrollArea className="h-52 w-full rounded-md border">
+                  <div className="flex flex-wrap items-start gap-2 p-2">
+                    {items.map((item) => {
+                      const deleting = busyKey === `delete-sample-${item.id}`;
 
-                    return (
-                      <div key={item.id} className="relative inline-flex">
-                        <img
-                          src={item.url}
-                          alt={`${entry.label} ${item.id}`}
-                          className="bg-muted h-36 w-auto max-w-full rounded-md object-contain sm:h-44"
-                        />
+                      return (
+                        <div key={item.id} className="relative inline-flex">
+                          <img
+                            src={item.url}
+                            alt={`${entry.label} ${item.id}`}
+                            className="bg-muted h-36 w-auto max-w-full rounded-md object-contain sm:h-40"
+                          />
 
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon-sm"
-                          className="absolute top-1 right-1 size-7 shadow-sm"
-                          disabled={deleting || busyKey != null}
-                          aria-label={`Remove sample image ${item.id}`}
-                          onClick={() => {
-                            void onDeleteSample(item.id);
-                          }}
-                        >
-                          {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon-sm"
+                            className="absolute top-1 right-1 size-7 shadow-sm"
+                            disabled={deleting || busyKey != null}
+                            aria-label={`Remove sample image ${item.id}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              void onDeleteSample(item.id);
+                            }}
+                          >
+                            {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
               ) : (
                 <p className="text-muted-foreground text-xs">No images yet.</p>
               )}
