@@ -435,8 +435,16 @@ class VideoUploadService(VideoUploadMediaMixin):
         )
         result = await self._session.execute(statement)
         rows = list(result.scalars().all())
-
-        items = [self.__to_list_item(row) for row in rows]
+        renditions_by_video = await self.__list_renditions_for_videos(
+            [row.id for row in rows],
+        )
+        items = [
+            await self.__to_list_item_async(
+                row,
+                renditions=renditions_by_video.get(row.id, []),
+            )
+            for row in rows
+        ]
 
         return VideoUploadListResponse(items=items, total=total)
 
@@ -639,6 +647,92 @@ class VideoUploadService(VideoUploadMediaMixin):
 
         return list(result.scalars().all())
 
+    async def __list_renditions_for_videos(
+        self,
+        video_ids: list[int],
+    ) -> dict[int, list[VideoRendition]]:
+        """Batch-load ladder rows for many videos, keyed by video id."""
+
+        if not video_ids:
+            return {}
+
+        result = await self._session.execute(
+            select(VideoRendition)
+            .where(col(VideoRendition.video_id).in_(video_ids))
+            .order_by(col(VideoRendition.height).asc()),
+        )
+        grouped: dict[int, list[VideoRendition]] = {}
+
+        for row in result.scalars().all():
+            grouped.setdefault(row.video_id, []).append(row)
+
+        return grouped
+
+    @staticmethod
+    def __progress_rows_from_renditions(
+        renditions: list[VideoRendition],
+    ) -> list[VideoRenditionProgress]:
+        """Map ORM ladder rows to progress DTOs."""
+
+        return [
+            VideoRenditionProgress(
+                label=row.label,
+                width=row.width,
+                height=row.height,
+                video_kbps=row.video_kbps,
+                status=row.status,
+                progress_pct=row.progress_pct,
+                attempt=row.attempt,
+                segment_count=row.segment_count,
+                playlist_key=row.playlist_key,
+            )
+            for row in renditions
+        ]
+
+    async def __to_list_item_async(
+        self,
+        video: Video,
+        *,
+        renditions: list[VideoRendition],
+    ) -> VideoUploadListItem:
+        """Build a list item using durable ladder rows and optional Redis live state."""
+
+        progress_rows = self.__progress_rows_from_renditions(renditions)
+        status_value = video.status or _STATUS_PENDING
+        overall_override: float | None = None
+
+        if video.public_id is not None and status_value.upper() not in {
+            _STATUS_READY,
+            _STATUS_FAILED,
+            _STATUS_PENDING,
+        }:
+            live = await get_progress_snapshot(video.public_id)
+
+            if live is not None and live.rungs:
+                progress_rows = [
+                    VideoRenditionProgress(
+                        label=rung.label,
+                        width=rung.width,
+                        height=rung.height,
+                        video_kbps=rung.video_kbps,
+                        status=rung.status,
+                        progress_pct=rung.progress_pct,
+                        attempt=0,
+                        segment_count=rung.segment_count,
+                        playlist_key=rung.playlist_key,
+                    )
+                    for rung in live.rungs
+                ]
+                status_value = live.status or status_value
+                overall_override = live.overall_pct
+
+        return self.__to_list_item(
+            video,
+            progress_rows=progress_rows,
+            status_override=status_value,
+            overall_override=overall_override,
+        )
+
     @staticmethod
     def __to_status(
         video: Video,
@@ -697,16 +791,59 @@ class VideoUploadService(VideoUploadMediaMixin):
         )
 
     @staticmethod
-    def __to_list_item(video: Video) -> VideoUploadListItem:
+    def __derive_list_status(
+        *,
+        status: str,
+        progress_rows: list[VideoRenditionProgress],
+    ) -> str:
+        """READY only when every ladder rung is READY; otherwise keep processing."""
+
+        normalized = status.upper()
+
+        if normalized == _STATUS_FAILED:
+            return _STATUS_FAILED
+
+        if not progress_rows:
+            return status
+
+        if all(row.status.upper() == _STATUS_READY for row in progress_rows):
+            return _STATUS_READY
+
+        if any(
+            row.status.upper() in {_STATUS_READY, "ENCODING", "QUEUED"}
+            for row in progress_rows
+        ):
+            return "ENCODING"
+
+        return status
+
+    @staticmethod
+    def __to_list_item(
+        video: Video,
+        *,
+        progress_rows: list[VideoRenditionProgress] | None = None,
+        status_override: str | None = None,
+        overall_override: float | None = None,
+    ) -> VideoUploadListItem:
         """Map a Video row to a compact list item for the studio UI."""
 
         assert video.public_id is not None
 
-        status_value = video.status or _STATUS_PENDING
-        overall = VideoUploadService.__overall_progress(
-            status=status_value,
-            renditions=[],
+        rows = progress_rows or []
+        raw_status = status_override or video.status or _STATUS_PENDING
+        status_value = VideoUploadService.__derive_list_status(
+            status=raw_status,
+            progress_rows=rows,
         )
+        overall = (
+            overall_override
+            if overall_override is not None
+            else VideoUploadService.__overall_progress(
+                status=status_value,
+                renditions=rows,
+            )
+        )
+        stream_ready = any(row.status.upper() == _STATUS_READY for row in rows)
 
         return VideoUploadListItem(
             id=video.id,
@@ -720,6 +857,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             error_message=video.error_message,
             overall_progress_pct=overall,
             resumable=status_value.upper() in _RESUMABLE_STATUSES,
+            stream_ready=stream_ready,
             created_at=video.created_at,
             updated_at=video.updated_at,
         )

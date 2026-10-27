@@ -48,13 +48,18 @@ class ResultSpy:
 
 
 class ListSessionSpy:
-    """Session double that returns count then a list of upload rows."""
+    """Session double that returns count, upload rows, then rendition rows."""
 
     def __init__(
-        self, *, rows: list[Video], total: Optional[int] = None
+        self,
+        *,
+        rows: list[Video],
+        total: Optional[int] = None,
+        renditions: Optional[list[Any]] = None,
     ) -> None:
         self._rows = list(rows)
         self._total = total if total is not None else len(self._rows)
+        self._renditions = list(renditions or [])
         self._calls = 0
 
     async def execute(self, _statement: Any) -> ResultSpy:
@@ -63,7 +68,10 @@ class ListSessionSpy:
         if self._calls == 1:
             return ResultSpy(scalar_value=self._total)
 
-        return ResultSpy(rows=self._rows)
+        if self._calls == 2:
+            return ResultSpy(rows=self._rows)
+
+        return ResultSpy(rows=self._renditions)
 
 
 class SessionSpy:

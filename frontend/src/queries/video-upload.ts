@@ -58,6 +58,7 @@ export type VideoUploadListItem = {
   error_message: string | null;
   overall_progress_pct: number;
   resumable: boolean;
+  stream_ready: boolean;
   created_at: string;
   updated_at: string;
 };

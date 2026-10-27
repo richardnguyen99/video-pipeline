@@ -167,6 +167,7 @@ class VideoUploadListItem(BaseModel):
     error_message: Optional[str] = None
     overall_progress_pct: float = 0.0
     resumable: bool = False
+    stream_ready: bool = False
     created_at: datetime
     updated_at: datetime
 

@@ -469,6 +469,14 @@ async def _run_locked_pipeline(
 
         return
 
+    if video.ready_at is None:
+        video.ready_at = _utcnow()
+
+    video.status = _STATUS_READY
+    video.error_code = None
+    video.error_message = None
+    await session.commit()
+    await session.refresh(video)
     await _set_progress(
         public_id,
         status=_STATUS_READY,
@@ -861,11 +869,11 @@ async def _publish_playable(
     public_id: uuid.UUID,
     ready_specs: list[ReadySpec],
 ) -> str:
-    """Write master playlist, ensure video_m3u8 row, mark video READY."""
+    """Write master playlist for currently ready rungs.
 
-    video.status = _STATUS_PACKAGING
-    await session.commit()
-    await session.refresh(video)
+    Does not mark the video READY — that happens only after the full ladder
+    finishes so list/status UIs do not show Done while higher rungs encode.
+    """
 
     master_url = await _package_master(
         storage=storage,
@@ -879,17 +887,16 @@ async def _publish_playable(
         master_url=master_url,
     )
 
-    if video.ready_at is None:
-        video.ready_at = _utcnow()
+    if video.status != _STATUS_ENCODING:
+        video.status = _STATUS_ENCODING
 
-    video.status = _STATUS_READY
     video.error_code = None
     video.error_message = None
     await session.commit()
     await session.refresh(video)
     await _set_progress(
         public_id,
-        status=_STATUS_READY,
+        status=_STATUS_ENCODING,
         overall_pct=min(95.0, 20.0 + 15.0 * len(ready_specs)),
         message=f"playable ({len(ready_specs)} rung(s))",
     )

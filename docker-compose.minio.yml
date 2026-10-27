@@ -94,8 +94,8 @@ services:
         mc mb --ignore-existing local/actress-avatar
         mc anonymous set download local/actress-avatar
         echo "Bucket actress-avatar is ready"
-        mc mb --ignore-existing local/actress-banners
-        mc anonymous set download local/actress-banners
+        mc mb --ignore-existing local/actress-banner
+        mc anonymous set download local/actress-banner
         echo "Bucket actress-banners is ready"
     restart: "no"
 

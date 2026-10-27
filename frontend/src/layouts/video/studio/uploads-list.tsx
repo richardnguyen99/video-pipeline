@@ -234,8 +234,21 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
     cell: ({ row }) => {
       const item = row.original;
 
-      if (!item.resumable) {
-        return <span className="text-muted-foreground text-xs">—</span>;
+      if (!item.stream_ready) {
+        return (
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Stream not ready"
+              disabled
+              className="opacity-40"
+            >
+              <ExternalLink className="size-4" />
+            </Button>
+          </div>
+        );
       }
 
       return (
@@ -244,9 +257,9 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
             type="button"
             size="icon-sm"
             variant="ghost"
-            aria-label={`Resume ${displayTitle(item)}`}
+            aria-label={`Open ${displayTitle(item)}`}
             nativeButton={false}
-            render={<Link to="/studio/upload" search={{ publicId: item.public_id }} />}
+            render={<Link to="/videos/$id" params={{ id: String(item.id) }} target="_blank" rel="noreferrer" />}
             onClick={(event) => {
               event.stopPropagation();
             }}
@@ -259,12 +272,23 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
   },
 ];
 
+const PROCESSING_STATUSES = new Set(["UPLOADED", "PROBING", "QUEUED", "ENCODING", "PACKAGING"]);
+
+function hasActiveProcessing(items: Array<VideoUploadListItem>): boolean {
+  return items.some((item) => PROCESSING_STATUSES.has(item.status.toUpperCase()));
+}
+
 export function UploadsList() {
   const navigate = useNavigate();
   const query = useQuery({
     queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY,
     queryFn: () => listVideoUploads({ limit: 100, offset: 0 }),
-    staleTime: 15_000,
+    staleTime: 5_000,
+    refetchInterval: (current) => {
+      const items = current.state.data?.items ?? [];
+
+      return hasActiveProcessing(items) ? 2_000 : false;
+    },
   });
 
   const data = useMemo(() => query.data?.items ?? [], [query.data?.items]);
