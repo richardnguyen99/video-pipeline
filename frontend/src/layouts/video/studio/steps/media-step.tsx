@@ -10,6 +10,7 @@ import { getApiErrorMessage } from "@/libs/auth";
 import { cn } from "@/libs/utils";
 import {
   deleteVideoSample,
+  deleteVideoThumbnail,
   listVideoUploadMedia,
   uploadVideoSamples,
   uploadVideoThumbnail,
@@ -69,6 +70,8 @@ function filterImageFiles(files: FileList | Array<File> | null): Array<File> {
 
   return Array.from(files).filter(isImageFile);
 }
+
+const THUMBNAIL_MESSAGE_KEY = "thumbnails";
 
 function thumbZoneKey(type: ThumbnailImageType): string {
   return `thumb-${type}`;
@@ -183,18 +186,18 @@ export function MediaStep({ publicId }: MediaStepProps) {
     const zoneKey = thumbZoneKey(imageType);
 
     setBusyKey(zoneKey);
-    setSectionMessage(zoneKey, null);
+    setSectionMessage(THUMBNAIL_MESSAGE_KEY, null);
 
     try {
       const next = await uploadVideoThumbnail(publicId, imageType, file);
       setMedia(next);
-      setSectionMessage(zoneKey, {
+      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
         tone: "success",
         title: "Thumbnail saved",
         description: `${imageType} thumbnail was uploaded successfully.`,
       });
     } catch (error) {
-      setSectionMessage(zoneKey, {
+      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
         tone: "error",
         title: "Thumbnail upload failed",
         description: getApiErrorMessage(error),
@@ -254,6 +257,31 @@ export function MediaStep({ publicId }: MediaStepProps) {
     await uploadSamples(imageType, files);
   };
 
+  const onDeleteThumbnail = async (imageType: ThumbnailImageType) => {
+    const zoneKey = thumbZoneKey(imageType);
+
+    setBusyKey(`delete-${zoneKey}`);
+    setSectionMessage(THUMBNAIL_MESSAGE_KEY, null);
+
+    try {
+      const next = await deleteVideoThumbnail(publicId, imageType);
+      setMedia(next);
+      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
+        tone: "success",
+        title: "Thumbnail removed",
+        description: `${imageType} thumbnail was deleted.`,
+      });
+    } catch (error) {
+      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
+        tone: "error",
+        title: "Delete failed",
+        description: getApiErrorMessage(error),
+      });
+    } finally {
+      setBusyKey(null);
+    }
+  };
+
   const onDeleteSample = async (imageType: SampleImageType, sampleId: number) => {
     const zoneKey = sampleZoneKey(imageType);
 
@@ -309,6 +337,8 @@ export function MediaStep({ publicId }: MediaStepProps) {
     }
   };
 
+  const thumbnailMessage = messages[THUMBNAIL_MESSAGE_KEY];
+
   return (
     <div className="flex w-full flex-col gap-6 py-2">
       <div className="flex flex-col gap-1">
@@ -355,13 +385,23 @@ export function MediaStep({ publicId }: MediaStepProps) {
       <section className="flex flex-col gap-3">
         <h4 className="text-sm font-medium">Catalog thumbnails</h4>
 
+        {thumbnailMessage != null ? (
+          <SectionAlert
+            message={thumbnailMessage}
+            onDismiss={() => {
+              setSectionMessage(THUMBNAIL_MESSAGE_KEY, null);
+            }}
+          />
+        ) : null}
+
         <div className="grid gap-3 sm:grid-cols-3">
           {THUMBNAIL_TYPES.map((entry) => {
             const current = latestByType(media?.thumbnails ?? [], entry.type);
             const zoneKey = thumbZoneKey(entry.type);
-            const busy = busyKey === zoneKey;
+            const deleteKey = `delete-${zoneKey}`;
+            const busy = busyKey === zoneKey || busyKey === deleteKey;
+            const deleting = busyKey === deleteKey;
             const dragging = dragKey === zoneKey;
-            const message = messages[zoneKey];
 
             return (
               <div key={entry.type} className="flex flex-col gap-2">
@@ -370,15 +410,6 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
                   <span className="text-muted-foreground text-xs">{entry.hint}</span>
                 </div>
-
-                {message ? (
-                  <SectionAlert
-                    message={message}
-                    onDismiss={() => {
-                      setSectionMessage(zoneKey, null);
-                    }}
-                  />
-                ) : null}
 
                 <div
                   role="button"
@@ -439,6 +470,23 @@ export function MediaStep({ publicId }: MediaStepProps) {
                     <div className="bg-background/80 text-muted-foreground absolute inset-x-0 bottom-0 px-2 py-1 text-center text-[11px]">
                       {dragging ? "Drop to replace" : "Drop or click to replace"}
                     </div>
+                  ) : null}
+
+                  {current ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="icon-sm"
+                      className="absolute top-1 right-1 z-10 size-7 shadow-sm pointer-events-auto"
+                      disabled={busyKey != null}
+                      aria-label={`Remove ${entry.label} thumbnail`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void onDeleteThumbnail(entry.type);
+                      }}
+                    >
+                      {deleting ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+                    </Button>
                   ) : null}
 
                   <input

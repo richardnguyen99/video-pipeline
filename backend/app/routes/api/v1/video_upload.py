@@ -239,6 +239,27 @@ async def upload_video_thumbnail(
     )
 
 
+@router.delete(
+    "/videos/uploads/{public_id}/media/thumbnails/{image_type}",
+    response_model=VideoMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete a catalog thumbnail by type (large / list / small)",
+)
+async def delete_video_thumbnail(
+    public_id: UUID,
+    image_type: str,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoMediaResponse:
+    """Remove a catalog thumbnail from object storage and the catalog table."""
+
+    return await service.delete_thumbnail(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        image_type=image_type,
+    )
+
+
 @router.post(
     "/videos/uploads/{public_id}/media/samples",
     response_model=VideoMediaResponse,

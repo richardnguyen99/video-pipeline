@@ -282,6 +282,15 @@ export async function uploadVideoThumbnail(
   });
 }
 
+export async function deleteVideoThumbnail(
+  publicId: string,
+  imageType: ThumbnailImageType,
+): Promise<VideoMediaResponse> {
+  return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media/thumbnails/${imageType}`, {
+    method: "DELETE",
+  });
+}
+
 export async function uploadVideoSamples(
   publicId: string,
   imageType: SampleImageType,

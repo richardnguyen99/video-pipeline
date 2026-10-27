@@ -182,6 +182,8 @@ class MediaSessionSpy:
 
         if "video_image_url" in text:
             if "delete" in text:
+                self.thumbs = []
+
                 return ResultSpy()
 
             return ResultSpy(rows=self.thumbs)

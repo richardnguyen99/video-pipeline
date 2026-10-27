@@ -244,6 +244,76 @@ async def test_upload_samples_rejects_invalid_type() -> None:
 
 
 @pytest.mark.asyncio
+async def test_delete_thumbnail_removes_object_and_row() -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(
+        uploader_id=uploader_id,
+        public_id=public_id,
+        status="UPLOADED",
+    )
+    thumb = VideoImageUrl(
+        id=55,
+        fk_id=video.id,
+        url=f"http://localhost:9000/streams/{public_id}/thumbnails/team00055pt.jpg",
+        type="list",
+    )
+    session = MediaSessionSpy(video=video, thumbs=[thumb])
+    storage = StorageSpy()
+    service = make_service(session, storage)
+
+    result = await service.delete_thumbnail(
+        public_id=public_id,
+        uploader_id=uploader_id,
+        image_type="list",
+    )
+
+    assert session.committed >= 1
+    assert storage.delete_object_calls == [
+        {
+            "object_key": f"{public_id}/thumbnails/team00055pt.jpg",
+            "bucket": "streams",
+        },
+    ]
+    assert result.thumbnails == []
+
+
+@pytest.mark.asyncio
+async def test_delete_thumbnail_raises_not_found() -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    session = MediaSessionSpy(video=video, thumbs=[])
+    service = make_service(session, StorageSpy())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.delete_thumbnail(
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type="list",
+        )
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_thumbnail_rejects_invalid_type() -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    service = make_service(MediaSessionSpy(video=video), StorageSpy())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.delete_thumbnail(
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type="cover",
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_delete_sample_removes_object_and_row() -> None:
     uploader_id = uuid4()
     public_id = uuid4()

@@ -275,6 +275,75 @@ class VideoUploadMediaMixin:
             public_id=resolved_public_id,
         )
 
+    async def delete_thumbnail(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        image_type: str,
+    ) -> VideoMediaResponse:
+        """Remove catalog thumbnail(s) of one type from storage and DB."""
+
+        normalized = image_type.strip().lower()
+
+        if normalized not in _THUMBNAIL_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Invalid thumbnail type. Expected one of: "
+                    f"{sorted(_THUMBNAIL_TYPES)}"
+                ),
+            )
+
+        video = await self.assert_owned_upload(
+            public_id=public_id,
+            uploader_id=uploader_id,
+        )
+        video_pk = video.id
+        resolved_public_id = video.public_id
+
+        if resolved_public_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Upload is missing a public identifier.",
+            )
+
+        result = await self._session.execute(
+            select(VideoImageUrl).where(
+                col(VideoImageUrl.fk_id) == video_pk,
+                col(VideoImageUrl.type) == normalized,
+            ),
+        )
+        rows = list(result.scalars().all())
+
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Thumbnail not found.",
+            )
+
+        for row in rows:
+            object_key = self._storage.object_key_from_streams_url(row.url)
+
+            if object_key is not None:
+                await self._storage.delete_object(
+                    object_key=object_key,
+                    bucket=self._storage.streams_bucket,
+                )
+
+        await self._session.execute(
+            delete(VideoImageUrl).where(
+                col(VideoImageUrl.fk_id) == video_pk,
+                col(VideoImageUrl.type) == normalized,
+            ),
+        )
+        await self._session.commit()
+
+        return await self._media_response(
+            video_pk=video_pk,
+            public_id=resolved_public_id,
+        )
+
     async def delete_sample(
         self,
         *,
