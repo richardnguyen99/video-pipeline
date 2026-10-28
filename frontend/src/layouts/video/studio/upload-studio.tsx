@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
@@ -13,6 +13,7 @@ import {
   saveUploadStudioSession,
 } from "@/layouts/video/studio/session-persist";
 import { SessionSummary } from "@/layouts/video/studio/session-summary";
+import { UploadStudioSkeleton } from "@/layouts/video/studio/upload-studio-skeleton";
 import { UploadsList } from "@/layouts/video/studio/uploads-list";
 import { DetailsStep } from "@/layouts/video/studio/steps/details-step";
 import { MediaStep } from "@/layouts/video/studio/steps/media-step";
@@ -40,6 +41,7 @@ import {
   createVideoUpload,
   DEFAULT_PART_SIZE_BYTES,
   getVideoUploadStatus,
+  listVideoUploadMedia,
   MAX_PARALLEL_PARTS,
   mergeLiveProgress,
   parseVideoCodeConflict,
@@ -51,43 +53,144 @@ import {
 } from "@/queries/video-upload";
 import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } from "@/queries/video-upload";
 
+const videoUploadMediaQueryKey = (publicId: string) => ["video-upload-media", publicId] as const;
+
 const uploadRouteApi = getRouteApi("/_authenticated/studio/upload");
 
-export function UploadStudio() {
+function scrollStudioMainToTop() {
+  const main = document.querySelector<HTMLElement>("[data-studio-main]");
+
+  if (main != null) {
+    main.scrollTop = 0;
+  }
+}
+
+type UploadStudioProps = {
+  initialStatus?: VideoUploadStatusResponse | null;
+  initialStep?: number;
+};
+
+function resolveInitialStep(
+  initialStep: number | undefined,
+  status: VideoUploadStatusResponse | null | undefined,
+): number {
+  if (initialStep != null) {
+    return Math.min(7, Math.max(1, initialStep));
+  }
+
+  if (status != null) {
+    return Math.min(7, Math.max(1, defaultStepForStatus(status)));
+  }
+
+  return 1;
+}
+
+function hydrateFromStatus(status: VideoUploadStatusResponse) {
+  const draft = loadUploadStudioSession(status.public_id);
+
+  if (draft != null) {
+    return {
+      title: draft.title || status.title || "",
+      description: draft.description,
+      videoCode: draft.videoCode || status.video_id || "",
+      cid: draft.cid || status.cid || "",
+      jancode: draft.jancode || status.jancode || "",
+      makerProduct: draft.makerProduct || status.maker_product || "",
+      releaseDate:
+        draft.releaseDate ||
+        (status.release_date != null && status.release_date.length >= 10 ? status.release_date.slice(0, 10) : ""),
+      visibility: draft.visibility,
+      notifySubscribers: draft.notifySubscribers,
+      relations: draft.relations,
+      sessionFilename: draft.originalFilename ?? status.original_filename,
+    };
+  }
+
+  return {
+    title: status.title ?? "",
+    description: "",
+    videoCode: status.video_id,
+    cid: status.cid ?? "",
+    jancode: status.jancode ?? "",
+    makerProduct: status.maker_product ?? "",
+    releaseDate:
+      status.release_date != null && status.release_date.length >= 10 ? status.release_date.slice(0, 10) : "",
+    visibility: "unlisted" as VisibilityValue,
+    notifySubscribers: true,
+    relations: {
+      actresses: status.actress_ids,
+      makers: status.maker_ids,
+      genres: status.genre_ids,
+      series: status.series_ids,
+      labels: status.label_ids,
+      directors: status.director_ids,
+    },
+    sessionFilename: status.original_filename,
+  };
+}
+
+export function UploadStudio({ initialStatus = null, initialStep }: UploadStudioProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const search = uploadRouteApi.useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
-  const uploadStartedRef = useRef(false);
-  const resumeAppliedRef = useRef<string | null>(null);
+  const uploadStartedRef = useRef(initialStatus != null);
+  const resumeAppliedRef = useRef<string | null>(initialStatus != null ? initialStatus.public_id : null);
   const prevSearchPublicIdRef = useRef<string | undefined>(search.publicId);
-  const [sessionFilename, setSessionFilename] = useState<string | null>(null);
+  const hydrated = initialStatus != null ? hydrateFromStatus(initialStatus) : null;
 
-  const [activeStep, setActiveStep] = useState(1);
+  const [sessionFilename, setSessionFilename] = useState<string | null>(hydrated?.sessionFilename ?? null);
+
+  const [localStep, setLocalStep] = useState(() => resolveInitialStep(initialStep ?? search.step, initialStatus));
+
+  const activeStep = search.step != null ? Math.min(7, Math.max(1, search.step)) : localStep;
+
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [videoCode, setVideoCode] = useState("");
-  const [cid, setCid] = useState("");
-  const [jancode, setJancode] = useState("");
-  const [makerProduct, setMakerProduct] = useState("");
-  const [releaseDate, setReleaseDate] = useState("");
-  const [relations, setRelations] = useState<RelationSelections>(EMPTY_RELATIONS);
-  const [visibility, setVisibility] = useState<VisibilityValue>("unlisted");
-  const [notifySubscribers, setNotifySubscribers] = useState(true);
+  const [title, setTitle] = useState(hydrated?.title ?? "");
+  const [description, setDescription] = useState(hydrated?.description ?? "");
+  const [videoCode, setVideoCode] = useState(hydrated?.videoCode ?? "");
+  const [cid, setCid] = useState(hydrated?.cid ?? "");
+  const [jancode, setJancode] = useState(hydrated?.jancode ?? "");
+  const [makerProduct, setMakerProduct] = useState(hydrated?.makerProduct ?? "");
+  const [releaseDate, setReleaseDate] = useState(hydrated?.releaseDate ?? "");
+  const [relations, setRelations] = useState<RelationSelections>(hydrated?.relations ?? EMPTY_RELATIONS);
+  const [visibility, setVisibility] = useState<VisibilityValue>(hydrated?.visibility ?? "unlisted");
+  const [notifySubscribers, setNotifySubscribers] = useState(hydrated?.notifySubscribers ?? true);
   const [thumbnailUrl, setThumbnailUrl] = useState("");
   const [autoProcess, setAutoProcess] = useState(true);
 
-  const [phase, setPhase] = useState<UploadPhase>("idle");
-  const [progressPct, setProgressPct] = useState(0);
-  const [message, setMessage] = useState<string | null>(null);
-  const [status, setStatus] = useState<VideoUploadStatusResponse | null>(null);
+  const [phase, setPhase] = useState<UploadPhase>(initialStatus != null ? "done" : "idle");
+  const [progressPct, setProgressPct] = useState(initialStatus != null ? 100 : 0);
+  const [message, setMessage] = useState<string | null>(
+    initialStatus != null ? `Resumed upload ${initialStatus.status}` : null,
+  );
+  const [status, setStatus] = useState<VideoUploadStatusResponse | null>(initialStatus);
   const [recoveringLabel, setRecoveringLabel] = useState<string | null>(null);
   const [savingMetadata, setSavingMetadata] = useState(false);
   const [upsertDialogOpen, setUpsertDialogOpen] = useState(false);
   const [conflictExisting, setConflictExisting] = useState<ExistingVideoSummary | null>(null);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+
+  const commitStep = useCallback(
+    (next: number) => {
+      const clamped = Math.min(7, Math.max(1, next));
+
+      setLocalStep(clamped);
+      scrollStudioMainToTop();
+
+      const publicId = status?.public_id ?? search.publicId;
+
+      if (publicId != null) {
+        void navigate({
+          to: "/studio/upload",
+          search: { publicId, step: clamped },
+          replace: true,
+        });
+      }
+    },
+    [navigate, search.publicId, status?.public_id],
+  );
 
   useEffect(() => {
     if (!file) {
@@ -150,7 +253,7 @@ export function UploadStudio() {
   useEffect(() => {
     const resumeId = search.publicId;
 
-    if (resumeId == null || resumeAppliedRef.current === resumeId) {
+    if (resumeId == null || initialStatus != null || resumeAppliedRef.current === resumeId) {
       return;
     }
 
@@ -164,8 +267,8 @@ export function UploadStudio() {
           return;
         }
 
-        const draft = loadUploadStudioSession(resumeId);
-        const preferredStep = search.step ?? draft?.activeStep ?? defaultStepForStatus(next);
+        const fields = hydrateFromStatus(next);
+        const preferredStep = search.step ?? defaultStepForStatus(next);
         const clampedStep = Math.min(7, Math.max(1, preferredStep));
 
         resumeAppliedRef.current = resumeId;
@@ -173,42 +276,26 @@ export function UploadStudio() {
         setPhase("done");
         setProgressPct(100);
         uploadStartedRef.current = true;
-        setActiveStep(clampedStep);
+        setLocalStep(clampedStep);
         setMessage(`Resumed upload ${next.status}`);
+        setTitle(fields.title);
+        setDescription(fields.description);
+        setVideoCode(fields.videoCode);
+        setCid(fields.cid);
+        setJancode(fields.jancode);
+        setMakerProduct(fields.makerProduct);
+        setReleaseDate(fields.releaseDate);
+        setVisibility(fields.visibility);
+        setNotifySubscribers(fields.notifySubscribers);
+        setRelations(fields.relations);
+        setSessionFilename(fields.sessionFilename);
 
-        if (draft != null) {
-          setTitle(draft.title || next.title || "");
-          setDescription(draft.description);
-          setVideoCode(draft.videoCode || next.video_id || "");
-          setCid(draft.cid || next.cid || "");
-          setJancode(draft.jancode || next.jancode || "");
-          setMakerProduct(draft.makerProduct || next.maker_product || "");
-          setReleaseDate(
-            draft.releaseDate ||
-              (next.release_date != null && next.release_date.length >= 10 ? next.release_date.slice(0, 10) : ""),
-          );
-          setVisibility(draft.visibility);
-          setNotifySubscribers(draft.notifySubscribers);
-          setRelations(draft.relations);
-          setSessionFilename(draft.originalFilename ?? next.original_filename);
-        } else {
-          setTitle(next.title ?? "");
-          setVideoCode(next.video_id);
-          setCid(next.cid ?? "");
-          setJancode(next.jancode ?? "");
-          setMakerProduct(next.maker_product ?? "");
-          setReleaseDate(
-            next.release_date != null && next.release_date.length >= 10 ? next.release_date.slice(0, 10) : "",
-          );
-          setRelations({
-            actresses: next.actress_ids,
-            makers: next.maker_ids,
-            genres: next.genre_ids,
-            series: next.series_ids,
-            labels: next.label_ids,
-            directors: next.director_ids,
+        if (search.step == null) {
+          void navigate({
+            to: "/studio/upload",
+            search: { publicId: resumeId, step: clampedStep },
+            replace: true,
           });
-          setSessionFilename(next.original_filename);
         }
       } catch (error) {
         if (!cancelled) {
@@ -223,21 +310,17 @@ export function UploadStudio() {
     return () => {
       cancelled = true;
     };
-  }, [search.publicId, search.step]);
+  }, [initialStatus, navigate, search.publicId, search.step]);
 
-  useEffect(() => {
-    if (search.publicId == null) {
+  const contentReady = search.publicId == null || (status != null && status.public_id === search.publicId);
+
+  useLayoutEffect(() => {
+    if (!contentReady) {
       return;
     }
 
-    const main = document.querySelector<HTMLElement>("[data-studio-main]");
-
-    if (main == null) {
-      return;
-    }
-
-    main.scrollTo({ top: 0, behavior: "smooth" });
-  }, [search.publicId]);
+    scrollStudioMainToTop();
+  }, [activeStep, contentReady, search.publicId]);
 
   useEffect(() => {
     const publicId = status?.public_id;
@@ -290,7 +373,7 @@ export function UploadStudio() {
     }
 
     // Only reset when the URL explicitly dropped a session publicId.
-    // Fresh drafts and post-upload establish navigations must not be wiped.
+    // Fresh drafts and post-upload establish navigation must not be wiped.
     if (previousPublicId == null) {
       clearActiveUploadStudioPointer();
 
@@ -321,36 +404,12 @@ export function UploadStudio() {
     setUpsertDialogOpen(false);
     setConflictExisting(null);
     setConflictMessage(null);
-    setActiveStep(1);
+    setLocalStep(1);
 
     if (inputRef.current) {
       inputRef.current.value = "";
     }
   }, [search.publicId]);
-
-  useEffect(() => {
-    const publicId = status?.public_id;
-
-    if (publicId == null) {
-      return;
-    }
-
-    // Only keep step in sync when the URL already targets this upload.
-    // Clean /studio/upload (no publicId) is a new session — do not restore.
-    if (search.publicId !== publicId) {
-      return;
-    }
-
-    if (search.step === activeStep) {
-      return;
-    }
-
-    void navigate({
-      to: "/studio/upload",
-      search: { publicId, step: activeStep },
-      replace: true,
-    });
-  }, [activeStep, navigate, search.publicId, search.step, status?.public_id]);
 
   const sourceBytes = status?.source_bytes;
 
@@ -387,7 +446,7 @@ export function UploadStudio() {
     setProgressPct(0);
     setStatus(null);
     uploadStartedRef.current = false;
-    setActiveStep(2);
+    setLocalStep(2);
   }, []);
 
   const setRelationIds = useCallback((key: RelationKey, ids: Array<number>) => {
@@ -433,7 +492,7 @@ export function UploadStudio() {
     setStatus(null);
     setMessage(null);
     uploadStartedRef.current = false;
-    setActiveStep(1);
+    setLocalStep(1);
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -568,9 +627,7 @@ export function UploadStudio() {
 
         const nextStep = autoProcess ? 5 : activeStep;
 
-        if (autoProcess) {
-          setActiveStep(5);
-        }
+        setLocalStep(nextStep);
 
         void queryClient.invalidateQueries({ queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY });
 
@@ -663,7 +720,7 @@ export function UploadStudio() {
     );
     setPhase("idle");
     uploadStartedRef.current = false;
-    setActiveStep(2);
+    setLocalStep(2);
   }, [conflictExisting]);
 
   useEffect(() => {
@@ -702,6 +759,67 @@ export function UploadStudio() {
   }, [activeStep, file, phase, status, title]);
 
   const busy = phase === "preparing" || phase === "uploading" || phase === "completing";
+
+  const statusPublicId = status?.public_id ?? null;
+
+  const { data: uploadMedia } = useQuery({
+    queryKey: statusPublicId != null ? videoUploadMediaQueryKey(statusPublicId) : ["video-upload-media", "none"],
+    queryFn: () => listVideoUploadMedia(statusPublicId as string),
+    enabled: statusPublicId != null,
+    staleTime: 15_000,
+  });
+
+  useEffect(() => {
+    if (statusPublicId == null) {
+      return;
+    }
+
+    if (activeStep !== 6 && activeStep !== 7) {
+      return;
+    }
+
+    void queryClient.invalidateQueries({ queryKey: videoUploadMediaQueryKey(statusPublicId) });
+  }, [activeStep, queryClient, statusPublicId]);
+
+  const hasCatalogMedia = useMemo(() => {
+    if (uploadMedia == null) {
+      return false;
+    }
+
+    return uploadMedia.thumbnails.length > 0 || uploadMedia.samples.length > 0;
+  }, [uploadMedia]);
+
+  const isProcessComplete = useMemo(() => {
+    if (status == null) {
+      return false;
+    }
+
+    return status.status.toUpperCase() === "READY";
+  }, [status]);
+
+  const isStepComplete = useCallback(
+    (stepNumber: number) => {
+      switch (stepNumber) {
+        case 1:
+          return file != null || status != null;
+        case 2:
+          return Boolean(title.trim());
+        case 3:
+          return file != null || status != null;
+        case 4:
+          return phase === "done" || status != null;
+        case 5:
+          return isProcessComplete;
+        case 6:
+          return hasCatalogMedia;
+        case 7:
+          return isProcessComplete;
+        default:
+          return false;
+      }
+    },
+    [file, hasCatalogMedia, isProcessComplete, phase, status, title],
+  );
 
   const onDropzoneKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -802,7 +920,7 @@ export function UploadStudio() {
 
       void persistCatalogMetadata()
         .then(() => {
-          setActiveStep((step) => Math.min(7, step + 1));
+          commitStep(Math.min(7, activeStep + 1));
         })
         .catch((error: unknown) => {
           setPhase("error");
@@ -815,7 +933,7 @@ export function UploadStudio() {
       return;
     }
 
-    setActiveStep((step) => Math.min(7, step + 1));
+    commitStep(Math.min(7, activeStep + 1));
   };
 
   const goBack = () => {
@@ -823,8 +941,85 @@ export function UploadStudio() {
       return;
     }
 
-    setActiveStep((step) => Math.max(1, step - 1));
+    commitStep(Math.max(1, activeStep - 1));
   };
+
+  const canGoToStep = useCallback(
+    (target: number) => {
+      if (target < 1 || target > STEPS.length) {
+        return false;
+      }
+
+      if (busy || savingMetadata) {
+        return false;
+      }
+
+      if (target === activeStep) {
+        return true;
+      }
+
+      if (target < activeStep) {
+        return true;
+      }
+
+      if (target >= 2 && file == null && status == null) {
+        return false;
+      }
+
+      if (target >= 2 && !title.trim() && status == null) {
+        return false;
+      }
+
+      if (target >= 5 && status == null) {
+        return false;
+      }
+
+      if (target >= 6 && status == null) {
+        return false;
+      }
+
+      return true;
+    },
+    [activeStep, busy, file, savingMetadata, status, title],
+  );
+
+  const goToStep = useCallback(
+    (target: number) => {
+      if (!canGoToStep(target) || target === activeStep) {
+        return;
+      }
+
+      if (activeStep === 2 && status?.public_id != null && target !== 2) {
+        if (savingMetadata) {
+          return;
+        }
+
+        setSavingMetadata(true);
+        setMessage(null);
+
+        void persistCatalogMetadata()
+          .then(() => {
+            commitStep(target);
+          })
+          .catch((error: unknown) => {
+            setPhase("error");
+            setMessage(getApiErrorMessage(error));
+          })
+          .finally(() => {
+            setSavingMetadata(false);
+          });
+
+        return;
+      }
+
+      commitStep(target);
+    },
+    [activeStep, canGoToStep, commitStep, persistCatalogMetadata, savingMetadata, status?.public_id],
+  );
+
+  if (!contentReady) {
+    return <UploadStudioSkeleton activeStep={search.step ?? 7} />;
+  }
 
   return (
     <main className="flex w-full flex-col gap-8">
@@ -832,33 +1027,53 @@ export function UploadStudio() {
         className="bg-background/95 border-border sticky top-0 z-20 flex w-full flex-wrap items-center gap-2 border-b py-3 backdrop-blur"
         aria-label="Upload progress"
       >
-        {STEPS.map((step) => (
-          <div key={step.number} className="flex flex-1 items-center gap-2">
-            <div
-              className={cn(
-                "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
-                activeStep === step.number
-                  ? "bg-primary text-primary-foreground"
-                  : activeStep > step.number
-                    ? "bg-primary/15 text-primary"
-                    : "bg-muted text-muted-foreground",
-              )}
-            >
-              {activeStep > step.number ? <Check className="size-4" /> : step.number}
+        {STEPS.map((step) => {
+          const reachable = canGoToStep(step.number);
+          const isCurrent = activeStep === step.number;
+          const isComplete = isStepComplete(step.number);
+
+          return (
+            <div key={step.number} className="flex flex-1 items-center gap-2">
+              <button
+                type="button"
+                disabled={!reachable}
+                aria-current={isCurrent ? "step" : undefined}
+                aria-label={`Go to step ${step.number}: ${step.label}`}
+                onClick={() => {
+                  goToStep(step.number);
+                }}
+                className={cn(
+                  "flex min-w-0 items-center gap-2 rounded-lg text-left transition-opacity",
+                  reachable ? "cursor-pointer hover:opacity-90" : "cursor-not-allowed opacity-50",
+                )}
+              >
+                <span
+                  className={cn(
+                    "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                    isCurrent
+                      ? "bg-primary text-primary-foreground"
+                      : isComplete
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  {isComplete && !isCurrent ? <Check className="size-4" /> : step.number}
+                </span>
+
+                <span
+                  className={cn(
+                    "hidden truncate text-xs sm:inline",
+                    isCurrent ? "font-medium" : isComplete ? "text-foreground" : "text-muted-foreground",
+                  )}
+                >
+                  {step.label}
+                </span>
+              </button>
+
+              {step.number < STEPS.length ? <div className="bg-border mx-1 hidden h-px flex-1 sm:block" /> : null}
             </div>
-
-            <span
-              className={cn(
-                "hidden text-xs sm:inline",
-                activeStep === step.number ? "font-medium" : "text-muted-foreground",
-              )}
-            >
-              {step.label}
-            </span>
-
-            {step.number < STEPS.length ? <div className="bg-border mx-1 hidden h-px flex-1 sm:block" /> : null}
-          </div>
-        ))}
+          );
+        })}
       </nav>
 
       <section className="flex w-full flex-col gap-6">

@@ -1,3 +1,5 @@
+import { queryOptions } from "@tanstack/react-query";
+
 import { apiFetch, getApiBaseUrl } from "@/libs/api-client";
 import { getAccessToken } from "@/stores/auth-store";
 
@@ -274,6 +276,15 @@ export async function completeVideoUpload(
 
 export async function getVideoUploadStatus(publicId: string): Promise<VideoUploadStatusResponse> {
   return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}`);
+}
+
+export const videoUploadStatusQueryKey = (publicId: string) => ["video-upload-status", publicId] as const;
+
+export function videoUploadStatusQueryOptions(publicId: string) {
+  return queryOptions({
+    queryKey: videoUploadStatusQueryKey(publicId),
+    queryFn: () => getVideoUploadStatus(publicId),
+  });
 }
 
 export async function updateVideoUploadMetadata(

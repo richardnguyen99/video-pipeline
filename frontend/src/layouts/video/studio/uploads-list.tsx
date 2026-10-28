@@ -442,9 +442,22 @@ export function UploadsList() {
                           return;
                         }
 
+                        const statusKey = item.status.toUpperCase();
+                        const step = statusKey === "READY" ? 7 : 5;
+
+                        if (document.activeElement instanceof HTMLElement) {
+                          document.activeElement.blur();
+                        }
+
+                        const main = document.querySelector<HTMLElement>("[data-studio-main]");
+
+                        if (main != null) {
+                          main.scrollTop = 0;
+                        }
+
                         void navigate({
                           to: "/studio/upload",
-                          search: { publicId: item.public_id },
+                          search: { publicId: item.public_id, step },
                         });
                       }}
                     >

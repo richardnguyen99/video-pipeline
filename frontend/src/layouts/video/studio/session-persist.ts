@@ -158,29 +158,23 @@ export function clearActiveUploadStudioPointer(): void {
   }
 }
 
-/** Infer the earliest sensible wizard step for a restored upload status. */
-export function defaultStepForStatus(status: { status: string; renditions: Array<{ status: string }> }): number {
+/** Infer the wizard step for a restored upload status. */
+export function defaultStepForStatus(status: { status: string; renditions?: Array<{ status: string }> }): number {
   const pipeline = status.status.toUpperCase();
+
+  if (pipeline === "READY") {
+    return 7;
+  }
 
   if (pipeline === "FAILED") {
     return 5;
   }
 
-  const allReady =
-    status.renditions.length > 0 && status.renditions.every((row) => row.status.toUpperCase() === "READY");
+  const renditions = status.renditions ?? [];
+  const allReady = renditions.length > 0 && renditions.every((row) => row.status.toUpperCase() === "READY");
 
-  if (allReady || pipeline === "READY") {
-    return 5;
-  }
-
-  if (
-    pipeline === "UPLOADED" ||
-    pipeline === "PROBING" ||
-    pipeline === "QUEUED" ||
-    pipeline === "ENCODING" ||
-    status.renditions.some((row) => row.status.toUpperCase() === "ENCODING")
-  ) {
-    return 5;
+  if (allReady) {
+    return 7;
   }
 
   return 5;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { Link, Outlet, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useRouteContext, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   ChevronLeft,
@@ -215,7 +215,12 @@ function SidebarProfileLink({ collapsed, username }: { collapsed: boolean; usern
 }
 
 export function StudioShell() {
-  const user = useAuthStore((state) => state.user);
+  const storeUser = useAuthStore((state) => state.user);
+  const routeAuth = useRouteContext({
+    from: "__root__",
+    select: (ctx) => ctx.auth,
+  });
+  const user = storeUser ?? routeAuth.user ?? null;
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -338,7 +343,7 @@ export function StudioShell() {
         </div>
       </aside>
 
-      <section data-studio-main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+      <section data-studio-main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]">
         <div className="flex shrink-0 items-center gap-2 px-4 pt-4 sm:px-6 lg:hidden">
           <Button
             type="button"
