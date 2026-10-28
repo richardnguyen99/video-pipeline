@@ -234,6 +234,27 @@ async def set_progress_snapshot(
         _logger.debug("transcode progress redis write failed", exc_info=True)
 
 
+async def write_progress(
+    public_id: uuid.UUID,
+    *,
+    status: str,
+    overall_pct: float,
+    message: str = "",
+    rungs: Optional[list[RungProgressSnapshot]] = None,
+) -> None:
+    """Convenience wrapper used by the transcode worker."""
+
+    await set_progress_snapshot(
+        public_id,
+        TranscodeProgressSnapshot(
+            status=status,
+            overall_pct=overall_pct,
+            message=message,
+            rungs=list(rungs or []),
+        ),
+    )
+
+
 async def get_progress_snapshot(
     public_id: uuid.UUID,
 ) -> Optional[TranscodeProgressSnapshot]:

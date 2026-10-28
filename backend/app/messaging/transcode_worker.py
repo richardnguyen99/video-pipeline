@@ -16,12 +16,15 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.config import settings
 from app.database import async_session_factory
-from app.messaging.redis_client import get_redis_client
+from app.messaging.transcode_job import (
+    refresh_job_lock,
+    release_job_lock,
+    try_acquire_job_lock,
+)
 from app.messaging.transcode_pool import get_transcode_semaphore
 from app.messaging.transcode_progress import (
     RungProgressSnapshot,
-    TranscodeProgressSnapshot,
-    set_progress_snapshot,
+    write_progress,
 )
 from app.models.video import Video, VideoM3u8, VideoRendition
 from app.storage.client import ObjectStorageClient, get_object_storage_client
@@ -52,8 +55,7 @@ _HLS_CONTENT_TYPES = {
     ".ts": "video/mp2t",
 }
 
-_JOB_LOCK_KEY = "transcode:lock:{public_id}"
-_JOB_LOCK_TTL_S = 86_400
+_MAX_RENDITION_ATTEMPTS = 3
 
 _AUDIO_KBPS_BY_HEIGHT = {
     240: 64,
@@ -63,11 +65,14 @@ _AUDIO_KBPS_BY_HEIGHT = {
     1080: 128,
 }
 
+# ENCODING/PACKAGING included so a crashed worker can resume incomplete ladders.
 _ELIGIBLE_STATUSES = frozenset(
     {
         _STATUS_UPLOADED,
         _STATUS_PROBING,
         _STATUS_QUEUED,
+        _STATUS_ENCODING,
+        _STATUS_PACKAGING,
         _STATUS_FAILED,
     },
 )
@@ -121,50 +126,6 @@ def _sync_rung_in_list(
     rungs.append(snap)
 
 
-async def _set_progress(
-    public_id: uuid.UUID,
-    *,
-    status: str,
-    overall_pct: float,
-    message: str = "",
-    rungs: Optional[list[RungProgressSnapshot]] = None,
-) -> None:
-    await set_progress_snapshot(
-        public_id,
-        TranscodeProgressSnapshot(
-            status=status,
-            overall_pct=overall_pct,
-            message=message,
-            rungs=list(rungs or []),
-        ),
-    )
-
-
-async def _try_acquire_job_lock(public_id: uuid.UUID) -> bool:
-    """Return True if this runner should process the job (Redis NX lock)."""
-
-    try:
-        redis = await get_redis_client()
-        key = _JOB_LOCK_KEY.format(public_id=public_id)
-        acquired = await redis.set(key, "1", nx=True, ex=_JOB_LOCK_TTL_S)
-
-        return bool(acquired)
-    except Exception:
-        _logger.debug(
-            "transcode job lock unavailable; allowing run", exc_info=True
-        )
-
-        return True
-
-
-async def _release_job_lock(public_id: uuid.UUID) -> None:
-    try:
-        redis = await get_redis_client()
-        await redis.delete(_JOB_LOCK_KEY.format(public_id=public_id))
-    except Exception:
-        _logger.debug("transcode job lock release failed", exc_info=True)
-
-
 async def _mark_failed(
     session: AsyncSession,
     video: Video,
@@ -177,7 +138,7 @@ async def _mark_failed(
     video.error_code = code
     video.error_message = message[:2000]
     await session.commit()
-    await _set_progress(
+    await write_progress(
         public_id,
         status=_STATUS_FAILED,
         overall_pct=0.0,
@@ -287,7 +248,7 @@ async def _probe_and_plan(
     video.error_message = None
     await session.commit()
     await session.refresh(video)
-    await _set_progress(public_id, status=_STATUS_PROBING, overall_pct=0.0)
+    await write_progress(public_id, status=_STATUS_PROBING, overall_pct=0.0)
 
     try:
         source_url = await storage.generate_presigned_get_url(
@@ -329,7 +290,7 @@ async def _probe_and_plan(
     video.status = _STATUS_QUEUED
     await session.commit()
     await session.refresh(video)
-    await _set_progress(public_id, status=_STATUS_QUEUED, overall_pct=5.0)
+    await write_progress(public_id, status=_STATUS_QUEUED, overall_pct=5.0)
 
     _logger.info(
         "transcode probed public_id=%s %sx%s codec=%s/%s duration=%s",
@@ -367,7 +328,7 @@ async def _handle_encode_error(
         video.error_code = "ENCODE_PARTIAL"
         video.error_message = str(exc)[:2000]
         await session.commit()
-        await _set_progress(
+        await write_progress(
             public_id,
             status=_STATUS_READY,
             overall_pct=100.0,
@@ -400,25 +361,42 @@ async def _run_locked_pipeline(
         settings.transcode_chunk_seconds,
     )
 
-    duration_s = await _probe_and_plan(session, storage, video, public_id)
-
-    if duration_s is None and video.status == _STATUS_FAILED:
-        return
-
     video_db_id = video.id
     source_key = video.source_key
     assert source_key is not None
+
+    existing_renditions = await _load_renditions(session, video_db_id)
+    can_skip_probe = (
+        video.status in {_STATUS_ENCODING, _STATUS_QUEUED, _STATUS_PACKAGING}
+        and video.duration is not None
+        and bool(existing_renditions)
+    )
+
+    if can_skip_probe:
+        duration_s = float(video.duration) if video.duration else None
+        _logger.info(
+            "transcode: resume incomplete ladder public_id=%s rungs=%s",
+            public_id,
+            len(existing_renditions),
+        )
+    else:
+        duration_s = await _probe_and_plan(session, storage, video, public_id)
+
+        if duration_s is None and video.status == _STATUS_FAILED:
+            return
+
+        existing_renditions = await _load_renditions(session, video_db_id)
 
     video.status = _STATUS_ENCODING
     await session.commit()
     await session.refresh(video)
 
-    renditions = await _load_renditions(session, video_db_id)
+    renditions = existing_renditions
     live_rungs = [
         _rung_snapshot(row)
         for row in sorted(renditions, key=lambda r: r.height)
     ]
-    await _set_progress(
+    await write_progress(
         public_id,
         status=_STATUS_ENCODING,
         overall_pct=8.0,
@@ -477,7 +455,7 @@ async def _run_locked_pipeline(
     video.error_message = None
     await session.commit()
     await session.refresh(video)
-    await _set_progress(
+    await write_progress(
         public_id,
         status=_STATUS_READY,
         overall_pct=100.0,
@@ -538,7 +516,19 @@ async def process_transcode_message(payload: dict[str, Any]) -> None:
 
             return
 
-        if not await _try_acquire_job_lock(public_id):
+        if video.status == _STATUS_READY:
+            renditions = await _load_renditions(session, video.id)
+            _, pending = _split_pending(renditions)
+
+            if not pending:
+                _logger.info(
+                    "transcode: skip public_id=%s (already READY)",
+                    public_id,
+                )
+
+                return
+
+        if not await try_acquire_job_lock(public_id):
             _logger.info(
                 "transcode: skip public_id=%s (job lock held by another runner)",
                 public_id,
@@ -549,7 +539,7 @@ async def process_transcode_message(payload: dict[str, Any]) -> None:
         try:
             await _run_locked_pipeline(session, storage, video, public_id)
         finally:
-            await _release_job_lock(public_id)
+            await release_job_lock(public_id)
 
 
 def _split_pending(
@@ -675,6 +665,18 @@ async def _encode_higher_rungs(
     source_key = video.source_key or ""
 
     for index, row in enumerate(rest):
+        if (
+            row.attempt or 0
+        ) >= _MAX_RENDITION_ATTEMPTS and row.status == _RENDITION_FAILED:
+            _logger.warning(
+                "transcode: skip exhausted rung public_id=%s label=%s attempts=%s",
+                public_id,
+                row.label,
+                row.attempt,
+            )
+
+            continue
+
         rung_source_url = await storage.generate_presigned_get_url(
             object_key=source_key,
             expires_in=14_400,
@@ -697,21 +699,17 @@ async def _encode_higher_rungs(
                 live_rungs=live_rungs,
             )
         except Exception as exc:
-            row.status = _RENDITION_FAILED
-            row.progress_pct = 0
-            await session.commit()
             detail = str(exc)[:2000]
             _logger.error(
-                "higher-rung encode failed public_id=%s label=%s detail=%s "
-                "(lower rungs still playable)",
+                "higher-rung encode failed public_id=%s label=%s attempts=%s "
+                "detail=%s (continuing remaining rungs)",
                 public_id,
                 row.label,
+                row.attempt,
                 detail[:500],
             )
 
-            raise RuntimeError(
-                f"Rung {row.label} failed (stream still playable): {detail}",
-            ) from exc
+            continue
 
         ready_specs.append(_spec_from_rendition(row))
         await _publish_playable(
@@ -729,6 +727,49 @@ async def _encode_higher_rungs(
         )
 
 
+def _clear_work_dir(work_dir: Path) -> None:
+    if work_dir.exists():
+        for leftover in work_dir.glob("*"):
+            if leftover.is_file():
+                leftover.unlink(missing_ok=True)
+
+    work_dir.mkdir(parents=True, exist_ok=True)
+
+
+async def _mark_rendition_state(
+    *,
+    session: Any,
+    public_id: uuid.UUID,
+    rendition: VideoRendition,
+    live_rungs: list[RungProgressSnapshot],
+    status_value: str,
+    progress_pct: int,
+    overall_pct: float,
+    message: str,
+    playlist_key: Optional[str] = None,
+    segment_count: Optional[int] = None,
+) -> None:
+    rendition.status = status_value
+    rendition.progress_pct = progress_pct
+
+    if playlist_key is not None:
+        rendition.playlist_key = playlist_key
+
+    if segment_count is not None:
+        rendition.segment_count = segment_count
+
+    await session.commit()
+    _sync_rung_in_list(live_rungs, rendition)
+    await write_progress(
+        public_id,
+        status=_STATUS_ENCODING,
+        overall_pct=overall_pct,
+        message=message,
+        rungs=live_rungs,
+    )
+    await refresh_job_lock(public_id)
+
+
 async def _encode_and_upload_one(
     *,
     session: Any,
@@ -743,99 +784,128 @@ async def _encode_and_upload_one(
     label: str,
     live_rungs: list[RungProgressSnapshot],
 ) -> None:
-    """Encode a single rung, upload to streams, mark rendition READY.
-
-    Hot progress ticks go to Redis only. Postgres is updated on
-    ENCODING start and on READY / FAILED.
-    """
-
-    rendition.status = _RENDITION_ENCODING
-    rendition.attempt = (rendition.attempt or 0) + 1
-    rendition.progress_pct = 0
-    rendition.segment_count = 0
-    await session.commit()
-    _sync_rung_in_list(live_rungs, rendition)
-    await _set_progress(
-        public_id,
-        status=_STATUS_ENCODING,
-        overall_pct=progress_base,
-        message=f"{label} started",
-        rungs=live_rungs,
-    )
-
-    last_published_pct = -1
-
-    async def on_progress(pct: float) -> None:
-        nonlocal last_published_pct
-
-        rounded = int(pct)
-        rendition.progress_pct = rounded
-
-        if work_dir.is_dir():
-            rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
-
-        # Throttle Pub/Sub noise; clients still see ~2% steps.
-        if rounded - last_published_pct < 2 and rounded < 100:
-            return
-
-        last_published_pct = rounded
-        _sync_rung_in_list(live_rungs, rendition)
-        await _set_progress(
-            public_id,
-            status=_STATUS_ENCODING,
-            overall_pct=progress_base + (pct / 100.0) * progress_span,
-            message=f"{label} {rounded}%",
-            rungs=live_rungs,
-        )
+    """Encode a single rung, upload to streams, mark rendition READY."""
 
     audio_kbps = _AUDIO_KBPS_BY_HEIGHT.get(rendition.height, 128)
+    last_error: Optional[Exception] = None
 
-    try:
-        await encode_hls_rendition(
-            source=source_url,
-            out_dir=work_dir,
-            height=rendition.height,
-            video_kbps=rendition.video_kbps,
-            audio_kbps=audio_kbps,
-            duration_s=duration_s,
-            on_progress=on_progress,
-        )
-        key_prefix = f"{public_id}/{rendition.label}"
-        await storage.upload_directory(
-            local_dir=work_dir,
-            key_prefix=key_prefix,
-            bucket=storage.streams_bucket,
-            content_type_map=_HLS_CONTENT_TYPES,
-        )
-        rendition.playlist_key = f"{key_prefix}/playlist.m3u8"
-        rendition.status = _RENDITION_READY
-        rendition.progress_pct = 100
-        rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
-        await session.commit()
-        _sync_rung_in_list(live_rungs, rendition)
-        await _set_progress(
-            public_id,
-            status=_STATUS_ENCODING,
-            overall_pct=progress_base + progress_span,
-            message=f"{label} ready",
-            rungs=live_rungs,
-        )
-    except Exception as exc:
-        rendition.status = _RENDITION_FAILED
-        rendition.progress_pct = 0
-        await session.commit()
-        _sync_rung_in_list(live_rungs, rendition)
-        await _set_progress(
-            public_id,
-            status=_STATUS_ENCODING,
+    while True:
+        current_attempt = (rendition.attempt or 0) + 1
+
+        if current_attempt > _MAX_RENDITION_ATTEMPTS:
+            await _mark_rendition_state(
+                session=session,
+                public_id=public_id,
+                rendition=rendition,
+                live_rungs=live_rungs,
+                status_value=_RENDITION_FAILED,
+                progress_pct=0,
+                overall_pct=progress_base,
+                message=f"{label} failed after {_MAX_RENDITION_ATTEMPTS} attempts",
+            )
+            detail = (
+                str(last_error)
+                if last_error is not None
+                else "max attempts exceeded"
+            )
+
+            raise RuntimeError(
+                f"Rendition {rendition.label} failed after "
+                f"{_MAX_RENDITION_ATTEMPTS} attempts: {detail}",
+            )
+
+        rendition.attempt = current_attempt
+        rendition.segment_count = 0
+        await _mark_rendition_state(
+            session=session,
+            public_id=public_id,
+            rendition=rendition,
+            live_rungs=live_rungs,
+            status_value=_RENDITION_ENCODING,
+            progress_pct=0,
             overall_pct=progress_base,
-            message=f"{label} failed",
-            rungs=live_rungs,
+            message=f"{label} started (attempt {current_attempt})",
         )
 
-        raise RuntimeError(
-            f"Rendition {rendition.label} failed: {exc}",
-        ) from exc
+        last_published_pct = -1
+
+        async def on_progress(pct: float) -> None:
+            nonlocal last_published_pct
+
+            rounded = int(pct)
+            rendition.progress_pct = rounded
+
+            if work_dir.is_dir():
+                rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
+
+            if rounded - last_published_pct < 2 and rounded < 100:
+                return
+
+            last_published_pct = rounded
+            _sync_rung_in_list(live_rungs, rendition)
+            await write_progress(
+                public_id,
+                status=_STATUS_ENCODING,
+                overall_pct=progress_base + (pct / 100.0) * progress_span,
+                message=f"{label} {rounded}%",
+                rungs=live_rungs,
+            )
+            await refresh_job_lock(public_id)
+
+        _clear_work_dir(work_dir)
+
+        try:
+            await encode_hls_rendition(
+                source=source_url,
+                out_dir=work_dir,
+                height=rendition.height,
+                video_kbps=rendition.video_kbps,
+                audio_kbps=audio_kbps,
+                duration_s=duration_s,
+                on_progress=on_progress,
+            )
+            key_prefix = f"{public_id}/{rendition.label}"
+            await storage.upload_directory(
+                local_dir=work_dir,
+                key_prefix=key_prefix,
+                bucket=storage.streams_bucket,
+                content_type_map=_HLS_CONTENT_TYPES,
+            )
+            await _mark_rendition_state(
+                session=session,
+                public_id=public_id,
+                rendition=rendition,
+                live_rungs=live_rungs,
+                status_value=_RENDITION_READY,
+                progress_pct=100,
+                overall_pct=progress_base + progress_span,
+                message=f"{label} ready",
+                playlist_key=f"{key_prefix}/playlist.m3u8",
+                segment_count=len(list(work_dir.glob("seg_*.ts"))),
+            )
+
+            return
+        except Exception as exc:
+            last_error = exc
+            await _mark_rendition_state(
+                session=session,
+                public_id=public_id,
+                rendition=rendition,
+                live_rungs=live_rungs,
+                status_value=_RENDITION_FAILED,
+                progress_pct=0,
+                overall_pct=progress_base,
+                message=f"{label} failed (attempt {current_attempt})",
+            )
+            _logger.warning(
+                "transcode rung attempt failed public_id=%s label=%s "
+                "attempt=%s/%s detail=%s",
+                public_id,
+                rendition.label,
+                current_attempt,
+                _MAX_RENDITION_ATTEMPTS,
+                str(exc)[:500],
+            )
 
 
 async def _ensure_m3u8_row(
@@ -894,7 +964,7 @@ async def _publish_playable(
     video.error_message = None
     await session.commit()
     await session.refresh(video)
-    await _set_progress(
+    await write_progress(
         public_id,
         status=_STATUS_ENCODING,
         overall_pct=min(95.0, 20.0 + 15.0 * len(ready_specs)),

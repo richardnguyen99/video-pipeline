@@ -285,6 +285,14 @@ export async function updateVideoUploadMetadata(
   });
 }
 
+export async function recoverVideoRendition(publicId: string, label: string): Promise<VideoUploadStatusResponse> {
+  const encoded = encodeURIComponent(label);
+
+  return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}/renditions/${encoded}/recover`, {
+    method: "POST",
+  });
+}
+
 export const VIDEO_UPLOADS_LIST_QUERY_KEY = ["video-uploads", "list"] as const;
 
 export async function listVideoUploads(options?: {

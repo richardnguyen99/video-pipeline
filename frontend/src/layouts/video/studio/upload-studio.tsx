@@ -44,6 +44,7 @@ import {
   mergeLiveProgress,
   parseVideoCodeConflict,
   presignVideoUploadParts,
+  recoverVideoRendition,
   subscribeVideoUploadProgress,
   updateVideoUploadMetadata,
   VIDEO_UPLOADS_LIST_QUERY_KEY,
@@ -82,6 +83,7 @@ export function UploadStudio() {
   const [progressPct, setProgressPct] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<VideoUploadStatusResponse | null>(null);
+  const [recoveringLabel, setRecoveringLabel] = useState<string | null>(null);
   const [upsertDialogOpen, setUpsertDialogOpen] = useState(false);
   const [conflictExisting, setConflictExisting] = useState<ExistingVideoSummary | null>(null);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
@@ -723,6 +725,30 @@ export function UploadStudio() {
     setStatus(updated);
   }, [cid, jancode, makerProduct, relations, releaseDate, status, title]);
 
+  const handleRecoverRendition = useCallback(
+    async (label: string) => {
+      const publicId = status?.public_id;
+
+      if (publicId == null || recoveringLabel != null) {
+        return;
+      }
+
+      setRecoveringLabel(label);
+      setMessage(null);
+
+      try {
+        const next = await recoverVideoRendition(publicId, label);
+        setStatus(next);
+        setMessage(`Recovering ${label} encode…`);
+      } catch (error) {
+        setMessage(getApiErrorMessage(error));
+      } finally {
+        setRecoveringLabel(null);
+      }
+    },
+    [recoveringLabel, status?.public_id],
+  );
+
   const goNext = () => {
     if (activeStep === 7) {
       return;
@@ -859,7 +885,15 @@ export function UploadStudio() {
             />
           ) : null}
 
-          {activeStep === 5 ? <ProcessStep status={status} /> : null}
+          {activeStep === 5 ? (
+            <ProcessStep
+              status={status}
+              recoveringLabel={recoveringLabel}
+              onRecoverRendition={(label) => {
+                void handleRecoverRendition(label);
+              }}
+            />
+          ) : null}
 
           {activeStep === 6 ? <MediaStep publicId={status?.public_id ?? null} /> : null}
 

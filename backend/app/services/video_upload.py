@@ -21,6 +21,7 @@ from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
 
 from app.config import settings
 from app.messaging.rabbitmq import publish_transcode_message
+from app.messaging.transcode_job import maybe_recover_stuck_transcode
 from app.messaging.transcode_progress import get_progress_snapshot
 from app.messaging.transcode_worker import process_transcode_message
 from app.models.associations import (
@@ -47,7 +48,7 @@ from app.schemas.video_upload import (
     VideoUploadStatusResponse,
 )
 from app.services.video_upload_media import VideoUploadMediaMixin
-from app.storage.client import ObjectStorageClient
+from app.storage.client import ObjectStorageClient, purge_prefix
 from app.utils.media_probe import probe_media
 from app.utils.query import relationship_attr
 
@@ -385,6 +386,31 @@ class VideoUploadService(VideoUploadMediaMixin):
 
         video = await self.__get_owned_upload(public_id, uploader_id)
         relation_ids = await self.__load_relation_ids(video.id)
+        renditions = await self.__list_renditions(video.id)
+        has_incomplete = any(
+            (row.status or "").upper() != "READY" or not row.playlist_key
+            for row in renditions
+        )
+
+        if (video.status or "").upper() != "READY" or has_incomplete:
+            try:
+                should_requeue = await maybe_recover_stuck_transcode(
+                    public_id=public_id,
+                    status=video.status or "",
+                    has_incomplete_rungs=has_incomplete or not renditions,
+                )
+
+                if should_requeue:
+                    await publish_transcode_message(
+                        {"public_id": str(public_id)},
+                    )
+            except Exception:
+                _logger.debug(
+                    "transcode recovery trigger failed public_id=%s",
+                    public_id,
+                    exc_info=True,
+                )
+
         live = await get_progress_snapshot(public_id)
 
         if live is not None and live.rungs:
@@ -402,17 +428,23 @@ class VideoUploadService(VideoUploadMediaMixin):
                 )
                 for rung in live.rungs
             ]
+            status_value = live.status or video.status or _STATUS_PENDING
+            computed_overall = VideoUploadService.__overall_progress(
+                status=status_value,
+                renditions=progress_rows,
+            )
+            # Prefer the higher of live vs rung-derived progress so a stale
+            # Redis overall (e.g. 25% after all rungs finished) cannot lag.
+            overall = max(float(live.overall_pct), computed_overall)
 
             return self.__to_status(
                 video,
                 renditions=None,
                 progress_rows=progress_rows,
-                status_override=live.status,
-                overall_override=live.overall_pct,
+                status_override=status_value,
+                overall_override=overall,
                 relation_ids=relation_ids,
             )
-
-        renditions = await self.__list_renditions(video.id)
 
         return self.__to_status(
             video,
@@ -484,6 +516,98 @@ class VideoUploadService(VideoUploadMediaMixin):
         return self.__to_status(
             video,
             renditions=renditions,
+            relation_ids=relation_ids,
+        )
+
+    async def recover_rendition(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        label: str,
+    ) -> VideoUploadStatusResponse:
+        """Purge a failed/stuck rung's segments, reset the row, and re-queue encode."""
+
+        normalized = label.strip().lower()
+
+        if not normalized:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Rendition label is required.",
+            )
+
+        video = await self.__get_owned_upload(public_id, uploader_id)
+        renditions = await self.__list_renditions(video.id)
+        target = next(
+            (row for row in renditions if row.label.lower() == normalized),
+            None,
+        )
+
+        if target is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Rendition '{normalized}' not found.",
+            )
+
+        target_status = (target.status or "").upper()
+
+        if target_status == "READY" and target.playlist_key:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Rendition '{normalized}' is already READY.",
+            )
+
+        prefix = f"{public_id}/{target.label}"
+        deleted = await purge_prefix(
+            self._storage,
+            prefix=prefix,
+            bucket=self._storage.streams_bucket,
+        )
+        _logger.info(
+            "recover rendition purged public_id=%s label=%s objects=%s",
+            public_id,
+            target.label,
+            deleted,
+        )
+
+        target.status = "PENDING"
+        target.progress_pct = 0
+        target.segment_count = 0
+        target.playlist_key = None
+        target.attempt = 0
+
+        if (video.status or "").upper() in {
+            "READY",
+            "FAILED",
+            "ENCODING",
+            "PACKAGING",
+        }:
+            video.status = "ENCODING"
+            video.error_code = None
+            video.error_message = None
+
+        await self._session.commit()
+        await self._session.refresh(video)
+
+        try:
+            await publish_transcode_message({"public_id": str(public_id)})
+        except Exception:
+            _logger.exception(
+                "recover rendition requeue failed public_id=%s label=%s",
+                public_id,
+                target.label,
+            )
+            asyncio.create_task(
+                self.__run_transcode_safe({"public_id": str(public_id)}),
+                name=f"recover-transcode-{public_id}",
+            )
+
+        relation_ids = await self.__load_relation_ids(video.id)
+        refreshed = await self.__list_renditions(video.id)
+
+        return self.__to_status(
+            video,
+            renditions=refreshed,
             relation_ids=relation_ids,
         )
 

@@ -150,6 +150,27 @@ async def update_video_upload_metadata(
     )
 
 
+@router.post(
+    "/videos/uploads/{public_id}/renditions/{label}/recover",
+    response_model=VideoUploadStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Recover a failed or stuck encode rung",
+)
+async def recover_video_rendition(
+    public_id: UUID,
+    label: str,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoUploadStatusResponse:
+    """Purge lingering segments for one rung, reset it, and re-queue encode."""
+
+    return await service.recover_rendition(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        label=label,
+    )
+
+
 @router.get(
     "/videos/uploads/{public_id}/events",
     summary="Stream live transcode progress (SSE)",

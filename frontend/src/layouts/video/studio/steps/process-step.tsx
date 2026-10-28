@@ -7,6 +7,8 @@ import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 
 type ProcessStepProps = {
   status: VideoUploadStatusResponse | null;
+  recoveringLabel?: string | null;
+  onRecoverRendition?: (label: string) => void;
 };
 
 function readyRungCount(status: VideoUploadStatusResponse | null): number {
@@ -41,12 +43,13 @@ function isPlayable(status: VideoUploadStatusResponse | null): boolean {
   return readyRungCount(status) > 0;
 }
 
-export function ProcessStep({ status }: ProcessStepProps) {
+export function ProcessStep({ status, recoveringLabel = null, onRecoverRendition }: ProcessStepProps) {
   const failed = status?.status === "FAILED";
   const complete = isLadderComplete(status);
   const playable = isPlayable(status);
   const readyCount = readyRungCount(status);
   const totalCount = status?.renditions.length ?? 0;
+  const failedCount = status?.renditions.filter((row) => row.status.toUpperCase() === "FAILED").length ?? 0;
 
   return (
     <div className="flex w-full flex-col gap-4 py-2">
@@ -69,11 +72,13 @@ export function ProcessStep({ status }: ProcessStepProps) {
               ? (status.error_message ?? "Encoding failed.")
               : complete
                 ? "All resolutions encoded. Continue to media or open the stream in a new tab."
-                : playable
-                  ? totalCount > 0
-                    ? `${readyCount} of ${totalCount} resolutions ready. Open the stream in a new tab — this page keeps processing.`
-                    : "A playable stream is ready. Open it in a new tab while remaining resolutions encode."
-                  : "Encoding each resolution into HLS streams. Lower rungs finish first so playback can start early."}
+                : failedCount > 0
+                  ? `${readyCount} of ${totalCount} resolutions ready · ${failedCount} failed. Recover a failed encode below.`
+                  : playable
+                    ? totalCount > 0
+                      ? `${readyCount} of ${totalCount} resolutions ready. Open the stream in a new tab — this page keeps processing.`
+                      : "A playable stream is ready. Open it in a new tab while remaining resolutions encode."
+                    : "Encoding each resolution into HLS streams. Lower rungs finish first so playback can start early."}
           </p>
         </div>
       </div>
@@ -92,12 +97,12 @@ export function ProcessStep({ status }: ProcessStepProps) {
           </Button>
 
           <span className="text-muted-foreground text-xs">
-            Bookmark or return via /upload?publicId={status.public_id}
+            Bookmark or return via /studio/upload?publicId={status.public_id}
           </span>
         </div>
       ) : null}
 
-      <ProcessTrace status={status} />
+      <ProcessTrace status={status} recoveringLabel={recoveringLabel} onRecoverRendition={onRecoverRendition} />
     </div>
   );
 }

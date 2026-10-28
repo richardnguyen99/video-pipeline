@@ -11,7 +11,10 @@ from aiobotocore.config import AioConfig
 from aiobotocore.session import ClientCreatorContext
 from botocore.exceptions import ClientError
 from types_aiobotocore_s3.client import S3Client
-from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
+from types_aiobotocore_s3.type_defs import (
+    CompletedPartTypeDef,
+    ObjectIdentifierTypeDef,
+)
 
 from app.config import Settings, settings
 
@@ -582,6 +585,63 @@ class ObjectStorageClient:
             )
 
         return url
+
+
+async def purge_prefix(
+    storage: ObjectStorageClient,
+    *,
+    prefix: str,
+    bucket: str | None = None,
+) -> int:
+    """Delete every object under ``prefix``. Returns deleted count."""
+
+    key_prefix = prefix.lstrip("/")
+    target = bucket or storage.bucket
+    deleted = 0
+
+    async with storage.s3_client() as s3:
+        continuation: str | None = None
+
+        while True:
+            if continuation is None:
+                response = await s3.list_objects_v2(
+                    Bucket=target,
+                    Prefix=key_prefix,
+                    MaxKeys=1000,
+                )
+            else:
+                response = await s3.list_objects_v2(
+                    Bucket=target,
+                    Prefix=key_prefix,
+                    MaxKeys=1000,
+                    ContinuationToken=continuation,
+                )
+
+            contents = response.get("Contents") or []
+
+            if contents:
+                batch: list[ObjectIdentifierTypeDef] = [
+                    {"Key": key}
+                    for item in contents
+                    if (key := item.get("Key"))
+                ]
+
+                if batch:
+                    await s3.delete_objects(
+                        Bucket=target,
+                        Delete={"Objects": batch, "Quiet": True},
+                    )
+                    deleted += len(batch)
+
+            if not response.get("IsTruncated"):
+                break
+
+            continuation = response.get("NextContinuationToken")
+
+            if not continuation:
+                break
+
+    return deleted
 
 
 @lru_cache

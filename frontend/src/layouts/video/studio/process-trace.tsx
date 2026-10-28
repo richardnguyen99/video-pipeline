@@ -1,5 +1,6 @@
-import { CheckIcon, CircleIcon, LoaderCircleIcon, XIcon } from "lucide-react";
+import { CheckIcon, CircleIcon, LoaderCircleIcon, RotateCcwIcon, XIcon } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
   Trace,
@@ -71,13 +72,51 @@ function descriptionFor(row: VideoRenditionProgress): string {
   return "Queued";
 }
 
+function isRecoverable(row: VideoRenditionProgress): boolean {
+  const normalized = row.status.toUpperCase();
+
+  return normalized === "FAILED" || normalized === "ENCODING" || normalized === "PENDING";
+}
+
+function overallFromRenditions(renditions: Array<VideoRenditionProgress>, fallback: number): number {
+  if (renditions.length === 0) {
+    return fallback;
+  }
+
+  const readyCount = renditions.filter((row) => row.status.toUpperCase() === "READY").length;
+  const encodingShare = renditions.reduce((sum, row) => {
+    const normalized = row.status.toUpperCase();
+
+    if (normalized === "READY") {
+      return sum + 100;
+    }
+
+    if (normalized === "FAILED") {
+      return sum;
+    }
+
+    return sum + Math.min(100, Math.max(0, row.progress_pct));
+  }, 0);
+  const average = encodingShare / renditions.length;
+
+  if (readyCount === renditions.length) {
+    return 100;
+  }
+
+  // Map average rung progress onto the post-upload encode span (~8–100).
+  return Math.max(fallback, Math.round(8 + (average / 100) * 92));
+}
+
 type ProcessTraceProps = {
   status: VideoUploadStatusResponse | null;
+  recoveringLabel?: string | null;
+  onRecoverRendition?: (label: string) => void;
 };
 
-export function ProcessTrace({ status }: ProcessTraceProps) {
+export function ProcessTrace({ status, recoveringLabel = null, onRecoverRendition }: ProcessTraceProps) {
   const renditions = status?.renditions ?? [];
-  const overall = status?.overall_progress_pct ?? 0;
+  const serverOverall = status?.overall_progress_pct ?? 0;
+  const overall = overallFromRenditions(renditions, serverOverall);
   const pipelineStatus = status?.status ?? "UPLOADED";
 
   if (renditions.length === 0) {
@@ -111,7 +150,8 @@ export function ProcessTrace({ status }: ProcessTraceProps) {
       <Trace className="w-full">
         {renditions.map((row) => {
           const lineStatus = traceStatusFor(row.status);
-          const openByDefault = row.status.toUpperCase() === "ENCODING";
+          const openByDefault = row.status.toUpperCase() === "ENCODING" || row.status.toUpperCase() === "FAILED";
+          const recovering = recoveringLabel === row.label;
 
           return (
             <TraceCollapsible key={row.label} defaultOpen={openByDefault} className="w-full">
@@ -147,6 +187,29 @@ export function ProcessTrace({ status }: ProcessTraceProps) {
                   ) : null}
 
                   {row.playlist_key ? <p className="font-mono text-xs break-all">{row.playlist_key}</p> : null}
+
+                  {isRecoverable(row) && onRecoverRendition != null ? (
+                    <div className="flex items-center justify-end pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={recovering || recoveringLabel != null}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          onRecoverRendition(row.label);
+                        }}
+                      >
+                        {recovering ? (
+                          <LoaderCircleIcon className="size-3.5 animate-spin" />
+                        ) : (
+                          <RotateCcwIcon className="size-3.5" />
+                        )}
+                        {recovering ? "Recovering…" : "Recover encode"}
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </TraceCollapsibleContent>
             </TraceCollapsible>
