@@ -1,3 +1,7 @@
+import { useState } from "react";
+import { format, parse } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+
 import {
   actressMultiFilterConfig,
   directorMultiFilterConfig,
@@ -8,11 +12,33 @@ import {
 } from "@/components/entity-multi-filter/configs";
 import { EntityMultiFilter } from "@/components/entity-multi-filter/index";
 import type { EntityMultiFilterConfig } from "@/components/entity-multi-filter/index";
+import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import type { RelationKey, RelationSelections } from "@/layouts/video/studio/types";
+import { buttonVariants } from "@/libs/shadcn_variants";
+import { cn } from "@/libs/utils";
+
+function parseReleaseDate(value: string): Date | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = parse(value, "yyyy-MM-dd", new Date());
+
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function formatReleaseDate(date: Date): string {
+  return format(date, "yyyy-MM-dd");
+}
 
 const RELATION_FILTERS = [
   { key: "actresses" as const, label: "Actresses", config: actressMultiFilterConfig },
@@ -64,6 +90,9 @@ export function DetailsStep({
   onRelationIdsChange,
   onNotifySubscribersChange,
 }: DetailsStepProps) {
+  const [releaseDateOpen, setReleaseDateOpen] = useState(false);
+  const selectedReleaseDate = parseReleaseDate(releaseDate);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -150,14 +179,41 @@ export function DetailsStep({
         <div className="flex flex-col gap-2">
           <Label htmlFor="studio-release-date">Release date</Label>
 
-          <Input
-            id="studio-release-date"
-            type="date"
-            value={releaseDate}
-            onChange={(event) => {
-              onReleaseDateChange(event.target.value);
-            }}
-          />
+          <Popover open={releaseDateOpen} onOpenChange={setReleaseDateOpen} modal>
+            <PopoverTrigger
+              id="studio-release-date"
+              type="button"
+              className={cn(buttonVariants({ variant: "outline" }), "w-full justify-between font-normal")}
+            >
+              <span
+                className={cn(
+                  "truncate text-left transition-opacity",
+                  selectedReleaseDate
+                    ? "text-muted-foreground opacity-80 hover:opacity-100"
+                    : "text-muted-foreground/70 opacity-80 hover:opacity-100",
+                )}
+              >
+                {selectedReleaseDate ? format(selectedReleaseDate, "PPP") : "Pick a date"}
+              </span>
+
+              <CalendarIcon className="size-4 shrink-0 text-muted-foreground opacity-80" aria-hidden />
+            </PopoverTrigger>
+
+            <PopoverContent className="w-auto p-0" side="bottom" align="start" sideOffset={4}>
+              <Calendar
+                mode="single"
+                captionLayout="dropdown"
+                selected={selectedReleaseDate}
+                defaultMonth={selectedReleaseDate}
+                startMonth={new Date(1970, 0)}
+                endMonth={new Date(new Date().getFullYear() + 2, 11)}
+                onSelect={(date) => {
+                  onReleaseDateChange(date ? formatReleaseDate(date) : "");
+                  setReleaseDateOpen(false);
+                }}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
 
@@ -171,7 +227,7 @@ export function DetailsStep({
           </p>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-3">
           {RELATION_FILTERS.map((section) => (
             <div key={section.key} className="flex flex-col gap-2">
               <Label>{section.label}</Label>
@@ -182,6 +238,14 @@ export function DetailsStep({
                   onRelationIdsChange(section.key, ids);
                 }}
                 config={section.config as unknown as EntityMultiFilterConfig}
+                triggerClassName={(active) =>
+                  cn(
+                    "inline-flex h-8 w-full items-center justify-between gap-1.5 rounded-lg border px-2.5 text-sm",
+                    active
+                      ? "border-primary/50 bg-primary/10 text-foreground"
+                      : "border-border bg-background text-muted-foreground",
+                  )
+                }
               />
             </div>
           ))}

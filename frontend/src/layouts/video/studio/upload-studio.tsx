@@ -84,6 +84,7 @@ export function UploadStudio() {
   const [message, setMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<VideoUploadStatusResponse | null>(null);
   const [recoveringLabel, setRecoveringLabel] = useState<string | null>(null);
+  const [savingMetadata, setSavingMetadata] = useState(false);
   const [upsertDialogOpen, setUpsertDialogOpen] = useState(false);
   const [conflictExisting, setConflictExisting] = useState<ExistingVideoSummary | null>(null);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
@@ -713,7 +714,7 @@ export function UploadStudio() {
     const publicId = status?.public_id;
 
     if (publicId == null) {
-      return;
+      return null;
     }
 
     const updated = await updateVideoUploadMetadata(publicId, {
@@ -730,7 +731,37 @@ export function UploadStudio() {
       director_ids: relations.directors,
     });
     setStatus(updated);
-  }, [cid, jancode, makerProduct, relations, releaseDate, status, title]);
+    void queryClient.invalidateQueries({ queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY });
+
+    return updated;
+  }, [cid, jancode, makerProduct, queryClient, relations, releaseDate, status, title]);
+
+  const handleUpdateCatalog = useCallback(async () => {
+    if (status?.public_id == null || savingMetadata) {
+      return;
+    }
+
+    if (!title.trim()) {
+      setMessage("Title is required to update catalog details.");
+      setPhase("error");
+
+      return;
+    }
+
+    setSavingMetadata(true);
+    setMessage(null);
+
+    try {
+      await persistCatalogMetadata();
+      setPhase("done");
+      setMessage("Catalog details updated.");
+    } catch (error) {
+      setPhase("error");
+      setMessage(getApiErrorMessage(error));
+    } finally {
+      setSavingMetadata(false);
+    }
+  }, [persistCatalogMetadata, savingMetadata, status?.public_id, title]);
 
   const handleRecoverRendition = useCallback(
     async (label: string) => {
@@ -762,9 +793,26 @@ export function UploadStudio() {
     }
 
     if (activeStep === 2 && status?.public_id != null) {
-      void persistCatalogMetadata().catch((error: unknown) => {
-        setMessage(getApiErrorMessage(error));
-      });
+      if (savingMetadata) {
+        return;
+      }
+
+      setSavingMetadata(true);
+      setMessage(null);
+
+      void persistCatalogMetadata()
+        .then(() => {
+          setActiveStep((step) => Math.min(7, step + 1));
+        })
+        .catch((error: unknown) => {
+          setPhase("error");
+          setMessage(getApiErrorMessage(error));
+        })
+        .finally(() => {
+          setSavingMetadata(false);
+        });
+
+      return;
     }
 
     setActiveStep((step) => Math.min(7, step + 1));
@@ -934,7 +982,7 @@ export function UploadStudio() {
 
           <div className="flex items-center justify-between gap-3 border-t pt-4">
             {activeStep > 1 ? (
-              <Button type="button" variant="outline" disabled={busy} onClick={goBack}>
+              <Button type="button" variant="outline" disabled={busy || savingMetadata} onClick={goBack}>
                 <ArrowLeft data-icon="inline-start" className="size-4" />
                 Back
               </Button>
@@ -942,36 +990,53 @@ export function UploadStudio() {
               <span />
             )}
 
-            <Button
-              type="button"
-              disabled={!canContinue || (activeStep === 7 && (status == null || phase === "error"))}
-              onClick={() => {
-                if (activeStep === 7) {
-                  if (status == null) {
+            <div className="flex items-center gap-2">
+              {activeStep === 2 && status?.public_id != null ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={!title.trim() || savingMetadata || busy}
+                  onClick={() => {
+                    void handleUpdateCatalog();
+                  }}
+                >
+                  {savingMetadata ? "Updating…" : "Update catalog"}
+                </Button>
+              ) : null}
+
+              <Button
+                type="button"
+                disabled={!canContinue || savingMetadata || (activeStep === 7 && (status == null || phase === "error"))}
+                onClick={() => {
+                  if (activeStep === 7) {
+                    if (status == null) {
+                      return;
+                    }
+
+                    window.open(`/videos/${status.id}`, "_blank", "noopener,noreferrer");
+
                     return;
                   }
 
-                  window.open(`/videos/${status.id}`, "_blank", "noopener,noreferrer");
-
-                  return;
-                }
-
-                goNext();
-              }}
-            >
-              {activeStep === 7
-                ? "Open video page"
-                : activeStep === 5
-                  ? status != null &&
-                    status.renditions.length > 0 &&
-                    status.renditions.every((row) => row.status.toUpperCase() === "READY")
-                    ? "Continue to media"
-                    : "Continue with available stream"
-                  : activeStep === 6
-                    ? "Continue to preview"
-                    : "Continue"}
-              <ArrowRight data-icon="inline-end" className="size-4" />
-            </Button>
+                  goNext();
+                }}
+              >
+                {activeStep === 7
+                  ? "Open video page"
+                  : activeStep === 5
+                    ? status != null &&
+                      status.renditions.length > 0 &&
+                      status.renditions.every((row) => row.status.toUpperCase() === "READY")
+                      ? "Continue to media"
+                      : "Continue with available stream"
+                    : activeStep === 6
+                      ? "Continue to preview"
+                      : activeStep === 2 && status?.public_id != null && savingMetadata
+                        ? "Saving…"
+                        : "Continue"}
+                <ArrowRight data-icon="inline-end" className="size-4" />
+              </Button>
+            </div>
           </div>
         </div>
 
