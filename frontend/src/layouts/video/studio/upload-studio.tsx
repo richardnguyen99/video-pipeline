@@ -165,7 +165,7 @@ export function UploadStudio() {
 
         const draft = loadUploadStudioSession(resumeId);
         const preferredStep = search.step ?? draft?.activeStep ?? defaultStepForStatus(next);
-        const clampedStep = Math.min(7, Math.max(5, preferredStep));
+        const clampedStep = Math.min(7, Math.max(1, preferredStep));
 
         resumeAppliedRef.current = resumeId;
         setStatus(next);
@@ -178,7 +178,7 @@ export function UploadStudio() {
         if (draft != null) {
           setTitle(draft.title || next.title || "");
           setDescription(draft.description);
-          setVideoCode(draft.videoCode);
+          setVideoCode(draft.videoCode || next.video_id || "");
           setCid(draft.cid || next.cid || "");
           setJancode(draft.jancode || next.jancode || "");
           setMakerProduct(draft.makerProduct || next.maker_product || "");
@@ -192,6 +192,7 @@ export function UploadStudio() {
           setSessionFilename(draft.originalFilename ?? next.original_filename);
         } else {
           setTitle(next.title ?? "");
+          setVideoCode(next.video_id);
           setCid(next.cid ?? "");
           setJancode(next.jancode ?? "");
           setMakerProduct(next.maker_product ?? "");
@@ -350,13 +351,19 @@ export function UploadStudio() {
     });
   }, [activeStep, navigate, search.publicId, search.step, status?.public_id]);
 
+  const sourceBytes = status?.source_bytes;
+
   const fileSizeLabel = useMemo(() => {
-    if (!file) {
-      return "";
+    if (file) {
+      return formatFileSize(file.size);
     }
 
-    return formatFileSize(file.size);
-  }, [file]);
+    if (sourceBytes != null && sourceBytes > 0) {
+      return formatFileSize(sourceBytes);
+    }
+
+    return "";
+  }, [file, sourceBytes]);
 
   const chooseFile = useCallback((selectedFile?: File) => {
     if (!selectedFile) {
@@ -666,7 +673,7 @@ export function UploadStudio() {
 
   const canContinue = useMemo(() => {
     if (activeStep === 1) {
-      return Boolean(file);
+      return Boolean(file) || status != null;
     }
 
     if (activeStep === 2) {
@@ -674,7 +681,7 @@ export function UploadStudio() {
     }
 
     if (activeStep === 4) {
-      return phase === "done";
+      return phase === "done" || status != null;
     }
 
     if (activeStep === 5) {
@@ -768,10 +775,7 @@ export function UploadStudio() {
       return;
     }
 
-    // Resumed sessions have no local File — do not drop below Process.
-    const minStep = file == null && status != null ? 5 : 1;
-
-    setActiveStep((step) => Math.max(minStep, step - 1));
+    setActiveStep((step) => Math.max(1, step - 1));
   };
 
   return (

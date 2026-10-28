@@ -986,6 +986,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             id=video.id,
             public_id=video.public_id,
             status=status_value,
+            video_id=video.video_id,
             original_filename=video.original_filename,
             source_key=video.source_key,
             source_bytes=video.source_bytes,

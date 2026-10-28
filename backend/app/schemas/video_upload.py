@@ -154,6 +154,7 @@ class VideoUploadStatusResponse(BaseModel):
     id: int
     public_id: UUID
     status: str
+    video_id: str
     original_filename: Optional[str] = None
     source_key: Optional[str] = None
     source_bytes: Optional[int] = None

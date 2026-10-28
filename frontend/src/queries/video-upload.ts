@@ -33,6 +33,7 @@ export type VideoUploadStatusResponse = {
   id: number;
   public_id: string;
   status: string;
+  video_id: string;
   original_filename: string | null;
   source_key: string | null;
   source_bytes: number | null;
