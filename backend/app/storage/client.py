@@ -269,14 +269,20 @@ class ObjectStorageClient:
 
         return mapping.get(suffix, "application/octet-stream")
 
-    async def object_exists(self, object_key: str) -> bool:
-        """Return whether ``object_key`` exists in the configured bucket."""
+    async def object_exists(
+        self,
+        object_key: str,
+        *,
+        bucket: str | None = None,
+    ) -> bool:
+        """Return whether ``object_key`` exists in the target bucket."""
 
         key = object_key.lstrip("/")
+        target = bucket or self.bucket
 
         async with self.s3_client() as s3:
             try:
-                await s3.head_object(Bucket=self.bucket, Key=key)
+                await s3.head_object(Bucket=target, Key=key)
             except ClientError as exc:
                 error_code = exc.response.get("Error", {}).get("Code", "")
                 status = exc.response.get("ResponseMetadata", {}).get(

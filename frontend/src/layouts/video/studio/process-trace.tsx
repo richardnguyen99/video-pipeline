@@ -75,7 +75,7 @@ function descriptionFor(row: VideoRenditionProgress): string {
 function isRecoverable(row: VideoRenditionProgress): boolean {
   const normalized = row.status.toUpperCase();
 
-  return normalized === "FAILED" || normalized === "ENCODING" || normalized === "PENDING";
+  return normalized === "FAILED" || normalized === "ENCODING" || normalized === "PENDING" || normalized === "READY";
 }
 
 function overallFromRenditions(renditions: Array<VideoRenditionProgress>, fallback: number): number {
@@ -182,32 +182,39 @@ export function ProcessTrace({ status, recoveringLabel = null, onRecoverRenditio
 
                   <Progress value={row.progress_pct} className="h-1.5 w-full" />
 
-                  {row.segment_count != null && row.segment_count > 0 ? (
-                    <p className="text-xs">{row.segment_count} TS segments written</p>
-                  ) : null}
+                  {(row.segment_count != null && row.segment_count > 0) ||
+                  row.playlist_key ||
+                  (isRecoverable(row) && onRecoverRendition != null) ? (
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        {row.segment_count != null && row.segment_count > 0 ? (
+                          <p className="text-xs">{row.segment_count} TS segments written</p>
+                        ) : null}
 
-                  {row.playlist_key ? <p className="font-mono text-xs break-all">{row.playlist_key}</p> : null}
+                        {row.playlist_key ? <p className="font-mono text-xs break-all">{row.playlist_key}</p> : null}
+                      </div>
 
-                  {isRecoverable(row) && onRecoverRendition != null ? (
-                    <div className="flex items-center justify-end pt-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={recovering || recoveringLabel != null}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          onRecoverRendition(row.label);
-                        }}
-                      >
-                        {recovering ? (
-                          <LoaderCircleIcon className="size-3.5 animate-spin" />
-                        ) : (
-                          <RotateCcwIcon className="size-3.5" />
-                        )}
-                        {recovering ? "Recovering…" : "Recover encode"}
-                      </Button>
+                      {isRecoverable(row) && onRecoverRendition != null ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          disabled={recovering || recoveringLabel != null}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            onRecoverRendition(row.label);
+                          }}
+                        >
+                          {recovering ? (
+                            <LoaderCircleIcon className="size-3.5 animate-spin" />
+                          ) : (
+                            <RotateCcwIcon className="size-3.5" />
+                          )}
+                          {recovering ? "Recovering…" : "Recover encode"}
+                        </Button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

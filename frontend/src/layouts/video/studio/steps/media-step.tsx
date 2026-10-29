@@ -341,17 +341,6 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
   return (
     <div className="flex w-full flex-col gap-6 py-2">
-      <div className="flex flex-col gap-1">
-        <h3 className="text-base font-medium">Thumbnails and sample images</h3>
-
-        <p className="text-muted-foreground text-sm">
-          Optional. Drag and drop images onto a zone, or click to browse. Files are stored under the video&apos;s object
-          prefix (<span className="font-mono text-xs">thumbnails/</span>,{" "}
-          <span className="font-mono text-xs">samples/</span>) and linked in the catalog tables. You can skip this step
-          and continue.
-        </p>
-      </div>
-
       {loading ? (
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Loader2 className="size-4 animate-spin" />

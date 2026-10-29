@@ -71,9 +71,9 @@ export function ProcessStep({ status, recoveringLabel = null, onRecoverRendition
             {failed
               ? (status.error_message ?? "Encoding failed.")
               : complete
-                ? "All resolutions encoded. Continue to media or open the stream in a new tab."
+                ? "All resolutions encoded. Expand a resolution to re-encode it if playback is broken."
                 : failedCount > 0
-                  ? `${readyCount} of ${totalCount} resolutions ready · ${failedCount} failed. Recover a failed encode below.`
+                  ? `${readyCount} of ${totalCount} resolutions ready · ${failedCount} failed. Expand a resolution to recover its encode.`
                   : playable
                     ? totalCount > 0
                       ? `${readyCount} of ${totalCount} resolutions ready. Open the stream in a new tab — this page keeps processing.`

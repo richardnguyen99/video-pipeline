@@ -551,10 +551,12 @@ class VideoUploadService(VideoUploadMediaMixin):
 
         target_status = (target.status or "").upper()
 
-        if target_status == "READY" and target.playlist_key:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Rendition '{normalized}' is already READY.",
+        if target_status == "READY":
+            _logger.info(
+                "recover READY rung public_id=%s label=%s playlist_key=%s",
+                public_id,
+                target.label,
+                target.playlist_key,
             )
 
         prefix = f"{public_id}/{target.label}"

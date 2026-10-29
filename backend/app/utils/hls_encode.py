@@ -40,8 +40,13 @@ def _rate_args(video_kbps: int) -> tuple[str, str]:
     return f"{int(video_kbps * 1.1)}k", f"{int(video_kbps * 1.5)}k"
 
 
-def _hls_output_args(playlist: Path, segment_pattern: str) -> list[str]:
-    """Shared HLS muxer flags for MPEG-TS VOD output."""
+def _hls_output_args(playlist_name: str, segment_pattern: str) -> list[str]:
+    """Shared HLS muxer flags for MPEG-TS VOD output.
+
+    ``playlist_name`` and ``segment_pattern`` should be relative names so the
+    process can run with ``cwd`` set to the output directory. That keeps
+    segment URIs in the playlist as bare filenames the player can resolve.
+    """
 
     segment_time = str(_segment_seconds())
 
@@ -60,8 +65,45 @@ def _hls_output_args(playlist: Path, segment_pattern: str) -> list[str]:
         "independent_segments",
         "-hls_segment_filename",
         segment_pattern,
-        str(playlist),
+        playlist_name,
     ]
+
+
+def normalize_media_playlist(playlist: Path) -> None:
+    """Rewrite a media playlist so segment URIs are basenames and VOD is closed.
+
+    ffmpeg usually writes basenames already; some builds embed directory
+    prefixes when ``hls_segment_filename`` is an absolute path. Players resolve
+    URIs relative to the playlist URL, so prefixes break segment fetches.
+    """
+
+    if not playlist.is_file():
+        raise RuntimeError(f"media playlist missing: {playlist}")
+
+    lines = playlist.read_text(encoding="utf-8").splitlines()
+    rewritten: list[str] = []
+    has_endlist = False
+
+    for raw in lines:
+        line = raw.strip()
+
+        if not line:
+            continue
+
+        if line.startswith("#"):
+            rewritten.append(line)
+
+            if line == "#EXT-X-ENDLIST":
+                has_endlist = True
+
+            continue
+
+        rewritten.append(Path(line).name)
+
+    if not has_endlist:
+        rewritten.append("#EXT-X-ENDLIST")
+
+    playlist.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
 
 
 def _x264_audio_args(
@@ -110,10 +152,13 @@ def build_ffmpeg_command(
     audio_kbps: int,
     preset: str = _DEFAULT_PRESET,
 ) -> list[str]:
-    """Build the ffmpeg argv for one HLS MPEG-TS rendition (single process)."""
+    """Build the ffmpeg argv for one HLS MPEG-TS rendition (single process).
 
-    playlist = out_dir / "playlist.m3u8"
-    segment_pattern = str(out_dir / "seg_%05d.ts")
+    Segment and playlist paths are relative; callers must run ffmpeg with
+    ``cwd=out_dir``.
+    """
+
+    _ = out_dir
 
     return [
         "ffmpeg",
@@ -131,7 +176,7 @@ def build_ffmpeg_command(
             video_kbps=video_kbps,
             audio_kbps=audio_kbps,
         ),
-        *_hls_output_args(playlist, segment_pattern),
+        *_hls_output_args("playlist.m3u8", "seg_%05d.ts"),
         "-progress",
         "pipe:1",
         "-nostats",
@@ -160,8 +205,8 @@ def _ladder_output_args(
 ) -> list[str]:
     out_dir = work_dir / spec.label
     out_dir.mkdir(parents=True, exist_ok=True)
-    playlist = out_dir / "playlist.m3u8"
-    segment_pattern = str(out_dir / "seg_%05d.ts")
+    playlist = f"{spec.label}/playlist.m3u8"
+    segment_pattern = f"{spec.label}/seg_%05d.ts"
 
     return [
         "-map",
@@ -381,20 +426,23 @@ async def _run_ffmpeg_with_progress(
     duration_s: Optional[float],
     on_progress: Optional[ProgressCallback],
     label: str = "ffmpeg",
+    cwd: Optional[Path] = None,
 ) -> None:
     """Run ffmpeg and optionally report overall progress from ``out_time``."""
 
     _logger.info(
-        "%s starting pid=pending args=%s duration_s=%s",
+        "%s starting pid=pending args=%s duration_s=%s cwd=%s",
         label,
         " ".join(command[:12]) + (" …" if len(command) > 12 else ""),
         duration_s,
+        cwd,
     )
 
     process = await asyncio.create_subprocess_exec(
         *command,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        cwd=str(cwd) if cwd is not None else None,
     )
 
     _logger.info("%s started pid=%s", label, process.pid)
@@ -479,6 +527,7 @@ async def encode_hls_rendition(
             duration_s=duration_s,
             on_progress=on_progress,
             label=label,
+            cwd=out_dir,
         )
 
     await run_in_transcode_pool(_run, label=label)
@@ -487,6 +536,8 @@ async def encode_hls_rendition(
 
     if not playlist.is_file():
         raise RuntimeError("ffmpeg did not produce playlist.m3u8")
+
+    normalize_media_playlist(playlist)
 
     return playlist
 
@@ -521,6 +572,7 @@ async def encode_hls_ladder(
             duration_s=duration_s,
             on_progress=on_progress,
             label=label,
+            cwd=work_dir,
         )
 
     await run_in_transcode_pool(_run, label=label)
@@ -535,6 +587,7 @@ async def encode_hls_ladder(
                 f"ffmpeg did not produce playlist for {spec.label}",
             )
 
+        normalize_media_playlist(playlist)
         playlists.append(playlist)
 
     return playlists

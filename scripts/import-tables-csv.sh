@@ -10,6 +10,16 @@
 # Credentials and paths come from env / env file only.
 # Tables are loaded in FK-safe order; batches for each table are sorted
 # numerically (table_1.csv, table_2.csv, ...).
+#
+# Conflict handling (ON_CONFLICT_SKIP=true, default):
+#   - Existing rows are never updated in place.
+#   - video rows that share a business video_id with a live row are skipped
+#     (and their child/assoc rows in the batch are dropped).
+#   - video rows that only collide on numeric id get a new id; child tables
+#     (images, samples, associations) rewrite fk_id / video_id via a map so
+#     relations stay attached to the imported video, not the local one.
+#   - Child serial primary keys that collide are renumbered before insert.
+#   - After load, every public serial/identity sequence is set to MAX(column).
 
 set -euo pipefail
 
@@ -179,6 +189,30 @@ csv_header_columns() {
   echo "${out[*]}"
 }
 
+# Child tables that reference video.id via fk_id.
+VIDEO_FK_ID_TABLES="|video_aka|video_image_url|video_m3u8|video_sample_image_url|video_sample_movie_url|"
+# Junction tables that reference video.id via video_id.
+VIDEO_ASSOC_TABLES="|video_actress|video_series|video_maker|video_label|video_genre|video_director|"
+
+ensure_video_id_maps() {
+  "${PSQL[@]}" -v ON_ERROR_STOP=1 <<'SQL'
+CREATE TABLE IF NOT EXISTS public._import_video_id_map (
+  old_id integer PRIMARY KEY,
+  new_id integer NOT NULL UNIQUE
+);
+CREATE TABLE IF NOT EXISTS public._import_video_id_skip (
+  old_id integer PRIMARY KEY
+);
+SQL
+}
+
+drop_video_id_maps() {
+  "${PSQL[@]}" -v ON_ERROR_STOP=1 <<'SQL'
+DROP TABLE IF EXISTS public._import_video_id_map;
+DROP TABLE IF EXISTS public._import_video_id_skip;
+SQL
+}
+
 import_file() {
   local table="$1"
   local file="$2"
@@ -194,8 +228,134 @@ import_file() {
     return
   fi
 
-  # Stage → INSERT ON CONFLICT DO NOTHING (duplicate PK/unique across batches).
-  echo "  stage+upsert public.${qtable} FROM $(basename "$file")"
+  echo "  stage+remap public.${qtable} FROM $(basename "$file")"
+
+  if [[ "$table" == "video" ]]; then
+    "${PSQL[@]}" -v ON_ERROR_STOP=1 <<SQL
+DROP TABLE IF EXISTS _csv_stage;
+CREATE TEMP TABLE _csv_stage (LIKE public.${qtable} INCLUDING DEFAULTS);
+\copy _csv_stage (${cols}) FROM '${file}' WITH (FORMAT csv, HEADER true)
+
+-- Same business video_id as a live row: keep local, skip import of that id.
+INSERT INTO public._import_video_id_skip (old_id)
+SELECT s.id
+FROM _csv_stage s
+WHERE EXISTS (
+  SELECT 1 FROM public.video v WHERE v.video_id = s.video_id
+)
+ON CONFLICT (old_id) DO NOTHING;
+
+DELETE FROM _csv_stage s
+WHERE EXISTS (
+  SELECT 1 FROM public._import_video_id_skip k WHERE k.old_id = s.id
+);
+
+-- Numeric id collides with a different live video: assign a fresh id and map it.
+WITH base AS (
+  SELECT GREATEST(
+    COALESCE((SELECT MAX(id) FROM public.video), 0),
+    COALESCE((SELECT MAX(id) FROM _csv_stage), 0),
+    COALESCE((SELECT MAX(new_id) FROM public._import_video_id_map), 0)
+  ) AS lo
+),
+conflicts AS (
+  SELECT s.id AS old_id,
+         base.lo + ROW_NUMBER() OVER (ORDER BY s.id)::integer AS new_id
+  FROM _csv_stage s
+  CROSS JOIN base
+  WHERE EXISTS (SELECT 1 FROM public.video v WHERE v.id = s.id)
+    AND NOT EXISTS (
+      SELECT 1 FROM public._import_video_id_map m WHERE m.old_id = s.id
+    )
+)
+INSERT INTO public._import_video_id_map (old_id, new_id)
+SELECT old_id, new_id FROM conflicts;
+
+UPDATE _csv_stage s
+SET id = m.new_id
+FROM public._import_video_id_map m
+WHERE s.id = m.old_id;
+
+INSERT INTO public.${qtable} (${cols})
+SELECT ${cols} FROM _csv_stage
+ON CONFLICT DO NOTHING;
+
+DROP TABLE IF EXISTS _csv_stage;
+SQL
+    return
+  fi
+
+  if [[ "$VIDEO_FK_ID_TABLES" == *"|${table}|"* ]]; then
+    "${PSQL[@]}" -v ON_ERROR_STOP=1 <<SQL
+DROP TABLE IF EXISTS _csv_stage;
+CREATE TEMP TABLE _csv_stage (LIKE public.${qtable} INCLUDING DEFAULTS);
+\copy _csv_stage (${cols}) FROM '${file}' WITH (FORMAT csv, HEADER true)
+
+-- Drop children of videos skipped for business-key collision.
+DELETE FROM _csv_stage s
+WHERE EXISTS (
+  SELECT 1 FROM public._import_video_id_skip k WHERE k.old_id = s.fk_id
+);
+
+-- Point children at remapped video ids.
+UPDATE _csv_stage s
+SET fk_id = m.new_id
+FROM public._import_video_id_map m
+WHERE s.fk_id = m.old_id;
+
+-- Renumber child PK when it would collide with a live row.
+WITH base AS (
+  SELECT GREATEST(
+    COALESCE((SELECT MAX(id) FROM public.${qtable}), 0),
+    COALESCE((SELECT MAX(id) FROM _csv_stage), 0)
+  ) AS lo
+),
+conflicts AS (
+  SELECT s.ctid AS rid,
+         base.lo + ROW_NUMBER() OVER (ORDER BY s.id)::integer AS new_id
+  FROM _csv_stage s
+  CROSS JOIN base
+  WHERE EXISTS (SELECT 1 FROM public.${qtable} t WHERE t.id = s.id)
+)
+UPDATE _csv_stage s
+SET id = c.new_id
+FROM conflicts c
+WHERE s.ctid = c.rid;
+
+INSERT INTO public.${qtable} (${cols})
+SELECT ${cols} FROM _csv_stage
+ON CONFLICT DO NOTHING;
+
+DROP TABLE IF EXISTS _csv_stage;
+SQL
+    return
+  fi
+
+  if [[ "$VIDEO_ASSOC_TABLES" == *"|${table}|"* ]]; then
+    "${PSQL[@]}" -v ON_ERROR_STOP=1 <<SQL
+DROP TABLE IF EXISTS _csv_stage;
+CREATE TEMP TABLE _csv_stage (LIKE public.${qtable} INCLUDING DEFAULTS);
+\copy _csv_stage (${cols}) FROM '${file}' WITH (FORMAT csv, HEADER true)
+
+DELETE FROM _csv_stage s
+WHERE EXISTS (
+  SELECT 1 FROM public._import_video_id_skip k WHERE k.old_id = s.video_id
+);
+
+UPDATE _csv_stage s
+SET video_id = m.new_id
+FROM public._import_video_id_map m
+WHERE s.video_id = m.old_id;
+
+INSERT INTO public.${qtable} (${cols})
+SELECT ${cols} FROM _csv_stage
+ON CONFLICT DO NOTHING;
+
+DROP TABLE IF EXISTS _csv_stage;
+SQL
+    return
+  fi
+
   "${PSQL[@]}" -v ON_ERROR_STOP=1 <<SQL
 DROP TABLE IF EXISTS _csv_stage;
 CREATE TEMP TABLE _csv_stage (LIKE public.${qtable} INCLUDING DEFAULTS);
@@ -207,6 +367,60 @@ DROP TABLE IF EXISTS _csv_stage;
 SQL
 }
 
+# COPY / INSERT with explicit ids does not advance serial/identity sequences.
+# Bump every public sequence owned by a column to at least MAX(column).
+resync_sequences() {
+  echo "=== resync serial / identity sequences ==="
+  "${PSQL[@]}" -v ON_ERROR_STOP=1 <<'SQL'
+DO $$
+DECLARE
+  rec record;
+  max_val bigint;
+  seq_name text;
+BEGIN
+  FOR rec IN
+    SELECT
+      n.nspname AS schema_name,
+      c.relname AS table_name,
+      a.attname AS column_name,
+      pg_get_serial_sequence(
+        format('%I.%I', n.nspname, c.relname),
+        a.attname
+      ) AS seq
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+    WHERE n.nspname = 'public'
+      AND c.relkind = 'r'
+      AND pg_get_serial_sequence(
+        format('%I.%I', n.nspname, c.relname),
+        a.attname
+      ) IS NOT NULL
+    ORDER BY c.relname, a.attnum
+  LOOP
+    seq_name := rec.seq;
+    EXECUTE format(
+      'SELECT COALESCE(MAX(%I), 0) FROM %I.%I',
+      rec.column_name,
+      rec.schema_name,
+      rec.table_name
+    ) INTO max_val;
+
+    IF max_val < 1 THEN
+      PERFORM setval(seq_name, 1, false);
+      RAISE NOTICE 'sequence % -> 1 (empty %.%)',
+        seq_name, rec.schema_name, rec.table_name;
+    ELSE
+      PERFORM setval(seq_name, max_val, true);
+      RAISE NOTICE 'sequence % -> % (%.%.%)',
+        seq_name, max_val, rec.schema_name, rec.table_name, rec.column_name;
+    END IF;
+  END LOOP;
+END
+$$;
+SQL
+}
+
 echo "Import dir: $IMPORT_DIR"
 echo "Tables:     ${#ORDER[@]}"
 echo
@@ -215,6 +429,9 @@ if [[ "$TRUNCATE_BEFORE_IMPORT" == "true" ]]; then
   truncate_tables "${ORDER[@]}"
   echo
 fi
+
+drop_video_id_maps
+ensure_video_id_maps
 
 for table in "${ORDER[@]}"; do
   mapfile -t batches < <(list_batches "$table")
@@ -229,6 +446,10 @@ for table in "${ORDER[@]}"; do
     import_file "$table" "$file"
   done
 done
+
+echo
+resync_sequences
+drop_video_id_maps
 
 echo
 echo "Done."

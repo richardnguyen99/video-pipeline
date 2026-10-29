@@ -1,6 +1,6 @@
 """Probe, encode HLS ladder, package master playlist (pipeline steps 4-6)."""
 
-# pylint: disable=broad-exception-caught
+# pylint: disable=broad-exception-caught, too-many-lines
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import tempfile
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Callable, Coroutine, Optional
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -28,7 +28,10 @@ from app.messaging.transcode_progress import (
 )
 from app.models.video import Video, VideoM3u8, VideoRendition
 from app.storage.client import ObjectStorageClient, get_object_storage_client
-from app.utils.hls_encode import build_master_playlist, encode_hls_rendition
+from app.utils.hls_encode import (
+    build_master_playlist,
+    encode_hls_rendition,
+)
 from app.utils.media_probe import (
     MediaProbeResult,
     plan_rendition_ladder,
@@ -560,7 +563,7 @@ def _split_pending(
 
 async def _encode_progressive_ladder(
     *,
-    session: Any,
+    session: AsyncSession,
     storage: ObjectStorageClient,
     video: Video,
     video_db_id: int,
@@ -646,7 +649,7 @@ async def _encode_progressive_ladder(
 
 async def _encode_higher_rungs(
     *,
-    session: Any,
+    session: AsyncSession,
     storage: ObjectStorageClient,
     video: Video,
     video_db_id: int,
@@ -738,7 +741,7 @@ def _clear_work_dir(work_dir: Path) -> None:
 
 async def _mark_rendition_state(
     *,
-    session: Any,
+    session: AsyncSession,
     public_id: uuid.UUID,
     rendition: VideoRendition,
     live_rungs: list[RungProgressSnapshot],
@@ -770,9 +773,81 @@ async def _mark_rendition_state(
     await refresh_job_lock(public_id)
 
 
+async def _upload_and_verify_hls(
+    storage: ObjectStorageClient,
+    *,
+    public_id: uuid.UUID,
+    label: str,
+    work_dir: Path,
+) -> tuple[str, int]:
+    """Upload local HLS output and require playlist.m3u8 in streams bucket."""
+
+    key_prefix = f"{public_id}/{label}"
+    playlist_key = f"{key_prefix}/playlist.m3u8"
+    uploaded = await storage.upload_directory(
+        local_dir=work_dir,
+        key_prefix=key_prefix,
+        bucket=storage.streams_bucket,
+        content_type_map=_HLS_CONTENT_TYPES,
+    )
+
+    if not uploaded:
+        raise RuntimeError(f"no HLS objects uploaded for {label}")
+
+    playlist_exists = await storage.object_exists(
+        playlist_key,
+        bucket=storage.streams_bucket,
+    )
+
+    if not playlist_exists:
+        raise RuntimeError(f"playlist missing after upload: {playlist_key}")
+
+    segment_count = len(list(work_dir.glob("seg_*.ts")))
+
+    return playlist_key, segment_count
+
+
+def _make_rung_progress_callback(
+    *,
+    public_id: uuid.UUID,
+    rendition: VideoRendition,
+    work_dir: Path,
+    progress_base: float,
+    progress_span: float,
+    label: str,
+    live_rungs: list[RungProgressSnapshot],
+) -> Callable[[float], Coroutine[Any, Any, None]]:
+    last_published_pct = -1
+
+    async def on_progress(pct: float) -> None:
+        nonlocal last_published_pct
+
+        rounded = int(pct)
+        rendition.progress_pct = rounded
+
+        if work_dir.is_dir():
+            rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
+
+        if rounded - last_published_pct < 2 and rounded < 100:
+            return
+
+        last_published_pct = rounded
+        _sync_rung_in_list(live_rungs, rendition)
+        await write_progress(
+            public_id,
+            status=_STATUS_ENCODING,
+            overall_pct=progress_base + (pct / 100.0) * progress_span,
+            message=f"{label} {rounded}%",
+            rungs=live_rungs,
+        )
+        await refresh_job_lock(public_id)
+
+    return on_progress
+
+
 async def _encode_and_upload_one(
     *,
-    session: Any,
+    session: AsyncSession,
     storage: ObjectStorageClient,
     public_id: uuid.UUID,
     source_url: str,
@@ -786,7 +861,6 @@ async def _encode_and_upload_one(
 ) -> None:
     """Encode a single rung, upload to streams, mark rendition READY."""
 
-    audio_kbps = _AUDIO_KBPS_BY_HEIGHT.get(rendition.height, 128)
     last_error: Optional[Exception] = None
 
     while True:
@@ -803,15 +877,11 @@ async def _encode_and_upload_one(
                 overall_pct=progress_base,
                 message=f"{label} failed after {_MAX_RENDITION_ATTEMPTS} attempts",
             )
-            detail = (
-                str(last_error)
-                if last_error is not None
-                else "max attempts exceeded"
-            )
 
             raise RuntimeError(
                 f"Rendition {rendition.label} failed after "
-                f"{_MAX_RENDITION_ATTEMPTS} attempts: {detail}",
+                f"{_MAX_RENDITION_ATTEMPTS} attempts: "
+                f"{last_error if last_error is not None else 'max attempts exceeded'}",
             )
 
         rendition.attempt = current_attempt
@@ -827,31 +897,15 @@ async def _encode_and_upload_one(
             message=f"{label} started (attempt {current_attempt})",
         )
 
-        last_published_pct = -1
-
-        async def on_progress(pct: float) -> None:
-            nonlocal last_published_pct
-
-            rounded = int(pct)
-            rendition.progress_pct = rounded
-
-            if work_dir.is_dir():
-                rendition.segment_count = len(list(work_dir.glob("seg_*.ts")))
-
-            if rounded - last_published_pct < 2 and rounded < 100:
-                return
-
-            last_published_pct = rounded
-            _sync_rung_in_list(live_rungs, rendition)
-            await write_progress(
-                public_id,
-                status=_STATUS_ENCODING,
-                overall_pct=progress_base + (pct / 100.0) * progress_span,
-                message=f"{label} {rounded}%",
-                rungs=live_rungs,
-            )
-            await refresh_job_lock(public_id)
-
+        on_progress = _make_rung_progress_callback(
+            public_id=public_id,
+            rendition=rendition,
+            work_dir=work_dir,
+            progress_base=progress_base,
+            progress_span=progress_span,
+            label=label,
+            live_rungs=live_rungs,
+        )
         _clear_work_dir(work_dir)
 
         try:
@@ -860,16 +914,15 @@ async def _encode_and_upload_one(
                 out_dir=work_dir,
                 height=rendition.height,
                 video_kbps=rendition.video_kbps,
-                audio_kbps=audio_kbps,
+                audio_kbps=_AUDIO_KBPS_BY_HEIGHT.get(rendition.height, 128),
                 duration_s=duration_s,
                 on_progress=on_progress,
             )
-            key_prefix = f"{public_id}/{rendition.label}"
-            await storage.upload_directory(
-                local_dir=work_dir,
-                key_prefix=key_prefix,
-                bucket=storage.streams_bucket,
-                content_type_map=_HLS_CONTENT_TYPES,
+            playlist_key, segment_count = await _upload_and_verify_hls(
+                storage,
+                public_id=public_id,
+                label=rendition.label,
+                work_dir=work_dir,
             )
             await _mark_rendition_state(
                 session=session,
@@ -880,8 +933,8 @@ async def _encode_and_upload_one(
                 progress_pct=100,
                 overall_pct=progress_base + progress_span,
                 message=f"{label} ready",
-                playlist_key=f"{key_prefix}/playlist.m3u8",
-                segment_count=len(list(work_dir.glob("seg_*.ts"))),
+                playlist_key=playlist_key,
+                segment_count=segment_count,
             )
 
             return
@@ -930,9 +983,53 @@ async def _ensure_m3u8_row(
         )
 
 
+async def _demote_missing_playlists(
+    *,
+    session: AsyncSession,
+    storage: ObjectStorageClient,
+    public_id: uuid.UUID,
+    video_db_id: int,
+    ready_specs: list[ReadySpec],
+) -> list[ReadySpec]:
+    """Keep only rungs whose playlist object exists; demote the rest in DB."""
+
+    verified = await _filter_ready_specs_with_objects(
+        storage,
+        public_id,
+        ready_specs,
+    )
+    verified_labels = {spec[0] for spec in verified}
+    missing_labels = [
+        spec[0] for spec in ready_specs if spec[0] not in verified_labels
+    ]
+
+    if not missing_labels:
+        return verified
+
+    renditions = await _load_renditions(session, video_db_id)
+
+    for row in renditions:
+        if row.label not in missing_labels:
+            continue
+
+        row.status = _RENDITION_FAILED
+        row.progress_pct = 0
+        row.playlist_key = None
+        row.segment_count = 0
+        _logger.warning(
+            "demote rung missing playlist public_id=%s label=%s",
+            public_id,
+            row.label,
+        )
+
+    await session.commit()
+
+    return verified
+
+
 async def _publish_playable(
     *,
-    session: Any,
+    session: AsyncSession,
     storage: ObjectStorageClient,
     video: Video,
     video_db_id: int,
@@ -945,10 +1042,23 @@ async def _publish_playable(
     finishes so list/status UIs do not show Done while higher rungs encode.
     """
 
+    verified = await _demote_missing_playlists(
+        session=session,
+        storage=storage,
+        public_id=public_id,
+        video_db_id=video_db_id,
+        ready_specs=ready_specs,
+    )
+
+    if not verified:
+        raise RuntimeError(
+            f"no playable rungs with playlists for public_id={public_id}",
+        )
+
     master_url = await _package_master(
         storage=storage,
         public_id=public_id,
-        ready_specs=ready_specs,
+        ready_specs=verified,
     )
 
     await _ensure_m3u8_row(
@@ -967,11 +1077,41 @@ async def _publish_playable(
     await write_progress(
         public_id,
         status=_STATUS_ENCODING,
-        overall_pct=min(95.0, 20.0 + 15.0 * len(ready_specs)),
-        message=f"playable ({len(ready_specs)} rung(s))",
+        overall_pct=min(95.0, 20.0 + 15.0 * len(verified)),
+        message=f"playable ({len(verified)} rung(s))",
     )
 
     return master_url
+
+
+async def _filter_ready_specs_with_objects(
+    storage: ObjectStorageClient,
+    public_id: uuid.UUID,
+    ready_specs: list[ReadySpec],
+) -> list[ReadySpec]:
+    """Drop rungs whose media playlist is missing from the streams bucket."""
+
+    kept: list[ReadySpec] = []
+
+    for spec in ready_specs:
+        label = spec[0]
+        playlist_key = f"{public_id}/{label}/playlist.m3u8"
+        exists = await storage.object_exists(
+            playlist_key,
+            bucket=storage.streams_bucket,
+        )
+
+        if exists:
+            kept.append(spec)
+            continue
+
+        _logger.warning(
+            "master package: skip missing playlist public_id=%s key=%s",
+            public_id,
+            playlist_key,
+        )
+
+    return kept
 
 
 async def _package_master(
@@ -982,7 +1122,18 @@ async def _package_master(
 ) -> str:
     """Write and upload master index.m3u8; return its public URL."""
 
-    body = build_master_playlist(ready_specs)
+    verified = await _filter_ready_specs_with_objects(
+        storage,
+        public_id,
+        ready_specs,
+    )
+
+    if not verified:
+        raise RuntimeError(
+            f"no playable rungs with playlists for public_id={public_id}",
+        )
+
+    body = build_master_playlist(verified)
 
     with tempfile.TemporaryDirectory(prefix="hls-master-") as tmp:
         master_path = Path(tmp) / "index.m3u8"

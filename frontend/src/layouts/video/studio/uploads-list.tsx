@@ -30,6 +30,44 @@ import type { VideoUploadListItem } from "@/queries/video-upload";
 const PAGE_SIZE = 10;
 
 const STATUS_FILTER_ALL = "all";
+const STATUS_FILTER_PROCESSING = "processing";
+const STATUS_FILTER_DONE = "done";
+const STATUS_FILTER_FAILED = "failed";
+
+const STATUS_FILTER_OPTIONS = [
+  { value: STATUS_FILTER_ALL, label: "All statuses" },
+  { value: STATUS_FILTER_PROCESSING, label: "Processing" },
+  { value: STATUS_FILTER_DONE, label: "Done" },
+  { value: STATUS_FILTER_FAILED, label: "Error" },
+] as const;
+
+const PROCESSING_STATUSES = new Set(["UPLOADED", "PROBING", "QUEUED", "ENCODING", "PACKAGING"]);
+
+const UPLOADING_STATUSES = new Set(["PENDING", "UPLOADING"]);
+
+function statusFilterGroup(status: string): string {
+  const key = status.toUpperCase();
+
+  if (key === "READY") {
+    return STATUS_FILTER_DONE;
+  }
+
+  if (key === "FAILED") {
+    return STATUS_FILTER_FAILED;
+  }
+
+  if (PROCESSING_STATUSES.has(key) || UPLOADING_STATUSES.has(key)) {
+    return STATUS_FILTER_PROCESSING;
+  }
+
+  return STATUS_FILTER_PROCESSING;
+}
+
+function statusFilterLabel(value: string): string {
+  const match = STATUS_FILTER_OPTIONS.find((option) => option.value === value);
+
+  return match?.label ?? "Status";
+}
 
 const features = tableFeatures({
   columnFilteringFeature,
@@ -71,11 +109,11 @@ function statusLabel(status: string): string {
     return "Error";
   }
 
-  if (key === "PENDING" || key === "UPLOADING") {
+  if (UPLOADING_STATUSES.has(key)) {
     return "Uploading";
   }
 
-  if (key === "UPLOADED" || key === "PROBING" || key === "QUEUED" || key === "ENCODING") {
+  if (PROCESSING_STATUSES.has(key)) {
     return "Processing";
   }
 
@@ -155,7 +193,7 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
         return true;
       }
 
-      return row.original.status.toUpperCase() === filterValue.toUpperCase();
+      return statusFilterGroup(row.original.status) === filterValue;
     },
   },
   {
@@ -272,8 +310,6 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
   },
 ];
 
-const PROCESSING_STATUSES = new Set(["UPLOADED", "PROBING", "QUEUED", "ENCODING", "PACKAGING"]);
-
 function hasActiveProcessing(items: Array<VideoUploadListItem>): boolean {
   return items.some((item) => PROCESSING_STATUSES.has(item.status.toUpperCase()));
 }
@@ -332,16 +368,6 @@ export function UploadsList() {
     },
   });
 
-  const statusOptions = useMemo(() => {
-    const seen = new Set<string>();
-
-    for (const item of data) {
-      seen.add(item.status.toUpperCase());
-    }
-
-    return Array.from(seen).sort();
-  }, [data]);
-
   const pageIndex = table.state.pagination.pageIndex;
   const pageCount = Math.max(1, table.getPageCount());
   const filteredCount = table.getFilteredRowModel().rows.length;
@@ -383,15 +409,13 @@ export function UploadsList() {
           }}
         >
           <SelectTrigger className="w-40" size="sm">
-            <SelectValue placeholder="Status" />
+            <SelectValue placeholder="Status">{statusFilterLabel(statusFilter)}</SelectValue>
           </SelectTrigger>
 
           <SelectContent>
-            <SelectItem value={STATUS_FILTER_ALL}>All statuses</SelectItem>
-
-            {statusOptions.map((status) => (
-              <SelectItem key={status} value={status}>
-                {statusLabel(status)}
+            {STATUS_FILTER_OPTIONS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
               </SelectItem>
             ))}
           </SelectContent>
