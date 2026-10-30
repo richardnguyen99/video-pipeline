@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from app.dependencies import CurrentUserDep, VideoUploadServiceDep
 from app.messaging.transcode_progress import iter_progress_events
 from app.schemas.video_upload import (
+    VideoMediaLinkRequest,
     VideoMediaResponse,
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
@@ -282,6 +283,28 @@ async def upload_video_thumbnail(
     )
 
 
+@router.post(
+    "/videos/uploads/{public_id}/media/thumbnails/link",
+    response_model=VideoMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Attach an external thumbnail URL (DB only)",
+)
+async def link_video_thumbnail(
+    public_id: UUID,
+    payload: VideoMediaLinkRequest,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoMediaResponse:
+    """Store a remote thumbnail URL without uploading to object storage."""
+
+    return await service.add_thumbnail_link(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        image_type=payload.image_type,
+        url=payload.url,
+    )
+
+
 @router.delete(
     "/videos/uploads/{public_id}/media/thumbnails/{image_type}",
     response_model=VideoMediaResponse,
@@ -323,6 +346,28 @@ async def upload_video_samples(
         uploader_id=current_user.id,
         image_type=image_type,
         uploads=files,
+    )
+
+
+@router.post(
+    "/videos/uploads/{public_id}/media/samples/link",
+    response_model=VideoMediaResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Attach an external sample image URL (DB only)",
+)
+async def link_video_sample(
+    public_id: UUID,
+    payload: VideoMediaLinkRequest,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoMediaResponse:
+    """Store a remote sample image URL without uploading to object storage."""
+
+    return await service.add_sample_link(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        image_type=payload.image_type,
+        url=payload.url,
     )
 
 

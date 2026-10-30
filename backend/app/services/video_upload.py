@@ -37,6 +37,7 @@ from app.schemas.video_upload import (
     ExistingVideoSummary,
     PresignedPart,
     VideoCodeConflictDetail,
+    VideoMediaResponse,
     VideoRenditionProgress,
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
@@ -105,6 +106,42 @@ class VideoUploadService(VideoUploadMediaMixin):
 
         self._session = session
         self._storage = storage
+
+    async def add_thumbnail_link(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        image_type: str,
+        url: str,
+    ) -> VideoMediaResponse:
+        """Store an external thumbnail URL in the DB only (no object storage)."""
+
+        return await VideoUploadMediaMixin.add_thumbnail_link(
+            self,
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type=image_type,
+            url=url,
+        )
+
+    async def add_sample_link(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        image_type: str,
+        url: str,
+    ) -> VideoMediaResponse:
+        """Store an external sample image URL in the DB only (no object storage)."""
+
+        return await VideoUploadMediaMixin.add_sample_link(
+            self,
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type=image_type,
+            url=url,
+        )
 
     async def create_upload(
         self,

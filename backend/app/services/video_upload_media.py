@@ -6,6 +6,7 @@ import re
 import uuid
 from io import BytesIO
 from pathlib import PurePosixPath
+from urllib.parse import urlparse
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import delete
@@ -275,6 +276,110 @@ class VideoUploadMediaMixin:
             public_id=resolved_public_id,
         )
 
+    async def add_thumbnail_link(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        image_type: str,
+        url: str,
+    ) -> VideoMediaResponse:
+        """Store an external thumbnail URL in the DB only (no object storage)."""
+
+        normalized = image_type.strip().lower()
+
+        if normalized not in _THUMBNAIL_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Invalid thumbnail type. Expected one of: "
+                    f"{sorted(_THUMBNAIL_TYPES)}"
+                ),
+            )
+
+        cleaned_url = self.__validate_external_image_url(url)
+        video = await self.assert_owned_upload(
+            public_id=public_id,
+            uploader_id=uploader_id,
+        )
+        video_pk = video.id
+        resolved_public_id = video.public_id
+
+        if resolved_public_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Upload is missing a public identifier.",
+            )
+
+        await self._session.execute(
+            delete(VideoImageUrl).where(
+                col(VideoImageUrl.fk_id) == video_pk,
+                col(VideoImageUrl.type) == normalized,
+            ),
+        )
+        self._session.add(
+            VideoImageUrl(
+                fk_id=video_pk,
+                url=cleaned_url,
+                type=normalized,
+            ),
+        )
+        await self._session.commit()
+
+        return await self._media_response(
+            video_pk=video_pk,
+            public_id=resolved_public_id,
+        )
+
+    async def add_sample_link(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        image_type: str,
+        url: str,
+    ) -> VideoMediaResponse:
+        """Store an external sample image URL in the DB only (no object storage)."""
+
+        normalized = image_type.strip().lower()
+
+        if normalized not in _SAMPLE_TYPES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "Invalid sample type. Expected one of: "
+                    f"{sorted(_SAMPLE_TYPES)}"
+                ),
+            )
+
+        cleaned_url = self.__validate_external_image_url(url)
+        video = await self.assert_owned_upload(
+            public_id=public_id,
+            uploader_id=uploader_id,
+        )
+        video_pk = video.id
+        resolved_public_id = video.public_id
+
+        if resolved_public_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Upload is missing a public identifier.",
+            )
+
+        self._session.add(
+            VideoSampleImageUrl(
+                fk_id=video_pk,
+                url=cleaned_url,
+                type=normalized,
+            ),
+        )
+        await self._session.commit()
+
+        return await self._media_response(
+            video_pk=video_pk,
+            public_id=resolved_public_id,
+        )
+
     async def delete_thumbnail(
         self,
         *,
@@ -471,6 +576,26 @@ class VideoUploadMediaMixin:
             extension = ".jpg"
 
         return payload, content_type, extension
+
+    @staticmethod
+    def __validate_external_image_url(url: str) -> str:
+        cleaned = url.strip()
+
+        if not cleaned:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Image URL is required.",
+            )
+
+        parsed = urlparse(cleaned)
+
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Image URL must be an absolute http or https URL.",
+            )
+
+        return cleaned
 
     @staticmethod
     def __resolve_catalog_cid(video: Video) -> str:

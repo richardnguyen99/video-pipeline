@@ -345,6 +345,17 @@ export async function deleteVideoThumbnail(
   });
 }
 
+export async function linkVideoThumbnail(
+  publicId: string,
+  imageType: ThumbnailImageType,
+  url: string,
+): Promise<VideoMediaResponse> {
+  return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media/thumbnails/link`, {
+    method: "POST",
+    data: { image_type: imageType, url },
+  });
+}
+
 export async function uploadVideoSamples(
   publicId: string,
   imageType: SampleImageType,
@@ -360,6 +371,17 @@ export async function uploadVideoSamples(
   return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media/samples`, {
     method: "POST",
     data: body,
+  });
+}
+
+export async function linkVideoSample(
+  publicId: string,
+  imageType: SampleImageType,
+  url: string,
+): Promise<VideoMediaResponse> {
+  return apiFetch<VideoMediaResponse>(`/videos/uploads/${publicId}/media/samples/link`, {
+    method: "POST",
+    data: { image_type: imageType, url },
   });
 }
 

@@ -223,3 +223,10 @@ class VideoMediaResponse(BaseModel):
     video_id: int
     thumbnails: list[VideoMediaImageItem] = Field(default_factory=list)
     samples: list[VideoMediaImageItem] = Field(default_factory=list)
+
+
+class VideoMediaLinkRequest(BaseModel):
+    """Attach an external image URL without uploading to object storage."""
+
+    image_type: str = Field(min_length=1, max_length=32)
+    url: str = Field(min_length=1, max_length=2048)
