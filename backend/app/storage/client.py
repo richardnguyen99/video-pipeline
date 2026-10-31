@@ -22,7 +22,7 @@ from app.config import Settings, settings
 class ObjectStorageClient:
     """Async helpers around an ``aioboto3`` session for the configured bucket."""
 
-    def __init__(self, app_settings: Settings) -> None:
+    def __init__(self, app_settings: Settings = settings) -> None:
         """Bind client settings.
 
         Args:
@@ -37,6 +37,18 @@ class ObjectStorageClient:
         """Return the configured bucket name."""
 
         return self._settings.object_storage_bucket
+
+    @property
+    def raw_uploads_bucket(self) -> str:
+        """Return the private raw-uploads bucket name."""
+
+        return self._settings.object_storage_raw_uploads_bucket
+
+    @property
+    def streams_bucket(self) -> str:
+        """Return the streams (HLS / catalog media) bucket name."""
+
+        return self._settings.object_storage_streams_bucket
 
     def s3_client(self) -> ClientCreatorContext[S3Client]:
         """Return an ``aioboto3`` S3 client context manager.
@@ -56,21 +68,9 @@ class ObjectStorageClient:
         )
         endpoint = self._settings.object_storage_endpoint
 
-        if endpoint is not None:
-            return self._session.client(
-                "s3",
-                endpoint_url=endpoint,
-                aws_access_key_id=self._settings.object_storage_access_key,
-                aws_secret_access_key=(
-                    self._settings.object_storage_secret_key
-                ),
-                region_name=self._settings.object_storage_region,
-                use_ssl=self._settings.object_storage_use_ssl,
-                config=config,
-            )
-
         return self._session.client(
             "s3",
+            endpoint_url=endpoint,
             aws_access_key_id=self._settings.object_storage_access_key,
             aws_secret_access_key=self._settings.object_storage_secret_key,
             region_name=self._settings.object_storage_region,
@@ -106,9 +106,8 @@ class ObjectStorageClient:
     def object_key_from_streams_url(self, url: str) -> Optional[str]:
         """Extract the object key from a streams public URL, if possible."""
 
-        base = (
-            self._settings.object_storage_streams_public_base_url.rstrip("/")
-            + "/"
+        base = self._settings.object_storage_streams_public_base_url.rstrip(
+            "/"
         )
 
         if not url.startswith(base):
@@ -129,29 +128,26 @@ class ObjectStorageClient:
         key = object_key.lstrip("/")
         target = bucket or self.bucket
 
-        async with self.s3_client() as s3:
-            try:
+        try:
+            async with self.s3_client() as s3:
                 await s3.delete_object(Bucket=target, Key=key)
-            except ClientError as exc:
-                error_code = exc.response.get("Error", {}).get("Code", "")
-                status = exc.response.get("ResponseMetadata", {}).get(
-                    "HTTPStatusCode",
-                )
+        except ClientError as exc:
+            error_code = str(exc.response.get("Error", {}).get("Code", ""))
+            status = exc.response.get("ResponseMetadata", {}).get(
+                "HTTPStatusCode",
+            )
 
-                if (
-                    error_code in {"404", "NoSuchKey", "NotFound"}
-                    or status == 404
-                ):
-                    return
+            if error_code in {"NotFound", "NoSuchKey", "404"} or status == 404:
+                return
 
-                raise
+            raise
 
     async def upload_file(
         self,
         *,
         object_key: str,
         file_path: Union[str, Path],
-        content_type: Optional[str] = None,
+        content_type: str | None = None,
         bucket: str | None = None,
     ) -> str:
         """Upload a local file and return its public URL.
@@ -168,7 +164,7 @@ class ObjectStorageClient:
 
         extra: dict[str, str] = {}
 
-        if content_type:
+        if content_type is not None:
             extra["ContentType"] = content_type
 
         key = object_key.lstrip("/")
@@ -179,13 +175,13 @@ class ObjectStorageClient:
                 Filename=str(file_path),
                 Bucket=target,
                 Key=key,
-                ExtraArgs=extra,
+                ExtraArgs=extra or None,
             )
 
         if target == self.streams_bucket:
-            return self.streams_public_url(object_key)
+            return self.streams_public_url(key)
 
-        return self.public_url(object_key)
+        return self.public_url(key)
 
     async def upload_directory(
         self,
@@ -193,7 +189,7 @@ class ObjectStorageClient:
         local_dir: Union[str, Path],
         key_prefix: str,
         bucket: str | None = None,
-        content_type_map: Optional[dict[str, str]] = None,
+        content_type_map: dict[str, str] | None = None,
     ) -> list[str]:
         """Upload every file under ``local_dir`` preserving relative paths."""
 
@@ -225,14 +221,14 @@ class ObjectStorageClient:
         *,
         object_key: str,
         fileobj: BinaryIO,
-        content_type: Optional[str] = None,
+        content_type: str | None = None,
         bucket: str | None = None,
     ) -> str:
         """Upload a file-like object and return its public URL."""
 
         extra: dict[str, str] = {}
 
-        if content_type:
+        if content_type is not None:
             extra["ContentType"] = content_type
 
         key = object_key.lstrip("/")
@@ -243,13 +239,13 @@ class ObjectStorageClient:
                 Fileobj=fileobj,
                 Bucket=target,
                 Key=key,
-                ExtraArgs=extra,
+                ExtraArgs=extra or None,
             )
 
         if target == self.streams_bucket:
-            return self.streams_public_url(object_key)
+            return self.streams_public_url(key)
 
-        return self.public_url(object_key)
+        return self.public_url(key)
 
     def _guess_content_type(self, path: Union[str, Path]) -> str:
         """Infer a MIME type from the file suffix."""
@@ -280,120 +276,106 @@ class ObjectStorageClient:
         key = object_key.lstrip("/")
         target = bucket or self.bucket
 
-        async with self.s3_client() as s3:
-            try:
+        try:
+            async with self.s3_client() as s3:
                 await s3.head_object(Bucket=target, Key=key)
-            except ClientError as exc:
-                error_code = exc.response.get("Error", {}).get("Code", "")
-                status = exc.response.get("ResponseMetadata", {}).get(
-                    "HTTPStatusCode",
-                )
+        except ClientError as exc:
+            error_code = str(exc.response.get("Error", {}).get("Code", ""))
+            status = exc.response.get("ResponseMetadata", {}).get(
+                "HTTPStatusCode",
+            )
 
-                if (
-                    error_code in {"404", "NoSuchKey", "NotFound"}
-                    or status == 404
-                ):
-                    return False
+            if error_code in {"NotFound", "NoSuchKey", "404"} or status == 404:
+                return False
 
-                raise
+            raise
 
         return True
 
-    async def download_bytes(self, *, object_key: str) -> Optional[bytes]:
-        """Download an object as bytes, or ``None`` when it is missing."""
+    async def download_bytes(
+        self,
+        *,
+        object_key: str,
+        bucket: str | None = None,
+    ) -> Optional[bytes]:
+        """Download an object as bytes, or None when missing."""
 
         key = object_key.lstrip("/")
+        target = bucket or self.bucket
 
-        async with self.s3_client() as s3:
-            try:
-                response = await s3.get_object(Bucket=self.bucket, Key=key)
-            except ClientError as exc:
-                error_code = exc.response.get("Error", {}).get("Code", "")
-                status = exc.response.get("ResponseMetadata", {}).get(
-                    "HTTPStatusCode",
-                )
+        try:
+            async with self.s3_client() as s3:
+                response = await s3.get_object(Bucket=target, Key=key)
+                body = response["Body"]
+                data = await body.read()
+        except ClientError as exc:
+            error_code = str(exc.response.get("Error", {}).get("Code", ""))
+            status = exc.response.get("ResponseMetadata", {}).get(
+                "HTTPStatusCode",
+            )
 
-                if (
-                    error_code in {"404", "NoSuchKey", "NotFound"}
-                    or status == 404
-                ):
-                    return None
+            if error_code in {"NotFound", "NoSuchKey", "404"} or status == 404:
+                return None
 
-                raise
+            raise
 
-            body = response["Body"]
-            content = await body.read()
-
-        return bytes(content)
+        return data
 
     async def ensure_local_media_public_url(self, local_path: str) -> str:
-        """Ensure a local media file is in the bucket and return its URL.
-
-        Used for ``sample_gen`` stills and local review clips
-        (``video_sample_movie_url``). Uploads from disk when missing.
-
-        Args:
-            local_path: Absolute path stored on the media row.
-
-        Returns:
-            Public object-storage URL for the object.
-
-        Raises:
-            FileNotFoundError: When the local file is not readable.
-        """
+        """Upload a local media file when missing; return its public URL."""
 
         path = Path(local_path)
 
         if not path.is_file():
             raise FileNotFoundError(
-                f"sample_gen file not found on API host: {local_path}",
+                f"Local media file not found: {local_path}"
             )
 
-        key = self._object_key_from_local_path(local_path)
+        key = self._object_key_from_local_path(path)
 
-        if not await self.object_exists(key):
-            await self.upload_file(
-                object_key=key,
-                file_path=path,
-                content_type=self._guess_content_type(path),
-            )
+        if await self.object_exists(key):
+            return self.public_url(key)
 
-        return self.public_url(key)
+        return await self.upload_file(
+            object_key=key,
+            file_path=path,
+            content_type=self._guess_content_type(path),
+        )
 
-    def _object_key_from_local_path(self, local_path: str) -> str:
-        """Derive a stable object key from a local HLS media path.
+    def _object_key_from_local_path(self, local_path: Union[str, Path]) -> str:
+        """Derive a stable object key from a known local media layout.
 
-        Examples:
-            ``.../hls/<uuid>/samples/sample_01.jpg``
-            → ``<uuid>/samples/sample_01.jpg``
+        Prefers segments after ``hls/`` or ``samples/`` when present so
+        keys stay relative to the media package root, e.g.::
 
-            ``.../hls/<uuid>/review.mp4``
-            → ``<uuid>/review.mp4``
+            .../hls/<uuid>/index.m3u8 → <uuid>/index.m3u8
+            .../samples/<cid>/review.mp4 → <cid>/review.mp4
         """
 
         path = Path(local_path)
         parts = path.parts
 
-        if "hls" in parts:
+        try:
             idx = parts.index("hls")
+            start = idx + 1
+        except ValueError:
+            try:
+                idx = parts.index("samples")
+                start = idx + 1
+            except ValueError:
+                return path.name
 
-            if idx + 1 < len(parts):
-                return "/".join(parts[idx + 1 :])
+        if start >= len(parts):
+            return path.name
 
-        if "samples" in parts:
-            idx = parts.index("samples")
-            start = max(0, idx - 1)
-
-            return "/".join(parts[start:])
-
-        return path.name
+        return "/".join(parts[start:])
 
     async def ensure_hls_tree_public_url(self, master_local_path: str) -> str:
         """Ensure a full HLS package is in the bucket; return master public URL.
 
         The master playlist (``index.m3u8``) references relative quality
         playlists and ``.ts`` segments. Those must share the same object-key
-        prefix so the player can resolve:
+        prefix so the player can resolve::
 
             {public_base}/{uuid}/index.m3u8
             {public_base}/{uuid}/720p/playlist.m3u8
@@ -419,18 +401,21 @@ class ObjectStorageClient:
             )
 
         package_dir = master.parent
-        master_key = self._object_key_from_local_path(str(master))
+        master_key = self._object_key_from_local_path(master)
 
         if await self.object_exists(master_key):
             return self.public_url(master_key)
 
-        # Upload every file under the uuid package directory.
         for file_path in package_dir.rglob("*"):
             if not file_path.is_file():
                 continue
 
             relative = file_path.relative_to(package_dir).as_posix()
-            object_key = f"{package_dir.name}/{relative}"
+            prefix = master_key.rsplit("/", 1)[0] if "/" in master_key else ""
+            object_key = f"{prefix}/{relative}" if prefix else relative
+
+            if file_path.name == master.name:
+                object_key = master_key
 
             await self.upload_file(
                 object_key=object_key,
@@ -441,27 +426,15 @@ class ObjectStorageClient:
         return self.public_url(master_key)
 
     async def _ensure_sample_gen_public_url(self, local_path: str) -> str:
-        """Internal alias for ``ensure_local_media_public_url``."""
+        """Upload a generated sample media file when missing."""
 
         return await self.ensure_local_media_public_url(local_path)
-
-    @property
-    def raw_uploads_bucket(self) -> str:
-        """Return the private raw-uploads bucket name."""
-
-        return self._settings.object_storage_raw_uploads_bucket
-
-    @property
-    def streams_bucket(self) -> str:
-        """Return the public streams bucket name."""
-
-        return self._settings.object_storage_streams_bucket
 
     async def create_multipart_upload(
         self,
         *,
         object_key: str,
-        content_type: str = "application/octet-stream",
+        content_type: str,
         bucket: str | None = None,
     ) -> str:
         """Start a multipart upload; return the S3 upload id."""
@@ -475,7 +448,7 @@ class ObjectStorageClient:
                 ContentType=content_type,
             )
 
-        return response["UploadId"]
+        return str(response["UploadId"])
 
     async def generate_presigned_upload_part_url(
         self,
@@ -506,7 +479,7 @@ class ObjectStorageClient:
                 ExpiresIn=expires_in,
             )
 
-        return url
+        return str(url)
 
     async def complete_multipart_upload(
         self,
@@ -519,13 +492,14 @@ class ObjectStorageClient:
         """Finalize a multipart upload with ordered part ETags."""
 
         target = bucket or self.raw_uploads_bucket
+        completed_parts: list[CompletedPartTypeDef] = list(parts)
 
         async with self.s3_client() as s3:
             await s3.complete_multipart_upload(
                 Bucket=target,
                 Key=object_key,
                 UploadId=upload_id,
-                MultipartUpload={"Parts": list(parts)},
+                MultipartUpload={"Parts": completed_parts},
             )
 
     async def _abort_multipart_upload(
@@ -551,7 +525,7 @@ class ObjectStorageClient:
         *,
         object_key: str,
         bucket: str | None = None,
-    ) -> int | None:
+    ) -> Optional[int]:
         """Return object size in bytes, or None if missing."""
 
         target = bucket or self.raw_uploads_bucket
@@ -560,9 +534,9 @@ class ObjectStorageClient:
             async with self.s3_client() as s3:
                 response = await s3.head_object(Bucket=target, Key=object_key)
         except ClientError as exc:
-            code = exc.response.get("Error", {}).get("Code", "")
+            code = str(exc.response.get("Error", {}).get("Code", ""))
 
-            if code in {"404", "NoSuchKey", "NotFound", "404 Not Found"}:
+            if code in {"NotFound", "NoSuchKey", "404", "404 Not Found"}:
                 return None
 
             raise
@@ -590,67 +564,65 @@ class ObjectStorageClient:
                 ExpiresIn=expires_in,
             )
 
-        return url
+        return str(url)
 
 
 async def purge_prefix(
     storage: ObjectStorageClient,
-    *,
     prefix: str,
     bucket: str | None = None,
 ) -> int:
     """Delete every object under ``prefix``. Returns deleted count."""
 
-    key_prefix = prefix.lstrip("/")
+    cleaned = prefix.lstrip("/")
     target = bucket or storage.bucket
     deleted = 0
+    continuation: str | None = None
 
     async with storage.s3_client() as s3:
-        continuation: str | None = None
-
         while True:
             if continuation is None:
                 response = await s3.list_objects_v2(
                     Bucket=target,
-                    Prefix=key_prefix,
+                    Prefix=cleaned,
                     MaxKeys=1000,
                 )
             else:
                 response = await s3.list_objects_v2(
                     Bucket=target,
-                    Prefix=key_prefix,
+                    Prefix=cleaned,
                     MaxKeys=1000,
                     ContinuationToken=continuation,
                 )
 
             contents = response.get("Contents") or []
+            objects: list[ObjectIdentifierTypeDef] = [
+                {"Key": str(item["Key"])}
+                for item in contents
+                if item.get("Key")
+            ]
 
-            if contents:
-                batch: list[ObjectIdentifierTypeDef] = [
-                    {"Key": key}
-                    for item in contents
-                    if (key := item.get("Key"))
-                ]
-
-                if batch:
-                    await s3.delete_objects(
-                        Bucket=target,
-                        Delete={"Objects": batch, "Quiet": True},
-                    )
-                    deleted += len(batch)
+            if objects:
+                await s3.delete_objects(
+                    Bucket=target,
+                    Delete={"Objects": objects, "Quiet": True},
+                )
+                deleted += len(objects)
 
             if not response.get("IsTruncated"):
                 break
 
-            continuation = response.get("NextContinuationToken")
+            next_token = response.get("NextContinuationToken")
 
-            if not continuation:
+            if not next_token:
                 break
+
+            continuation = str(next_token)
 
     return deleted
 
 
-@lru_cache
+@lru_cache(maxsize=1)
 def get_object_storage_client() -> ObjectStorageClient:
     """Return a process-wide storage client using global settings."""
 

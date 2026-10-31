@@ -97,6 +97,7 @@ class Settings(BaseSettings):
     rabbitmq_watch_queue: str = "watch.events"
     rabbitmq_engagement_queue: str = "engagement.flush"
     rabbitmq_transcode_queue: str = "transcode.jobs"
+    rabbitmq_media_link_queue: str = "media.link.jobs"
     rabbitmq_enabled: bool = True
 
     # Engagement read-through / write-behind cache.
@@ -112,7 +113,7 @@ class Settings(BaseSettings):
 
     # Transcode pipeline: fixed ffmpeg concurrency and chunk size.
     # Caps simultaneous ffmpeg processes across all in-flight jobs.
-    transcode_max_ffmpeg: int = 4
+    transcode_max_ffmpeg: int = 2
     # Target segment / work-unit length in seconds for parallel chunk encode.
     transcode_chunk_seconds: int = 10
     # RabbitMQ QoS for the transcode queue (messages held per consumer).

@@ -27,3 +27,5 @@ Faker==0.7.4
 resend>=2.48.0
 aio-pika>=9.4.0
 python-multipart>=0.0.32
+httpx>=0.28.1
+pillow>=13.0.0

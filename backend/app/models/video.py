@@ -62,6 +62,7 @@ class Video(IdTimestampMixin, table=True):
             postgresql_ops={"title_lower": "gin_trgm_ops"},
             postgresql_using="gin",
         ),
+        UniqueConstraint("video_id"),
         {"schema": "public", "extend_existing": True},
     )
 
@@ -289,6 +290,31 @@ class VideoImageUrl(IdTimestampMixin, table=True):
             String(50),
         ),
     )
+    status: str = Field(
+        default="READY",
+        sa_column=Column(
+            "status",
+            String(20),
+            nullable=False,
+            server_default=text("'READY'"),
+        ),
+    )
+    source_url: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "source_url",
+            Text,
+            nullable=True,
+        ),
+    )
+    error_message: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "error_message",
+            Text,
+            nullable=True,
+        ),
+    )
 
     fk: "Video" = Relationship(back_populates="video_image_url")
 
@@ -375,6 +401,31 @@ class VideoSampleImageUrl(IdTimestampMixin, table=True):
         sa_column=Column(
             "type",
             String(50),
+        ),
+    )
+    status: str = Field(
+        default="READY",
+        sa_column=Column(
+            "status",
+            String(20),
+            nullable=False,
+            server_default=text("'READY'"),
+        ),
+    )
+    source_url: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "source_url",
+            Text,
+            nullable=True,
+        ),
+    )
+    error_message: Optional[str] = Field(
+        default=None,
+        sa_column=Column(
+            "error_message",
+            Text,
+            nullable=True,
         ),
     )
 

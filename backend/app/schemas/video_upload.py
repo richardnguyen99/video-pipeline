@@ -214,6 +214,9 @@ class VideoMediaImageItem(BaseModel):
     id: int
     url: str
     type: Optional[str] = None
+    status: str = "READY"
+    source_url: Optional[str] = None
+    error_message: Optional[str] = None
 
 
 class VideoMediaResponse(BaseModel):
@@ -226,7 +229,7 @@ class VideoMediaResponse(BaseModel):
 
 
 class VideoMediaLinkRequest(BaseModel):
-    """Attach an external image URL without uploading to object storage."""
+    """Queue an external image URL for server-side download and storage."""
 
     image_type: str = Field(min_length=1, max_length=32)
     url: str = Field(min_length=1, max_length=2048)

@@ -13,6 +13,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
+from app.messaging.rabbitmq import publish_media_link_message
 from app.models.video import Video, VideoImageUrl, VideoSampleImageUrl
 from app.schemas.video_upload import VideoMediaImageItem, VideoMediaResponse
 from app.storage.client import ObjectStorageClient
@@ -284,7 +285,7 @@ class VideoUploadMediaMixin:
         image_type: str,
         url: str,
     ) -> VideoMediaResponse:
-        """Store an external thumbnail URL in the DB only (no object storage)."""
+        """Queue an external thumbnail URL for server-side ingest into streams."""
 
         normalized = image_type.strip().lower()
 
@@ -311,20 +312,47 @@ class VideoUploadMediaMixin:
                 detail="Upload is missing a public identifier.",
             )
 
+        existing = await self._session.execute(
+            select(VideoImageUrl).where(
+                col(VideoImageUrl.fk_id) == video_pk,
+                col(VideoImageUrl.type) == normalized,
+            ),
+        )
+
+        for row in existing.scalars().all():
+            object_key = self._storage.object_key_from_streams_url(row.url)
+
+            if object_key is not None:
+                await self._storage.delete_object(
+                    object_key=object_key,
+                    bucket=self._storage.streams_bucket,
+                )
+
         await self._session.execute(
             delete(VideoImageUrl).where(
                 col(VideoImageUrl.fk_id) == video_pk,
                 col(VideoImageUrl.type) == normalized,
             ),
         )
-        self._session.add(
-            VideoImageUrl(
-                fk_id=video_pk,
-                url=cleaned_url,
-                type=normalized,
-            ),
+        pending_token = str(uuid.uuid4())
+        row = VideoImageUrl(
+            fk_id=video_pk,
+            url=f"pending://{pending_token}",
+            type=normalized,
+            status="PENDING",
+            source_url=cleaned_url,
+            error_message=None,
         )
+        self._session.add(row)
         await self._session.commit()
+        await self._session.refresh(row)
+        await publish_media_link_message(
+            {
+                "kind": "thumbnail",
+                "image_id": row.id,
+                "public_id": str(resolved_public_id),
+            },
+        )
 
         return await self._media_response(
             video_pk=video_pk,
@@ -339,7 +367,7 @@ class VideoUploadMediaMixin:
         image_type: str,
         url: str,
     ) -> VideoMediaResponse:
-        """Store an external sample image URL in the DB only (no object storage)."""
+        """Queue an external sample image URL for server-side ingest into streams."""
 
         normalized = image_type.strip().lower()
 
@@ -366,14 +394,25 @@ class VideoUploadMediaMixin:
                 detail="Upload is missing a public identifier.",
             )
 
-        self._session.add(
-            VideoSampleImageUrl(
-                fk_id=video_pk,
-                url=cleaned_url,
-                type=normalized,
-            ),
+        pending_token = str(uuid.uuid4())
+        row = VideoSampleImageUrl(
+            fk_id=video_pk,
+            url=f"pending://{pending_token}",
+            type=normalized,
+            status="PENDING",
+            source_url=cleaned_url,
+            error_message=None,
         )
+        self._session.add(row)
         await self._session.commit()
+        await self._session.refresh(row)
+        await publish_media_link_message(
+            {
+                "kind": "sample",
+                "image_id": row.id,
+                "public_id": str(resolved_public_id),
+            },
+        )
 
         return await self._media_response(
             video_pk=video_pk,
@@ -527,11 +566,25 @@ class VideoUploadMediaMixin:
             public_id=public_id,
             video_id=video_pk,
             thumbnails=[
-                VideoMediaImageItem(id=row.id, url=row.url, type=row.type)
+                VideoMediaImageItem(
+                    id=row.id,
+                    url=row.url,
+                    type=row.type,
+                    status=(row.status or "READY").upper(),
+                    source_url=row.source_url,
+                    error_message=row.error_message,
+                )
                 for row in thumbs.scalars().all()
             ],
             samples=[
-                VideoMediaImageItem(id=row.id, url=row.url, type=row.type)
+                VideoMediaImageItem(
+                    id=row.id,
+                    url=row.url,
+                    type=row.type,
+                    status=(row.status or "READY").upper(),
+                    source_url=row.source_url,
+                    error_message=row.error_message,
+                )
                 for row in samples.scalars().all()
             ],
         )

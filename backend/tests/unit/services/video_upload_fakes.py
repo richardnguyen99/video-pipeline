@@ -186,6 +186,9 @@ class MediaSessionSpy:
     async def commit(self) -> None:
         self.committed += 1
 
+    async def refresh(self, _obj: Any) -> None:
+        return None
+
     async def execute(self, statement: Any) -> ResultSpy:
         text = str(statement).lower()
 

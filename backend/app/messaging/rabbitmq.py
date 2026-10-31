@@ -18,6 +18,7 @@ from aio_pika.abc import (
 
 from app.config import settings
 from app.messaging.engagement_worker import process_engagement_flush_message
+from app.messaging.media_link_worker import process_media_link_message
 from app.messaging.transcode_worker import process_transcode_message
 from app.messaging.watch_worker import process_watch_message
 
@@ -33,6 +34,7 @@ class RabbitMQClient:
         self._watch_consumer_tag: Optional[str] = None
         self._engagement_consumer_tag: Optional[str] = None
         self._transcode_consumer_tag: Optional[str] = None
+        self._media_link_consumer_tag: Optional[str] = None
 
     async def _get_connection(self) -> AbstractRobustConnection:
         """Return a robust connection, creating it if needed."""
@@ -62,6 +64,10 @@ class RabbitMQClient:
             )
             await self._channel.declare_queue(
                 settings.rabbitmq_transcode_queue,
+                durable=True,
+            )
+            await self._channel.declare_queue(
+                settings.rabbitmq_media_link_queue,
                 durable=True,
             )
 
@@ -133,6 +139,28 @@ class RabbitMQClient:
             routing_key=settings.rabbitmq_transcode_queue,
         )
 
+    async def publish_media_link_message(
+        self, payload: dict[str, Any]
+    ) -> None:
+        """Publish an external media URL ingest job."""
+
+        if not settings.rabbitmq_enabled:
+            await process_media_link_message(payload)
+
+            return
+
+        channel = await self._get_channel()
+        body = json.dumps(payload, default=str).encode("utf-8")
+        message = Message(
+            body=body,
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+            content_type="application/json",
+        )
+        await channel.default_exchange.publish(
+            message,
+            routing_key=settings.rabbitmq_media_link_queue,
+        )
+
     async def start_watch_consumer(self) -> None:
         """Start consuming the watch queue (no-op when RabbitMQ is disabled)."""
 
@@ -152,7 +180,12 @@ class RabbitMQClient:
                 try:
                     payload = json.loads(message.body.decode("utf-8"))
                     await process_watch_message(payload)
-                except json.JSONDecodeError, KeyError, TypeError, ValueError:
+                except (
+                    json.JSONDecodeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
                     _logger.exception("Failed to process watch message")
 
         self._watch_consumer_tag = await queue.consume(on_message)
@@ -230,12 +263,41 @@ class RabbitMQClient:
             settings.transcode_max_ffmpeg,
         )
 
+    async def start_media_link_consumer(self) -> None:
+        """Start consuming external media link ingest jobs."""
+
+        if not settings.rabbitmq_enabled:
+            _logger.info("RabbitMQ disabled — media link consumer not started")
+
+            return
+
+        channel = await self._get_channel()
+        queue = await channel.declare_queue(
+            settings.rabbitmq_media_link_queue,
+            durable=True,
+        )
+
+        async def on_message(message: AbstractIncomingMessage) -> None:
+            async with message.process(requeue=False):
+                try:
+                    payload = json.loads(message.body.decode("utf-8"))
+                    await process_media_link_message(payload)
+                except Exception:
+                    _logger.exception("Failed to process media link message")
+
+        self._media_link_consumer_tag = await queue.consume(on_message)
+        _logger.info(
+            "RabbitMQ media link consumer started queue=%s",
+            settings.rabbitmq_media_link_queue,
+        )
+
     async def close(self) -> None:
         """Close channel and connection."""
 
         self._watch_consumer_tag = None
         self._engagement_consumer_tag = None
         self._transcode_consumer_tag = None
+        self._media_link_consumer_tag = None
 
         if self._channel is not None and not self._channel.is_closed:
             await self._channel.close()
@@ -285,6 +347,18 @@ async def start_transcode_consumer() -> None:
     """Start the shared client's transcode consumer."""
 
     await _client.start_transcode_consumer()
+
+
+async def publish_media_link_message(payload: dict[str, Any]) -> None:
+    """Publish a media link ingest job via the shared client."""
+
+    await _client.publish_media_link_message(payload)
+
+
+async def start_media_link_consumer() -> None:
+    """Start the shared client's media link consumer."""
+
+    await _client.start_media_link_consumer()
 
 
 async def close_rabbitmq() -> None:

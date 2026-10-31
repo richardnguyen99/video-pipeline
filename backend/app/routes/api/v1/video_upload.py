@@ -287,7 +287,7 @@ async def upload_video_thumbnail(
     "/videos/uploads/{public_id}/media/thumbnails/link",
     response_model=VideoMediaResponse,
     status_code=status.HTTP_200_OK,
-    summary="Attach an external thumbnail URL (DB only)",
+    summary="Queue an external thumbnail URL for server-side ingest",
 )
 async def link_video_thumbnail(
     public_id: UUID,
@@ -295,7 +295,7 @@ async def link_video_thumbnail(
     current_user: CurrentUserDep,
     service: VideoUploadServiceDep,
 ) -> VideoMediaResponse:
-    """Store a remote thumbnail URL without uploading to object storage."""
+    """Validate and queue a remote thumbnail URL for worker download into streams."""
 
     return await service.add_thumbnail_link(
         public_id=public_id,
@@ -353,7 +353,7 @@ async def upload_video_samples(
     "/videos/uploads/{public_id}/media/samples/link",
     response_model=VideoMediaResponse,
     status_code=status.HTTP_200_OK,
-    summary="Attach an external sample image URL (DB only)",
+    summary="Queue an external sample image URL for server-side ingest",
 )
 async def link_video_sample(
     public_id: UUID,
@@ -361,7 +361,7 @@ async def link_video_sample(
     current_user: CurrentUserDep,
     service: VideoUploadServiceDep,
 ) -> VideoMediaResponse:
-    """Store a remote sample image URL without uploading to object storage."""
+    """Validate and queue a remote sample image URL for worker download into streams."""
 
     return await service.add_sample_link(
         public_id=public_id,

@@ -99,6 +99,9 @@ export type VideoMediaImageItem = {
   id: number;
   url: string;
   type: string | null;
+  status?: string;
+  source_url?: string | null;
+  error_message?: string | null;
 };
 
 export type VideoMediaResponse = {

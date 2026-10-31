@@ -615,3 +615,286 @@ async def test_upload_thumbnail_rejects_missing_catalog_cid() -> None:
 
     assert exc_info.value.status_code == 400
     assert "cid" in str(exc_info.value.detail).lower()
+
+
+@pytest.mark.asyncio
+async def test_add_thumbnail_link_queues_pending_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(
+        uploader_id=uploader_id,
+        public_id=public_id,
+        status="UPLOADED",
+    )
+    session = MediaSessionSpy(video=video)
+    storage = StorageSpy()
+    service = make_service(session, storage)
+    published: list[dict[str, object]] = []
+
+    async def _capture(payload: dict[str, object]) -> None:
+        published.append(payload)
+
+    monkeypatch.setattr(
+        "app.services.video_upload_media.publish_media_link_message",
+        _capture,
+    )
+
+    source = "https://cdn.example.com/covers/pl.jpg"
+    result = await service.add_thumbnail_link(
+        public_id=public_id,
+        uploader_id=uploader_id,
+        image_type="large",
+        url=source,
+    )
+
+    assert session.committed >= 1
+    assert len(session.added) == 1
+    row = session.added[0]
+    assert isinstance(row, VideoImageUrl)
+    assert row.type == "large"
+    assert row.status == "PENDING"
+    assert row.source_url == source
+    assert row.error_message is None
+    assert row.url.startswith("pending://")
+    assert len(storage.upload_fileobj_calls) == 0
+    assert len(published) == 1
+    assert published[0]["kind"] == "thumbnail"
+    assert published[0]["image_id"] == row.id
+    assert published[0]["public_id"] == str(public_id)
+    assert len(result.thumbnails) == 1
+    assert result.thumbnails[0].status == "PENDING"
+    assert result.thumbnails[0].source_url == source
+    assert result.thumbnails[0].url.startswith("pending://")
+
+
+@pytest.mark.asyncio
+async def test_add_thumbnail_link_replaces_existing_and_purges_storage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(
+        uploader_id=uploader_id,
+        public_id=public_id,
+        status="UPLOADED",
+    )
+    existing = VideoImageUrl(
+        id=7,
+        fk_id=video.id,
+        url=f"http://localhost:9000/streams/{public_id}/thumbnails/team00055pl.jpg",
+        type="large",
+        status="READY",
+    )
+    session = MediaSessionSpy(video=video, thumbs=[existing])
+    storage = StorageSpy()
+    service = make_service(session, storage)
+    published: list[dict[str, object]] = []
+
+    async def _capture(payload: dict[str, object]) -> None:
+        published.append(payload)
+
+    monkeypatch.setattr(
+        "app.services.video_upload_media.publish_media_link_message",
+        _capture,
+    )
+
+    result = await service.add_thumbnail_link(
+        public_id=public_id,
+        uploader_id=uploader_id,
+        image_type="large",
+        url="https://cdn.example.com/new-pl.jpg",
+    )
+
+    assert storage.delete_object_calls == [
+        {
+            "object_key": f"{public_id}/thumbnails/team00055pl.jpg",
+            "bucket": "streams",
+        },
+    ]
+    assert len(result.thumbnails) == 1
+    assert result.thumbnails[0].status == "PENDING"
+    assert (
+        result.thumbnails[0].source_url == "https://cdn.example.com/new-pl.jpg"
+    )
+    assert published[0]["kind"] == "thumbnail"
+
+
+@pytest.mark.asyncio
+async def test_add_thumbnail_link_rejects_invalid_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    service = make_service(MediaSessionSpy(video=video), StorageSpy())
+    monkeypatch.setattr(
+        "app.services.video_upload_media.publish_media_link_message",
+        lambda _payload: None,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.add_thumbnail_link(
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type="hero",
+            url="https://cdn.example.com/x.jpg",
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_add_thumbnail_link_rejects_non_http_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    service = make_service(MediaSessionSpy(video=video), StorageSpy())
+    monkeypatch.setattr(
+        "app.services.video_upload_media.publish_media_link_message",
+        lambda _payload: None,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.add_thumbnail_link(
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type="list",
+            url="ftp://cdn.example.com/x.jpg",
+        )
+
+    assert exc_info.value.status_code == 400
+    assert "http" in str(exc_info.value.detail).lower()
+
+
+@pytest.mark.asyncio
+async def test_add_thumbnail_link_rejects_empty_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    service = make_service(MediaSessionSpy(video=video), StorageSpy())
+    monkeypatch.setattr(
+        "app.services.video_upload_media.publish_media_link_message",
+        lambda _payload: None,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.add_thumbnail_link(
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type="small",
+            url="   ",
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_add_sample_link_queues_pending_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(
+        uploader_id=uploader_id,
+        public_id=public_id,
+        status="UPLOADED",
+    )
+    session = MediaSessionSpy(video=video)
+    storage = StorageSpy()
+    service = make_service(session, storage)
+    published: list[dict[str, object]] = []
+
+    async def _capture(payload: dict[str, object]) -> None:
+        published.append(payload)
+
+    monkeypatch.setattr(
+        "app.services.video_upload_media.publish_media_link_message",
+        _capture,
+    )
+
+    source = "https://cdn.example.com/samples/s1.jpg"
+    result = await service.add_sample_link(
+        public_id=public_id,
+        uploader_id=uploader_id,
+        image_type="sample_s",
+        url=source,
+    )
+
+    assert session.committed >= 1
+    assert len(session.added) == 1
+    row = session.added[0]
+    assert isinstance(row, VideoSampleImageUrl)
+    assert row.type == "sample_s"
+    assert row.status == "PENDING"
+    assert row.source_url == source
+    assert row.url.startswith("pending://")
+    assert len(storage.upload_fileobj_calls) == 0
+    assert published[0]["kind"] == "sample"
+    assert published[0]["image_id"] == row.id
+    assert len(result.samples) == 1
+    assert result.samples[0].status == "PENDING"
+    assert result.samples[0].source_url == source
+
+
+@pytest.mark.asyncio
+async def test_add_sample_link_rejects_invalid_type(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(uploader_id=uploader_id, public_id=public_id)
+    service = make_service(MediaSessionSpy(video=video), StorageSpy())
+    monkeypatch.setattr(
+        "app.services.video_upload_media.publish_media_link_message",
+        lambda _payload: None,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.add_sample_link(
+            public_id=public_id,
+            uploader_id=uploader_id,
+            image_type="gallery",
+            url="https://cdn.example.com/x.jpg",
+        )
+
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_list_media_exposes_failed_link_error() -> None:
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(
+        uploader_id=uploader_id,
+        public_id=public_id,
+        status="UPLOADED",
+    )
+    thumbs = [
+        VideoImageUrl(
+            id=3,
+            fk_id=video.id,
+            url="pending://abc",
+            type="large",
+            status="FAILED",
+            source_url="http://10.0.0.1/pl.jpg",
+            error_message="source host is not allowed",
+        ),
+    ]
+    session = MediaSessionSpy(video=video, thumbs=thumbs)
+    service = make_service(session, StorageSpy())
+
+    result = await service.list_media(
+        public_id=public_id,
+        uploader_id=uploader_id,
+    )
+
+    assert len(result.thumbnails) == 1
+    assert result.thumbnails[0].status == "FAILED"
+    assert result.thumbnails[0].source_url == "http://10.0.0.1/pl.jpg"
+    assert result.thumbnails[0].error_message == "source host is not allowed"

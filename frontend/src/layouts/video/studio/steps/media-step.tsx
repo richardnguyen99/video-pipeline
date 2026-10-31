@@ -59,6 +59,26 @@ function latestByType(items: Array<VideoMediaImageItem>, type: string): VideoMed
   return matches[matches.length - 1] ?? null;
 }
 
+function mediaItemStatus(item: VideoMediaImageItem | null | undefined): string {
+  return (item?.status ?? "READY").toUpperCase();
+}
+
+function isStoredMediaUrl(url: string | null | undefined): boolean {
+  if (url == null || url.length === 0) {
+    return false;
+  }
+
+  return !url.startsWith("pending://");
+}
+
+function canShowStoredImage(item: VideoMediaImageItem | null | undefined): boolean {
+  if (item == null) {
+    return false;
+  }
+
+  return mediaItemStatus(item) === "READY" && isStoredMediaUrl(item.url);
+}
+
 function isImageFile(file: File): boolean {
   if (file.type.startsWith("image/")) {
     return true;
@@ -181,6 +201,82 @@ export function MediaStep({ publicId }: MediaStepProps) {
       cancelled = true;
     };
   }, [publicId]);
+
+  useEffect(() => {
+    if (publicId == null || media == null) {
+      return;
+    }
+
+    const pending = [...media.thumbnails, ...media.samples].some((item) => {
+      const status = mediaItemStatus(item);
+
+      return status === "PENDING" || status === "PROCESSING";
+    });
+
+    if (!pending) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setInterval(() => {
+      void (async () => {
+        try {
+          const next = await listVideoUploadMedia(publicId);
+
+          if (!cancelled) {
+            setMedia(next);
+          }
+        } catch {
+          // Keep showing last known media while ingest continues.
+        }
+      })();
+    }, 2_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [publicId, media]);
+
+  const reportedFailuresRef = useRef<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (media == null) {
+      return;
+    }
+
+    for (const item of media.thumbnails) {
+      if (mediaItemStatus(item) !== "FAILED" || reportedFailuresRef.current.has(item.id)) {
+        continue;
+      }
+
+      reportedFailuresRef.current.add(item.id);
+      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
+        tone: "error",
+        title: "Thumbnail link failed",
+        description: item.error_message?.trim() || "Server could not download the image.",
+      });
+    }
+
+    for (const entry of SAMPLE_TYPES) {
+      for (const item of media.samples) {
+        if (
+          item.type !== entry.type ||
+          mediaItemStatus(item) !== "FAILED" ||
+          reportedFailuresRef.current.has(item.id)
+        ) {
+          continue;
+        }
+
+        reportedFailuresRef.current.add(item.id);
+        setSectionMessage(sampleZoneKey(entry.type), {
+          tone: "error",
+          title: "Sample link failed",
+          description: item.error_message?.trim() || "Server could not download the image.",
+        });
+      }
+    }
+  }, [media]);
 
   if (publicId == null) {
     return (
@@ -361,8 +457,8 @@ export function MediaStep({ publicId }: MediaStepProps) {
       setThumbLinkDrafts((prev) => ({ ...prev, [imageType]: "" }));
       setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
         tone: "success",
-        title: "Thumbnail linked",
-        description: `${imageType} thumbnail URL was saved.`,
+        title: "Thumbnail queued",
+        description: `${imageType} link is downloading on the server…`,
       });
     } catch (error) {
       setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
@@ -393,8 +489,8 @@ export function MediaStep({ publicId }: MediaStepProps) {
       setSampleLinkDrafts((prev) => ({ ...prev, [imageType]: "" }));
       setSectionMessage(sampleZoneKey(imageType), {
         tone: "success",
-        title: "Sample linked",
-        description: "External sample image URL was saved.",
+        title: "Sample queued",
+        description: "Sample link is downloading on the server…",
       });
     } catch (error) {
       setSectionMessage(sampleZoneKey(imageType), {
@@ -460,7 +556,10 @@ export function MediaStep({ publicId }: MediaStepProps) {
             <TabsTrigger value="links">Links</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="upload" className="flex flex-col gap-3 pt-2">
+          <TabsContent
+            value="upload"
+            className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3"
+          >
             <div className="grid gap-3 sm:grid-cols-3">
               {THUMBNAIL_TYPES.map((entry) => {
                 const current = latestByType(media?.thumbnails ?? [], entry.type);
@@ -511,12 +610,26 @@ export function MediaStep({ publicId }: MediaStepProps) {
                         });
                       }}
                     >
-                      {current ? (
+                      {canShowStoredImage(current) ? (
                         <img
-                          src={current.url}
+                          src={current!.url}
                           alt={`${entry.label} thumbnail`}
                           className="aspect-video w-full object-cover"
                         />
+                      ) : mediaItemStatus(current) === "PENDING" || mediaItemStatus(current) === "PROCESSING" ? (
+                        <div className="text-muted-foreground flex aspect-video w-full flex-col items-center justify-center gap-2 px-3 py-6">
+                          <Loader2 className="size-5 animate-spin" />
+
+                          <span className="text-center text-xs">Downloading on server…</span>
+                        </div>
+                      ) : mediaItemStatus(current) === "FAILED" ? (
+                        <div className="text-destructive flex aspect-video w-full flex-col items-center justify-center gap-2 px-3 py-6">
+                          <AlertCircle className="size-5" />
+
+                          <span className="text-center text-xs">
+                            {current?.error_message?.trim() || "Download failed"}
+                          </span>
+                        </div>
                       ) : (
                         <div className="text-muted-foreground flex aspect-video w-full flex-col items-center justify-center gap-2 px-3 py-6">
                           {busy ? <Loader2 className="size-5 animate-spin" /> : <ImagePlus className="size-5" />}
@@ -575,9 +688,12 @@ export function MediaStep({ publicId }: MediaStepProps) {
             </div>
           </TabsContent>
 
-          <TabsContent value="links" className="flex flex-col gap-3 pt-2">
+          <TabsContent
+            value="links"
+            className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3"
+          >
             <p className="text-muted-foreground text-xs">
-              Paste absolute image URLs. They are stored in the database only and are not uploaded to object storage.
+              Paste absolute image URLs. The server downloads, validates, and stores optimized copies in object storage.
             </p>
 
             <div className="grid gap-3 sm:grid-cols-3">
@@ -588,7 +704,10 @@ export function MediaStep({ publicId }: MediaStepProps) {
                 const deleteKey = `delete-${thumbZoneKey(entry.type)}`;
                 const busy = busyKey === linkKey || busyKey === deleteKey;
                 const deleting = busyKey === deleteKey;
-                const previewUrl = draft.trim().length > 0 ? draft.trim() : (current?.url ?? "");
+                const status = mediaItemStatus(current);
+                const showStored = canShowStoredImage(current);
+                const isIngesting = status === "PENDING" || status === "PROCESSING";
+                const isFailed = status === "FAILED";
 
                 return (
                   <div key={entry.type} className="flex flex-col gap-2">
@@ -599,17 +718,31 @@ export function MediaStep({ publicId }: MediaStepProps) {
                     </div>
 
                     <div className="relative overflow-hidden rounded-lg border">
-                      {previewUrl ? (
+                      {showStored ? (
                         <img
-                          src={previewUrl}
-                          alt={`${entry.label} thumbnail preview`}
+                          src={current!.url}
+                          alt={`${entry.label} thumbnail`}
                           className="aspect-video w-full object-cover"
                         />
+                      ) : isIngesting ? (
+                        <div className="text-muted-foreground flex aspect-video w-full flex-col items-center justify-center gap-2 px-3 py-6">
+                          <Loader2 className="size-5 animate-spin" />
+
+                          <span className="text-center text-xs">Downloading on server…</span>
+                        </div>
+                      ) : isFailed ? (
+                        <div className="text-destructive flex aspect-video w-full flex-col items-center justify-center gap-2 px-3 py-6">
+                          <AlertCircle className="size-5" />
+
+                          <span className="text-center text-xs">
+                            {current?.error_message?.trim() || "Download failed"}
+                          </span>
+                        </div>
                       ) : (
                         <div className="text-muted-foreground flex aspect-video w-full flex-col items-center justify-center gap-2 px-3 py-6">
                           <Link2 className="size-5" />
 
-                          <span className="text-center text-xs">Paste a URL to preview</span>
+                          <span className="text-center text-xs">Paste a URL and save</span>
                         </div>
                       )}
 
@@ -681,7 +814,6 @@ export function MediaStep({ publicId }: MediaStepProps) {
           const sampleDraft = sampleLinkDrafts[entry.type] ?? "";
           const sampleLinkKey = `link-${zoneKey}`;
           const sampleLinking = busyKey === sampleLinkKey;
-          const samplePreview = sampleDraft.trim();
 
           return (
             <div key={entry.type} className="flex flex-col gap-3 rounded-lg border p-3">
@@ -707,7 +839,10 @@ export function MediaStep({ publicId }: MediaStepProps) {
                   <TabsTrigger value="links">Links</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="upload" className="flex flex-col gap-3 pt-2">
+                <TabsContent
+                  value="upload"
+                  className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3"
+                >
                   <div
                     role="button"
                     tabIndex={0}
@@ -767,53 +902,45 @@ export function MediaStep({ publicId }: MediaStepProps) {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="links" className="flex flex-col gap-3 pt-2">
+                <TabsContent
+                  value="links"
+                  className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3"
+                >
                   <p className="text-muted-foreground text-xs">
-                    Paste absolute image URLs. Stored in the database only — not uploaded to object storage.
+                    Paste absolute image URLs. The server downloads, validates, and stores optimized copies in object
+                    storage.
                   </p>
 
-                  <div className="flex flex-col gap-2">
-                    {samplePreview ? (
-                      <div className="overflow-hidden rounded-md border">
-                        <img
-                          src={samplePreview}
-                          alt={`${entry.label} link preview`}
-                          className="bg-muted max-h-48 w-full object-contain"
-                        />
-                      </div>
-                    ) : null}
-
-                    <div className="flex gap-2">
-                      <Input
-                        type="url"
-                        inputMode="url"
-                        placeholder="https://…"
-                        value={sampleDraft}
-                        disabled={sampleLinking}
-                        onChange={(event) => {
-                          const value = event.target.value;
-                          setSampleLinkDrafts((prev) => ({ ...prev, [entry.type]: value }));
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            void onLinkSample(entry.type, sampleDraft);
-                          }
-                        }}
-                      />
-
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={sampleLinking || sampleDraft.trim().length === 0}
-                        onClick={() => {
+                  <div className="flex gap-2">
+                    <Input
+                      type="url"
+                      inputMode="url"
+                      placeholder="https://…"
+                      value={sampleDraft}
+                      disabled={sampleLinking}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setSampleLinkDrafts((prev) => ({ ...prev, [entry.type]: value }));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
                           void onLinkSample(entry.type, sampleDraft);
-                        }}
-                      >
-                        {sampleLinking ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                        Add
-                      </Button>
-                    </div>
+                        }
+                      }}
+                    />
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={sampleLinking || sampleDraft.trim().length === 0}
+                      onClick={() => {
+                        void onLinkSample(entry.type, sampleDraft);
+                      }}
+                    >
+                      {sampleLinking ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                      Add
+                    </Button>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -823,14 +950,34 @@ export function MediaStep({ publicId }: MediaStepProps) {
                   <div className="flex flex-wrap items-start gap-2 p-2">
                     {items.map((item) => {
                       const deleting = busyKey === `delete-sample-${item.id}`;
+                      const status = mediaItemStatus(item);
+                      const showStored = canShowStoredImage(item);
+                      const isIngesting = status === "PENDING" || status === "PROCESSING";
+                      const isFailed = status === "FAILED";
 
                       return (
                         <div key={item.id} className="relative inline-flex">
-                          <img
-                            src={item.url}
-                            alt={`${entry.label} ${item.id}`}
-                            className="bg-muted h-36 w-auto max-w-full rounded-md object-contain sm:h-40"
-                          />
+                          {showStored ? (
+                            <img
+                              src={item.url}
+                              alt={`${entry.label} ${item.id}`}
+                              className="bg-muted h-36 w-auto max-w-full rounded-md object-contain sm:h-40"
+                            />
+                          ) : isIngesting ? (
+                            <div className="text-muted-foreground bg-muted flex h-36 w-36 flex-col items-center justify-center gap-2 rounded-md border px-2 text-center text-xs">
+                              <Loader2 className="size-4 animate-spin" />
+                              Downloading…
+                            </div>
+                          ) : isFailed ? (
+                            <div className="text-destructive bg-destructive/10 flex h-36 w-36 flex-col items-center justify-center gap-2 rounded-md border border-destructive/30 px-2 text-center text-xs">
+                              <AlertCircle className="size-4" />
+                              {item.error_message?.trim() || "Failed"}
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground bg-muted flex h-36 w-36 items-center justify-center rounded-md border text-xs">
+                              Pending
+                            </div>
+                          )}
 
                           <Button
                             type="button"
