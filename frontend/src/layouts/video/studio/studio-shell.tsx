@@ -56,6 +56,43 @@ const NAV_ITEMS = [
   },
 ] as const;
 
+type UploadDetailTab = "summary" | "metadata" | "media";
+
+type UploadDetailContext = {
+  uploadId: string;
+  tab: UploadDetailTab;
+};
+
+function parseUploadDetailContext(pathname: string): UploadDetailContext | null {
+  const segments = pathname.split("/").filter((part) => part.length > 0);
+
+  if (segments.length < 3 || segments[0] !== "studio" || segments[1] !== "uploads") {
+    return null;
+  }
+
+  const uploadId = segments[2] ?? "";
+
+  if (uploadId.length === 0 || uploadId === "new") {
+    return null;
+  }
+
+  if (segments.length === 3) {
+    return { uploadId, tab: "summary" };
+  }
+
+  if (segments.length === 4 && (segments[3] === "metadata" || segments[3] === "media")) {
+    return { uploadId, tab: segments[3] };
+  }
+
+  return null;
+}
+
+const UPLOAD_DETAIL_TABS: Array<{ id: UploadDetailTab; label: string }> = [
+  { id: "summary", label: "Summary" },
+  { id: "metadata", label: "Metadata" },
+  { id: "media", label: "Media" },
+];
+
 function isNavActive(pathname: string, to: string | null): boolean {
   if (to == null) {
     return false;
@@ -217,11 +254,13 @@ function SidebarProfileLink({ collapsed, username }: { collapsed: boolean; usern
 
 function StudioTopBar() {
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
   const search = useRouterState({ select: (state) => state.location.search });
   const searchRecord = search as Record<string, unknown>;
   const urlQuery = typeof searchRecord.q === "string" ? searchRecord.q : "";
   const [query, setQuery] = useState(urlQuery);
   const [syncedUrlQuery, setSyncedUrlQuery] = useState(urlQuery);
+  const uploadDetail = parseUploadDetailContext(pathname);
 
   if (urlQuery !== syncedUrlQuery) {
     setSyncedUrlQuery(urlQuery);
@@ -246,34 +285,77 @@ function StudioTopBar() {
   };
 
   return (
-    <div className="bg-background/95 border-border sticky top-0 z-30 flex w-full shrink-0 items-center gap-3 border-b px-4 py-3 backdrop-blur sm:px-6 lg:px-10">
-      <form className="flex min-w-0 flex-1 items-center gap-2" onSubmit={onSubmit} role="search">
-        <div className="relative min-w-0 max-w-xl flex-1">
-          <Search
-            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
-            aria-hidden
-          />
+    <div className="bg-background/95 border-border sticky top-0 z-30 flex w-full shrink-0 flex-col border-b backdrop-blur">
+      <div className="flex w-full items-center gap-3 px-4 py-3 sm:px-6 lg:px-10">
+        <form className="flex min-w-0 flex-1 items-center gap-2" onSubmit={onSubmit} role="search">
+          <div className="relative min-w-0 max-w-xl flex-1">
+            <Search
+              className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+              aria-hidden
+            />
 
-          <Input
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value);
-            }}
-            placeholder="Search uploads by title or video id…"
-            className="pl-9"
-            aria-label="Search uploads by title or video id"
-          />
-        </div>
+            <Input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+              placeholder="Search uploads by title or video id…"
+              className="pl-9"
+              aria-label="Search uploads by title or video id"
+            />
+          </div>
 
-        <Button type="submit" variant="secondary" className="shrink-0">
-          Search
+          <Button type="submit" variant="secondary" className="shrink-0">
+            Search
+          </Button>
+        </form>
+
+        <Button type="button" className="shrink-0" nativeButton={false} render={<Link to="/studio/uploads/new" />}>
+          <Plus data-icon="inline-start" className="size-4" />
+          New upload
         </Button>
-      </form>
+      </div>
 
-      <Button type="button" className="shrink-0" nativeButton={false} render={<Link to="/studio/uploads/new" />}>
-        <Plus data-icon="inline-start" className="size-4" />
-        New upload
-      </Button>
+      {uploadDetail != null ? (
+        <div className="border-border flex w-full items-center gap-1 overflow-x-auto border-t px-4 py-2 sm:px-6 lg:px-10">
+          <nav className="flex items-center gap-1" aria-label="Upload sections">
+            {UPLOAD_DETAIL_TABS.map((tab) => {
+              const active = uploadDetail.tab === tab.id;
+              const linkProps =
+                tab.id === "summary"
+                  ? {
+                      to: "/studio/uploads/$uploadId" as const,
+                      params: { uploadId: uploadDetail.uploadId },
+                    }
+                  : tab.id === "metadata"
+                    ? {
+                        to: "/studio/uploads/$uploadId/metadata" as const,
+                        params: { uploadId: uploadDetail.uploadId },
+                      }
+                    : {
+                        to: "/studio/uploads/$uploadId/media" as const,
+                        params: { uploadId: uploadDetail.uploadId },
+                      };
+
+              return (
+                <Link
+                  key={tab.id}
+                  {...linkProps}
+                  className={cn(
+                    "inline-flex h-8 shrink-0 items-center rounded-md px-3 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      ) : null}
     </div>
   );
 }

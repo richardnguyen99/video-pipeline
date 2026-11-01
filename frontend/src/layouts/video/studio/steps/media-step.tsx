@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
-import { AlertCircle, CheckCircle2, ImagePlus, Link2, Loader2, X } from "lucide-react";
+import { AlertCircle, ImagePlus, Link2, Loader2, X } from "lucide-react";
 
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/components/ui/toast";
 import { getApiErrorMessage } from "@/libs/auth";
 import { cn } from "@/libs/utils";
 import {
@@ -43,11 +43,14 @@ type MediaStepProps = {
   publicId: string | null;
 };
 
-type SectionMessage = {
-  tone: "success" | "error";
-  title: string;
-  description: string;
-};
+function notifyAction(type: "success" | "error", title: string, description: string) {
+  toast.add({
+    type,
+    title,
+    description,
+    timeout: 4000,
+  });
+}
 
 function latestByType(items: Array<VideoMediaImageItem>, type: string): VideoMediaImageItem | null {
   const matches = items.filter((item) => item.type === type);
@@ -95,8 +98,6 @@ function filterImageFiles(files: FileList | Array<File> | null): Array<File> {
   return Array.from(files).filter(isImageFile);
 }
 
-const THUMBNAIL_MESSAGE_KEY = "thumbnails";
-
 function thumbZoneKey(type: ThumbnailImageType): string {
   return `thumb-${type}`;
 }
@@ -105,67 +106,15 @@ function sampleZoneKey(type: SampleImageType): string {
   return `sample-${type}`;
 }
 
-function SectionAlert({ message, onDismiss }: { message: SectionMessage; onDismiss: () => void }) {
-  const isError = message.tone === "error";
-
-  return (
-    <Alert
-      className={cn(
-        isError
-          ? "border-destructive bg-destructive/10 text-destructive"
-          : "border-success bg-success/10 text-success-foreground",
-      )}
-    >
-      {isError ? <AlertCircle /> : <CheckCircle2 />}
-
-      <AlertTitle>{message.title}</AlertTitle>
-
-      <AlertDescription className={cn(isError ? "text-destructive/90" : "text-success-foreground/90")}>
-        {message.description}
-      </AlertDescription>
-
-      <AlertAction>
-        <button
-          type="button"
-          aria-label="Dismiss alert"
-          className="rounded-md p-1 text-current/70 transition-colors hover:bg-black/5 hover:text-current dark:hover:bg-white/10"
-          onClick={onDismiss}
-        >
-          <X className="size-4" />
-        </button>
-      </AlertAction>
-    </Alert>
-  );
-}
-
 export function MediaStep({ publicId }: MediaStepProps) {
   const [media, setMedia] = useState<VideoMediaResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Partial<Record<string, SectionMessage>>>({});
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [thumbLinkDrafts, setThumbLinkDrafts] = useState<Partial<Record<ThumbnailImageType, string>>>({});
   const [sampleLinkDrafts, setSampleLinkDrafts] = useState<Partial<Record<SampleImageType, string>>>({});
   const thumbInputRefs = useRef<Partial<Record<ThumbnailImageType, HTMLInputElement | null>>>({});
   const sampleInputRefs = useRef<Partial<Record<SampleImageType, HTMLInputElement | null>>>({});
-
-  const setSectionMessage = (key: string, message: SectionMessage | null) => {
-    setMessages((prev) => {
-      if (message == null) {
-        if (prev[key] == null) {
-          return prev;
-        }
-
-        const next = { ...prev };
-        delete next[key];
-
-        return next;
-      }
-
-      return { ...prev, [key]: message };
-    });
-  };
 
   useEffect(() => {
     if (publicId == null) {
@@ -176,7 +125,6 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
     const load = async () => {
       setLoading(true);
-      setLoadError(null);
 
       try {
         const next = await listVideoUploadMedia(publicId);
@@ -186,7 +134,7 @@ export function MediaStep({ publicId }: MediaStepProps) {
         }
       } catch (error) {
         if (!cancelled) {
-          setLoadError(getApiErrorMessage(error));
+          notifyAction("error", "Could not load media", getApiErrorMessage(error));
         }
       } finally {
         if (!cancelled) {
@@ -251,11 +199,11 @@ export function MediaStep({ publicId }: MediaStepProps) {
       }
 
       reportedFailuresRef.current.add(item.id);
-      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
-        tone: "error",
-        title: "Thumbnail link failed",
-        description: item.error_message?.trim() || "Server could not download the image.",
-      });
+      notifyAction(
+        "error",
+        "Thumbnail link failed",
+        item.error_message?.trim() || "Server could not download the image.",
+      );
     }
 
     for (const entry of SAMPLE_TYPES) {
@@ -269,11 +217,11 @@ export function MediaStep({ publicId }: MediaStepProps) {
         }
 
         reportedFailuresRef.current.add(item.id);
-        setSectionMessage(sampleZoneKey(entry.type), {
-          tone: "error",
-          title: "Sample link failed",
-          description: item.error_message?.trim() || "Server could not download the image.",
-        });
+        notifyAction(
+          "error",
+          "Sample link failed",
+          item.error_message?.trim() || "Server could not download the image.",
+        );
       }
     }
   }, [media]);
@@ -288,22 +236,13 @@ export function MediaStep({ publicId }: MediaStepProps) {
     const zoneKey = thumbZoneKey(imageType);
 
     setBusyKey(zoneKey);
-    setSectionMessage(THUMBNAIL_MESSAGE_KEY, null);
 
     try {
       const next = await uploadVideoThumbnail(publicId, imageType, file);
       setMedia(next);
-      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
-        tone: "success",
-        title: "Thumbnail saved",
-        description: `${imageType} thumbnail was uploaded successfully.`,
-      });
+      notifyAction("success", "Thumbnail saved", `${imageType} thumbnail was uploaded successfully.`);
     } catch (error) {
-      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
-        tone: "error",
-        title: "Thumbnail upload failed",
-        description: getApiErrorMessage(error),
-      });
+      notifyAction("error", "Thumbnail upload failed", getApiErrorMessage(error));
     } finally {
       setBusyKey(null);
     }
@@ -317,25 +256,19 @@ export function MediaStep({ publicId }: MediaStepProps) {
     const zoneKey = sampleZoneKey(imageType);
 
     setBusyKey(zoneKey);
-    setSectionMessage(zoneKey, null);
 
     try {
       const next = await uploadVideoSamples(publicId, imageType, files);
       setMedia(next);
-      setSectionMessage(zoneKey, {
-        tone: "success",
-        title: "Samples saved",
-        description:
-          files.length === 1
-            ? "1 sample image was uploaded successfully."
-            : `${files.length} sample images were uploaded successfully.`,
-      });
+      notifyAction(
+        "success",
+        "Samples saved",
+        files.length === 1
+          ? "1 sample image was uploaded successfully."
+          : `${files.length} sample images were uploaded successfully.`,
+      );
     } catch (error) {
-      setSectionMessage(zoneKey, {
-        tone: "error",
-        title: "Sample upload failed",
-        description: getApiErrorMessage(error),
-      });
+      notifyAction("error", "Sample upload failed", getApiErrorMessage(error));
     } finally {
       setBusyKey(null);
     }
@@ -363,47 +296,27 @@ export function MediaStep({ publicId }: MediaStepProps) {
     const zoneKey = thumbZoneKey(imageType);
 
     setBusyKey(`delete-${zoneKey}`);
-    setSectionMessage(THUMBNAIL_MESSAGE_KEY, null);
 
     try {
       const next = await deleteVideoThumbnail(publicId, imageType);
       setMedia(next);
-      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
-        tone: "success",
-        title: "Thumbnail removed",
-        description: `${imageType} thumbnail was deleted.`,
-      });
+      notifyAction("success", "Thumbnail removed", `${imageType} thumbnail was deleted.`);
     } catch (error) {
-      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
-        tone: "error",
-        title: "Delete failed",
-        description: getApiErrorMessage(error),
-      });
+      notifyAction("error", "Delete failed", getApiErrorMessage(error));
     } finally {
       setBusyKey(null);
     }
   };
 
-  const onDeleteSample = async (imageType: SampleImageType, sampleId: number) => {
-    const zoneKey = sampleZoneKey(imageType);
-
+  const onDeleteSample = async (_imageType: SampleImageType, sampleId: number) => {
     setBusyKey(`delete-sample-${sampleId}`);
-    setSectionMessage(zoneKey, null);
 
     try {
       const next = await deleteVideoSample(publicId, sampleId);
       setMedia(next);
-      setSectionMessage(zoneKey, {
-        tone: "success",
-        title: "Sample removed",
-        description: "The sample image was deleted.",
-      });
+      notifyAction("success", "Sample removed", "The sample image was deleted.");
     } catch (error) {
-      setSectionMessage(zoneKey, {
-        tone: "error",
-        title: "Delete failed",
-        description: getApiErrorMessage(error),
-      });
+      notifyAction("error", "Delete failed", getApiErrorMessage(error));
     } finally {
       setBusyKey(null);
     }
@@ -449,23 +362,14 @@ export function MediaStep({ publicId }: MediaStepProps) {
     const zoneKey = `link-${thumbZoneKey(imageType)}`;
 
     setBusyKey(zoneKey);
-    setSectionMessage(THUMBNAIL_MESSAGE_KEY, null);
 
     try {
       const next = await linkVideoThumbnail(publicId, imageType, cleaned);
       setMedia(next);
       setThumbLinkDrafts((prev) => ({ ...prev, [imageType]: "" }));
-      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
-        tone: "success",
-        title: "Thumbnail queued",
-        description: `${imageType} link is downloading on the server…`,
-      });
+      notifyAction("success", "Thumbnail queued", `${imageType} link is downloading on the server…`);
     } catch (error) {
-      setSectionMessage(THUMBNAIL_MESSAGE_KEY, {
-        tone: "error",
-        title: "Could not link thumbnail",
-        description: getApiErrorMessage(error),
-      });
+      notifyAction("error", "Could not link thumbnail", getApiErrorMessage(error));
     } finally {
       setBusyKey(null);
     }
@@ -481,29 +385,18 @@ export function MediaStep({ publicId }: MediaStepProps) {
     const zoneKey = `link-${sampleZoneKey(imageType)}`;
 
     setBusyKey(zoneKey);
-    setSectionMessage(sampleZoneKey(imageType), null);
 
     try {
       const next = await linkVideoSample(publicId, imageType, cleaned);
       setMedia(next);
       setSampleLinkDrafts((prev) => ({ ...prev, [imageType]: "" }));
-      setSectionMessage(sampleZoneKey(imageType), {
-        tone: "success",
-        title: "Sample queued",
-        description: "Sample link is downloading on the server…",
-      });
+      notifyAction("success", "Sample queued", "Sample link is downloading on the server…");
     } catch (error) {
-      setSectionMessage(sampleZoneKey(imageType), {
-        tone: "error",
-        title: "Could not link sample",
-        description: getApiErrorMessage(error),
-      });
+      notifyAction("error", "Could not link sample", getApiErrorMessage(error));
     } finally {
       setBusyKey(null);
     }
   };
-
-  const thumbnailMessage = messages[THUMBNAIL_MESSAGE_KEY];
 
   return (
     <div className="flex w-full flex-col gap-6 py-2">
@@ -514,40 +407,8 @@ export function MediaStep({ publicId }: MediaStepProps) {
         </div>
       ) : null}
 
-      {loadError ? (
-        <Alert className="border-destructive bg-destructive/10 text-destructive">
-          <AlertCircle />
-
-          <AlertTitle>Could not load media</AlertTitle>
-
-          <AlertDescription className="text-destructive/90">{loadError}</AlertDescription>
-
-          <AlertAction>
-            <button
-              type="button"
-              aria-label="Dismiss alert"
-              className="rounded-md p-1 text-current/70 transition-colors hover:bg-black/5 hover:text-current dark:hover:bg-white/10"
-              onClick={() => {
-                setLoadError(null);
-              }}
-            >
-              <X className="size-4" />
-            </button>
-          </AlertAction>
-        </Alert>
-      ) : null}
-
       <section className="flex flex-col gap-3">
         <h4 className="text-sm font-medium">Catalog thumbnails</h4>
-
-        {thumbnailMessage != null ? (
-          <SectionAlert
-            message={thumbnailMessage}
-            onDismiss={() => {
-              setSectionMessage(THUMBNAIL_MESSAGE_KEY, null);
-            }}
-          />
-        ) : null}
 
         <Tabs defaultValue="upload">
           <TabsList>
@@ -810,7 +671,6 @@ export function MediaStep({ publicId }: MediaStepProps) {
           const zoneKey = sampleZoneKey(entry.type);
           const busy = busyKey === zoneKey;
           const dragging = dragKey === zoneKey;
-          const message = messages[zoneKey];
           const sampleDraft = sampleLinkDrafts[entry.type] ?? "";
           const sampleLinkKey = `link-${zoneKey}`;
           const sampleLinking = busyKey === sampleLinkKey;
@@ -822,15 +682,6 @@ export function MediaStep({ publicId }: MediaStepProps) {
 
                 <span className="text-muted-foreground text-xs">{entry.hint}</span>
               </div>
-
-              {message ? (
-                <SectionAlert
-                  message={message}
-                  onDismiss={() => {
-                    setSectionMessage(zoneKey, null);
-                  }}
-                />
-              ) : null}
 
               <Tabs defaultValue="upload">
                 <TabsList>
