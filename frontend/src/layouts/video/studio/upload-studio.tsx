@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
 } from "@/layouts/video/studio/session-persist";
 import { SessionSummary } from "@/layouts/video/studio/session-summary";
 import { UploadStudioSkeleton } from "@/layouts/video/studio/upload-studio-skeleton";
-import { UploadsList } from "@/layouts/video/studio/uploads-list";
 import { DetailsStep } from "@/layouts/video/studio/steps/details-step";
 import { MediaStep } from "@/layouts/video/studio/steps/media-step";
 import { PreviewStep } from "@/layouts/video/studio/steps/preview-step";
@@ -55,8 +54,6 @@ import type { CompletedPart, ExistingVideoSummary, VideoUploadStatusResponse } f
 
 const videoUploadMediaQueryKey = (publicId: string) => ["video-upload-media", publicId] as const;
 
-const uploadRouteApi = getRouteApi("/_authenticated/studio/upload");
-
 function scrollStudioMainToTop() {
   const main = document.querySelector<HTMLElement>("[data-studio-main]");
 
@@ -66,9 +63,21 @@ function scrollStudioMainToTop() {
 }
 
 type UploadStudioProps = {
+  uploadId?: string | null;
   initialStatus?: VideoUploadStatusResponse | null;
   initialStep?: number;
 };
+
+function navigateToUploadStep(navigate: ReturnType<typeof useNavigate>, publicId: string, step: number) {
+  void navigate({
+    to: "/studio/uploads/$uploadId/$step",
+    params: {
+      uploadId: publicId,
+      step,
+    },
+    replace: true,
+  });
+}
 
 function resolveInitialStep(
   initialStep: number | undefined,
@@ -129,21 +138,20 @@ function hydrateFromStatus(status: VideoUploadStatusResponse) {
   };
 }
 
-export function UploadStudio({ initialStatus = null, initialStep }: UploadStudioProps) {
+export function UploadStudio({ uploadId = null, initialStatus = null, initialStep }: UploadStudioProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const search = uploadRouteApi.useSearch();
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadStartedRef = useRef(initialStatus != null);
   const resumeAppliedRef = useRef<string | null>(initialStatus != null ? initialStatus.public_id : null);
-  const prevSearchPublicIdRef = useRef<string | undefined>(search.publicId);
+  const prevUploadIdRef = useRef<string | null | undefined>(uploadId);
   const hydrated = initialStatus != null ? hydrateFromStatus(initialStatus) : null;
 
   const [sessionFilename, setSessionFilename] = useState<string | null>(hydrated?.sessionFilename ?? null);
 
-  const [localStep, setLocalStep] = useState(() => resolveInitialStep(initialStep ?? search.step, initialStatus));
+  const [localStep, setLocalStep] = useState(() => resolveInitialStep(initialStep, initialStatus));
 
-  const activeStep = search.step != null ? Math.min(7, Math.max(1, search.step)) : localStep;
+  const activeStep = initialStep != null ? Math.min(7, Math.max(1, initialStep)) : localStep;
 
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -179,17 +187,13 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
       setLocalStep(clamped);
       scrollStudioMainToTop();
 
-      const publicId = status?.public_id ?? search.publicId;
+      const publicId = status?.public_id ?? uploadId;
 
       if (publicId != null) {
-        void navigate({
-          to: "/studio/upload",
-          search: { publicId, step: clamped },
-          replace: true,
-        });
+        navigateToUploadStep(navigate, publicId, clamped);
       }
     },
-    [navigate, search.publicId, status?.public_id],
+    [navigate, status?.public_id, uploadId],
   );
 
   useEffect(() => {
@@ -251,7 +255,7 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
   }, [activeStep, status?.public_id]);
 
   useEffect(() => {
-    const resumeId = search.publicId;
+    const resumeId = uploadId;
 
     if (resumeId == null || initialStatus != null || resumeAppliedRef.current === resumeId) {
       return;
@@ -268,7 +272,7 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
         }
 
         const fields = hydrateFromStatus(next);
-        const preferredStep = search.step ?? defaultStepForStatus(next);
+        const preferredStep = initialStep ?? defaultStepForStatus(next);
         const clampedStep = Math.min(7, Math.max(1, preferredStep));
 
         resumeAppliedRef.current = resumeId;
@@ -290,12 +294,8 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
         setRelations(fields.relations);
         setSessionFilename(fields.sessionFilename);
 
-        if (search.step == null) {
-          void navigate({
-            to: "/studio/upload",
-            search: { publicId: resumeId, step: clampedStep },
-            replace: true,
-          });
+        if (initialStep == null) {
+          navigateToUploadStep(navigate, resumeId, clampedStep);
         }
       } catch (error) {
         if (!cancelled) {
@@ -310,9 +310,9 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
     return () => {
       cancelled = true;
     };
-  }, [initialStatus, navigate, search.publicId, search.step]);
+  }, [initialStatus, initialStep, navigate, uploadId]);
 
-  const contentReady = search.publicId == null || (status != null && status.public_id === search.publicId);
+  const contentReady = uploadId == null || (status != null && status.public_id === uploadId);
 
   useLayoutEffect(() => {
     if (!contentReady) {
@@ -320,7 +320,7 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
     }
 
     scrollStudioMainToTop();
-  }, [activeStep, contentReady, search.publicId]);
+  }, [activeStep, contentReady, uploadId]);
 
   useEffect(() => {
     const publicId = status?.public_id;
@@ -365,15 +365,15 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
   ]);
 
   useEffect(() => {
-    const previousPublicId = prevSearchPublicIdRef.current;
-    prevSearchPublicIdRef.current = search.publicId;
+    const previousPublicId = prevUploadIdRef.current;
+    prevUploadIdRef.current = uploadId;
 
-    if (search.publicId != null) {
+    if (uploadId != null) {
       return;
     }
 
     // Only reset when the URL explicitly dropped a session publicId.
-    // Fresh drafts and post-upload establish navigation must not be wiped.
+    // Fresh drafts and post-upload establish navigations must not be wiped.
     if (previousPublicId == null) {
       clearActiveUploadStudioPointer();
 
@@ -409,7 +409,7 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
     if (inputRef.current) {
       inputRef.current.value = "";
     }
-  }, [search.publicId]);
+  }, [uploadId]);
 
   const sourceBytes = status?.source_bytes;
 
@@ -631,11 +631,7 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
 
         void queryClient.invalidateQueries({ queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY });
 
-        void navigate({
-          to: "/studio/upload",
-          search: { publicId: finalStatus.public_id, step: nextStep },
-          replace: true,
-        });
+        navigateToUploadStep(navigate, finalStatus.public_id, nextStep);
       } catch (error) {
         const apiMessage = getApiErrorMessage(error);
 
@@ -1018,7 +1014,7 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
   );
 
   if (!contentReady) {
-    return <UploadStudioSkeleton activeStep={search.step ?? 7} />;
+    return <UploadStudioSkeleton activeStep={initialStep ?? 7} />;
   }
 
   return (
@@ -1265,8 +1261,6 @@ export function UploadStudio({ initialStatus = null, initialStep }: UploadStudio
           progressPct={progressPct}
         />
       </section>
-
-      <UploadsList />
 
       <ConflictDialog
         open={upsertDialogOpen && phase === "conflict"}

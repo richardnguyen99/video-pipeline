@@ -18,9 +18,9 @@ import type { ColumnDef, ColumnFiltersState, SortingState } from "@tanstack/reac
 import { ArrowDown, ArrowUp, ArrowUpDown, ExternalLink, FileVideo } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatFileSize } from "@/layouts/video/studio/upload-helpers";
 import { cn } from "@/libs/utils";
@@ -136,14 +136,14 @@ function formatUpdatedAt(value: string): string {
 
 function SortIcon({ sorted }: { sorted: false | "asc" | "desc" }) {
   if (sorted === "asc") {
-    return <ArrowUp className="size-3.5" />;
+    return <ArrowUp className="size-3.5 shrink-0" aria-hidden />;
   }
 
   if (sorted === "desc") {
-    return <ArrowDown className="size-3.5" />;
+    return <ArrowDown className="size-3.5 shrink-0" aria-hidden />;
   }
 
-  return <ArrowUpDown className="size-3.5 opacity-50" />;
+  return <ArrowUpDown className="size-3.5 shrink-0 opacity-50" aria-hidden />;
 }
 
 const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
@@ -203,7 +203,7 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
         type="button"
         variant="ghost"
         size="sm"
-        className="-ml-2 h-8 gap-1 px-2"
+        className="-ml-2 h-8 min-w-[5.75rem] justify-start gap-1 px-2"
         onClick={() => {
           column.toggleSorting(column.getIsSorted() === "asc");
         }}
@@ -230,7 +230,7 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
         type="button"
         variant="ghost"
         size="sm"
-        className="-ml-2 h-8 gap-1 px-2"
+        className="-ml-2 h-8 min-w-[4.25rem] justify-start gap-1 px-2"
         onClick={() => {
           column.toggleSorting(column.getIsSorted() === "asc");
         }}
@@ -314,7 +314,55 @@ function hasActiveProcessing(items: Array<VideoUploadListItem>): boolean {
   return items.some((item) => PROCESSING_STATUSES.has(item.status.toUpperCase()));
 }
 
-export function UploadsList() {
+function UploadsListBodySkeleton() {
+  return (
+    <>
+      {Array.from({ length: PAGE_SIZE }, (_, index) => (
+        <TableRow key={index}>
+          <TableCell>
+            <div className="flex min-w-0 items-center gap-3">
+              <Skeleton className="size-10 shrink-0 rounded-md" />
+
+              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <Skeleton className="h-4 w-[min(100%,18rem)]" />
+                <Skeleton className="h-3 w-28" />
+              </div>
+            </div>
+          </TableCell>
+
+          <TableCell>
+            <Skeleton className="h-5 w-14 rounded-full" />
+          </TableCell>
+
+          <TableCell>
+            <Skeleton className="h-3 w-28" />
+          </TableCell>
+
+          <TableCell>
+            <Skeleton className="h-3 w-14" />
+          </TableCell>
+
+          <TableCell>
+            <div className="flex flex-col gap-1.5">
+              <Skeleton className="h-2 w-full rounded-full" />
+              <Skeleton className="h-3 w-10" />
+            </div>
+          </TableCell>
+
+          <TableCell className="text-right">
+            <Skeleton className="ml-auto size-8 rounded-md" />
+          </TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
+}
+
+type UploadsListProps = {
+  initialQuery?: string;
+};
+
+export function UploadsList({ initialQuery = "" }: UploadsListProps) {
   const navigate = useNavigate();
   const query = useQuery({
     queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY,
@@ -331,8 +379,14 @@ export function UploadsList() {
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "updated_at", desc: true }]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState(STATUS_FILTER_ALL);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: PAGE_SIZE });
+  const [syncedQuery, setSyncedQuery] = useState(initialQuery);
+
+  if (syncedQuery !== initialQuery) {
+    setSyncedQuery(initialQuery);
+    setPagination((current) => ({ ...current, pageIndex: 0 }));
+  }
 
   const table = useTable({
     features,
@@ -341,17 +395,12 @@ export function UploadsList() {
     state: {
       sorting,
       columnFilters,
-      globalFilter,
+      globalFilter: initialQuery,
+      pagination,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onGlobalFilterChange: setGlobalFilter,
-    initialState: {
-      pagination: {
-        pageSize: PAGE_SIZE,
-        pageIndex: 0,
-      },
-    },
+    onPaginationChange: setPagination,
     globalFilterFn: (row, _columnId, filterValue: string) => {
       const q = filterValue.trim().toLowerCase();
 
@@ -361,10 +410,9 @@ export function UploadsList() {
 
       const item = row.original;
       const title = (item.title ?? "").toLowerCase();
-      const filename = (item.original_filename ?? "").toLowerCase();
       const videoId = item.video_id.toLowerCase();
 
-      return title.includes(q) || filename.includes(q) || videoId.includes(q);
+      return title.includes(q) || videoId.includes(q);
     },
   });
 
@@ -376,26 +424,9 @@ export function UploadsList() {
     <section className="bg-card flex flex-col gap-4 rounded-xl border p-5">
       <div className="flex flex-col gap-1">
         <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Your uploads</span>
-
-        <h2 className="text-lg font-semibold">Resume a session</h2>
-
-        <p className="text-muted-foreground text-sm">
-          Only uploads that finished the raw file transfer can be resumed in the wizard.
-        </p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Input
-          value={globalFilter}
-          onChange={(event) => {
-            setGlobalFilter(event.target.value);
-            table.setPageIndex(0);
-          }}
-          placeholder="Search by title or video id…"
-          className="max-w-sm"
-          aria-label="Search uploads"
-        />
-
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
         <Select
           value={statusFilter}
           onValueChange={(value) => {
@@ -422,13 +453,15 @@ export function UploadsList() {
         </Select>
       </div>
 
-      {query.isLoading ? <p className="text-muted-foreground text-sm">Loading uploads…</p> : null}
-
       {query.isError ? <p className="text-destructive text-sm">Could not load your uploads.</p> : null}
 
-      {!query.isLoading && !query.isError ? (
+      {!query.isError ? (
         <>
-          <Table className="w-full table-fixed">
+          <Table
+            className="w-full table-fixed"
+            aria-busy={query.isLoading ? true : undefined}
+            aria-label={query.isLoading ? "Loading uploads" : undefined}
+          >
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
@@ -452,7 +485,9 @@ export function UploadsList() {
             </TableHeader>
 
             <TableBody>
-              {table.getRowModel().rows.length > 0 ? (
+              {query.isLoading ? (
+                <UploadsListBodySkeleton />
+              ) : table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map((row) => {
                   const item = row.original;
                   const canResume = item.resumable;
@@ -480,8 +515,11 @@ export function UploadsList() {
                         }
 
                         void navigate({
-                          to: "/studio/upload",
-                          search: { publicId: item.public_id, step },
+                          to: "/studio/uploads/$uploadId/$step",
+                          params: {
+                            uploadId: item.public_id,
+                            step,
+                          },
                         });
                       }}
                     >
@@ -503,45 +541,57 @@ export function UploadsList() {
             </TableBody>
           </Table>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-muted-foreground text-xs">
-              {filteredCount === 0
-                ? "0 results"
-                : `Showing ${String(pageIndex * PAGE_SIZE + 1)}–${String(
-                    Math.min((pageIndex + 1) * PAGE_SIZE, filteredCount),
-                  )} of ${String(filteredCount)}`}
-            </p>
+          {query.isLoading ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Skeleton className="h-3 w-40" />
 
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanPreviousPage()}
-                onClick={() => {
-                  table.previousPage();
-                }}
-              >
-                Previous
-              </Button>
-
-              <span className="text-muted-foreground text-xs tabular-nums">
-                {String(pageIndex + 1)} / {String(pageCount)}
-              </span>
-
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanNextPage()}
-                onClick={() => {
-                  table.nextPage();
-                }}
-              >
-                Next
-              </Button>
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-8 w-20 rounded-md" />
+                <Skeleton className="h-3 w-8" />
+                <Skeleton className="h-8 w-16 rounded-md" />
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-muted-foreground text-xs">
+                {filteredCount === 0
+                  ? "0 results"
+                  : `Showing ${String(pageIndex * PAGE_SIZE + 1)}–${String(
+                      Math.min((pageIndex + 1) * PAGE_SIZE, filteredCount),
+                    )} of ${String(filteredCount)}`}
+              </p>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!table.getCanPreviousPage()}
+                  onClick={() => {
+                    table.previousPage();
+                  }}
+                >
+                  Previous
+                </Button>
+
+                <span className="text-muted-foreground text-xs tabular-nums">
+                  {String(pageIndex + 1)} / {String(pageCount)}
+                </span>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!table.getCanNextPage()}
+                  onClick={() => {
+                    table.nextPage();
+                  }}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </>
       ) : null}
     </section>

@@ -97,7 +97,7 @@ export function ProcessStep({ status, recoveringLabel = null, onRecoverRendition
           </Button>
 
           <span className="text-muted-foreground text-xs">
-            Bookmark or return via /studio/upload?publicId={status.public_id}
+            Bookmark or return via /studio/uploads/{status.public_id}
           </span>
         </div>
       ) : null}

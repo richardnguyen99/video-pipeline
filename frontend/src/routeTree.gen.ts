@@ -29,7 +29,6 @@ import { Route as UUsernameRouteRouteImport } from './routes/u/$username/route'
 import { Route as VideosIndexRouteImport } from './routes/videos/index'
 import { Route as VideosIdRouteImport } from './routes/videos/$id'
 import { Route as AuthenticatedStudioIndexRouteImport } from './routes/_authenticated/studio/index'
-import { Route as AuthenticatedStudioUploadRouteImport } from './routes/_authenticated/studio/upload'
 import { Route as UUsernameIndexRouteImport } from './routes/u/$username/index'
 import { Route as UUsernameBlockedAccountsRouteImport } from './routes/u/$username/blocked-accounts'
 import { Route as UUsernameContentPreferenceRouteImport } from './routes/u/$username/content-preference'
@@ -40,11 +39,15 @@ import { Route as UUsernamePrivacyRouteImport } from './routes/u/$username/priva
 import { Route as UUsernameSecurityRouteImport } from './routes/u/$username/security'
 import { Route as UUsernameSubscriptionsRouteImport } from './routes/u/$username/subscriptions'
 import { Route as UUsernameVideosRouteRouteImport } from './routes/u/$username/videos/route'
+import { Route as AuthenticatedStudioUploadsIndexRouteImport } from './routes/_authenticated/studio/uploads/index'
+import { Route as AuthenticatedStudioUploadsNewRouteImport } from './routes/_authenticated/studio/uploads/new'
 import { Route as UUsernamePlaylistsIndexRouteImport } from './routes/u/$username/playlists/index'
 import { Route as UUsernamePlaylistsPlaylistIdRouteImport } from './routes/u/$username/playlists/$playlistId'
 import { Route as UUsernameVideosIndexRouteImport } from './routes/u/$username/videos/index'
 import { Route as UUsernameVideosHistoryRouteImport } from './routes/u/$username/videos/history'
 import { Route as UUsernameVideosLikedRouteImport } from './routes/u/$username/videos/liked'
+import { Route as AuthenticatedStudioUploadsUploadIdIndexRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/index'
+import { Route as AuthenticatedStudioUploadsUploadIdStepRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/$step'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -146,12 +149,6 @@ const AuthenticatedStudioIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedStudioRouteRoute,
   } as any)
-const AuthenticatedStudioUploadRoute =
-  AuthenticatedStudioUploadRouteImport.update({
-    id: '/upload',
-    path: '/upload',
-    getParentRoute: () => AuthenticatedStudioRouteRoute,
-  } as any)
 const UUsernameIndexRoute = UUsernameIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -204,6 +201,18 @@ const UUsernameVideosRouteRoute = UUsernameVideosRouteRouteImport.update({
   path: '/videos',
   getParentRoute: () => UUsernameRouteRoute,
 } as any)
+const AuthenticatedStudioUploadsIndexRoute =
+  AuthenticatedStudioUploadsIndexRouteImport.update({
+    id: '/uploads/',
+    path: '/uploads/',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
+  } as any)
+const AuthenticatedStudioUploadsNewRoute =
+  AuthenticatedStudioUploadsNewRouteImport.update({
+    id: '/uploads/new',
+    path: '/uploads/new',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
+  } as any)
 const UUsernamePlaylistsIndexRoute = UUsernamePlaylistsIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -230,6 +239,18 @@ const UUsernameVideosLikedRoute = UUsernameVideosLikedRouteImport.update({
   path: '/liked',
   getParentRoute: () => UUsernameVideosRouteRoute,
 } as any)
+const AuthenticatedStudioUploadsUploadIdIndexRoute =
+  AuthenticatedStudioUploadsUploadIdIndexRouteImport.update({
+    id: '/uploads/$uploadId/',
+    path: '/uploads/$uploadId/',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
+  } as any)
+const AuthenticatedStudioUploadsUploadIdStepRoute =
+  AuthenticatedStudioUploadsUploadIdStepRouteImport.update({
+    id: '/uploads/$uploadId/$step',
+    path: '/uploads/$uploadId/$step',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -251,7 +272,6 @@ export interface FileRoutesByFullPath {
   '/videos/': typeof VideosIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
-  '/studio/upload': typeof AuthenticatedStudioUploadRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -261,11 +281,15 @@ export interface FileRoutesByFullPath {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/studio/': typeof AuthenticatedStudioIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/studio/uploads/new': typeof AuthenticatedStudioUploadsNewRoute
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/studio/uploads/': typeof AuthenticatedStudioUploadsIndexRoute
   '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
+  '/studio/uploads/$uploadId/$step': typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  '/studio/uploads/$uploadId/': typeof AuthenticatedStudioUploadsUploadIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -282,7 +306,6 @@ export interface FileRoutesByTo {
   '/videos/$id': typeof VideosIdRoute
   '/actresses': typeof ActressesIndexRoute
   '/videos': typeof VideosIndexRoute
-  '/studio/upload': typeof AuthenticatedStudioUploadRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -292,11 +315,15 @@ export interface FileRoutesByTo {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/studio': typeof AuthenticatedStudioIndexRoute
   '/u/$username': typeof UUsernameIndexRoute
+  '/studio/uploads/new': typeof AuthenticatedStudioUploadsNewRoute
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/studio/uploads': typeof AuthenticatedStudioUploadsIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos': typeof UUsernameVideosIndexRoute
+  '/studio/uploads/$uploadId/$step': typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  '/studio/uploads/$uploadId': typeof AuthenticatedStudioUploadsUploadIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -321,7 +348,6 @@ export interface FileRoutesById {
   '/videos/': typeof VideosIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
-  '/_authenticated/studio/upload': typeof AuthenticatedStudioUploadRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -331,11 +357,15 @@ export interface FileRoutesById {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/_authenticated/studio/uploads/new': typeof AuthenticatedStudioUploadsNewRoute
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/_authenticated/studio/uploads/': typeof AuthenticatedStudioUploadsIndexRoute
   '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
+  '/_authenticated/studio/uploads/$uploadId/$step': typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  '/_authenticated/studio/uploads/$uploadId/': typeof AuthenticatedStudioUploadsUploadIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -359,7 +389,6 @@ export interface FileRouteTypes {
     | '/videos/'
     | '/u/$username/playlists'
     | '/u/$username/videos'
-    | '/studio/upload'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -369,11 +398,15 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/studio/'
     | '/u/$username/'
+    | '/studio/uploads/new'
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/studio/uploads/'
     | '/u/$username/playlists/'
     | '/u/$username/videos/'
+    | '/studio/uploads/$uploadId/$step'
+    | '/studio/uploads/$uploadId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -390,7 +423,6 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/actresses'
     | '/videos'
-    | '/studio/upload'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -400,11 +432,15 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/studio'
     | '/u/$username'
+    | '/studio/uploads/new'
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/studio/uploads'
     | '/u/$username/playlists'
     | '/u/$username/videos'
+    | '/studio/uploads/$uploadId/$step'
+    | '/studio/uploads/$uploadId'
   id:
     | '__root__'
     | '/'
@@ -428,7 +464,6 @@ export interface FileRouteTypes {
     | '/videos/'
     | '/u/$username/playlists'
     | '/u/$username/videos'
-    | '/_authenticated/studio/upload'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -438,11 +473,15 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/_authenticated/studio/'
     | '/u/$username/'
+    | '/_authenticated/studio/uploads/new'
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/_authenticated/studio/uploads/'
     | '/u/$username/playlists/'
     | '/u/$username/videos/'
+    | '/_authenticated/studio/uploads/$uploadId/$step'
+    | '/_authenticated/studio/uploads/$uploadId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -603,13 +642,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioIndexRouteImport
       parentRoute: typeof AuthenticatedStudioRouteRoute
     }
-    '/_authenticated/studio/upload': {
-      id: '/_authenticated/studio/upload'
-      path: '/upload'
-      fullPath: '/studio/upload'
-      preLoaderRoute: typeof AuthenticatedStudioUploadRouteImport
-      parentRoute: typeof AuthenticatedStudioRouteRoute
-    }
     '/u/$username/': {
       id: '/u/$username/'
       path: '/'
@@ -680,6 +712,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameVideosRouteRouteImport
       parentRoute: typeof UUsernameRouteRoute
     }
+    '/_authenticated/studio/uploads/': {
+      id: '/_authenticated/studio/uploads/'
+      path: '/uploads'
+      fullPath: '/studio/uploads/'
+      preLoaderRoute: typeof AuthenticatedStudioUploadsIndexRouteImport
+      parentRoute: typeof AuthenticatedStudioRouteRoute
+    }
+    '/_authenticated/studio/uploads/new': {
+      id: '/_authenticated/studio/uploads/new'
+      path: '/uploads/new'
+      fullPath: '/studio/uploads/new'
+      preLoaderRoute: typeof AuthenticatedStudioUploadsNewRouteImport
+      parentRoute: typeof AuthenticatedStudioRouteRoute
+    }
     '/u/$username/playlists/': {
       id: '/u/$username/playlists/'
       path: '/'
@@ -715,6 +761,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameVideosLikedRouteImport
       parentRoute: typeof UUsernameVideosRouteRoute
     }
+    '/_authenticated/studio/uploads/$uploadId/': {
+      id: '/_authenticated/studio/uploads/$uploadId/'
+      path: '/uploads/$uploadId'
+      fullPath: '/studio/uploads/$uploadId/'
+      preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdIndexRouteImport
+      parentRoute: typeof AuthenticatedStudioRouteRoute
+    }
+    '/_authenticated/studio/uploads/$uploadId/$step': {
+      id: '/_authenticated/studio/uploads/$uploadId/$step'
+      path: '/uploads/$uploadId/$step'
+      fullPath: '/studio/uploads/$uploadId/$step'
+      preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdStepRouteImport
+      parentRoute: typeof AuthenticatedStudioRouteRoute
+    }
   }
 }
 
@@ -733,14 +793,22 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
 )
 
 interface AuthenticatedStudioRouteRouteChildren {
-  AuthenticatedStudioUploadRoute: typeof AuthenticatedStudioUploadRoute
   AuthenticatedStudioIndexRoute: typeof AuthenticatedStudioIndexRoute
+  AuthenticatedStudioUploadsNewRoute: typeof AuthenticatedStudioUploadsNewRoute
+  AuthenticatedStudioUploadsIndexRoute: typeof AuthenticatedStudioUploadsIndexRoute
+  AuthenticatedStudioUploadsUploadIdStepRoute: typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  AuthenticatedStudioUploadsUploadIdIndexRoute: typeof AuthenticatedStudioUploadsUploadIdIndexRoute
 }
 
 const AuthenticatedStudioRouteRouteChildren: AuthenticatedStudioRouteRouteChildren =
   {
-    AuthenticatedStudioUploadRoute: AuthenticatedStudioUploadRoute,
     AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
+    AuthenticatedStudioUploadsNewRoute: AuthenticatedStudioUploadsNewRoute,
+    AuthenticatedStudioUploadsIndexRoute: AuthenticatedStudioUploadsIndexRoute,
+    AuthenticatedStudioUploadsUploadIdStepRoute:
+      AuthenticatedStudioUploadsUploadIdStepRoute,
+    AuthenticatedStudioUploadsUploadIdIndexRoute:
+      AuthenticatedStudioUploadsUploadIdIndexRoute,
   }
 
 const AuthenticatedStudioRouteRouteWithChildren =

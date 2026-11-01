@@ -75,7 +75,7 @@ export function StudioDashboard() {
           <p className="text-muted-foreground text-sm">Here is what is happening with your channel.</p>
         </div>
 
-        <Button type="button" nativeButton={false} render={<Link to="/studio/upload" />}>
+        <Button type="button" nativeButton={false} render={<Link to="/studio/uploads/new" />}>
           <Upload data-icon="inline-start" className="size-4" />
           Upload video
         </Button>
@@ -165,7 +165,7 @@ export function StudioDashboard() {
             variant="outline"
             className="h-auto justify-start gap-3 px-3 py-3 text-left"
             nativeButton={false}
-            render={<Link to="/studio/upload" />}
+            render={<Link to="/studio/uploads/new" />}
           >
             <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md">
               <Upload className="size-4" />

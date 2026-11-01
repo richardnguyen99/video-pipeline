@@ -1,6 +1,6 @@
-import { useState } from "react";
-import type { ReactNode } from "react";
-import { Link, Outlet, useRouteContext, useRouterState } from "@tanstack/react-router";
+import { useCallback, useState } from "react";
+import type { ReactNode, SyntheticEvent } from "react";
+import { Link, Outlet, useNavigate, useRouteContext, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   ChevronLeft,
@@ -8,12 +8,15 @@ import {
   FileVideo,
   LayoutDashboard,
   Menu,
+  Plus,
+  Search,
   Upload,
   UserRound,
   Users,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/libs/utils";
 import { useAuthStore } from "@/stores/auth-store";
@@ -31,7 +34,7 @@ const NAV_ITEMS = [
     id: "uploads",
     label: "Uploads",
     icon: Upload,
-    to: "/studio/upload" as const,
+    to: "/studio/uploads" as const,
   },
   {
     id: "videos",
@@ -126,12 +129,10 @@ function SidebarNavLink({
   collapsed: boolean;
   label: string;
   isActive: boolean;
-  to: "/studio" | "/studio/upload";
+  to: "/studio" | "/studio/uploads";
   onNavigate?: () => void;
   children: ReactNode;
 }) {
-  const linkSearch = to === "/studio/upload" ? {} : undefined;
-
   if (!collapsed) {
     return (
       <Button
@@ -140,7 +141,7 @@ function SidebarNavLink({
         className="h-10 w-full justify-start gap-3 px-3"
         aria-label={label}
         nativeButton={false}
-        render={<Link to={to} search={linkSearch} onClick={onNavigate} />}
+        render={<Link to={to} onClick={onNavigate} />}
       >
         {children}
       </Button>
@@ -157,7 +158,7 @@ function SidebarNavLink({
             className="size-10 shrink-0 justify-center p-0"
             aria-label={label}
             nativeButton={false}
-            render={<Link to={to} search={linkSearch} onClick={onNavigate} />}
+            render={<Link to={to} onClick={onNavigate} />}
           />
         }
       >
@@ -211,6 +212,69 @@ function SidebarProfileLink({ collapsed, username }: { collapsed: boolean; usern
         @{label}
       </TooltipContent>
     </Tooltip>
+  );
+}
+
+function StudioTopBar() {
+  const navigate = useNavigate();
+  const search = useRouterState({ select: (state) => state.location.search });
+  const searchRecord = search as Record<string, unknown>;
+  const urlQuery = typeof searchRecord.q === "string" ? searchRecord.q : "";
+  const [query, setQuery] = useState(urlQuery);
+  const [syncedUrlQuery, setSyncedUrlQuery] = useState(urlQuery);
+
+  if (urlQuery !== syncedUrlQuery) {
+    setSyncedUrlQuery(urlQuery);
+    setQuery(urlQuery);
+  }
+
+  const submitSearch = useCallback(
+    (value: string) => {
+      const trimmed = value.trim();
+
+      void navigate({
+        to: "/studio/uploads",
+        search: trimmed.length > 0 ? { q: trimmed } : {},
+      });
+    },
+    [navigate],
+  );
+
+  const onSubmit = (event: SyntheticEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    submitSearch(query);
+  };
+
+  return (
+    <div className="bg-background/95 border-border sticky top-0 z-30 flex w-full shrink-0 items-center gap-3 border-b px-4 py-3 backdrop-blur sm:px-6 lg:px-10">
+      <form className="flex min-w-0 flex-1 items-center gap-2" onSubmit={onSubmit} role="search">
+        <div className="relative min-w-0 max-w-xl flex-1">
+          <Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
+            aria-hidden
+          />
+
+          <Input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+            }}
+            placeholder="Search uploads by title or video id…"
+            className="pl-9"
+            aria-label="Search uploads by title or video id"
+          />
+        </div>
+
+        <Button type="submit" variant="secondary" className="shrink-0">
+          Search
+        </Button>
+      </form>
+
+      <Button type="button" className="shrink-0" nativeButton={false} render={<Link to="/studio/uploads/new" />}>
+        <Plus data-icon="inline-start" className="size-4" />
+        New upload
+      </Button>
+    </div>
   );
 }
 
@@ -344,7 +408,7 @@ export function StudioShell() {
       </aside>
 
       <section data-studio-main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]">
-        <div className="flex shrink-0 items-center gap-2 px-4 pt-4 sm:px-6 lg:hidden">
+        <div className="flex shrink-0 items-center gap-2 px-4 pt-3 sm:px-6 lg:hidden">
           <Button
             type="button"
             variant="outline"
@@ -357,6 +421,8 @@ export function StudioShell() {
             <Menu className="size-4" />
           </Button>
         </div>
+
+        <StudioTopBar />
 
         <div className="flex min-w-0 flex-1 flex-col px-4 py-4 sm:px-6 lg:px-10 lg:py-6">
           <Outlet />
