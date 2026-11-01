@@ -203,7 +203,7 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
         type="button"
         variant="ghost"
         size="sm"
-        className="-ml-2 h-8 min-w-[5.75rem] justify-start gap-1 px-2"
+        className="-ml-2 h-8 min-w-23 justify-start gap-1 px-2"
         onClick={() => {
           column.toggleSorting(column.getIsSorted() === "asc");
         }}
@@ -230,7 +230,7 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
         type="button"
         variant="ghost"
         size="sm"
-        className="-ml-2 h-8 min-w-[4.25rem] justify-start gap-1 px-2"
+        className="-ml-2 h-8 min-w-17 justify-start gap-1 px-2"
         onClick={() => {
           column.toggleSorting(column.getIsSorted() === "asc");
         }}

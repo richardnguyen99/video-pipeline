@@ -1,47 +1,58 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 
-import { defaultStepForStatus } from "@/layouts/video/studio/session-persist";
+import { UploadOverview, UploadOverviewSkeleton } from "@/layouts/video/studio/upload-overview";
 import { videoUploadStatusQueryKey, videoUploadStatusQueryOptions } from "@/queries/video-upload";
 import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 import { fetchVideoUploadStatusServer } from "@/server/video-upload.functions";
 
 export const Route = createFileRoute("/_authenticated/studio/uploads/$uploadId/")({
   ssr: true,
-  loader: async ({ context, params }) => {
+  loader: async ({ context, params }): Promise<{ status: VideoUploadStatusResponse | null }> => {
     const uploadId = params.uploadId;
-    let status =
-      context.queryClient.getQueryData<VideoUploadStatusResponse>(videoUploadStatusQueryKey(uploadId)) ?? null;
+    const cached = context.queryClient.getQueryData<VideoUploadStatusResponse>(videoUploadStatusQueryKey(uploadId));
 
-    if (status == null) {
-      if (typeof window === "undefined") {
-        status = await fetchVideoUploadStatusServer({
-          data: { publicId: uploadId },
-        });
-      } else if (context.auth.isReady && context.auth.user != null) {
-        try {
-          status = await context.queryClient.query({
-            ...videoUploadStatusQueryOptions(uploadId),
-            staleTime: 30_000,
-          });
-        } catch {
-          status = null;
-        }
+    if (cached != null) {
+      return { status: cached };
+    }
+
+    if (typeof window === "undefined") {
+      const status = await fetchVideoUploadStatusServer({
+        data: { publicId: uploadId },
+      });
+
+      if (status != null) {
+        context.queryClient.setQueryData(videoUploadStatusQueryKey(uploadId), status);
       }
+
+      return { status };
     }
 
-    if (status != null) {
-      context.queryClient.setQueryData(videoUploadStatusQueryKey(uploadId), status);
+    if (!context.auth.isReady || context.auth.user == null) {
+      return { status: null };
     }
 
-    const step = status != null ? defaultStepForStatus(status) : 1;
+    try {
+      const status = await context.queryClient.query({
+        ...videoUploadStatusQueryOptions(uploadId),
+        staleTime: 30_000,
+      });
 
-    throw redirect({
-      to: "/studio/uploads/$uploadId/$step",
-      params: {
-        uploadId,
-        step: String(Math.min(7, Math.max(1, step))),
-      },
-      replace: true,
-    });
+      return { status };
+    } catch {
+      return { status: null };
+    }
   },
+  pendingComponent: UploadOverviewPending,
+  component: UploadOverviewPage,
 });
+
+function UploadOverviewPending() {
+  return <UploadOverviewSkeleton />;
+}
+
+function UploadOverviewPage() {
+  const { status } = Route.useLoaderData();
+  const { uploadId } = Route.useParams();
+
+  return <UploadOverview key={uploadId} uploadId={uploadId} initialStatus={status} />;
+}

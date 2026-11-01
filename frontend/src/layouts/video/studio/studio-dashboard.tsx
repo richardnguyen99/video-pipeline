@@ -209,14 +209,14 @@ export function StudioDashboard() {
         </div>
 
         <div className="overflow-x-auto">
-          <div className="text-muted-foreground grid min-w-[36rem] grid-cols-[minmax(0,2fr)_6rem_9rem_7rem] gap-3 border-b px-1 pb-2 text-xs font-medium">
+          <div className="text-muted-foreground grid min-w-xl grid-cols-[minmax(0,2fr)_6rem_9rem_7rem] gap-3 border-b px-1 pb-2 text-xs font-medium">
             <span>Video</span>
             <span>Size</span>
             <span>Uploaded</span>
             <span>Status</span>
           </div>
 
-          <div className="flex min-w-[36rem] flex-col">
+          <div className="flex min-w-xl flex-col">
             {RECENT_VIDEOS.map((row) => (
               <div
                 key={row.title}
