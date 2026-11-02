@@ -88,6 +88,8 @@ class SessionSpy:
         self.added: list[Any] = []
         self.committed = 0
         self.refreshed: list[Any] = []
+        self.deleted: list[Any] = []
+        self.execute_statements: list[Any] = []
         self._video = video
         self._renditions = list(renditions or [])
         self._relation_rows = dict(relation_rows or {})
@@ -113,7 +115,14 @@ class SessionSpy:
     async def refresh(self, obj: Any) -> None:
         self.refreshed.append(obj)
 
+    async def delete(self, obj: Any) -> None:
+        self.deleted.append(obj)
+
+        if self._video is obj:
+            self._video = None
+
     async def execute(self, statement: Any) -> ResultSpy:
+        self.execute_statements.append(statement)
         text = str(statement).lower()
 
         for table_name, rows in self._relation_rows.items():
@@ -134,7 +143,13 @@ class SessionSpy:
             return ResultSpy(rows=[])
 
         if "videorendition" in text or "video_rendition" in text:
+            if "delete" in text:
+                self._renditions = []
+
             return ResultSpy(rows=self._renditions)
+
+        if "video_image_url" in text or "video_sample_image_url" in text:
+            return ResultSpy(rows=[])
 
         return ResultSpy(self._video, rows=self._renditions)
 
@@ -232,6 +247,8 @@ class StorageSpy:
         self.complete_error: Optional[Exception] = None
         self.head_size: Optional[int] = 1024
         self.streams_bucket = "streams"
+        self.raw_uploads_bucket = "raw-uploads"
+        self.bucket = "media"
 
     async def create_multipart_upload(
         self,

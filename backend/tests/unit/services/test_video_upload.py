@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -533,3 +535,224 @@ async def test_list_uploads_marks_resumable_after_raw_upload() -> None:
     assert by_status["PENDING"].resumable is False
     assert by_status["FAILED"].resumable is False
     assert by_status["UPLOADED"].title == "Resume me"
+
+
+@pytest.mark.asyncio
+async def test_rebuild_stream_resets_renditions_and_requeues(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    publish_calls: list[dict[str, str]] = []
+    purge_calls: list[dict[str, Any]] = []
+
+    async def _fake_publish(payload: dict[str, str]) -> None:
+        publish_calls.append(payload)
+
+    async def _fake_purge(
+        storage: Any,
+        *,
+        prefix: str,
+        bucket: str | None = None,
+    ) -> int:
+        purge_calls.append(
+            {
+                "prefix": prefix,
+                "bucket": bucket,
+                "streams_bucket": storage.streams_bucket,
+            }
+        )
+
+        return 3
+
+    monkeypatch.setattr(
+        "app.services.video_upload.publish_transcode_message",
+        _fake_publish,
+    )
+    monkeypatch.setattr(
+        "app.services.video_upload.purge_prefix",
+        _fake_purge,
+    )
+
+    uploader_id = uuid4()
+    public_id = uuid4()
+    video = pending_video(
+        uploader_id=uploader_id,
+        public_id=public_id,
+        status="READY",
+    )
+    video.ready_at = now_naive()
+    video.error_code = "OLD"
+    video.error_message = "stale"
+
+    rendition_ready = SimpleNamespace(
+        id=1,
+        video_id=video.id,
+        label="360p",
+        width=640,
+        height=360,
+        video_kbps=800,
+        playlist_key=f"{public_id}/360p/index.m3u8",
+        segment_count=12,
+        status="READY",
+        progress_pct=100,
+        attempt=2,
+    )
+    rendition_failed = SimpleNamespace(
+        id=2,
+        video_id=video.id,
+        label="720p",
+        width=1280,
+        height=720,
+        video_kbps=2500,
+        playlist_key=f"{public_id}/720p/index.m3u8",
+        segment_count=4,
+        status="FAILED",
+        progress_pct=40,
+        attempt=1,
+    )
+
+    session = SessionSpy(
+        video=video,
+        renditions=[rendition_ready, rendition_failed],
+    )
+    service = make_service(session, StorageSpy())
+
+    result = await service.rebuild_stream(
+        public_id=public_id,
+        uploader_id=uploader_id,
+    )
+
+    assert result.status == "ENCODING"
+    assert video.status == "ENCODING"
+    assert video.ready_at is None
+    assert video.error_code is None
+    assert video.error_message is None
+    assert session.committed >= 1
+
+    assert rendition_ready.status == "PENDING"
+    assert rendition_ready.progress_pct == 0
+    assert rendition_ready.segment_count == 0
+    assert rendition_ready.playlist_key is None
+    assert rendition_ready.attempt == 0
+
+    assert rendition_failed.status == "PENDING"
+    assert rendition_failed.progress_pct == 0
+    assert rendition_failed.playlist_key is None
+
+    assert len(purge_calls) == 1
+    assert purge_calls[0]["prefix"] == f"{public_id}/"
+    assert purge_calls[0]["bucket"] == "streams"
+    assert publish_calls == [{"public_id": str(public_id)}]
+
+    labels = {row.label for row in result.renditions}
+    assert labels == {"360p", "720p"}
+    assert all(row.status.upper() == "PENDING" for row in result.renditions)
+
+
+@pytest.mark.asyncio
+async def test_rebuild_stream_raises_not_found_for_missing_upload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_purge(*_args: Any, **_kwargs: Any) -> int:
+        return 0
+
+    monkeypatch.setattr(
+        "app.services.video_upload.purge_prefix",
+        _fake_purge,
+    )
+
+    session = SessionSpy(video=None)
+    service = make_service(session, StorageSpy())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.rebuild_stream(
+            public_id=uuid4(),
+            uploader_id=uuid4(),
+        )
+
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_upload_purges_storage_and_removes_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    purge_calls: list[dict[str, Any]] = []
+
+    async def _fake_purge(
+        storage: Any,
+        *,
+        prefix: str,
+        bucket: str | None = None,
+    ) -> int:
+        purge_calls.append(
+            {
+                "prefix": prefix,
+                "bucket": bucket,
+            }
+        )
+
+        return 5
+
+    monkeypatch.setattr(
+        "app.services.video_upload.purge_prefix",
+        _fake_purge,
+    )
+
+    uploader_id = uuid4()
+    public_id = uuid4()
+    source_key = f"{public_id}/source.mp4"
+    video = pending_video(
+        uploader_id=uploader_id,
+        public_id=public_id,
+        status="READY",
+        source_key=source_key,
+    )
+
+    session = SessionSpy(video=video)
+    storage = StorageSpy()
+    service = make_service(session, storage)
+
+    await service.delete_upload(
+        public_id=public_id,
+        uploader_id=uploader_id,
+    )
+
+    assert session.committed >= 1
+    assert session.deleted == [video]
+    assert purge_calls == [
+        {
+            "prefix": f"{public_id}/",
+            "bucket": "streams",
+        }
+    ]
+    assert storage.delete_object_calls == [
+        {
+            "object_key": source_key,
+            "bucket": "raw-uploads",
+        }
+    ]
+    assert len(session.execute_statements) >= 6
+
+
+@pytest.mark.asyncio
+async def test_delete_upload_raises_not_found_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_purge(*_args: Any, **_kwargs: Any) -> int:
+        return 0
+
+    monkeypatch.setattr(
+        "app.services.video_upload.purge_prefix",
+        _fake_purge,
+    )
+
+    session = SessionSpy(video=None)
+    service = make_service(session, StorageSpy())
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.delete_upload(
+            public_id=uuid4(),
+            uploader_id=uuid4(),
+        )
+
+    assert exc_info.value.status_code == 404

@@ -308,6 +308,18 @@ export async function recoverVideoRendition(publicId: string, label: string): Pr
   });
 }
 
+export async function rebuildVideoUploadStream(publicId: string): Promise<VideoUploadStatusResponse> {
+  return apiFetch<VideoUploadStatusResponse>(`/videos/uploads/${publicId}/rebuild`, {
+    method: "POST",
+  });
+}
+
+export async function deleteVideoUpload(publicId: string): Promise<void> {
+  await apiFetch<void>(`/videos/uploads/${publicId}`, {
+    method: "DELETE",
+  });
+}
+
 export const VIDEO_UPLOADS_LIST_QUERY_KEY = ["video-uploads", "list"] as const;
 
 export async function listVideoUploads(options?: {

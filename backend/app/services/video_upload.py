@@ -32,7 +32,12 @@ from app.models.associations import (
     t_video_maker,
     t_video_series,
 )
-from app.models.video import Video, VideoRendition
+from app.models.video import (
+    Video,
+    VideoImageUrl,
+    VideoRendition,
+    VideoSampleImageUrl,
+)
 from app.schemas.video_upload import (
     ExistingVideoSummary,
     PresignedPart,
@@ -648,6 +653,126 @@ class VideoUploadService(VideoUploadMediaMixin):
             video,
             renditions=refreshed,
             relation_ids=relation_ids,
+        )
+
+    async def rebuild_stream(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+    ) -> VideoUploadStatusResponse:
+        """Purge all stream objects, reset every rendition, and re-queue encode."""
+
+        video = await self.__get_owned_upload(public_id, uploader_id)
+        renditions = await self.__list_renditions(video.id)
+
+        deleted = await purge_prefix(
+            self._storage,
+            prefix=f"{public_id}/",
+            bucket=self._storage.streams_bucket,
+        )
+        _logger.info(
+            "rebuild stream purged public_id=%s objects=%s",
+            public_id,
+            deleted,
+        )
+
+        for row in renditions:
+            row.status = "PENDING"
+            row.progress_pct = 0
+            row.segment_count = 0
+            row.playlist_key = None
+            row.attempt = 0
+
+        video.status = "ENCODING"
+        video.error_code = None
+        video.error_message = None
+        video.ready_at = None
+
+        await self._session.commit()
+        await self._session.refresh(video)
+
+        try:
+            await publish_transcode_message({"public_id": str(public_id)})
+        except Exception:
+            _logger.exception(
+                "rebuild stream requeue failed public_id=%s",
+                public_id,
+            )
+            asyncio.create_task(
+                self.__run_transcode_safe({"public_id": str(public_id)}),
+                name=f"rebuild-transcode-{public_id}",
+            )
+
+        relation_ids = await self.__load_relation_ids(video.id)
+        refreshed = await self.__list_renditions(video.id)
+
+        return self.__to_status(
+            video,
+            renditions=refreshed,
+            relation_ids=relation_ids,
+        )
+
+    async def delete_upload(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+    ) -> None:
+        """Remove an owned upload, its stream objects, and related media rows."""
+
+        video = await self.__get_owned_upload(public_id, uploader_id)
+        video_id = video.id
+
+        await purge_prefix(
+            self._storage,
+            prefix=f"{public_id}/",
+            bucket=self._storage.streams_bucket,
+        )
+
+        if video.source_key:
+            try:
+                await self._storage.delete_object(
+                    object_key=video.source_key,
+                    bucket=self._storage.raw_uploads_bucket,
+                )
+            except Exception:
+                _logger.exception(
+                    "delete upload source failed public_id=%s key=%s",
+                    public_id,
+                    video.source_key,
+                )
+
+        for table in (
+            t_video_actress,
+            t_video_maker,
+            t_video_genre,
+            t_video_series,
+            t_video_label,
+            t_video_director,
+        ):
+            await self._session.execute(
+                delete(table).where(table.c.video_id == video_id)
+            )
+
+        await self._session.execute(
+            delete(VideoRendition).where(
+                col(VideoRendition.video_id) == video_id
+            ),
+        )
+        await self._session.execute(
+            delete(VideoImageUrl).where(col(VideoImageUrl.fk_id) == video_id),
+        )
+        await self._session.execute(
+            delete(VideoSampleImageUrl).where(
+                col(VideoSampleImageUrl.fk_id) == video_id
+            ),
+        )
+        await self._session.delete(video)
+        await self._session.commit()
+
+        _logger.info(
+            "deleted upload public_id=%s video_id=%s", public_id, video_id
         )
 
     async def list_uploads(

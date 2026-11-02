@@ -172,6 +172,43 @@ async def recover_video_rendition(
     )
 
 
+@router.post(
+    "/videos/uploads/{public_id}/rebuild",
+    response_model=VideoUploadStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Rebuild the entire stream ladder",
+)
+async def rebuild_video_upload_stream(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoUploadStatusResponse:
+    """Purge all stream objects, reset every rendition, and re-queue encode."""
+
+    return await service.rebuild_stream(
+        public_id=public_id,
+        uploader_id=current_user.id,
+    )
+
+
+@router.delete(
+    "/videos/uploads/{public_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete an upload and its stream objects",
+)
+async def delete_video_upload(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> None:
+    """Remove the upload row, media, associations, and object storage data."""
+
+    await service.delete_upload(
+        public_id=public_id,
+        uploader_id=current_user.id,
+    )
+
+
 @router.get(
     "/videos/uploads/{public_id}/events",
     summary="Stream live transcode progress (SSE)",
