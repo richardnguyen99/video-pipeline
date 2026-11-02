@@ -342,23 +342,47 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
               </dl>
 
               <div className="flex shrink-0 flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  nativeButton={false}
-                  render={
-                    <Link
-                      to="/studio/uploads/$uploadId/$step"
-                      params={{
-                        uploadId: status.public_id,
-                        step: continueStep,
-                      }}
-                    />
-                  }
-                >
-                  Continue editing
-                </Button>
+                {status.status.toUpperCase() === "READY" ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link to="/studio/uploads/$uploadId/metadata" params={{ uploadId: status.public_id }} />}
+                    >
+                      Edit metadata
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link to="/studio/uploads/$uploadId/media" params={{ uploadId: status.public_id }} />}
+                    >
+                      Edit media
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    nativeButton={false}
+                    render={
+                      <Link
+                        to="/studio/uploads/$uploadId/$step"
+                        params={{
+                          uploadId: status.public_id,
+                          step: continueStep,
+                        }}
+                      />
+                    }
+                  >
+                    Continue process
+                  </Button>
+                )}
 
                 <Button
                   type="button"

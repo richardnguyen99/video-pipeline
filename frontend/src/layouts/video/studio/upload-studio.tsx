@@ -1215,6 +1215,22 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
                 </Button>
               ) : null}
 
+              {status?.public_id != null && activeStep >= 5 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => {
+                    void navigate({
+                      to: "/studio/uploads/$uploadId",
+                      params: { uploadId: status.public_id },
+                    });
+                  }}
+                >
+                  View summary
+                </Button>
+              ) : null}
+
               <Button
                 type="button"
                 disabled={!canContinue || savingMetadata || (activeStep === 7 && (status == null || phase === "error"))}

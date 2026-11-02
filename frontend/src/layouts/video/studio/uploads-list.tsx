@@ -490,20 +490,14 @@ export function UploadsList({ initialQuery = "" }: UploadsListProps) {
               ) : table.getRowModel().rows.length > 0 ? (
                 table.getRowModel().rows.map((row) => {
                   const item = row.original;
-                  const canResume = item.resumable;
+                  const statusKey = item.status.toUpperCase();
+                  const openManage = statusKey === "READY" || item.stream_ready || !item.resumable;
 
                   return (
                     <TableRow
                       key={row.id}
-                      className={cn(canResume && "hover:bg-muted/40 cursor-pointer")}
+                      className="hover:bg-muted/40 cursor-pointer"
                       onClick={() => {
-                        if (!canResume) {
-                          return;
-                        }
-
-                        const statusKey = item.status.toUpperCase();
-                        const step = statusKey === "READY" ? 7 : 5;
-
                         if (document.activeElement instanceof HTMLElement) {
                           document.activeElement.blur();
                         }
@@ -514,11 +508,22 @@ export function UploadsList({ initialQuery = "" }: UploadsListProps) {
                           main.scrollTop = 0;
                         }
 
+                        if (openManage) {
+                          void navigate({
+                            to: "/studio/uploads/$uploadId",
+                            params: {
+                              uploadId: item.public_id,
+                            },
+                          });
+
+                          return;
+                        }
+
                         void navigate({
                           to: "/studio/uploads/$uploadId/$step",
                           params: {
                             uploadId: item.public_id,
-                            step,
+                            step: 5,
                           },
                         });
                       }}
