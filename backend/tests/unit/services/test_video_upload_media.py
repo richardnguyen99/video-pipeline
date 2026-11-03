@@ -650,9 +650,11 @@ async def test_add_thumbnail_link_queues_pending_row(
     )
 
     assert session.committed >= 1
-    assert len(session.added) == 1
-    row = session.added[0]
-    assert isinstance(row, VideoImageUrl)
+    media_rows = [
+        item for item in session.added if isinstance(item, VideoImageUrl)
+    ]
+    assert len(media_rows) == 1
+    row = media_rows[0]
     assert row.type == "large"
     assert row.status == "PENDING"
     assert row.source_url == source
@@ -827,9 +829,11 @@ async def test_add_sample_link_queues_pending_row(
     )
 
     assert session.committed >= 1
-    assert len(session.added) == 1
-    row = session.added[0]
-    assert isinstance(row, VideoSampleImageUrl)
+    media_rows = [
+        item for item in session.added if isinstance(item, VideoSampleImageUrl)
+    ]
+    assert len(media_rows) == 1
+    row = media_rows[0]
     assert row.type == "sample_s"
     assert row.status == "PENDING"
     assert row.source_url == source

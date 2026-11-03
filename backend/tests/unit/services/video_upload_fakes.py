@@ -112,6 +112,14 @@ class SessionSpy:
     async def commit(self) -> None:
         self.committed += 1
 
+    async def flush(self) -> None:
+        if (
+            self._video is not None
+            and getattr(self._video, "id", None) is None
+        ):
+            self._video.id = self._next_id
+            self._next_id += 1
+
     async def refresh(self, obj: Any) -> None:
         self.refreshed.append(obj)
 
@@ -200,6 +208,9 @@ class MediaSessionSpy:
 
     async def commit(self) -> None:
         self.committed += 1
+
+    async def flush(self) -> None:
+        return None
 
     async def refresh(self, _obj: Any) -> None:
         return None

@@ -311,7 +311,19 @@ const columns: Array<ColumnDef<typeof features, VideoUploadListItem>> = [
 ];
 
 function hasActiveProcessing(items: Array<VideoUploadListItem>): boolean {
-  return items.some((item) => PROCESSING_STATUSES.has(item.status.toUpperCase()));
+  return items.some((item) => {
+    const key = item.status.toUpperCase();
+
+    if (PROCESSING_STATUSES.has(key) || UPLOADING_STATUSES.has(key)) {
+      return true;
+    }
+
+    if (key === "READY" && item.overall_progress_pct < 100) {
+      return true;
+    }
+
+    return false;
+  });
 }
 
 function UploadsListBodySkeleton() {

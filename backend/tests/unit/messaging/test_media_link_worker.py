@@ -17,7 +17,25 @@ from app.messaging.media_link_worker import (
 )
 
 
-def test_validate_source_url_accepts_public_https() -> None:
+def test_validate_source_url_accepts_public_https(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _public_dns(hostname: str, _port: object) -> list[tuple[object, ...]]:
+        return [
+            (
+                0,
+                0,
+                0,
+                "",
+                ("93.184.216.34", 0),
+            ),
+        ]
+
+    monkeypatch.setattr(
+        "app.messaging.media_link_worker.socket.getaddrinfo",
+        _public_dns,
+    )
+
     cleaned = _validate_source_url("  https://cdn.example.com/a/b.jpg  ")
 
     assert cleaned == "https://cdn.example.com/a/b.jpg"

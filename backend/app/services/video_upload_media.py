@@ -15,6 +15,10 @@ from sqlmodel import col, select
 
 from app.messaging.rabbitmq import publish_media_link_message
 from app.models.video import Video, VideoImageUrl, VideoSampleImageUrl
+from app.models.video_upload_activity import (
+    VideoUploadActivity,
+    VideoUploadActivityType,
+)
 from app.schemas.video_upload import VideoMediaImageItem, VideoMediaResponse
 from app.storage.client import ObjectStorageClient
 
@@ -67,6 +71,31 @@ class VideoUploadMediaMixin:
         """Implemented by ``VideoUploadService``."""
 
         raise NotImplementedError
+
+    def record_upload_activity(
+        self,
+        *,
+        video: Video,
+        actor_id: uuid.UUID | None,
+        event_type: VideoUploadActivityType,
+        message: str,
+        metadata: dict[str, object] | None = None,
+    ) -> None:
+        """Stage an activity row for the current unit of work."""
+
+        if video.public_id is None or video.id is None:
+            return
+
+        self._session.add(
+            VideoUploadActivity(
+                video_id=video.id,
+                public_id=video.public_id,
+                actor_id=actor_id,
+                event_type=event_type.value,
+                message=message[:512],
+                metadata_=metadata,
+            )
+        )
 
     async def list_media(
         self,
@@ -166,6 +195,13 @@ class VideoUploadMediaMixin:
                 url=url,
                 type=normalized,
             ),
+        )
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.THUMBNAIL_UPLOADED,
+            message=f"Thumbnail uploaded ({normalized})",
+            metadata={"type": normalized, "url": url},
         )
         await self._session.commit()
 
@@ -270,6 +306,17 @@ class VideoUploadMediaMixin:
             )
             next_index += 1
 
+        sample_count = len(uploads)
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.SAMPLE_UPLOADED,
+            message=(
+                f"Uploaded {sample_count} sample image"
+                f"{'' if sample_count == 1 else 's'} ({normalized})"
+            ),
+            metadata={"type": normalized, "count": sample_count},
+        )
         await self._session.commit()
 
         return await self._media_response(
@@ -344,6 +391,13 @@ class VideoUploadMediaMixin:
             error_message=None,
         )
         self._session.add(row)
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.THUMBNAIL_LINKED,
+            message=f"Thumbnail link queued ({normalized})",
+            metadata={"type": normalized, "source_url": cleaned_url},
+        )
         await self._session.commit()
         await self._session.refresh(row)
         await publish_media_link_message(
@@ -404,6 +458,13 @@ class VideoUploadMediaMixin:
             error_message=None,
         )
         self._session.add(row)
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.SAMPLE_LINKED,
+            message=f"Sample link queued ({normalized})",
+            metadata={"type": normalized, "source_url": cleaned_url},
+        )
         await self._session.commit()
         await self._session.refresh(row)
         await publish_media_link_message(
@@ -481,6 +542,13 @@ class VideoUploadMediaMixin:
                 col(VideoImageUrl.type) == normalized,
             ),
         )
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.THUMBNAIL_DELETED,
+            message=f"Thumbnail deleted ({normalized})",
+            metadata={"type": normalized},
+        )
         await self._session.commit()
 
         return await self._media_response(
@@ -537,6 +605,13 @@ class VideoUploadMediaMixin:
                 col(VideoSampleImageUrl.id) == sample_id,
                 col(VideoSampleImageUrl.fk_id) == video_pk,
             ),
+        )
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.SAMPLE_DELETED,
+            message="Sample image deleted",
+            metadata={"sample_id": sample_id, "type": row.type},
         )
         await self._session.commit()
 

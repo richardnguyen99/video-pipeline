@@ -213,10 +213,18 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
     initialData: initialStatus ?? undefined,
     queryKey: videoUploadStatusQueryKey(uploadId),
     refetchInterval: (current) => {
-      const nextStatus = current.state.data?.status.toUpperCase() ?? "";
+      const data = current.state.data;
+      const nextStatus = data?.status.toUpperCase() ?? "";
 
-      if (nextStatus === "READY" || nextStatus === "FAILED") {
+      if (nextStatus === "FAILED") {
         return false;
+      }
+
+      if (nextStatus === "READY") {
+        const rungs = data?.renditions ?? [];
+        const allReady = rungs.length > 0 && rungs.every((row) => row.status.toUpperCase() === "READY");
+
+        return allReady ? false : 2_000;
       }
 
       return 2_000;
@@ -257,7 +265,11 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
     try {
       const next = await rebuildVideoUploadStream(uploadId);
       queryClient.setQueryData(videoUploadStatusQueryKey(uploadId), next);
-      void queryClient.invalidateQueries({ queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY });
+      await queryClient.invalidateQueries({
+        queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY,
+        refetchType: "active",
+      });
+      void statusQuery.refetch();
       toast.add({
         type: "success",
         title: "Stream rebuild started",
@@ -274,7 +286,7 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
     } finally {
       setActionBusy(null);
     }
-  }, [actionBusy, queryClient, uploadId]);
+  }, [actionBusy, queryClient, statusQuery, uploadId]);
 
   const handleDeleteVideo = useCallback(async () => {
     if (actionBusy != null) {

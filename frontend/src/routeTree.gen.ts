@@ -48,6 +48,7 @@ import { Route as UUsernameVideosHistoryRouteImport } from './routes/u/$username
 import { Route as UUsernameVideosLikedRouteImport } from './routes/u/$username/videos/liked'
 import { Route as AuthenticatedStudioUploadsUploadIdIndexRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/index'
 import { Route as AuthenticatedStudioUploadsUploadIdStepRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/$step'
+import { Route as AuthenticatedStudioUploadsUploadIdLogsRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/logs'
 import { Route as AuthenticatedStudioUploadsUploadIdMediaRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/media'
 import { Route as AuthenticatedStudioUploadsUploadIdMetadataRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/metadata'
 
@@ -253,6 +254,12 @@ const AuthenticatedStudioUploadsUploadIdStepRoute =
     path: '/uploads/$uploadId/$step',
     getParentRoute: () => AuthenticatedStudioRouteRoute,
   } as any)
+const AuthenticatedStudioUploadsUploadIdLogsRoute =
+  AuthenticatedStudioUploadsUploadIdLogsRouteImport.update({
+    id: '/uploads/$uploadId/logs',
+    path: '/uploads/$uploadId/logs',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
+  } as any)
 const AuthenticatedStudioUploadsUploadIdMediaRoute =
   AuthenticatedStudioUploadsUploadIdMediaRouteImport.update({
     id: '/uploads/$uploadId/media',
@@ -303,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
   '/studio/uploads/$uploadId/$step': typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  '/studio/uploads/$uploadId/logs': typeof AuthenticatedStudioUploadsUploadIdLogsRoute
   '/studio/uploads/$uploadId/media': typeof AuthenticatedStudioUploadsUploadIdMediaRoute
   '/studio/uploads/$uploadId/metadata': typeof AuthenticatedStudioUploadsUploadIdMetadataRoute
   '/studio/uploads/$uploadId/': typeof AuthenticatedStudioUploadsUploadIdIndexRoute
@@ -339,6 +347,7 @@ export interface FileRoutesByTo {
   '/u/$username/playlists': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos': typeof UUsernameVideosIndexRoute
   '/studio/uploads/$uploadId/$step': typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  '/studio/uploads/$uploadId/logs': typeof AuthenticatedStudioUploadsUploadIdLogsRoute
   '/studio/uploads/$uploadId/media': typeof AuthenticatedStudioUploadsUploadIdMediaRoute
   '/studio/uploads/$uploadId/metadata': typeof AuthenticatedStudioUploadsUploadIdMetadataRoute
   '/studio/uploads/$uploadId': typeof AuthenticatedStudioUploadsUploadIdIndexRoute
@@ -383,6 +392,7 @@ export interface FileRoutesById {
   '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
   '/_authenticated/studio/uploads/$uploadId/$step': typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  '/_authenticated/studio/uploads/$uploadId/logs': typeof AuthenticatedStudioUploadsUploadIdLogsRoute
   '/_authenticated/studio/uploads/$uploadId/media': typeof AuthenticatedStudioUploadsUploadIdMediaRoute
   '/_authenticated/studio/uploads/$uploadId/metadata': typeof AuthenticatedStudioUploadsUploadIdMetadataRoute
   '/_authenticated/studio/uploads/$uploadId/': typeof AuthenticatedStudioUploadsUploadIdIndexRoute
@@ -426,6 +436,7 @@ export interface FileRouteTypes {
     | '/u/$username/playlists/'
     | '/u/$username/videos/'
     | '/studio/uploads/$uploadId/$step'
+    | '/studio/uploads/$uploadId/logs'
     | '/studio/uploads/$uploadId/media'
     | '/studio/uploads/$uploadId/metadata'
     | '/studio/uploads/$uploadId/'
@@ -462,6 +473,7 @@ export interface FileRouteTypes {
     | '/u/$username/playlists'
     | '/u/$username/videos'
     | '/studio/uploads/$uploadId/$step'
+    | '/studio/uploads/$uploadId/logs'
     | '/studio/uploads/$uploadId/media'
     | '/studio/uploads/$uploadId/metadata'
     | '/studio/uploads/$uploadId'
@@ -505,6 +517,7 @@ export interface FileRouteTypes {
     | '/u/$username/playlists/'
     | '/u/$username/videos/'
     | '/_authenticated/studio/uploads/$uploadId/$step'
+    | '/_authenticated/studio/uploads/$uploadId/logs'
     | '/_authenticated/studio/uploads/$uploadId/media'
     | '/_authenticated/studio/uploads/$uploadId/metadata'
     | '/_authenticated/studio/uploads/$uploadId/'
@@ -801,6 +814,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdStepRouteImport
       parentRoute: typeof AuthenticatedStudioRouteRoute
     }
+    '/_authenticated/studio/uploads/$uploadId/logs': {
+      id: '/_authenticated/studio/uploads/$uploadId/logs'
+      path: '/uploads/$uploadId/logs'
+      fullPath: '/studio/uploads/$uploadId/logs'
+      preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdLogsRouteImport
+      parentRoute: typeof AuthenticatedStudioRouteRoute
+    }
     '/_authenticated/studio/uploads/$uploadId/media': {
       id: '/_authenticated/studio/uploads/$uploadId/media'
       path: '/uploads/$uploadId/media'
@@ -837,6 +857,7 @@ interface AuthenticatedStudioRouteRouteChildren {
   AuthenticatedStudioUploadsNewRoute: typeof AuthenticatedStudioUploadsNewRoute
   AuthenticatedStudioUploadsIndexRoute: typeof AuthenticatedStudioUploadsIndexRoute
   AuthenticatedStudioUploadsUploadIdStepRoute: typeof AuthenticatedStudioUploadsUploadIdStepRoute
+  AuthenticatedStudioUploadsUploadIdLogsRoute: typeof AuthenticatedStudioUploadsUploadIdLogsRoute
   AuthenticatedStudioUploadsUploadIdMediaRoute: typeof AuthenticatedStudioUploadsUploadIdMediaRoute
   AuthenticatedStudioUploadsUploadIdMetadataRoute: typeof AuthenticatedStudioUploadsUploadIdMetadataRoute
   AuthenticatedStudioUploadsUploadIdIndexRoute: typeof AuthenticatedStudioUploadsUploadIdIndexRoute
@@ -849,6 +870,8 @@ const AuthenticatedStudioRouteRouteChildren: AuthenticatedStudioRouteRouteChildr
     AuthenticatedStudioUploadsIndexRoute: AuthenticatedStudioUploadsIndexRoute,
     AuthenticatedStudioUploadsUploadIdStepRoute:
       AuthenticatedStudioUploadsUploadIdStepRoute,
+    AuthenticatedStudioUploadsUploadIdLogsRoute:
+      AuthenticatedStudioUploadsUploadIdLogsRoute,
     AuthenticatedStudioUploadsUploadIdMediaRoute:
       AuthenticatedStudioUploadsUploadIdMediaRoute,
     AuthenticatedStudioUploadsUploadIdMetadataRoute:

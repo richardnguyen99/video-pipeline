@@ -14,6 +14,7 @@ from app.messaging.transcode_progress import iter_progress_events
 from app.schemas.video_upload import (
     VideoMediaLinkRequest,
     VideoMediaResponse,
+    VideoUploadActivityListResponse,
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
     VideoUploadCreateResponse,
@@ -186,6 +187,25 @@ async def rebuild_video_upload_stream(
     """Purge all stream objects, reset every rendition, and re-queue encode."""
 
     return await service.rebuild_stream(
+        public_id=public_id,
+        uploader_id=current_user.id,
+    )
+
+
+@router.get(
+    "/videos/uploads/{public_id}/activity",
+    response_model=VideoUploadActivityListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List activity for an upload",
+)
+async def list_video_upload_activity(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+) -> VideoUploadActivityListResponse:
+    """Return newest-first studio activity for an owned upload."""
+
+    return await service.list_activity(
         public_id=public_id,
         uploader_id=current_user.id,
     )

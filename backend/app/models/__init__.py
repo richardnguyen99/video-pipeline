@@ -63,6 +63,10 @@ from app.models.video import (
 )
 from app.models.video_reaction import VideoReaction
 from app.models.video_recommendation import VideoRecommendation
+from app.models.video_upload_activity import (
+    VideoUploadActivity,
+    VideoUploadActivityType,
+)
 from app.models.video_view import VideoView
 from app.models.video_watch_progress import VideoWatchProgress
 from app.models.watch_event import WatchEvent

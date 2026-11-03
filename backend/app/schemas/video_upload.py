@@ -206,6 +206,24 @@ class VideoUploadListResponse(BaseModel):
     total: int = 0
 
 
+class VideoUploadActivityItem(BaseModel):
+    """One timeline entry for a studio upload."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    event_type: str
+    message: str
+    metadata: Optional[dict[str, object]] = None
+    created_at: datetime
+
+
+class VideoUploadActivityListResponse(BaseModel):
+    """Activity timeline for an upload."""
+
+    items: list[VideoUploadActivityItem] = Field(default_factory=list)
+
+
 class VideoMediaImageItem(BaseModel):
     """One catalog image row (thumbnail or sample)."""
 

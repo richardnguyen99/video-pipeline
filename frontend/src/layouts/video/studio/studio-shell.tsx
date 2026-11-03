@@ -56,7 +56,7 @@ const NAV_ITEMS = [
   },
 ] as const;
 
-type UploadDetailTab = "summary" | "metadata" | "media";
+type UploadDetailTab = "summary" | "metadata" | "media" | "logs";
 
 type UploadDetailContext = {
   uploadId: string;
@@ -80,7 +80,7 @@ function parseUploadDetailContext(pathname: string): UploadDetailContext | null 
     return { uploadId, tab: "summary" };
   }
 
-  if (segments.length === 4 && (segments[3] === "metadata" || segments[3] === "media")) {
+  if (segments.length === 4 && (segments[3] === "metadata" || segments[3] === "media" || segments[3] === "logs")) {
     return { uploadId, tab: segments[3] };
   }
 
@@ -91,6 +91,7 @@ const UPLOAD_DETAIL_TABS: Array<{ id: UploadDetailTab; label: string }> = [
   { id: "summary", label: "Summary" },
   { id: "metadata", label: "Metadata" },
   { id: "media", label: "Media" },
+  { id: "logs", label: "Logs" },
 ];
 
 function isNavActive(pathname: string, to: string | null): boolean {
@@ -332,10 +333,15 @@ function StudioTopBar() {
                         to: "/studio/uploads/$uploadId/metadata" as const,
                         params: { uploadId: uploadDetail.uploadId },
                       }
-                    : {
-                        to: "/studio/uploads/$uploadId/media" as const,
-                        params: { uploadId: uploadDetail.uploadId },
-                      };
+                    : tab.id === "media"
+                      ? {
+                          to: "/studio/uploads/$uploadId/media" as const,
+                          params: { uploadId: uploadDetail.uploadId },
+                        }
+                      : {
+                          to: "/studio/uploads/$uploadId/logs" as const,
+                          params: { uploadId: uploadDetail.uploadId },
+                        };
 
               return (
                 <Link

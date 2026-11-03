@@ -26,8 +26,9 @@ def test_build_ffmpeg_command_uses_mpegts_segments() -> None:
     assert "-hls_segment_type" in cmd
     assert "mpegts" in cmd
     assert "fmp4" not in cmd
-    assert str(out / "seg_%05d.ts") in cmd
-    assert str(out / "playlist.m3u8") in cmd
+    assert "seg_%05d.ts" in cmd
+    assert "playlist.m3u8" in cmd
+    assert str(out / "seg_%05d.ts") not in cmd
     assert "scale=-2:720,format=yuv420p" in cmd
     assert "veryfast" in cmd
 
@@ -54,8 +55,11 @@ def test_build_ladder_ffmpeg_command_single_pass_split() -> None:
     assert "split=2" in joined
     assert "scale=-2:480" in joined
     assert "scale=-2:720" in joined
-    assert str(work / "480p" / "playlist.m3u8") in cmd
-    assert str(work / "720p" / "playlist.m3u8") in cmd
+    assert "480p/playlist.m3u8" in cmd
+    assert "720p/playlist.m3u8" in cmd
+    assert "480p/seg_%05d.ts" in cmd
+    assert "720p/seg_%05d.ts" in cmd
+    assert str(work / "480p" / "playlist.m3u8") not in cmd
     assert cmd.count("-i") == 1
     assert "veryfast" in cmd
 

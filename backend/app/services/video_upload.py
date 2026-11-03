@@ -9,6 +9,7 @@ import logging
 import math
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
 from fastapi import HTTPException, status
@@ -22,7 +23,10 @@ from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
 from app.config import settings
 from app.messaging.rabbitmq import publish_transcode_message
 from app.messaging.transcode_job import maybe_recover_stuck_transcode
-from app.messaging.transcode_progress import get_progress_snapshot
+from app.messaging.transcode_progress import (
+    clear_progress_snapshot,
+    get_progress_snapshot,
+)
 from app.messaging.transcode_worker import process_transcode_message
 from app.models.associations import (
     t_video_actress,
@@ -38,12 +42,18 @@ from app.models.video import (
     VideoRendition,
     VideoSampleImageUrl,
 )
+from app.models.video_upload_activity import (
+    VideoUploadActivity,
+    VideoUploadActivityType,
+)
 from app.schemas.video_upload import (
     ExistingVideoSummary,
     PresignedPart,
     VideoCodeConflictDetail,
     VideoMediaResponse,
     VideoRenditionProgress,
+    VideoUploadActivityItem,
+    VideoUploadActivityListResponse,
     VideoUploadCompleteRequest,
     VideoUploadCreateRequest,
     VideoUploadCreateResponse,
@@ -238,6 +248,20 @@ class VideoUploadService(VideoUploadMediaMixin):
             )
             self._session.add(video)
 
+        await self._session.flush()
+
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.UPLOAD_CREATED,
+            message=f"Upload started for {payload.filename}",
+            metadata={
+                "filename": payload.filename,
+                "size_bytes": payload.size_bytes,
+                "video_code": video_code,
+            },
+        )
+
         await self._session.commit()
         await self._session.refresh(video)
 
@@ -412,6 +436,22 @@ class VideoUploadService(VideoUploadMediaMixin):
                     name=f"transcode-{video.public_id}",
                 )
 
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.UPLOAD_COMPLETED,
+            message="Source upload completed",
+            metadata={"source_key": video.source_key},
+        )
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.STREAM_ENCODING_STARTED,
+            message="Stream encoding started",
+        )
+        await self._session.commit()
+        await self._session.refresh(video)
+
         return self.__to_status(video)
 
     async def get_status(
@@ -470,14 +510,23 @@ class VideoUploadService(VideoUploadMediaMixin):
                 )
                 for rung in live.rungs
             ]
-            status_value = live.status or video.status or _STATUS_PENDING
+            raw_status = live.status or video.status or _STATUS_PENDING
+            status_value = VideoUploadService.__derive_list_status(
+                status=raw_status,
+                progress_rows=progress_rows,
+            )
             computed_overall = VideoUploadService.__overall_progress(
                 status=status_value,
                 renditions=progress_rows,
             )
-            # Prefer the higher of live vs rung-derived progress so a stale
-            # Redis overall (e.g. 25% after all rungs finished) cannot lag.
             overall = max(float(live.overall_pct), computed_overall)
+
+            if status_value.upper() == _STATUS_READY:
+                overall = _PROGRESS_COMPLETE_PCT
+                await self.__heal_ready_if_complete(
+                    video=video,
+                    progress_rows=progress_rows,
+                )
 
             return self.__to_status(
                 video,
@@ -488,9 +537,36 @@ class VideoUploadService(VideoUploadMediaMixin):
                 relation_ids=relation_ids,
             )
 
+        progress_rows = [
+            VideoRenditionProgress(
+                label=row.label,
+                width=row.width,
+                height=row.height,
+                video_kbps=row.video_kbps,
+                status=row.status,
+                progress_pct=row.progress_pct,
+                attempt=row.attempt,
+                segment_count=row.segment_count,
+                playlist_key=row.playlist_key,
+            )
+            for row in renditions
+        ]
+        status_value = VideoUploadService.__derive_list_status(
+            status=video.status or _STATUS_PENDING,
+            progress_rows=progress_rows,
+        )
+
+        if status_value.upper() == _STATUS_READY:
+            await self.__heal_ready_if_complete(
+                video=video,
+                progress_rows=progress_rows,
+            )
+
         return self.__to_status(
             video,
-            renditions=renditions,
+            renditions=None,
+            progress_rows=progress_rows,
+            status_override=status_value,
             relation_ids=relation_ids,
         )
 
@@ -539,6 +615,17 @@ class VideoUploadService(VideoUploadMediaMixin):
                 video_id=video.id,
                 fk_ids=ids,
             )
+
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.METADATA_UPDATED,
+            message="Catalog metadata updated",
+            metadata={
+                "title": video.title,
+                "video_id": video.video_id,
+            },
+        )
 
         try:
             await self._session.commit()
@@ -630,6 +717,14 @@ class VideoUploadService(VideoUploadMediaMixin):
             video.error_code = None
             video.error_message = None
 
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.RENDITION_RECOVERED,
+            message=f"Recovered {target.label} resolution",
+            metadata={"label": target.label},
+        )
+
         await self._session.commit()
         await self._session.refresh(video)
 
@@ -670,6 +765,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             self._storage,
             prefix=f"{public_id}/",
             bucket=self._storage.streams_bucket,
+            exclude_media=True,
         )
         _logger.info(
             "rebuild stream purged public_id=%s objects=%s",
@@ -689,8 +785,21 @@ class VideoUploadService(VideoUploadMediaMixin):
         video.error_message = None
         video.ready_at = None
 
+        self.record_upload_activity(
+            video=video,
+            actor_id=uploader_id,
+            event_type=VideoUploadActivityType.STREAM_REBUILT,
+            message="Full stream rebuild started",
+            metadata={
+                "rendition_count": len(renditions),
+                "labels": [row.label for row in renditions],
+            },
+        )
+
         await self._session.commit()
         await self._session.refresh(video)
+
+        await clear_progress_snapshot(public_id)
 
         try:
             await publish_transcode_message({"public_id": str(public_id)})
@@ -1221,6 +1330,80 @@ class VideoUploadService(VideoUploadMediaMixin):
             [{"video_id": video_id, "fk_id": fk_id} for fk_id in unique_ids],
         )
 
+    async def __heal_ready_if_complete(
+        self,
+        *,
+        video: Video,
+        progress_rows: list[VideoRenditionProgress],
+    ) -> None:
+        """Persist READY when every rung finished but the video row lagged."""
+
+        if not progress_rows:
+            return
+
+        if any(
+            row.status.upper() != _STATUS_READY or not row.playlist_key
+            for row in progress_rows
+        ):
+            return
+
+        if (
+            video.status or ""
+        ).upper() == _STATUS_READY and video.ready_at is not None:
+            return
+
+        video.status = _STATUS_READY
+        video.error_code = None
+        video.error_message = None
+
+        if video.ready_at is None:
+            video.ready_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        self.record_upload_activity(
+            video=video,
+            actor_id=video.uploader_id,
+            event_type=VideoUploadActivityType.STREAM_READY,
+            message="Stream ladder marked ready",
+            metadata={
+                "rendition_count": len(progress_rows),
+            },
+        )
+
+        await self._session.commit()
+        await self._session.refresh(video)
+
+    async def list_activity(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        limit: int = 100,
+    ) -> VideoUploadActivityListResponse:
+        """Return newest-first activity for an owned upload."""
+
+        video = await self.__get_owned_upload(public_id, uploader_id)
+        safe_limit = max(1, min(limit, 200))
+        statement = (
+            select(VideoUploadActivity)
+            .where(col(VideoUploadActivity.video_id) == video.id)
+            .order_by(col(VideoUploadActivity.created_at).desc())
+            .limit(safe_limit)
+        )
+        rows = (await self._session.execute(statement)).scalars().all()
+
+        return VideoUploadActivityListResponse(
+            items=[
+                VideoUploadActivityItem(
+                    id=row.id,
+                    event_type=row.event_type,
+                    message=row.message,
+                    metadata=row.metadata_,
+                    created_at=row.created_at,
+                )
+                for row in rows
+            ],
+        )
+
     @staticmethod
     def __derive_list_status(
         *,
@@ -1241,7 +1424,8 @@ class VideoUploadService(VideoUploadMediaMixin):
             return _STATUS_READY
 
         if any(
-            row.status.upper() in {_STATUS_READY, "ENCODING", "QUEUED"}
+            row.status.upper()
+            in {_STATUS_READY, "ENCODING", "QUEUED", "PENDING"}
             for row in progress_rows
         ):
             return "ENCODING"

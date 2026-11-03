@@ -567,12 +567,21 @@ class ObjectStorageClient:
         return str(url)
 
 
+_MEDIA_PREFIX_SEGMENTS = frozenset({"thumbnails", "samples"})
+
+
 async def purge_prefix(
     storage: ObjectStorageClient,
     prefix: str,
     bucket: str | None = None,
+    *,
+    exclude_media: bool = False,
 ) -> int:
-    """Delete every object under ``prefix``. Returns deleted count."""
+    """Delete every object under ``prefix``. Returns deleted count.
+
+    When ``exclude_media`` is true, keys under ``{prefix}thumbnails/`` and
+    ``{prefix}samples/`` are kept (stream rebuild must not wipe catalog media).
+    """
 
     cleaned = prefix.lstrip("/")
     target = bucket or storage.bucket
@@ -596,11 +605,20 @@ async def purge_prefix(
                 )
 
             contents = response.get("Contents") or []
-            objects: list[ObjectIdentifierTypeDef] = [
-                {"Key": str(item["Key"])}
-                for item in contents
-                if item.get("Key")
-            ]
+            objects: list[ObjectIdentifierTypeDef] = []
+
+            for item in contents:
+                key = item.get("Key")
+
+                if not key:
+                    continue
+
+                key_str = str(key)
+
+                if exclude_media and _is_media_object_key(key_str, cleaned):
+                    continue
+
+                objects.append({"Key": key_str})
 
             if objects:
                 await s3.delete_objects(
@@ -620,6 +638,15 @@ async def purge_prefix(
             continuation = str(next_token)
 
     return deleted
+
+
+def _is_media_object_key(key: str, prefix: str) -> bool:
+    """True when ``key`` is under the catalog thumbnail or sample tree."""
+
+    remainder = key[len(prefix) :] if key.startswith(prefix) else key
+    segment = remainder.lstrip("/").split("/", 1)[0]
+
+    return segment in _MEDIA_PREFIX_SEGMENTS
 
 
 @lru_cache(maxsize=1)

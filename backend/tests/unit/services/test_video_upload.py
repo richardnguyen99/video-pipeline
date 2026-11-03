@@ -48,9 +48,9 @@ async def test_create_upload_persists_pending_row_and_presigns_first_batch() -> 
     )
 
     assert session.committed == 1
-    assert len(session.added) == 1
-    video = session.added[0]
-    assert isinstance(video, Video)
+    videos = [item for item in session.added if isinstance(item, Video)]
+    assert len(videos) == 1
+    video = videos[0]
     assert video.origin == "upload"
     assert video.status == "PENDING"
     assert video.uploader_id == uploader_id
@@ -245,7 +245,8 @@ async def test_create_upload_admin_upserts_existing_video_code() -> None:
     )
 
     assert session.committed == 1
-    assert len(session.added) == 0
+    videos = [item for item in session.added if isinstance(item, Video)]
+    assert len(videos) == 0
     assert existing.title == "Backfilled"
     assert existing.origin == "upload"
     assert existing.uploader_id == admin_id
@@ -549,19 +550,41 @@ async def test_rebuild_stream_resets_renditions_and_requeues(
 
     async def _fake_purge(
         storage: Any,
-        *,
-        prefix: str,
+        *args: Any,
+        prefix: str | None = None,
         bucket: str | None = None,
+        exclude_media: bool = False,
+        **kwargs: Any,
     ) -> int:
+        resolved_prefix = prefix
+        resolved_bucket = bucket
+        resolved_exclude = exclude_media
+
+        if args and resolved_prefix is None:
+            resolved_prefix = str(args[0])
+
+        if "prefix" in kwargs and resolved_prefix is None:
+            resolved_prefix = str(kwargs["prefix"])
+
+        if "bucket" in kwargs and resolved_bucket is None:
+            resolved_bucket = kwargs["bucket"]
+
+        if "exclude_media" in kwargs:
+            resolved_exclude = bool(kwargs["exclude_media"])
+
         purge_calls.append(
             {
-                "prefix": prefix,
-                "bucket": bucket,
+                "prefix": resolved_prefix,
+                "bucket": resolved_bucket,
+                "exclude_media": resolved_exclude,
                 "streams_bucket": storage.streams_bucket,
             }
         )
 
         return 3
+
+    async def _fake_clear(_public_id: UUID) -> None:
+        return None
 
     monkeypatch.setattr(
         "app.services.video_upload.publish_transcode_message",
@@ -570,6 +593,10 @@ async def test_rebuild_stream_resets_renditions_and_requeues(
     monkeypatch.setattr(
         "app.services.video_upload.purge_prefix",
         _fake_purge,
+    )
+    monkeypatch.setattr(
+        "app.services.video_upload.clear_progress_snapshot",
+        _fake_clear,
     )
 
     uploader_id = uuid4()
@@ -641,6 +668,7 @@ async def test_rebuild_stream_resets_renditions_and_requeues(
     assert len(purge_calls) == 1
     assert purge_calls[0]["prefix"] == f"{public_id}/"
     assert purge_calls[0]["bucket"] == "streams"
+    assert purge_calls[0]["exclude_media"] is True
     assert publish_calls == [{"public_id": str(public_id)}]
 
     labels = {row.label for row in result.renditions}

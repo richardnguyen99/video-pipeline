@@ -320,6 +320,26 @@ export async function deleteVideoUpload(publicId: string): Promise<void> {
   });
 }
 
+export type VideoUploadActivityItem = {
+  id: string;
+  event_type: string;
+  message: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type VideoUploadActivityListResponse = {
+  items: Array<VideoUploadActivityItem>;
+};
+
+export function videoUploadActivityQueryKey(publicId: string) {
+  return ["video-uploads", "activity", publicId] as const;
+}
+
+export async function listVideoUploadActivity(publicId: string): Promise<VideoUploadActivityListResponse> {
+  return apiFetch<VideoUploadActivityListResponse>(`/videos/uploads/${publicId}/activity`);
+}
+
 export const VIDEO_UPLOADS_LIST_QUERY_KEY = ["video-uploads", "list"] as const;
 
 export async function listVideoUploads(options?: {

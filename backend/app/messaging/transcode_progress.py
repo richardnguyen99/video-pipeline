@@ -274,6 +274,27 @@ async def get_progress_snapshot(
     return TranscodeProgressSnapshot.from_redis_hash(_hash_as_str_dict(data))
 
 
+async def clear_progress_snapshot(public_id: uuid.UUID) -> None:
+    """Drop live progress so clients fall back to Postgres after a rebuild."""
+
+    try:
+        redis = await get_redis_client()
+        await redis.delete(progress_key(public_id))
+        await redis.publish(
+            progress_channel(public_id),
+            json.dumps(
+                {
+                    "status": "PENDING",
+                    "overall_pct": 0.0,
+                    "message": "Progress reset",
+                    "rungs": [],
+                }
+            ),
+        )
+    except _REDIS_SOFT_ERRORS:
+        _logger.debug("transcode progress redis clear failed", exc_info=True)
+
+
 def _snapshot_from_pubsub_message(
     message: dict[str, Any],
 ) -> Optional[TranscodeProgressSnapshot]:
