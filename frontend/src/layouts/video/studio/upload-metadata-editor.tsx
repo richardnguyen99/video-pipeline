@@ -99,11 +99,23 @@ export function UploadMetadataEditor({ uploadId, initialStatus = null }: UploadM
       return;
     }
 
+    if (!videoCode.trim()) {
+      toast.add({
+        type: "error",
+        title: "Video id is required",
+        description: "Enter a video id before saving catalog details.",
+        timeout: 4000,
+      });
+
+      return;
+    }
+
     setSaving(true);
 
     try {
       const updated = await updateVideoUploadMetadata(status.public_id, {
         title: title.trim() || (status.title ?? undefined),
+        video_id: videoCode.trim(),
         cid: cid.trim() || null,
         jancode: jancode.trim() || null,
         maker_product: makerProduct.trim() || null,
@@ -134,7 +146,7 @@ export function UploadMetadataEditor({ uploadId, initialStatus = null }: UploadM
     } finally {
       setSaving(false);
     }
-  }, [cid, jancode, makerProduct, queryClient, relations, releaseDate, saving, status, title, uploadId]);
+  }, [cid, jancode, makerProduct, queryClient, relations, releaseDate, saving, status, title, uploadId, videoCode]);
 
   if (status == null && statusQuery.isLoading) {
     return <UploadMetadataEditorSkeleton />;

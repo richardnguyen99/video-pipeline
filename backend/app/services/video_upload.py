@@ -585,6 +585,29 @@ class VideoUploadService(VideoUploadMediaMixin):
             trimmed = payload.title.strip()
             video.title = trimmed or video.title
 
+        if payload.video_id is not None:
+            next_code = payload.video_id.strip()
+
+            if not next_code:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="video_id cannot be empty.",
+                )
+
+            if next_code != video.video_id:
+                conflict = await self.__find_by_video_id(next_code)
+
+                if conflict is not None and conflict.id != video.id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=(
+                            f"Video code '{next_code}' is already in use "
+                            "by another catalog entry."
+                        ),
+                    )
+
+                video.video_id = next_code
+
         if payload.cid is not None:
             video.cid = payload.cid.strip() or None
 

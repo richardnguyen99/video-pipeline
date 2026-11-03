@@ -61,6 +61,7 @@ export type VideoUploadStatusResponse = {
 
 export type VideoUploadMetadataUpdateInput = {
   title?: string;
+  video_id?: string;
   cid?: string | null;
   jancode?: string | null;
   maker_product?: string | null;

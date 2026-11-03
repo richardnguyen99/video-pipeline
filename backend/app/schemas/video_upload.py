@@ -120,6 +120,11 @@ class VideoUploadMetadataUpdateRequest(BaseModel):
     """Patch catalog fields and relation links for an owned upload."""
 
     title: Optional[str] = Field(default=None, max_length=1024)
+    video_id: Optional[str] = Field(
+        default=None,
+        max_length=255,
+        description="Business video code (unique catalog identifier).",
+    )
     cid: Optional[str] = Field(default=None, max_length=255)
     jancode: Optional[str] = Field(default=None, max_length=255)
     maker_product: Optional[str] = Field(default=None, max_length=255)
