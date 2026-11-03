@@ -43,11 +43,13 @@ export function formatCompactNumber(n: number): string {
 }
 
 /**
- * Duration from minutes (decimal ok) → `m:ss` or `h:mm:ss`.
+ * Duration from total seconds → `m:ss` or `h:mm:ss`.
+ *
+ * Matches backend ``Video.duration`` (probe seconds).
  */
-export function formatDuration(minutes?: number): string {
-  if (minutes == null || Number.isNaN(minutes)) return "0:00";
-  const totalSec = Math.max(0, Math.round(minutes * 60));
+export function formatDuration(seconds?: number): string {
+  if (seconds == null || Number.isNaN(seconds)) return "0:00";
+  const totalSec = Math.max(0, Math.round(seconds));
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;

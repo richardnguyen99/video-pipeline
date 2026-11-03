@@ -14,11 +14,14 @@ function getThumbnail(video: Video): string {
   return video.image_urls?.[0] ?? video.video_image_url?.[0]?.url ?? "https://placehold.co/1920x1080";
 }
 
-function formatDuration(minutes?: number): string {
-  if (!minutes || minutes <= 0) return "";
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
+function formatDuration(seconds?: number): string {
+  if (seconds == null || seconds <= 0) return "";
+  const totalSec = Math.round(seconds);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+
   if (h > 0) return `${h}h ${m}m`;
+
   return `${m}m`;
 }
 
