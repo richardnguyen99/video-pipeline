@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, Optional
 
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import (
+    ApiError,
+    AsyncElasticsearch,
+    NotFoundError,
+    TransportError,
+)
 from elasticsearch.helpers import async_bulk
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -19,6 +24,7 @@ from app.models.label import Label
 from app.models.maker import Maker
 from app.models.series import Series
 from app.models.video import Video
+from app.search.client import get_elasticsearch
 from app.search.mappings import VIDEOS_INDEX_MAPPINGS, VIDEOS_INDEX_SETTINGS
 from app.utils.query import relationship_attr
 
@@ -313,6 +319,8 @@ class VideoIndexer:
     async def index_videos(
         self,
         videos: Sequence[Video],
+        *,
+        refresh: bool = False,
     ) -> int:
         """Bulk-index the given video rows. Returns document count."""
 
@@ -331,10 +339,62 @@ class VideoIndexer:
             self._client,
             actions,
             raise_on_error=False,
-            refresh=False,
+            refresh=refresh,
         )
 
         return int(success)
+
+    async def index_video_ids(
+        self,
+        video_ids: Sequence[int],
+        *,
+        refresh: bool = True,
+    ) -> int:
+        """Load and index specific video primary keys."""
+
+        if not video_ids:
+            return 0
+
+        total = 0
+
+        async for batch in self.iter_videos(
+            batch_size=max(len(video_ids), 1),
+            video_ids=list(video_ids),
+        ):
+            total += await self.index_videos(batch, refresh=False)
+
+        if refresh and total > 0:
+            await self._client.indices.refresh(index=self._index)
+
+        return total
+
+    async def delete_video_ids(
+        self,
+        video_ids: Sequence[int],
+        *,
+        refresh: bool = True,
+    ) -> int:
+        """Remove documents for the given video primary keys."""
+
+        if not video_ids:
+            return 0
+
+        deleted = 0
+
+        for video_id in video_ids:
+            try:
+                await self._client.delete(
+                    index=self._index,
+                    id=str(video_id),
+                )
+                deleted += 1
+            except NotFoundError:
+                continue
+
+        if refresh and deleted > 0:
+            await self._client.indices.refresh(index=self._index)
+
+        return deleted
 
     async def reindex_all(
         self,
@@ -353,3 +413,51 @@ class VideoIndexer:
         await self._client.indices.refresh(index=self._index)
 
         return total
+
+
+async def sync_video_search_document(
+    session: AsyncSession,
+    video_id: int,
+    *,
+    refresh: bool = True,
+) -> int:
+    """Index one video when Elasticsearch is enabled.
+
+    Returns documents written, or ``0`` when search is off or ES is unreachable.
+    """
+
+    if not settings.elasticsearch_enabled or video_id <= 0:
+        return 0
+
+    try:
+        client = get_elasticsearch()
+        indexer = VideoIndexer(client, session)
+
+        return await indexer.index_video_ids([video_id], refresh=refresh)
+    except ApiError, TransportError, OSError:
+        return 0
+
+
+async def remove_video_search_document(video_id: int) -> int:
+    """Delete one video document when Elasticsearch is enabled."""
+
+    if not settings.elasticsearch_enabled or video_id <= 0:
+        return 0
+
+    client = get_elasticsearch()
+    index_name = settings.elasticsearch_index_videos
+
+    try:
+        await client.delete(
+            index=index_name,
+            id=str(video_id),
+        )
+    except NotFoundError, ApiError, TransportError, OSError:
+        return 0
+
+    try:
+        await client.indices.refresh(index=index_name)
+    except ApiError, TransportError, OSError:
+        return 1
+
+    return 1

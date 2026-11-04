@@ -35,7 +35,25 @@ class ResultSpy:
         self._scalar_value = scalar_value
 
     def all(self) -> list[Any]:
-        return list(self._rows)
+        if self._rows:
+            return list(self._rows)
+
+        if self._row is not None:
+            return [self._row]
+
+        return []
+
+    def one_or_none(self) -> Any:
+        return self._row
+
+    def first(self) -> Any:
+        return self._row
+
+    def one(self) -> Any:
+        if self._row is None:
+            raise ValueError("No row")
+
+        return self._row
 
     def scalar_one_or_none(self) -> Any:
         return self._row
@@ -47,7 +65,13 @@ class ResultSpy:
         return self._row
 
     def scalars(self) -> ScalarsSpy:
-        return ScalarsSpy(self._rows)
+        if self._rows:
+            return ScalarsSpy(self._rows)
+
+        if self._row is not None:
+            return ScalarsSpy([self._row])
+
+        return ScalarsSpy([])
 
 
 class ListSessionSpy:
@@ -75,6 +99,9 @@ class ListSessionSpy:
             return ResultSpy(rows=self._rows)
 
         return ResultSpy(rows=self._renditions)
+
+    async def exec(self, statement: Any) -> ResultSpy:
+        return await self.execute(statement)
 
 
 class SessionSpy:
@@ -161,6 +188,9 @@ class SessionSpy:
 
         return ResultSpy(self._video, rows=self._renditions)
 
+    async def exec(self, statement: Any) -> ResultSpy:
+        return await self.execute(statement)
+
 
 class MediaSessionSpy:
     """Session double for list/upload/delete media paths."""
@@ -245,6 +275,9 @@ class MediaSessionSpy:
             return ResultSpy(rows=self.thumbs)
 
         return ResultSpy(self._video)
+
+    async def exec(self, statement: Any) -> ResultSpy:
+        return await self.execute(statement)
 
 
 class StorageSpy:

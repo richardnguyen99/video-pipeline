@@ -10,8 +10,8 @@ from urllib.parse import urlparse
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import delete
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.messaging.rabbitmq import publish_media_link_message
 from app.models.video import Video, VideoImageUrl, VideoSampleImageUrl

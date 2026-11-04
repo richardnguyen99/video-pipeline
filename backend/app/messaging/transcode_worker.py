@@ -27,6 +27,7 @@ from app.messaging.transcode_progress import (
     write_progress,
 )
 from app.models.video import Video, VideoM3u8, VideoRendition
+from app.search.indexer import sync_video_search_document
 from app.storage.client import ObjectStorageClient, get_object_storage_client
 from app.utils.hls_encode import (
     build_master_playlist,
@@ -465,10 +466,14 @@ async def _run_locked_pipeline(
         message="Ladder complete",
         rungs=live_rungs,
     )
+
+    indexed = await sync_video_search_document(session, video.id)
+
     _logger.info(
-        "transcode ladder complete public_id=%s renditions=%s",
+        "transcode ladder complete public_id=%s renditions=%s indexed=%s",
         public_id,
         len(ready_specs),
+        indexed,
     )
 
 

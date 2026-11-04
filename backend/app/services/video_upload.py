@@ -15,9 +15,9 @@ from pathlib import PurePosixPath
 from fastapi import HTTPException, status
 from sqlalchemy import Table, delete, func, insert
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
 from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
 
 from app.config import settings
@@ -64,6 +64,10 @@ from app.schemas.video_upload import (
     VideoUploadMetadataUpdateRequest,
     VideoUploadPartsResponse,
     VideoUploadStatusResponse,
+)
+from app.search.indexer import (
+    remove_video_search_document,
+    sync_video_search_document,
 )
 from app.services.video_upload_media import VideoUploadMediaMixin
 from app.storage.client import ObjectStorageClient, purge_prefix
@@ -663,6 +667,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             ) from exc
 
         await self._session.refresh(video)
+        await sync_video_search_document(self._session, video.id)
 
         relation_ids = await self.__load_relation_ids(video.id)
         renditions = await self.__list_renditions(video.id)
@@ -917,6 +922,7 @@ class VideoUploadService(VideoUploadMediaMixin):
         )
         await self._session.delete(video)
         await self._session.commit()
+        await remove_video_search_document(video_id)
 
         _logger.info(
             "deleted upload public_id=%s video_id=%s", public_id, video_id
@@ -1037,8 +1043,8 @@ class VideoUploadService(VideoUploadMediaMixin):
             Video.uploader_id == uploader_id,
             Video.origin == _ORIGIN_UPLOAD,
         )
-        result = await self._session.execute(statement)
-        video = result.scalar_one_or_none()
+        result = await self._session.exec(statement)
+        video = result.one_or_none()
 
         if video is None:
             raise HTTPException(
@@ -1409,6 +1415,7 @@ class VideoUploadService(VideoUploadMediaMixin):
 
         await self._session.commit()
         await self._session.refresh(video)
+        await sync_video_search_document(self._session, video.id)
 
     async def list_activity(
         self,
