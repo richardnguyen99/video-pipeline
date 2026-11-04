@@ -408,6 +408,8 @@ async def test_get_video_returns_detail_with_actress_relations(
         floor_code=None,
         created_at=None,
         updated_at=None,
+        public_id=None,
+        uploader_id=None,
         actresses=[
             SimpleNamespace(
                 id=1,
@@ -478,7 +480,91 @@ async def test_get_video_returns_detail_with_actress_relations(
     assert result.video_aka is not None
     assert result.video_aka.translated_name == "Detail Title EN"
     assert result.video_aka.language == "en-us"
+    assert result.public_id is None
+    assert result.uploader_id is None
     assert repository.get_calls == [7]
+
+
+@pytest.mark.asyncio
+async def test_get_video_includes_upload_owner_fields(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Studio upload rows expose public_id and uploader_id on detail."""
+
+    public_id = uuid4()
+    uploader_id = uuid4()
+    repository.get_result = SimpleNamespace(
+        id=218695,
+        video_id="XYZ-011",
+        title="Owner upload detail",
+        cid="xyz00011",
+        duration=3470,
+        release_date=None,
+        jancode=None,
+        maker_product=None,
+        floor_code=None,
+        created_at=None,
+        updated_at=None,
+        public_id=public_id,
+        uploader_id=uploader_id,
+        actresses=[],
+        genres=[],
+        series=[],
+        makers=[],
+        labels=[],
+        directors=[],
+        video_aka=[],
+        video_image_url=[],
+        video_sample_image_url=[],
+        video_sample_movie_url=[],
+    )
+
+    result = await service.get_video(video_id=218695)
+
+    assert result.id == 218695
+    assert result.public_id == public_id
+    assert result.uploader_id == uploader_id
+    assert repository.get_calls == [218695]
+
+
+@pytest.mark.asyncio
+async def test_get_video_owner_fields_default_when_missing_on_row(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Legacy detail rows still serialize when owner attrs are absent."""
+
+    repository.get_result = SimpleNamespace(
+        id=9,
+        video_id="LEGACY-1",
+        title="Legacy import",
+        cid=None,
+        duration=60,
+        release_date=None,
+        jancode=None,
+        maker_product=None,
+        floor_code=None,
+        created_at=None,
+        updated_at=None,
+        public_id=None,
+        uploader_id=None,
+        actresses=[],
+        genres=[],
+        series=[],
+        makers=[],
+        labels=[],
+        directors=[],
+        video_aka=[],
+        video_image_url=[],
+        video_sample_image_url=[],
+        video_sample_movie_url=[],
+    )
+
+    result = await service.get_video(video_id=9)
+
+    assert result.public_id is None
+    assert result.uploader_id is None
 
 
 def _catalog_entity(
@@ -515,6 +601,8 @@ def _detail_row_with_catalog_akas() -> SimpleNamespace:
         floor_code=None,
         created_at=None,
         updated_at=None,
+        public_id=None,
+        uploader_id=None,
         actresses=[],
         genres=[
             _catalog_entity(

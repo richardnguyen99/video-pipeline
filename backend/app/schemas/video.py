@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -184,6 +185,14 @@ class VideoDetailResponse(BaseModel):
     floor_code: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    public_id: Optional[UUID] = Field(
+        default=None,
+        description="Studio upload public id when this row was created via upload.",
+    )
+    uploader_id: Optional[UUID] = Field(
+        default=None,
+        description="Owner user id for studio-managed uploads.",
+    )
     video_aka: Optional[VideoAkaResponse] = None
     actresses: list[VideoActressDetailResponse] = Field(default_factory=list)
     genres: list[VideoCatalogEntityResponse] = Field(default_factory=list)

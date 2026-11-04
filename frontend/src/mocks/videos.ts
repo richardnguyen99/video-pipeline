@@ -156,6 +156,8 @@ export interface Video {
   jancode?: string;
   maker_product?: string;
   floor_code?: string;
+  public_id?: string | null;
+  uploader_id?: string | null;
   image_urls?: Array<string>;
   video_image_url?: Array<VideoImageUrl>;
   sample_image_url?: Array<VideoVideoSampleImageUrlUrl>;

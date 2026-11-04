@@ -340,6 +340,8 @@ class VideoService:
                 "floor_code": row.floor_code,
                 "created_at": row.created_at,
                 "updated_at": row.updated_at,
+                "public_id": row.public_id,
+                "uploader_id": row.uploader_id,
                 "video_aka": self._pick_video_aka(
                     self._loaded_collection(row, "video_aka"),
                     locale_key,
