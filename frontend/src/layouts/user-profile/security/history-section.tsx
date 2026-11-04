@@ -22,7 +22,15 @@ export function HistorySection() {
     query.isError &&
     query.error instanceof ApiError &&
     (query.error.status === HttpStatus.UNAUTHORIZED || query.error.status === HttpStatus.FORBIDDEN);
-  const items = isAuthError ? [] : (query.data?.items ?? []);
+
+  const items = useMemo(() => {
+    if (isAuthError) {
+      return [];
+    }
+
+    return query.data?.items ?? [];
+  }, [isAuthError, query.data?.items]);
+
   const isLoading = query.isPending;
   const errorMessage = query.isError && !isAuthError ? getApiErrorMessage(query.error) : null;
 

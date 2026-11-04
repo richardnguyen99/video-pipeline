@@ -39,8 +39,10 @@ from app.models.associations import (
 from app.models.video import (
     Video,
     VideoImageUrl,
+    VideoM3u8,
     VideoRendition,
     VideoSampleImageUrl,
+    VideoSampleMovieUrl,
 )
 from app.models.video_upload_activity import (
     VideoUploadActivity,
@@ -898,6 +900,19 @@ class VideoUploadService(VideoUploadMediaMixin):
         await self._session.execute(
             delete(VideoSampleImageUrl).where(
                 col(VideoSampleImageUrl.fk_id) == video_id
+            ),
+        )
+        await self._session.execute(
+            delete(VideoSampleMovieUrl).where(
+                col(VideoSampleMovieUrl.fk_id) == video_id
+            ),
+        )
+        await self._session.execute(
+            delete(VideoM3u8).where(col(VideoM3u8.fk_id) == video_id),
+        )
+        await self._session.execute(
+            delete(VideoUploadActivity).where(
+                col(VideoUploadActivity.video_id) == video_id,
             ),
         )
         await self._session.delete(video)

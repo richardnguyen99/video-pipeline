@@ -29,6 +29,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
+import { DeleteUploadDialog } from "@/layouts/video/studio/delete-upload-dialog";
 import { defaultStepForStatus } from "@/layouts/video/studio/session-persist";
 import { formatFileSize } from "@/layouts/video/studio/upload-helpers";
 import { getApiErrorMessage } from "@/libs/auth";
@@ -207,6 +208,7 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [actionBusy, setActionBusy] = useState<"rebuild" | "delete" | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const statusQuery = useQuery({
     ...videoUploadStatusQueryOptions(uploadId),
@@ -293,18 +295,11 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
       return;
     }
 
-    const confirmed = window.confirm(
-      "Delete this upload and video permanently? Stream files, thumbnails, and samples will be removed.",
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setActionBusy("delete");
 
     try {
       await deleteVideoUpload(uploadId);
+      setDeleteOpen(false);
       void queryClient.removeQueries({ queryKey: videoUploadStatusQueryKey(uploadId) });
       void queryClient.invalidateQueries({ queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY });
       toast.add({
@@ -547,7 +542,7 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
                       variant="destructive"
                       disabled={actionBusy != null}
                       onClick={() => {
-                        void handleDeleteVideo();
+                        setDeleteOpen(true);
                       }}
                     >
                       <Trash2 className="size-4" aria-hidden />
@@ -560,6 +555,16 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
           </div>
         </div>
       </div>
+
+      <DeleteUploadDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        isPending={actionBusy === "delete"}
+        videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
+        onConfirm={() => {
+          void handleDeleteVideo();
+        }}
+      />
 
       <Collapsible defaultOpen className="group/resolutions border-t">
         <CollapsibleTrigger className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-medium sm:px-6">
