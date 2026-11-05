@@ -15,6 +15,7 @@ from app.dependencies.services import (
     NotificationSettingsServiceDep,
     PlaylistServiceDep,
     PrivacySettingsServiceDep,
+    VideoServiceDep,
 )
 from app.schemas.account_deactivate import DeactivateAccountResponse
 from app.schemas.actress_subscribe import ActressSubscribeListResponse
@@ -39,6 +40,7 @@ from app.schemas.privacy_settings import (
 )
 from app.schemas.user import UserSearchItem, UserSearchResponse
 from app.schemas.user_bio import UserBioResponse
+from app.schemas.video import VideoListResponse
 
 router = APIRouter(prefix="/users")
 
@@ -166,6 +168,45 @@ async def list_public_user_playlists(
         username=username,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get(
+    "/{username}/videos",
+    response_model=VideoListResponse,
+    status_code=status.HTTP_200_OK,
+    summary="List a user's public uploaded videos",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "description": "No user with this username.",
+        },
+    },
+)
+async def list_public_user_videos(
+    service: VideoServiceDep,
+    users: UserRepositoryDep,
+    username: Annotated[
+        str,
+        Path(
+            min_length=3,
+            max_length=50,
+            description="Public username handle.",
+        ),
+    ],
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> VideoListResponse:
+    """Return public READY uploads owned by ``username``.
+
+    Available without authentication. Private and unlisted uploads
+    are never included.
+    """
+
+    return await service.list_public_uploads_for_username(
+        username=username,
+        limit=limit,
+        offset=offset,
+        user_repository=users,
     )
 
 

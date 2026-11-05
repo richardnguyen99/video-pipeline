@@ -61,6 +61,9 @@ class FakeVideoRepository:
     exists_result: bool = True
     recommended_result: list[Any] = field(default_factory=list)
     recommended_calls: list[dict[str, Any]] = field(default_factory=list)
+    public_uploader_result: list[Any] = field(default_factory=list)
+    public_uploader_total: int = 0
+    public_uploader_calls: list[dict[str, Any]] = field(default_factory=list)
 
     async def list_videos(
         self,
@@ -166,6 +169,25 @@ class FakeVideoRepository:
         """Return no master playlist by default."""
 
         return None
+
+    async def list_public_by_uploader(
+        self,
+        uploader_id: object,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Any], int]:
+        """Return configured public upload rows for an uploader."""
+
+        self.public_uploader_calls.append(
+            {
+                "uploader_id": uploader_id,
+                "limit": limit,
+                "offset": offset,
+            },
+        )
+
+        return list(self.public_uploader_result), self.public_uploader_total
 
 
 @pytest.fixture
@@ -1315,3 +1337,140 @@ async def test_get_reaction_raises_when_video_missing(
         await service.get_reaction(999, user_id=uuid4())
 
     assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+
+
+@dataclass
+class FakeUserRepository:
+    """Minimal user repository for public-upload listing tests."""
+
+    user: Any | None = None
+    get_by_username_calls: list[str] = field(default_factory=list)
+
+    async def get_by_username(self, username: str) -> Any | None:
+        """Return the configured user and record the lookup."""
+
+        self.get_by_username_calls.append(username)
+
+        return self.user
+
+
+def _public_upload_row(
+    *,
+    video_pk: int = 10,
+    video_code: str = "XYZ-001",
+    title: str = "Public Upload",
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=video_pk,
+        video_id=video_code,
+        title=title,
+        cid="cid-public",
+        duration=90,
+        release_date=None,
+        jancode=None,
+        maker_product=None,
+        floor_code=None,
+        created_at=None,
+        updated_at=None,
+        actresses=[],
+        genres=[],
+        series=[],
+        makers=[],
+        labels=[],
+        directors=[],
+        video_image_url=[],
+        video_sample_image_url=[],
+        video_sample_movie_url=[],
+    )
+
+
+@pytest.mark.asyncio
+async def test_list_public_uploads_for_username_maps_rows(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Public uploads are mapped into paginated ``VideoListResponse``."""
+
+    uploader_id = uuid4()
+    users = FakeUserRepository(
+        user=SimpleNamespace(id=uploader_id, username="creator"),
+    )
+    repository.public_uploader_result = [
+        _public_upload_row(
+            video_pk=21, video_code="XYZ-019", title="Open Upload"
+        ),
+    ]
+    repository.public_uploader_total = 1
+
+    result = await service.list_public_uploads_for_username(
+        username="creator",
+        limit=12,
+        offset=0,
+        user_repository=users,  # type: ignore[arg-type]
+    )
+
+    assert users.get_by_username_calls == ["creator"]
+    assert len(repository.public_uploader_calls) == 1
+    assert repository.public_uploader_calls[0]["uploader_id"] == uploader_id
+    assert repository.public_uploader_calls[0]["limit"] == 12
+    assert repository.public_uploader_calls[0]["offset"] == 0
+    assert result.total == 1
+    assert result.limit == 12
+    assert result.offset == 0
+    assert len(result.items) == 1
+    assert result.items[0].id == 21
+    assert result.items[0].video_id == "XYZ-019"
+    assert result.items[0].title == "Open Upload"
+
+
+@pytest.mark.asyncio
+async def test_list_public_uploads_for_username_clamps_limit(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Limit is clamped to 1–100 before the repository call."""
+
+    uploader_id = uuid4()
+    users = FakeUserRepository(
+        user=SimpleNamespace(id=uploader_id, username="creator"),
+    )
+    repository.public_uploader_result = []
+    repository.public_uploader_total = 0
+
+    result = await service.list_public_uploads_for_username(
+        username="creator",
+        limit=500,
+        offset=-5,
+        user_repository=users,  # type: ignore[arg-type]
+    )
+
+    call = repository.public_uploader_calls[0]
+
+    assert call["limit"] == 100
+    assert call["offset"] == 0
+    assert result.limit == 100
+    assert result.offset == 0
+    assert result.items == []
+    assert result.total == 0
+
+
+@pytest.mark.asyncio
+async def test_list_public_uploads_for_username_raises_when_user_missing(
+    service: VideoService,
+    repository: FakeVideoRepository,
+) -> None:
+    """Unknown username yields HTTP 404 without querying videos."""
+
+    users = FakeUserRepository(user=None)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.list_public_uploads_for_username(
+            username="missing-user",
+            limit=20,
+            offset=0,
+            user_repository=users,  # type: ignore[arg-type]
+        )
+
+    assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
+    assert users.get_by_username_calls == ["missing-user"]
+    assert repository.public_uploader_calls == []

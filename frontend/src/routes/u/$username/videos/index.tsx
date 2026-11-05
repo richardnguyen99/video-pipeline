@@ -11,7 +11,6 @@ import {
   sharedPlaylistsQueryOptions,
 } from "@/queries/playlist";
 import { userVideosQueryOptions } from "@/queries/user-profile";
-import type { UserVideoItem } from "@/queries/user-profile";
 import { likedVideosQueryOptions } from "@/queries/video-reaction";
 import { watchedVideosQueryOptions } from "@/queries/video-watch";
 import { useAuthStore } from "@/stores/auth-store";
@@ -20,12 +19,15 @@ const PREVIEW_LIMIT = 6;
 
 export const Route = createFileRoute("/u/$username/videos/")({
   loader: async ({ context, params }) => {
-    const videos = await context.queryClient.query({
-      ...userVideosQueryOptions(params.username),
+    await context.queryClient.query({
+      ...userVideosQueryOptions(params.username, {
+        limit: PREVIEW_LIMIT,
+        offset: 0,
+      }),
       staleTime: "static",
     });
 
-    return { videos };
+    return { username: params.username };
   },
   pendingComponent: VideosPagePending,
   component: UserVideosPage,
@@ -47,20 +49,21 @@ function VideosPagePending() {
   );
 }
 
-function OwnerLibraryData({
-  isOwner,
-  username,
-  videos,
-}: {
-  isOwner: boolean;
-  username: string;
-  videos: Array<UserVideoItem>;
-}) {
+function OwnerLibraryData({ isOwner, username }: { isOwner: boolean; username: string }) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const isRestoring = useAuthStore((state) => state.isRestoring);
   const authUserId = useAuthStore((state) => state.user?.id ?? null);
 
   const canFetchOwnerLists = isOwner && !isRestoring && accessToken != null && accessToken.length > 0;
+
+  const publicVideosQuery = useQuery({
+    ...userVideosQueryOptions(username, {
+      limit: PREVIEW_LIMIT,
+      offset: 0,
+    }),
+    enabled: !isRestoring,
+    placeholderData: keepPreviousData,
+  });
 
   const watchedQuery = useQuery({
     ...watchedVideosQueryOptions({
@@ -107,6 +110,9 @@ function OwnerLibraryData({
     placeholderData: keepPreviousData,
   });
 
+  const publicVideos = (publicVideosQuery.data?.items ?? []).slice(0, PREVIEW_LIMIT);
+  const isVideosLoading = isRestoring || publicVideosQuery.isPending;
+
   const watchedVideos = isOwner ? (watchedQuery.data?.items ?? []).slice(0, PREVIEW_LIMIT) : [];
   const isWatchedLoading = isOwner && (isRestoring || (canFetchOwnerLists && watchedQuery.isPending));
 
@@ -121,7 +127,8 @@ function OwnerLibraryData({
 
   return (
     <VideosPanel
-      videos={videos}
+      videos={publicVideos}
+      isVideosLoading={isVideosLoading}
       playlists={playlists}
       sharedPlaylists={sharedPlaylists}
       watchedVideos={watchedVideos}
@@ -138,7 +145,6 @@ function OwnerLibraryData({
 
 function UserVideosPage() {
   const { username } = Route.useParams();
-  const { videos } = Route.useLoaderData();
   const { isOwner } = useResolvedOwner(username);
 
   return (
@@ -157,7 +163,7 @@ function UserVideosPage() {
         </div>
       }
     >
-      <OwnerLibraryData isOwner={isOwner} username={username} videos={videos} />
+      <OwnerLibraryData isOwner={isOwner} username={username} />
     </Suspense>
   );
 }

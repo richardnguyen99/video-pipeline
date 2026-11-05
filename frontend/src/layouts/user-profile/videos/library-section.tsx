@@ -1,19 +1,19 @@
-import { LibraryVideoCard } from "@/layouts/user-profile/videos/library-video-card";
 import { LikedSection } from "@/layouts/user-profile/videos/liked-section";
 import { PlaylistSection } from "@/layouts/user-profile/playlists/section";
+import { PublicUploadsSection } from "@/layouts/user-profile/videos/public-uploads-section";
 import { SectionHeader } from "@/layouts/user-profile/videos/section-header";
 import type { LibrarySection as LibrarySectionConfig } from "@/layouts/user-profile/videos/section-config";
 import { WatchedSection } from "@/layouts/user-profile/videos/watched-section";
 import type { Video } from "@/mocks/videos";
 import type { PlaylistSummary } from "@/queries/playlist";
 import type { WatchedVideo } from "@/queries/video-watch";
-import type { UserVideoItem } from "@/queries/user-profile";
 
 const PLAYLIST_PREVIEW_LIMIT = 6;
 
 type LibrarySectionProps = {
   section: LibrarySectionConfig;
-  videos: Array<UserVideoItem>;
+  videos: Array<Video>;
+  isVideosLoading: boolean;
   playlists: Array<PlaylistSummary>;
   sharedPlaylists: Array<PlaylistSummary>;
   watchedVideos: Array<WatchedVideo>;
@@ -28,12 +28,19 @@ type LibrarySectionProps = {
 
 function getSectionViewAllTo(
   kind: LibrarySectionConfig["kind"],
-): "/u/$username/videos/history" | "/u/$username/videos/liked" | "/u/$username/playlists" | undefined {
+):
+  | "/u/$username/videos/history"
+  | "/u/$username/videos/liked"
+  | "/u/$username/videos/public"
+  | "/u/$username/playlists"
+  | undefined {
   switch (kind) {
     case "watched":
       return "/u/$username/videos/history";
     case "liked":
       return "/u/$username/videos/liked";
+    case "videos":
+      return "/u/$username/videos/public";
     case "playlists":
       return "/u/$username/playlists";
     default:
@@ -74,6 +81,7 @@ function filterPlaylistsForSection(
 export function LibrarySection({
   section,
   videos,
+  isVideosLoading,
   playlists,
   sharedPlaylists,
   watchedVideos,
@@ -115,17 +123,7 @@ export function LibrarySection({
       {section.kind === "liked" ? <LikedSection videos={likedVideos} isLoading={isLikedLoading} /> : null}
 
       {section.kind === "videos" ? (
-        videos.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {videos.map((video, index) => (
-              <LibraryVideoCard key={`${section.title}-${video.id}`} video={video} index={index} isOwner={isOwner} />
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {isOwner ? "Public videos you upload will show up here." : "Public videos will show up here."}
-          </p>
-        )
+        <PublicUploadsSection videos={videos} isLoading={isVideosLoading} isOwner={isOwner} />
       ) : null}
 
       {section.kind === "playlists" ? (

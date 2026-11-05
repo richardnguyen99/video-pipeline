@@ -46,6 +46,7 @@ import { Route as UUsernamePlaylistsPlaylistIdRouteImport } from './routes/u/$us
 import { Route as UUsernameVideosIndexRouteImport } from './routes/u/$username/videos/index'
 import { Route as UUsernameVideosHistoryRouteImport } from './routes/u/$username/videos/history'
 import { Route as UUsernameVideosLikedRouteImport } from './routes/u/$username/videos/liked'
+import { Route as UUsernameVideosPublicRouteImport } from './routes/u/$username/videos/public'
 import { Route as AuthenticatedStudioUploadsUploadIdIndexRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/index'
 import { Route as AuthenticatedStudioUploadsUploadIdStepRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/$step'
 import { Route as AuthenticatedStudioUploadsUploadIdLogsRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/logs'
@@ -242,6 +243,11 @@ const UUsernameVideosLikedRoute = UUsernameVideosLikedRouteImport.update({
   path: '/liked',
   getParentRoute: () => UUsernameVideosRouteRoute,
 } as any)
+const UUsernameVideosPublicRoute = UUsernameVideosPublicRouteImport.update({
+  id: '/public',
+  path: '/public',
+  getParentRoute: () => UUsernameVideosRouteRoute,
+} as any)
 const AuthenticatedStudioUploadsUploadIdIndexRoute =
   AuthenticatedStudioUploadsUploadIdIndexRouteImport.update({
     id: '/uploads/$uploadId/',
@@ -306,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/u/$username/videos/public': typeof UUsernameVideosPublicRoute
   '/studio/uploads/': typeof AuthenticatedStudioUploadsIndexRoute
   '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
@@ -343,6 +350,7 @@ export interface FileRoutesByTo {
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/u/$username/videos/public': typeof UUsernameVideosPublicRoute
   '/studio/uploads': typeof AuthenticatedStudioUploadsIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos': typeof UUsernameVideosIndexRoute
@@ -388,6 +396,7 @@ export interface FileRoutesById {
   '/u/$username/playlists/$playlistId': typeof UUsernamePlaylistsPlaylistIdRoute
   '/u/$username/videos/history': typeof UUsernameVideosHistoryRoute
   '/u/$username/videos/liked': typeof UUsernameVideosLikedRoute
+  '/u/$username/videos/public': typeof UUsernameVideosPublicRoute
   '/_authenticated/studio/uploads/': typeof AuthenticatedStudioUploadsIndexRoute
   '/u/$username/playlists/': typeof UUsernamePlaylistsIndexRoute
   '/u/$username/videos/': typeof UUsernameVideosIndexRoute
@@ -432,6 +441,7 @@ export interface FileRouteTypes {
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/u/$username/videos/public'
     | '/studio/uploads/'
     | '/u/$username/playlists/'
     | '/u/$username/videos/'
@@ -469,6 +479,7 @@ export interface FileRouteTypes {
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/u/$username/videos/public'
     | '/studio/uploads'
     | '/u/$username/playlists'
     | '/u/$username/videos'
@@ -513,6 +524,7 @@ export interface FileRouteTypes {
     | '/u/$username/playlists/$playlistId'
     | '/u/$username/videos/history'
     | '/u/$username/videos/liked'
+    | '/u/$username/videos/public'
     | '/_authenticated/studio/uploads/'
     | '/u/$username/playlists/'
     | '/u/$username/videos/'
@@ -800,6 +812,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUsernameVideosLikedRouteImport
       parentRoute: typeof UUsernameVideosRouteRoute
     }
+    '/u/$username/videos/public': {
+      id: '/u/$username/videos/public'
+      path: '/public'
+      fullPath: '/u/$username/videos/public'
+      preLoaderRoute: typeof UUsernameVideosPublicRouteImport
+      parentRoute: typeof UUsernameVideosRouteRoute
+    }
     '/_authenticated/studio/uploads/$uploadId/': {
       id: '/_authenticated/studio/uploads/$uploadId/'
       path: '/uploads/$uploadId'
@@ -930,12 +949,14 @@ const UUsernamePlaylistsRouteRouteWithChildren =
 interface UUsernameVideosRouteRouteChildren {
   UUsernameVideosHistoryRoute: typeof UUsernameVideosHistoryRoute
   UUsernameVideosLikedRoute: typeof UUsernameVideosLikedRoute
+  UUsernameVideosPublicRoute: typeof UUsernameVideosPublicRoute
   UUsernameVideosIndexRoute: typeof UUsernameVideosIndexRoute
 }
 
 const UUsernameVideosRouteRouteChildren: UUsernameVideosRouteRouteChildren = {
   UUsernameVideosHistoryRoute: UUsernameVideosHistoryRoute,
   UUsernameVideosLikedRoute: UUsernameVideosLikedRoute,
+  UUsernameVideosPublicRoute: UUsernameVideosPublicRoute,
   UUsernameVideosIndexRoute: UUsernameVideosIndexRoute,
 }
 

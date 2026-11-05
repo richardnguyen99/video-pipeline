@@ -17,6 +17,7 @@ from app.models.video import Video
 from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
 from app.models.video_watch_progress import VideoWatchProgress
+from app.repositories.user import UserRepository
 from app.repositories.video import VideoRepository
 from app.schemas.video import (
     CommentUserResponse,
@@ -1108,6 +1109,50 @@ class VideoService:
 
         return VideoListResponse(
             items=videos,
+            total=total,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+
+    async def list_public_uploads_for_username(
+        self,
+        *,
+        username: str,
+        limit: int = 20,
+        offset: int = 0,
+        user_repository: UserRepository,
+    ) -> VideoListResponse:
+        """Return public READY uploads owned by ``username``.
+
+        Available without authentication. Private and unlisted uploads
+        are never included.
+        """
+
+        user = await user_repository.get_by_username(username)
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        rows, total = await self._repository.list_public_by_uploader(
+            user.id,
+            limit=safe_limit,
+            offset=safe_offset,
+        )
+        engagement = await self._repository.count_engagement_for_videos(
+            [row.id for row in rows],
+        )
+        empty = VideoEngagementCounts()
+
+        return VideoListResponse(
+            items=[
+                self._to_video_response(row, engagement.get(row.id, empty))
+                for row in rows
+            ],
             total=total,
             limit=safe_limit,
             offset=safe_offset,

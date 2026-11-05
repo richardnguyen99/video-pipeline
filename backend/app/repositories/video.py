@@ -436,6 +436,47 @@ class VideoRepository(BaseRepository):
 
         return [by_id[vid] for vid in video_ids if vid in by_id]
 
+    async def list_public_by_uploader(
+        self,
+        uploader_id: object,
+        *,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Video], int]:
+        """Return public READY videos uploaded by ``uploader_id``.
+
+        Ordered by ``created_at`` descending (newest first).
+        """
+
+        safe_limit = max(1, min(limit, 100))
+        safe_offset = max(0, offset)
+        image_options = media_load(
+            Video.video_image_url,
+            VideoImageUrl.id,
+            VideoImageUrl.url,
+            VideoImageUrl.type,
+        )
+        filters = (
+            col(Video.uploader_id) == uploader_id,
+            col(Video.visibility) == "public",
+            col(Video.status) == "READY",
+        )
+        count_statement = (
+            select(func.count()).select_from(Video).where(*filters)
+        )
+        total = int((await self.session.exec(count_statement)).one())
+        statement = (
+            select(Video)
+            .where(*filters)
+            .order_by(col(Video.created_at).desc())
+            .options(image_options)
+            .offset(safe_offset)
+            .limit(safe_limit)
+        )
+        rows = list((await self.session.exec(statement)).all())
+
+        return rows, total
+
     async def exists_by_id(self, video_id: int) -> bool:
         """Return whether a video primary key exists."""
 

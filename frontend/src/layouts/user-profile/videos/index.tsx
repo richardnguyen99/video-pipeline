@@ -3,10 +3,10 @@ import { librarySections } from "@/layouts/user-profile/videos/section-config";
 import type { Video } from "@/mocks/videos";
 import type { PlaylistSummary } from "@/queries/playlist";
 import type { WatchedVideo } from "@/queries/video-watch";
-import type { UserVideoItem } from "@/queries/user-profile";
 
 type PanelProps = {
-  videos: Array<UserVideoItem>;
+  videos: Array<Video>;
+  isVideosLoading?: boolean;
   playlists: Array<PlaylistSummary>;
   sharedPlaylists?: Array<PlaylistSummary>;
   watchedVideos: Array<WatchedVideo>;
@@ -21,6 +21,7 @@ type PanelProps = {
 
 export function Panel({
   videos,
+  isVideosLoading = false,
   playlists,
   sharedPlaylists = [],
   watchedVideos,
@@ -41,6 +42,7 @@ export function Panel({
           key={section.title}
           section={section}
           videos={videos}
+          isVideosLoading={isVideosLoading}
           playlists={playlists}
           sharedPlaylists={sharedPlaylists}
           watchedVideos={watchedVideos}
