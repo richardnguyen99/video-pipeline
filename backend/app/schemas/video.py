@@ -119,6 +119,10 @@ class VideoResponse(BaseModel):
     floor_code: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    public_id: Optional[UUID] = Field(
+        default=None,
+        description="Studio upload public id when this row was created via upload.",
+    )
     views: int = Field(default=0, ge=0)
     likes: int = Field(default=0, ge=0)
     dislikes: int = Field(default=0, ge=0)

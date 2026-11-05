@@ -93,6 +93,7 @@ class VideoService:
             floor_code=row.floor_code,
             created_at=row.created_at,
             updated_at=row.updated_at,
+            public_id=getattr(row, "public_id", None),
             views=counts.views,
             likes=counts.likes,
             dislikes=counts.dislikes,
