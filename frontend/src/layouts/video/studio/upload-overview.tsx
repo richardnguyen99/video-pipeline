@@ -8,8 +8,11 @@ import {
   Ellipsis,
   ExternalLink,
   FileVideo,
+  Globe,
   Image as ImageIcon,
+  Link2,
   Loader2,
+  Lock,
   RefreshCw,
   Shield,
   Trash2,
@@ -32,6 +35,7 @@ import { toast } from "@/components/ui/toast";
 import { DeleteUploadDialog } from "@/layouts/video/studio/delete-upload-dialog";
 import { ConfirmAccessDialog, ManageAccessDialog } from "@/layouts/video/studio/manage-access-dialog";
 import { defaultStepForStatus } from "@/layouts/video/studio/session-persist";
+import { VISIBILITY_OPTIONS } from "@/layouts/video/studio/types";
 import type { VisibilityValue } from "@/layouts/video/studio/types";
 import { formatFileSize } from "@/layouts/video/studio/upload-helpers";
 import { getApiErrorMessage } from "@/libs/auth";
@@ -133,6 +137,46 @@ function renditionStatusLabel(status: string): string {
 
 function displayTitle(status: VideoUploadStatusResponse): string {
   return status.title?.trim() || status.original_filename?.trim() || "Untitled upload";
+}
+
+function visibilityLabel(value: string | null | undefined): string {
+  const key = (value ?? "unlisted").toLowerCase();
+  const match = VISIBILITY_OPTIONS.find((option) => option.value === key);
+
+  if (match != null) {
+    return match.label;
+  }
+
+  return key.charAt(0).toUpperCase() + key.slice(1);
+}
+
+function visibilityIconTone(value: string | null | undefined): string {
+  const key = (value ?? "unlisted").toLowerCase();
+
+  if (key === "public") {
+    return "text-blue-600 dark:text-blue-400";
+  }
+
+  if (key === "private") {
+    return "text-red-600 dark:text-red-400";
+  }
+
+  return "text-amber-600 dark:text-amber-400";
+}
+
+function VisibilityStateIcon({ value }: { value: string | null | undefined }) {
+  const key = (value ?? "unlisted").toLowerCase();
+  const tone = visibilityIconTone(key);
+
+  if (key === "public") {
+    return <Globe className={cn("size-3.5 shrink-0", tone)} aria-hidden />;
+  }
+
+  if (key === "private") {
+    return <Lock className={cn("size-3.5 shrink-0", tone)} aria-hidden />;
+  }
+
+  return <Link2 className={cn("size-3.5 shrink-0", tone)} aria-hidden />;
 }
 
 function videoPagePath(videoNumericId: number): string {
@@ -402,9 +446,105 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
   const pageHref = videoPageHref(status.id);
   const pagePath = videoPagePath(status.id);
   const sizeLabel = status.source_bytes != null ? formatFileSize(status.source_bytes) : "—";
+  const uploadDateLabel = new Date(status.created_at).toLocaleString();
+  const heading = `${status.video_id} — ${title}`;
 
   return (
     <section className="bg-card overflow-hidden rounded-xl border">
+      <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">{heading}</h1>
+
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {status.status.toUpperCase() !== "READY" ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={
+                <Link
+                  to="/studio/uploads/$uploadId/$step"
+                  params={{
+                    uploadId: status.public_id,
+                    step: continueStep,
+                  }}
+                />
+              }
+            >
+              Continue process
+            </Button>
+          ) : null}
+
+          <Button
+            type="button"
+            size="sm"
+            nativeButton={false}
+            render={<a href={pagePath} target="_blank" rel="noreferrer" />}
+          >
+            <ExternalLink data-icon="inline-start" className="size-4" />
+            Open video
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
+              disabled={actionBusy != null}
+              className={cn(
+                "border-input bg-background hover:bg-muted inline-flex size-8 items-center justify-center rounded-md border shadow-xs transition-colors",
+                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                "disabled:pointer-events-none disabled:opacity-50",
+              )}
+              aria-label="More actions"
+            >
+              {actionBusy != null ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden />
+              ) : (
+                <Ellipsis className="size-4" aria-hidden />
+              )}
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="min-w-52">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  disabled={actionBusy != null}
+                  onClick={() => {
+                    void handleRebuildStream();
+                  }}
+                >
+                  <RefreshCw className="size-4" aria-hidden />
+                  Rebuild stream
+                </DropdownMenuItem>
+
+                <DropdownMenuItem
+                  disabled={actionBusy != null}
+                  onClick={() => {
+                    setAccessOpen(true);
+                  }}
+                >
+                  <Shield className="size-4" aria-hidden />
+                  Manage access
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={actionBusy != null}
+                  onClick={() => {
+                    setDeleteOpen(true);
+                  }}
+                >
+                  <Trash2 className="size-4" aria-hidden />
+                  Delete video
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
       <div className="flex flex-col gap-0 lg:flex-row">
         <div className="bg-muted relative aspect-video w-full shrink-0 overflow-hidden lg:w-[min(100%,22rem)] lg:self-stretch">
           {mediaPending ? (
@@ -420,182 +560,94 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <dl className="grid min-w-0 flex-1 gap-4 text-sm">
-              <div className="flex flex-col gap-1">
-                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Video</dt>
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Status</dt>
 
-                <dd className="truncate text-base font-semibold">
-                  {status.video_id} — {title}
-                </dd>
-              </div>
+              <dd className="flex items-center gap-2 text-sm font-medium">
+                <span className={cn("size-2 shrink-0 rounded-full", statusDotTone(status.status))} aria-hidden />
 
-              <div className="flex flex-col gap-1">
-                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Video page</dt>
-
-                <dd className="flex min-w-0 items-center gap-2">
-                  <a
-                    href={pagePath}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-primary truncate text-sm font-medium hover:underline"
-                  >
-                    {pageHref}
-                  </a>
-
-                  <ExternalLink className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-                </dd>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Status</dt>
-
-                <dd className="flex items-center gap-2 text-sm font-medium">
-                  <span className={cn("size-2 shrink-0 rounded-full", statusDotTone(status.status))} aria-hidden />
-
-                  <span className={statusTone(status.status)}>{statusLabel(status.status)}</span>
-
-                  {status.ready_at != null ? (
-                    <span className="text-muted-foreground font-normal">
-                      · {new Date(status.ready_at).toLocaleString()}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground font-normal">
-                      · updated {new Date(status.updated_at).toLocaleString()}
-                    </span>
-                  )}
-                </dd>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Upload metadata</dt>
-
-                <dd className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                  <span className="text-foreground font-medium">{sizeLabel}</span>
-
-                  <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-
-                  {mediaPending ? (
-                    <>
-                      <Skeleton className="h-4 w-24" />
-                      <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-                      <Skeleton className="h-4 w-20" />
-                    </>
-                  ) : (
-                    <>
-                      <span className="inline-flex items-center gap-1.5">
-                        <ImageIcon className="size-3.5 shrink-0" aria-hidden />
-                        {thumbnailCount} thumbnail{thumbnailCount === 1 ? "" : "s"}
-                      </span>
-
-                      <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-
-                      <span>
-                        {sampleCount} sample{sampleCount === 1 ? "" : "s"}
-                      </span>
-                    </>
-                  )}
-
-                  {status.original_filename != null && status.original_filename.length > 0 ? (
-                    <>
-                      <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-                      <span className="truncate">{status.original_filename}</span>
-                    </>
-                  ) : null}
-                </dd>
-              </div>
-            </dl>
-
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              {status.status.toUpperCase() !== "READY" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  nativeButton={false}
-                  render={
-                    <Link
-                      to="/studio/uploads/$uploadId/$step"
-                      params={{
-                        uploadId: status.public_id,
-                        step: continueStep,
-                      }}
-                    />
-                  }
-                >
-                  Continue process
-                </Button>
-              ) : null}
-
-              <Button
-                type="button"
-                size="sm"
-                nativeButton={false}
-                render={<a href={pagePath} target="_blank" rel="noreferrer" />}
-              >
-                <ExternalLink data-icon="inline-start" className="size-4" />
-                Open video
-              </Button>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  type="button"
-                  disabled={actionBusy != null}
-                  className={cn(
-                    "border-input bg-background hover:bg-muted inline-flex size-8 items-center justify-center rounded-md border shadow-xs transition-colors",
-                    "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                    "disabled:pointer-events-none disabled:opacity-50",
-                  )}
-                  aria-label="More actions"
-                >
-                  {actionBusy != null ? (
-                    <Loader2 className="size-4 animate-spin" aria-hidden />
-                  ) : (
-                    <Ellipsis className="size-4" aria-hidden />
-                  )}
-                </DropdownMenuTrigger>
-
-                <DropdownMenuContent align="end" className="min-w-52">
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      disabled={actionBusy != null}
-                      onClick={() => {
-                        void handleRebuildStream();
-                      }}
-                    >
-                      <RefreshCw className="size-4" aria-hidden />
-                      Rebuild stream
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      disabled={actionBusy != null}
-                      onClick={() => {
-                        setAccessOpen(true);
-                      }}
-                    >
-                      <Shield className="size-4" aria-hidden />
-                      Manage access
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-
-                  <DropdownMenuSeparator />
-
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      disabled={actionBusy != null}
-                      onClick={() => {
-                        setDeleteOpen(true);
-                      }}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                      Delete video
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                <span className={statusTone(status.status)}>{statusLabel(status.status)}</span>
+              </dd>
             </div>
-          </div>
+
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Visibility</dt>
+
+              <dd className="flex items-center gap-2 text-sm font-medium">
+                <VisibilityStateIcon value={status.visibility} />
+
+                <span className={visibilityIconTone(status.visibility)}>{visibilityLabel(status.visibility)}</span>
+              </dd>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Upload date</dt>
+
+              <dd className="flex items-center gap-2 text-sm font-medium">
+                <Clock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+
+                <span>{uploadDateLabel}</span>
+              </dd>
+            </div>
+          </dl>
+
+          <dl className="grid min-w-0 gap-4 text-sm">
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Video page</dt>
+
+              <dd className="flex min-w-0 items-center gap-2">
+                <a
+                  href={pagePath}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary truncate text-sm font-medium hover:underline"
+                >
+                  {pageHref}
+                </a>
+
+                <ExternalLink className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+              </dd>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Upload metadata</dt>
+
+              <dd className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span className="text-foreground font-medium">{sizeLabel}</span>
+
+                <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+
+                {mediaPending ? (
+                  <>
+                    <Skeleton className="h-4 w-24" />
+                    <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+                    <Skeleton className="h-4 w-20" />
+                  </>
+                ) : (
+                  <>
+                    <span className="inline-flex items-center gap-1.5">
+                      <ImageIcon className="size-3.5 shrink-0" aria-hidden />
+                      {thumbnailCount} thumbnail{thumbnailCount === 1 ? "" : "s"}
+                    </span>
+
+                    <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+
+                    <span>
+                      {sampleCount} sample{sampleCount === 1 ? "" : "s"}
+                    </span>
+                  </>
+                )}
+
+                {status.original_filename != null && status.original_filename.length > 0 ? (
+                  <>
+                    <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+                    <span className="truncate">{status.original_filename}</span>
+                  </>
+                ) : null}
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
 
@@ -685,44 +737,52 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
 export function UploadOverviewSkeleton() {
   return (
     <section className="bg-card overflow-hidden rounded-xl border" aria-busy="true" aria-label="Loading upload summary">
+      <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+        <Skeleton className="h-6 w-72 max-w-full" />
+
+        <div className="flex shrink-0 gap-2">
+          <Skeleton className="h-8 w-28 rounded-md" />
+          <Skeleton className="size-8 rounded-md" />
+        </div>
+      </div>
+
       <div className="flex flex-col gap-0 lg:flex-row">
         <Skeleton className="aspect-video w-full shrink-0 rounded-none lg:w-[min(100%,22rem)] lg:self-stretch" />
 
         <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <dl className="grid min-w-0 flex-1 gap-4 text-sm">
-              <div className="flex flex-col gap-1">
-                <Skeleton className="h-3 w-12" />
-                <Skeleton className="h-5 w-72 max-w-full" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-4 w-80 max-w-full" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <Skeleton className="h-3 w-14" />
-                <Skeleton className="h-4 w-52 max-w-full" />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <Skeleton className="h-3 w-28" />
-                <div className="flex flex-wrap items-center gap-3">
-                  <Skeleton className="h-4 w-16" />
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-4 w-40 max-w-full" />
-                </div>
-              </div>
-            </dl>
-
-            <div className="flex shrink-0 gap-2">
-              <Skeleton className="h-8 w-28 rounded-md" />
-              <Skeleton className="h-8 w-24 rounded-md" />
-              <Skeleton className="size-8 rounded-md" />
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-1">
+              <Skeleton className="h-3 w-14" />
+              <Skeleton className="h-4 w-24" />
             </div>
-          </div>
+
+            <div className="flex flex-col gap-1">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-20" />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-4 w-36" />
+            </div>
+          </dl>
+
+          <dl className="grid min-w-0 gap-4">
+            <div className="flex flex-col gap-1">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-4 w-80 max-w-full" />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Skeleton className="h-3 w-28" />
+              <div className="flex flex-wrap items-center gap-3">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-40 max-w-full" />
+              </div>
+            </div>
+          </dl>
         </div>
       </div>
 
