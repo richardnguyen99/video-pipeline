@@ -37,8 +37,6 @@ from app.models.associations import (
     t_video_maker,
     t_video_series,
 )
-from app.models.playlist import PlaylistVideo
-from app.models.user_watch_history import UserWatchHistory
 from app.models.video import (
     Video,
     VideoImageUrl,
@@ -47,7 +45,6 @@ from app.models.video import (
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
 )
-from app.models.video_reaction import VideoReaction
 from app.models.video_upload_activity import (
     VideoUploadActivity,
     VideoUploadActivityType,
@@ -709,8 +706,8 @@ class VideoUploadService(VideoUploadMediaMixin):
     ) -> None:
         """Validate and assign upload visibility.
 
-        Switching to private permanently removes the video from other users'
-        likes, watch history, and playlists (owner rows are kept).
+        Engagement metrics and other users' history rows are never deleted.
+        Search indexing is reconciled on commit via ``sync_video_search_document``.
         """
 
         next_visibility = raw_visibility.strip().lower()
@@ -721,35 +718,7 @@ class VideoUploadService(VideoUploadMediaMixin):
                 detail="visibility must be public, unlisted, or private.",
             )
 
-        previous = (video.visibility or _VISIBILITY_UNLISTED).strip().lower()
         video.visibility = next_visibility
-
-        if (
-            next_visibility == _VISIBILITY_PRIVATE
-            and previous != _VISIBILITY_PRIVATE
-        ):
-            await self.__purge_shared_access_records(video)
-
-    async def __purge_shared_access_records(self, video: Video) -> None:
-        """Drop non-owner social rows when a video becomes private."""
-
-        keep_user_id = getattr(video, "uploader_id", None)
-
-        await VideoReaction.delete_for_video_except_user(
-            self._session,
-            int(video.id),
-            keep_user_id=keep_user_id,
-        )
-        await UserWatchHistory.delete_for_video_except_user(
-            self._session,
-            int(video.id),
-            keep_user_id=keep_user_id,
-        )
-        await PlaylistVideo.delete_for_video_except_owner(
-            self._session,
-            int(video.id),
-            keep_owner_id=keep_user_id,
-        )
 
     async def __apply_metadata_relations(
         self,

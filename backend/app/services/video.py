@@ -546,34 +546,23 @@ class VideoService:
     ) -> list[VideoResponse]:
         """Return list-shaped video responses for the given ids (order preserved).
 
-        Private videos are omitted unless ``viewer_id`` is the uploader.
-        Unlisted videos are returned with redacted engagement and media for
-        non-owners (bare video-table fields only).
+        Unlisted (restricted) videos keep full metadata for personal libraries.
+        Private videos remain in liked / watched / playlists for non-owners but
+        are fully redacted (hidden placeholders). Owners always see full data.
+        Metrics are never deleted when visibility changes.
         """
 
         if not video_ids:
             return []
 
         rows = await self._repository.get_by_ids(video_ids)
-        visible_rows: list[Video] = []
-
-        for row in rows:
-            visibility = (getattr(row, "visibility", None) or "public").lower()
-            uploader_id = getattr(row, "uploader_id", None)
-            is_owner = self.__viewer_owns_upload(viewer_id, uploader_id)
-
-            if visibility == "private" and not is_owner:
-                continue
-
-            visible_rows.append(row)
-
         engagement = await self._repository.count_engagement_for_videos(
-            [row.id for row in visible_rows],
+            [row.id for row in rows],
         )
         empty = VideoEngagementCounts()
         items: list[VideoResponse] = []
 
-        for row in visible_rows:
+        for row in rows:
             visibility = (getattr(row, "visibility", None) or "public").lower()
             uploader_id = getattr(row, "uploader_id", None)
             is_owner = self.__viewer_owns_upload(viewer_id, uploader_id)
@@ -582,19 +571,30 @@ class VideoService:
                 engagement.get(row.id, empty),
             )
 
-            if visibility == "unlisted" and not is_owner:
-                items.append(self.__redact_restricted_video(response))
+            if visibility == "private" and not is_owner:
+                items.append(self.__redact_private_video(response))
             else:
                 items.append(response)
 
         return items
 
     @staticmethod
-    def __redact_restricted_video(response: VideoResponse) -> VideoResponse:
-        """Keep bare video fields; hide media and engagement for restricted access."""
+    def __redact_private_video(response: VideoResponse) -> VideoResponse:
+        """Hide all metadata for a private video shown in another user's library."""
 
         return response.model_copy(
             update={
+                "video_id": "private",
+                "title": None,
+                "cid": None,
+                "duration": None,
+                "release_date": None,
+                "jancode": None,
+                "maker_product": None,
+                "floor_code": None,
+                "created_at": None,
+                "updated_at": None,
+                "public_id": None,
                 "views": 0,
                 "likes": 0,
                 "dislikes": 0,

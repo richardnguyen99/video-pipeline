@@ -394,7 +394,10 @@ class PlaylistService:
         )
         video_ids = [int(entry.video_id) for entry in entries]
         video_service = VideoService(repository=self._video_repository)
-        videos = await video_service.list_by_ids(video_ids)
+        videos = await video_service.list_by_ids(
+            video_ids,
+            viewer_id=user_id,
+        )
         by_id = {int(video.id): video for video in videos}
         ordered = [
             by_id[video_id] for video_id in video_ids if video_id in by_id

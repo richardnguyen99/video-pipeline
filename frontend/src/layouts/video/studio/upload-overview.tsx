@@ -675,9 +675,7 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
             setPendingVisibility(null);
           }
         }}
-        currentVisibility={
-          status.visibility === "public" || status.visibility === "unlisted" ? status.visibility : "unlisted"
-        }
+        currentVisibility={status.visibility}
         isPending={actionBusy === "access"}
         onRequestChange={handleRequestAccessChange}
       />

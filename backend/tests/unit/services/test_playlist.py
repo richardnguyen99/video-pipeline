@@ -396,8 +396,11 @@ async def test_get_detail_returns_ordered_videos(
     async def fake_list_by_ids(
         _self: Any,
         video_ids: list[int],
+        *,
+        viewer_id: object | None = None,
     ) -> list[VideoResponse]:
         assert video_ids == [20, 10]
+        assert viewer_id == user_id
 
         return [video_a, video_b]
 
