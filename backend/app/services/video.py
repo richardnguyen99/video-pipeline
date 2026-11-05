@@ -538,22 +538,70 @@ class VideoService:
             offset=safe_offset,
         )
 
-    async def list_by_ids(self, video_ids: list[int]) -> list[VideoResponse]:
-        """Return list-shaped video responses for the given ids (order preserved)."""
+    async def list_by_ids(
+        self,
+        video_ids: list[int],
+        *,
+        viewer_id: Optional[UUID] = None,
+    ) -> list[VideoResponse]:
+        """Return list-shaped video responses for the given ids (order preserved).
+
+        Private videos are omitted unless ``viewer_id`` is the uploader.
+        Unlisted videos are returned with redacted engagement and media for
+        non-owners (bare video-table fields only).
+        """
 
         if not video_ids:
             return []
 
         rows = await self._repository.get_by_ids(video_ids)
+        visible_rows: list[Video] = []
+
+        for row in rows:
+            visibility = (getattr(row, "visibility", None) or "public").lower()
+            uploader_id = getattr(row, "uploader_id", None)
+            is_owner = self.__viewer_owns_upload(viewer_id, uploader_id)
+
+            if visibility == "private" and not is_owner:
+                continue
+
+            visible_rows.append(row)
+
         engagement = await self._repository.count_engagement_for_videos(
-            [row.id for row in rows],
+            [row.id for row in visible_rows],
         )
         empty = VideoEngagementCounts()
+        items: list[VideoResponse] = []
 
-        return [
-            self._to_video_response(row, engagement.get(row.id, empty))
-            for row in rows
-        ]
+        for row in visible_rows:
+            visibility = (getattr(row, "visibility", None) or "public").lower()
+            uploader_id = getattr(row, "uploader_id", None)
+            is_owner = self.__viewer_owns_upload(viewer_id, uploader_id)
+            response = self._to_video_response(
+                row,
+                engagement.get(row.id, empty),
+            )
+
+            if visibility == "unlisted" and not is_owner:
+                items.append(self.__redact_restricted_video(response))
+            else:
+                items.append(response)
+
+        return items
+
+    @staticmethod
+    def __redact_restricted_video(response: VideoResponse) -> VideoResponse:
+        """Keep bare video fields; hide media and engagement for restricted access."""
+
+        return response.model_copy(
+            update={
+                "views": 0,
+                "likes": 0,
+                "dislikes": 0,
+                "comments": 0,
+                "video_image_url": [],
+            },
+        )
 
     async def list_recommended_videos(
         self,
@@ -1102,7 +1150,7 @@ class VideoService:
             offset=safe_offset,
         )
         video_ids = [int(row.video_id) for row in reactions]
-        videos = await self.list_by_ids(video_ids)
+        videos = await self.list_by_ids(video_ids, viewer_id=user_id)
         total = await VideoReaction.count_liked_for_user(
             self._repository.session,
             user_id,

@@ -14,7 +14,7 @@ import datetime
 import uuid
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, delete
 from sqlalchemy.sql.functions import count, now
 from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -244,3 +244,28 @@ class VideoReaction(SQLModel, table=True):
         await session.commit()
 
         return True
+
+    @staticmethod
+    async def delete_for_video_except_user(
+        session: AsyncSession,
+        video_id: int,
+        *,
+        keep_user_id: Optional[uuid.UUID] = None,
+    ) -> int:
+        """Delete reactions for ``video_id``, optionally keeping one user.
+
+        Does not commit; the caller owns the transaction.
+        """
+
+        statement = delete(VideoReaction).where(
+            col(VideoReaction.video_id) == video_id,
+        )
+
+        if keep_user_id is not None:
+            statement = statement.where(
+                col(VideoReaction.user_id) != keep_user_id,
+            )
+
+        result = await session.exec(statement)
+
+        return int(result.rowcount or 0)

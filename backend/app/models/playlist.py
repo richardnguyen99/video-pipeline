@@ -21,6 +21,7 @@ from typing import Optional
 
 from sqlalchemy import Column
 from sqlalchemy import Enum as SAEnum
+from sqlalchemy import delete
 from sqlalchemy.sql.functions import count
 from sqlalchemy.sql.functions import max as max_
 from sqlalchemy.sql.functions import now as sa_now
@@ -628,6 +629,36 @@ class PlaylistVideo(SQLModel, table=True):
         await session.commit()
 
         return True
+
+    @staticmethod
+    async def delete_for_video_except_owner(
+        session: AsyncSession,
+        video_id: int,
+        *,
+        keep_owner_id: Optional[uuid.UUID] = None,
+    ) -> int:
+        """Remove ``video_id`` from playlists not owned by ``keep_owner_id``.
+
+        When ``keep_owner_id`` is None, removes the video from every playlist.
+        Does not commit; the caller owns the transaction.
+        """
+
+        if keep_owner_id is None:
+            statement = delete(PlaylistVideo).where(
+                col(PlaylistVideo.video_id) == video_id,
+            )
+        else:
+            foreign_playlist_ids = select(col(Playlist.id)).where(
+                col(Playlist.owner_id) != keep_owner_id,
+            )
+            statement = delete(PlaylistVideo).where(
+                col(PlaylistVideo.video_id) == video_id,
+                col(PlaylistVideo.playlist_id).in_(foreign_playlist_ids),
+            )
+
+        result = await session.exec(statement)
+
+        return int(result.rowcount or 0)
 
 
 class PlaylistShare(SQLModel, table=True):

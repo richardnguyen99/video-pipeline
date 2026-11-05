@@ -10,7 +10,7 @@ import datetime
 import uuid
 from typing import Optional
 
-from sqlalchemy import UniqueConstraint, func
+from sqlalchemy import UniqueConstraint, delete, func
 from sqlalchemy.sql.functions import now
 from sqlmodel import Field, SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -176,3 +176,28 @@ class UserWatchHistory(SQLModel, table=True):
         await session.commit()
 
         return True
+
+    @staticmethod
+    async def delete_for_video_except_user(
+        session: AsyncSession,
+        video_id: int,
+        *,
+        keep_user_id: Optional[uuid.UUID] = None,
+    ) -> int:
+        """Delete watch-history rows for ``video_id``, optionally keeping one user.
+
+        Does not commit; the caller owns the transaction.
+        """
+
+        statement = delete(UserWatchHistory).where(
+            col(UserWatchHistory.video_id) == video_id,
+        )
+
+        if keep_user_id is not None:
+            statement = statement.where(
+                col(UserWatchHistory.user_id) != keep_user_id,
+            )
+
+        result = await session.exec(statement)
+
+        return int(result.rowcount or 0)

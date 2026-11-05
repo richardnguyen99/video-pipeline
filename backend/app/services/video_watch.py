@@ -297,7 +297,7 @@ class WatchService:
         }
         video_ids = [int(row.video_id) for row in history]
         video_service = VideoService(repository=self._repository)
-        videos = await video_service.list_by_ids(video_ids)
+        videos = await video_service.list_by_ids(video_ids, viewer_id=user_id)
         items = [
             WatchedVideoItem(
                 **video.model_dump(),
