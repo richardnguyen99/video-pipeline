@@ -30,7 +30,9 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { DeleteUploadDialog } from "@/layouts/video/studio/delete-upload-dialog";
+import { ConfirmAccessDialog, ManageAccessDialog } from "@/layouts/video/studio/manage-access-dialog";
 import { defaultStepForStatus } from "@/layouts/video/studio/session-persist";
+import type { VisibilityValue } from "@/layouts/video/studio/types";
 import { formatFileSize } from "@/layouts/video/studio/upload-helpers";
 import { getApiErrorMessage } from "@/libs/auth";
 import { cn } from "@/libs/utils";
@@ -38,6 +40,7 @@ import {
   deleteVideoUpload,
   listVideoUploadMedia,
   rebuildVideoUploadStream,
+  updateVideoUploadMetadata,
   VIDEO_UPLOADS_LIST_QUERY_KEY,
   videoUploadStatusQueryKey,
   videoUploadStatusQueryOptions,
@@ -207,8 +210,11 @@ type UploadOverviewProps = {
 export function UploadOverview({ uploadId, initialStatus = null }: UploadOverviewProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [actionBusy, setActionBusy] = useState<"rebuild" | "delete" | null>(null);
+  const [actionBusy, setActionBusy] = useState<"rebuild" | "delete" | "access" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [accessOpen, setAccessOpen] = useState(false);
+  const [confirmAccessOpen, setConfirmAccessOpen] = useState(false);
+  const [pendingVisibility, setPendingVisibility] = useState<VisibilityValue | null>(null);
 
   const statusQuery = useQuery({
     ...videoUploadStatusQueryOptions(uploadId),
@@ -320,6 +326,48 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
       setActionBusy(null);
     }
   }, [actionBusy, navigate, queryClient, uploadId]);
+
+  const handleRequestAccessChange = useCallback((next: VisibilityValue) => {
+    setPendingVisibility(next);
+    setConfirmAccessOpen(true);
+  }, []);
+
+  const handleConfirmAccessChange = useCallback(async () => {
+    if (actionBusy != null || pendingVisibility == null) {
+      return;
+    }
+
+    setActionBusy("access");
+
+    try {
+      const next = await updateVideoUploadMetadata(uploadId, {
+        visibility: pendingVisibility,
+      });
+      queryClient.setQueryData(videoUploadStatusQueryKey(uploadId), next);
+      await queryClient.invalidateQueries({
+        queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY,
+        refetchType: "active",
+      });
+      setConfirmAccessOpen(false);
+      setAccessOpen(false);
+      setPendingVisibility(null);
+      toast.add({
+        type: "success",
+        title: "Access updated",
+        description: `Visibility is now ${pendingVisibility}.`,
+        timeout: 4000,
+      });
+    } catch (error) {
+      toast.add({
+        type: "error",
+        title: "Could not update access",
+        description: getApiErrorMessage(error),
+        timeout: 4000,
+      });
+    } finally {
+      setActionBusy(null);
+    }
+  }, [actionBusy, pendingVisibility, queryClient, uploadId]);
 
   if (statusQuery.isLoading && status == null) {
     return <UploadOverviewSkeleton />;
@@ -520,14 +568,9 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
                     </DropdownMenuItem>
 
                     <DropdownMenuItem
+                      disabled={actionBusy != null}
                       onClick={() => {
-                        void navigate({
-                          to: "/studio/uploads/$uploadId/$step",
-                          params: {
-                            uploadId: status.public_id,
-                            step: 3,
-                          },
-                        });
+                        setAccessOpen(true);
                       }}
                     >
                       <Shield className="size-4" aria-hidden />
@@ -563,6 +606,47 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
         videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
         onConfirm={() => {
           void handleDeleteVideo();
+        }}
+      />
+
+      <ManageAccessDialog
+        open={accessOpen}
+        onOpenChange={(open) => {
+          if (actionBusy === "access") {
+            return;
+          }
+
+          setAccessOpen(open);
+
+          if (!open) {
+            setConfirmAccessOpen(false);
+            setPendingVisibility(null);
+          }
+        }}
+        currentVisibility={
+          status.visibility === "public" || status.visibility === "unlisted" ? status.visibility : "unlisted"
+        }
+        isPending={actionBusy === "access"}
+        onRequestChange={handleRequestAccessChange}
+      />
+
+      <ConfirmAccessDialog
+        open={confirmAccessOpen}
+        onOpenChange={(open) => {
+          if (actionBusy === "access") {
+            return;
+          }
+
+          setConfirmAccessOpen(open);
+
+          if (!open) {
+            setPendingVisibility(null);
+          }
+        }}
+        nextVisibility={pendingVisibility}
+        isPending={actionBusy === "access"}
+        onConfirm={() => {
+          void handleConfirmAccessChange();
         }}
       />
 
