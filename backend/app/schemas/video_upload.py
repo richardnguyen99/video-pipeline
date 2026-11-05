@@ -129,6 +129,11 @@ class VideoUploadMetadataUpdateRequest(BaseModel):
     jancode: Optional[str] = Field(default=None, max_length=255)
     maker_product: Optional[str] = Field(default=None, max_length=255)
     release_date: Optional[datetime] = None
+    visibility: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Access mode: public, unlisted, or private.",
+    )
     actress_ids: Optional[list[int]] = None
     maker_ids: Optional[list[int]] = None
     genre_ids: Optional[list[int]] = None
@@ -168,6 +173,7 @@ class VideoUploadStatusResponse(BaseModel):
     jancode: Optional[str] = None
     maker_product: Optional[str] = None
     release_date: Optional[datetime] = None
+    visibility: str = "unlisted"
     error_code: Optional[str] = None
     error_message: Optional[str] = None
     ready_at: Optional[datetime] = None

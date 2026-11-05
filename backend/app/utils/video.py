@@ -151,11 +151,22 @@ def video_relevance_expr(raw_query: str) -> ColumnElement[float]:
     return score
 
 
+_VISIBILITY_PUBLIC = "public"
+
+
 def apply_filters(
     statement: SelectOfScalar[RowT],
     filters: VideoListFilters,
 ) -> SelectOfScalar[RowT]:
-    """Attach WHERE clauses for discover filters (OR within multi-id lists)."""
+    """Attach WHERE clauses for discover filters (OR within multi-id lists).
+
+    Discover listing only includes public videos. Unlisted and private
+    uploads are excluded from catalog list and search results.
+    """
+
+    statement = statement.where(
+        col(Video.visibility) == _VISIBILITY_PUBLIC,
+    )
 
     if filters.actress:
         statement = statement.where(

@@ -54,7 +54,23 @@ class VideoSearchService:
     ) -> list[dict[str, Any]]:
         """Build Elasticsearch filter clauses from discover filters."""
 
-        clauses: list[dict[str, Any]] = []
+        clauses: list[dict[str, Any]] = [
+            {
+                "bool": {
+                    "should": [
+                        {"term": {"visibility": "public"}},
+                        {
+                            "bool": {
+                                "must_not": {
+                                    "exists": {"field": "visibility"},
+                                },
+                            },
+                        },
+                    ],
+                    "minimum_should_match": 1,
+                },
+            },
+        ]
 
         if filters.actress:
             clauses.append({"terms": {"actress_ids": list(filters.actress)}})

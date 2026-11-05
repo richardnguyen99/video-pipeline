@@ -199,6 +199,10 @@ def video_to_document(video: Video) -> dict[str, Any]:
         ),
     )
 
+    visibility = (
+        (getattr(video, "visibility", None) or "public").strip().lower()
+    )
+
     return {
         "id": video.id,
         "video_id": video.video_id,
@@ -209,6 +213,7 @@ def video_to_document(video: Video) -> dict[str, Any]:
             if video.release_date is not None
             else None
         ),
+        "visibility": visibility,
         "actress_ids": [actress.id for actress in actresses],
         "actress_names": actress_names,
         "genre_ids": [genre.id for genre in genres],
@@ -421,15 +426,28 @@ async def sync_video_search_document(
     *,
     refresh: bool = True,
 ) -> int:
-    """Index one video when Elasticsearch is enabled.
+    """Index one public video when Elasticsearch is enabled.
 
-    Returns documents written, or ``0`` when search is off or ES is unreachable.
+    Non-public videos are removed from the index so they never appear in
+    catalog search. Returns documents written, or ``0`` when search is off
+    or ES is unreachable.
     """
 
     if not settings.elasticsearch_enabled or video_id <= 0:
         return 0
 
     try:
+        statement = select(Video).where(col(Video.id) == video_id)
+        video = (await session.exec(statement)).one_or_none()
+
+        if video is None:
+            return 0
+
+        visibility = (getattr(video, "visibility", None) or "public").lower()
+
+        if visibility != "public":
+            return await remove_video_search_document(video_id)
+
         client = get_elasticsearch()
         indexer = VideoIndexer(client, session)
 
@@ -452,7 +470,9 @@ async def remove_video_search_document(video_id: int) -> int:
             index=index_name,
             id=str(video_id),
         )
-    except NotFoundError, ApiError, TransportError, OSError:
+    except NotFoundError:
+        return 0
+    except ApiError, TransportError, OSError:
         return 0
 
     try:

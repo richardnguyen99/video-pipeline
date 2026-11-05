@@ -58,6 +58,7 @@ VIDEOS_INDEX_MAPPINGS: dict[str, Any] = {
         "title": dict(_TEXT_WITH_KEYWORD),
         "title_akas": dict(_TEXT),
         "release_date": {"type": "date"},
+        "visibility": {"type": "keyword"},
         "actress_ids": {"type": "integer"},
         "actress_names": dict(_TEXT_WITH_KEYWORD),
         "genre_ids": {"type": "integer"},

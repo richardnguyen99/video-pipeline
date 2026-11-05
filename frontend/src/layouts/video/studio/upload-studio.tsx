@@ -124,7 +124,7 @@ function hydrateFromStatus(status: VideoUploadStatusResponse) {
     makerProduct: status.maker_product ?? "",
     releaseDate:
       status.release_date != null && status.release_date.length >= 10 ? status.release_date.slice(0, 10) : "",
-    visibility: "unlisted" as VisibilityValue,
+    visibility: status.visibility,
     notifySubscribers: true,
     relations: {
       actresses: status.actress_ids,
@@ -613,6 +613,7 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
             jancode: jancode.trim() || null,
             maker_product: makerProduct.trim() || null,
             release_date: releaseDate.trim() || null,
+            visibility,
             actress_ids: relations.actresses,
             maker_ids: relations.makers,
             genre_ids: relations.genres,
@@ -681,6 +682,7 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
       releaseDate,
       title,
       videoCode,
+      visibility,
     ],
   );
 
@@ -837,6 +839,7 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
       jancode: jancode.trim() || null,
       maker_product: makerProduct.trim() || null,
       release_date: releaseDate.trim() || null,
+      visibility,
       actress_ids: relations.actresses,
       maker_ids: relations.makers,
       genre_ids: relations.genres,
@@ -848,7 +851,7 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
     void queryClient.invalidateQueries({ queryKey: VIDEO_UPLOADS_LIST_QUERY_KEY });
 
     return updated;
-  }, [cid, jancode, makerProduct, queryClient, relations, releaseDate, status, title]);
+  }, [cid, jancode, makerProduct, queryClient, relations, releaseDate, status, title, visibility]);
 
   const handleUpdateCatalog = useCallback(async () => {
     if (status?.public_id == null || savingMetadata) {
@@ -901,12 +904,14 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
     [recoveringLabel, status?.public_id],
   );
 
+  const shouldPersistMetadataOnLeave = (step: number) => (step === 2 || step === 3) && status?.public_id != null;
+
   const goNext = () => {
     if (activeStep === 7) {
       return;
     }
 
-    if (activeStep === 2 && status?.public_id != null) {
+    if (shouldPersistMetadataOnLeave(activeStep)) {
       if (savingMetadata) {
         return;
       }
@@ -985,7 +990,10 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
         return;
       }
 
-      if (activeStep === 2 && status?.public_id != null && target !== 2) {
+      const leavingMetadataStep =
+        (activeStep === 2 || activeStep === 3) && status?.public_id != null && target !== activeStep;
+
+      if (leavingMetadataStep) {
         if (savingMetadata) {
           return;
         }

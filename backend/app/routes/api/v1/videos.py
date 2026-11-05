@@ -16,6 +16,7 @@ from app.cache.policy import (
 from app.dependencies import (
     AsyncRedisDep,
     CurrentUserDep,
+    OptionalCurrentUserDep,
     VideoServiceDep,
     WatchServiceDep,
 )
@@ -207,12 +208,6 @@ async def remove_watched_video(
     },
     dependencies=[
         Depends(
-            cache(
-                ttl=CACHE_TTL_SECONDS,
-                eviction_group="video_detail",
-            )
-        ),
-        Depends(
             rate_limit(
                 BURST_RATE,
                 scope="video_detail:burst",
@@ -228,6 +223,7 @@ async def remove_watched_video(
 )
 async def get_video(
     service: VideoServiceDep,
+    current_user: OptionalCurrentUserDep,
     video_id: int = Path(
         ...,
         ge=1,
@@ -238,9 +234,18 @@ async def get_video(
         description="Catalog aka language (e.g. en-us, ja, zh, vi).",
     ),
 ) -> VideoDetailResponse:
-    """Return one video with full relations and detailed actress data."""
+    """Return one video with full relations and detailed actress data.
 
-    return await service.get_video(video_id=video_id, locale=locale)
+    Not response-cached: access depends on the viewer for private uploads.
+    """
+
+    viewer_id = current_user.id if current_user is not None else None
+
+    return await service.get_video(
+        video_id=video_id,
+        locale=locale,
+        viewer_id=viewer_id,
+    )
 
 
 @router.get(

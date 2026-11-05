@@ -44,6 +44,7 @@ export type VideoUploadStatusResponse = {
   jancode: string | null;
   maker_product: string | null;
   release_date: string | null;
+  visibility: "public" | "unlisted" | "private";
   error_code: string | null;
   error_message: string | null;
   ready_at: string | null;
@@ -66,6 +67,7 @@ export type VideoUploadMetadataUpdateInput = {
   jancode?: string | null;
   maker_product?: string | null;
   release_date?: string | null;
+  visibility?: "public" | "unlisted" | "private";
   actress_ids?: Array<number>;
   maker_ids?: Array<number>;
   genre_ids?: Array<number>;

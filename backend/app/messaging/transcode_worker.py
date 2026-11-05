@@ -451,6 +451,15 @@ async def _run_locked_pipeline(
 
         return
 
+    await _publish_playable(
+        session=session,
+        storage=storage,
+        video=video,
+        video_db_id=video_db_id,
+        public_id=public_id,
+        ready_specs=ready_specs,
+    )
+
     if video.ready_at is None:
         video.ready_at = _utcnow()
 

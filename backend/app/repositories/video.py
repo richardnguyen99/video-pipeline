@@ -511,7 +511,10 @@ class VideoRepository(BaseRepository):
                 VideoRecommendation,
                 col(VideoRecommendation.recommended_video_id) == col(Video.id),
             )
-            .where(col(VideoRecommendation.video_id) == video_id)
+            .where(
+                col(VideoRecommendation.video_id) == video_id,
+                col(Video.visibility) == "public",
+            )
             .order_by(
                 col(VideoRecommendation.rank).asc(),
             )

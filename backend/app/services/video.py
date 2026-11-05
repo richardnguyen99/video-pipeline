@@ -107,6 +107,18 @@ class VideoService:
         )
 
     @staticmethod
+    def __viewer_owns_upload(
+        viewer_id: Optional[UUID],
+        uploader_id: object,
+    ) -> bool:
+        """True when the authenticated viewer is the upload owner."""
+
+        if viewer_id is None or uploader_id is None:
+            return False
+
+        return str(viewer_id) == str(uploader_id)
+
+    @staticmethod
     def _map_comment_user(user: object) -> CommentUserResponse:
         """Map an ORM user to the comment author payload."""
 
@@ -340,8 +352,8 @@ class VideoService:
                 "floor_code": row.floor_code,
                 "created_at": row.created_at,
                 "updated_at": row.updated_at,
-                "public_id": row.public_id,
-                "uploader_id": row.uploader_id,
+                "public_id": getattr(row, "public_id", None),
+                "uploader_id": getattr(row, "uploader_id", None),
                 "video_aka": self._pick_video_aka(
                     self._loaded_collection(row, "video_aka"),
                     locale_key,
@@ -595,6 +607,7 @@ class VideoService:
         video_id: int,
         *,
         locale: Optional[str] = None,
+        viewer_id: Optional[UUID] = None,
     ) -> VideoDetailResponse:
         """Return a single video by primary key with full relations.
 
@@ -602,15 +615,21 @@ class VideoService:
         Catalog entities (genre, series, maker, label, director) include a
         locale-matched ``aka`` when available.
 
+        Access rules:
+        - ``public`` / ``unlisted``: anyone with the id may view
+        - ``private``: only the uploader may view
+
         Args:
             video_id: ``Video.id`` primary key.
             locale: Preferred aka language (default ``en-us``).
+            viewer_id: Optional authenticated user id for private access.
 
         Returns:
             A ``VideoDetailResponse`` including actress aka and images.
 
         Raises:
-            HTTPException: When no video exists for ``video_id``.
+            HTTPException: When no video exists for ``video_id`` or access
+                is denied for a private upload.
         """
 
         row = await self._repository.get_by_id(video_id)
@@ -620,6 +639,17 @@ class VideoService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Video not found",
             )
+
+        visibility = (getattr(row, "visibility", None) or "public").lower()
+
+        if visibility == "private":
+            uploader_id = getattr(row, "uploader_id", None)
+
+            if not self.__viewer_owns_upload(viewer_id, uploader_id):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Video not found",
+                )
 
         engagement = await self._repository.count_engagement_for_videos(
             [row.id],

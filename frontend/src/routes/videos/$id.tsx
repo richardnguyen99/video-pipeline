@@ -1,5 +1,5 @@
 import { Suspense, useEffect } from "react";
-import { useQueryErrorResetBoundary, useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useQueryErrorResetBoundary, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound, useRouter } from "@tanstack/react-router";
 
 import { VideoComments } from "@/layouts/single-video/comment";
@@ -14,8 +14,10 @@ import { pickVideoImageUrl, videoCommentList, videoDisplayTitle } from "@/mocks/
 import {
   DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
   videoDetailQueryOptions,
+  videoQueryKeys,
   videoRecommendationsQueryOptions,
 } from "@/queries/videos";
+import { useAuthStore } from "@/stores/auth-store";
 
 export const Route = createFileRoute("/videos/$id")({
   component: VideoPage,
@@ -27,14 +29,16 @@ export const Route = createFileRoute("/videos/$id")({
     try {
       await context.queryClient.query({
         ...videoDetailQueryOptions(videoId),
-        staleTime: "static",
+        staleTime: 30_000,
       });
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
-        throw notFound();
+        context.queryClient.removeQueries({
+          queryKey: videoQueryKeys.detail(videoId),
+        });
+      } else {
+        throw error;
       }
-
-      throw error;
     }
 
     void context.queryClient
@@ -47,7 +51,33 @@ export const Route = createFileRoute("/videos/$id")({
 
 function VideoPage() {
   const { videoId } = Route.useLoaderData();
-  const { data: video } = useSuspenseQuery(videoDetailQueryOptions(videoId));
+  const isRestoring = useAuthStore((state) => state.isRestoring);
+
+  const detailQuery = useQuery({
+    ...videoDetailQueryOptions(videoId),
+    enabled: !isRestoring,
+    retry: (failureCount, error) => {
+      if (error instanceof ApiError && error.status === 404) {
+        return false;
+      }
+
+      return failureCount < 2;
+    },
+  });
+
+  if (isRestoring || detailQuery.isPending) {
+    return <VideoDetailSkeleton />;
+  }
+
+  if (detailQuery.isError) {
+    if (detailQuery.error instanceof ApiError && detailQuery.error.status === 404) {
+      throw notFound();
+    }
+
+    throw detailQuery.error;
+  }
+
+  const video = detailQuery.data;
 
   const comments = videoCommentList(video);
   const streamSrc =
@@ -97,6 +127,26 @@ function VideoSidebarDeferred({ videoId }: { videoId: string }) {
   return <VideoSidebar videoId={videoId} videos={related} />;
 }
 
+function VideoDetailSkeleton() {
+  return (
+    <div className="mx-auto w-full px-6 py-4 sm:px-10 sm:py-6 lg:px-16">
+      <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+        <div className="min-w-0 flex-1 space-y-5">
+          <div className="bg-muted aspect-video w-full animate-pulse rounded-lg" />
+
+          <div className="bg-muted h-7 w-2/3 animate-pulse rounded" />
+
+          <div className="bg-muted h-4 w-1/3 animate-pulse rounded" />
+
+          <div className="bg-muted h-24 w-full animate-pulse rounded" />
+        </div>
+
+        <VideoSidebarSkeleton />
+      </div>
+    </div>
+  );
+}
+
 function VideoError({ error }: { error: Error; reset: () => void }) {
   const router = useRouter();
   const queryErrorResetBoundary = useQueryErrorResetBoundary();
@@ -108,7 +158,9 @@ function VideoError({ error }: { error: Error; reset: () => void }) {
   return (
     <div className="mx-auto w-full px-6 py-10 sm:px-10 lg:px-16">
       <h1 className="text-xl font-semibold">Failed to load video</h1>
-      <p className="mt-2 text-muted-foreground">{error.message}</p>
+
+      <p className="text-muted-foreground mt-2">{error.message}</p>
+
       <button
         type="button"
         className="mt-4 rounded-md border px-3 py-1.5 text-sm"
@@ -126,7 +178,8 @@ function VideoNotFound() {
   return (
     <div className="mx-auto w-full px-6 py-10 sm:px-10 lg:px-16">
       <h1 className="text-xl font-semibold">Video not found</h1>
-      <p className="mt-2 text-muted-foreground">The requested video does not exist.</p>
+
+      <p className="text-muted-foreground mt-2">The requested video does not exist.</p>
     </div>
   );
 }

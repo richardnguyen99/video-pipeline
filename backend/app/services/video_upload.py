@@ -8,9 +8,10 @@ import asyncio
 import logging
 import math
 import re
+import tempfile
 import uuid
 from datetime import datetime, timezone
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 
 from fastapi import HTTPException, status
 from sqlalchemy import Table, delete, func, insert
@@ -71,6 +72,7 @@ from app.search.indexer import (
 )
 from app.services.video_upload_media import VideoUploadMediaMixin
 from app.storage.client import ObjectStorageClient, purge_prefix
+from app.utils.hls_encode import build_master_playlist
 from app.utils.media_probe import probe_media
 from app.utils.query import relationship_attr
 
@@ -82,6 +84,16 @@ _STATUS_UPLOADED = "UPLOADED"
 _STATUS_FAILED = "FAILED"
 _STATUS_READY = "READY"
 _ORIGIN_UPLOAD = "upload"
+_VISIBILITY_PUBLIC = "public"
+_VISIBILITY_UNLISTED = "unlisted"
+_VISIBILITY_PRIVATE = "private"
+_VISIBILITY_VALUES = frozenset(
+    {
+        _VISIBILITY_PUBLIC,
+        _VISIBILITY_UNLISTED,
+        _VISIBILITY_PRIVATE,
+    },
+)
 _MAX_PRESIGN_BATCH = 100
 # Overall progress when no ladder rows exist yet (probe / queue phase).
 _PROGRESS_PRE_LADDER_PCT = 5.0
@@ -240,6 +252,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             video.error_code = None
             video.error_message = None
             video.ready_at = None
+            video.visibility = _VISIBILITY_UNLISTED
         else:
             video = Video(
                 video_id=video_code,
@@ -251,6 +264,7 @@ class VideoUploadService(VideoUploadMediaMixin):
                 source_key=source_key,
                 source_bytes=payload.size_bytes,
                 status=_STATUS_PENDING,
+                visibility=_VISIBILITY_UNLISTED,
             )
             self._session.add(video)
 
@@ -533,6 +547,10 @@ class VideoUploadService(VideoUploadMediaMixin):
                     video=video,
                     progress_rows=progress_rows,
                 )
+                await self.__reconcile_master_playlist(
+                    video=video,
+                    progress_rows=progress_rows,
+                )
 
             return self.__to_status(
                 video,
@@ -567,6 +585,10 @@ class VideoUploadService(VideoUploadMediaMixin):
                 video=video,
                 progress_rows=progress_rows,
             )
+            await self.__reconcile_master_playlist(
+                video=video,
+                progress_rows=progress_rows,
+            )
 
         return self.__to_status(
             video,
@@ -586,64 +608,8 @@ class VideoUploadService(VideoUploadMediaMixin):
         """Update scalar catalog fields and replace relation association sets."""
 
         video = await self.__get_owned_upload(public_id, uploader_id)
-
-        if payload.title is not None:
-            trimmed = payload.title.strip()
-            video.title = trimmed or video.title
-
-        if payload.video_id is not None:
-            next_code = payload.video_id.strip()
-
-            if not next_code:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="video_id cannot be empty.",
-                )
-
-            if next_code != video.video_id:
-                conflict = await self.__find_by_video_id(next_code)
-
-                if conflict is not None and conflict.id != video.id:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=(
-                            f"Video code '{next_code}' is already in use "
-                            "by another catalog entry."
-                        ),
-                    )
-
-                video.video_id = next_code
-
-        if payload.cid is not None:
-            video.cid = payload.cid.strip() or None
-
-        if payload.jancode is not None:
-            video.jancode = payload.jancode.strip() or None
-
-        if payload.maker_product is not None:
-            video.maker_product = payload.maker_product.strip() or None
-
-        if payload.release_date is not None:
-            video.release_date = payload.release_date
-
-        relation_specs: list[tuple[Table, list[int] | None]] = [
-            (t_video_actress, payload.actress_ids),
-            (t_video_maker, payload.maker_ids),
-            (t_video_genre, payload.genre_ids),
-            (t_video_series, payload.series_ids),
-            (t_video_label, payload.label_ids),
-            (t_video_director, payload.director_ids),
-        ]
-
-        for table, ids in relation_specs:
-            if ids is None:
-                continue
-
-            await self.__replace_association_ids(
-                table=table,
-                video_id=video.id,
-                fk_ids=ids,
-            )
+        await self.__apply_metadata_scalars(video, payload)
+        await self.__apply_metadata_relations(video.id, payload)
 
         self.record_upload_activity(
             video=video,
@@ -653,6 +619,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             metadata={
                 "title": video.title,
                 "video_id": video.video_id,
+                "visibility": video.visibility,
             },
         )
 
@@ -677,6 +644,102 @@ class VideoUploadService(VideoUploadMediaMixin):
             renditions=renditions,
             relation_ids=relation_ids,
         )
+
+    async def __apply_metadata_scalars(
+        self,
+        video: Video,
+        payload: VideoUploadMetadataUpdateRequest,
+    ) -> None:
+        """Apply optional scalar catalog fields from a metadata patch."""
+
+        if payload.title is not None:
+            trimmed = payload.title.strip()
+            video.title = trimmed or video.title
+
+        if payload.video_id is not None:
+            await self.__apply_video_code(video, payload.video_id)
+
+        if payload.cid is not None:
+            video.cid = payload.cid.strip() or None
+
+        if payload.jancode is not None:
+            video.jancode = payload.jancode.strip() or None
+
+        if payload.maker_product is not None:
+            video.maker_product = payload.maker_product.strip() or None
+
+        if payload.release_date is not None:
+            video.release_date = payload.release_date
+
+        if payload.visibility is not None:
+            self.__apply_visibility(video, payload.visibility)
+
+    async def __apply_video_code(self, video: Video, raw_code: str) -> None:
+        """Validate and assign a new business video code when it changes."""
+
+        next_code = raw_code.strip()
+
+        if not next_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="video_id cannot be empty.",
+            )
+
+        if next_code == video.video_id:
+            return
+
+        conflict = await self.__find_by_video_id(next_code)
+
+        if conflict is not None and conflict.id != video.id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"Video code '{next_code}' is already in use "
+                    "by another catalog entry."
+                ),
+            )
+
+        video.video_id = next_code
+
+    @staticmethod
+    def __apply_visibility(video: Video, raw_visibility: str) -> None:
+        """Validate and assign upload visibility."""
+
+        next_visibility = raw_visibility.strip().lower()
+
+        if next_visibility not in _VISIBILITY_VALUES:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="visibility must be public, unlisted, or private.",
+            )
+
+        video.visibility = next_visibility
+
+    async def __apply_metadata_relations(
+        self,
+        video_id: int,
+        payload: VideoUploadMetadataUpdateRequest,
+    ) -> None:
+        """Replace association sets present on the metadata payload."""
+
+        relation_specs: list[tuple[Table, list[int] | None]] = [
+            (t_video_actress, payload.actress_ids),
+            (t_video_maker, payload.maker_ids),
+            (t_video_genre, payload.genre_ids),
+            (t_video_series, payload.series_ids),
+            (t_video_label, payload.label_ids),
+            (t_video_director, payload.director_ids),
+        ]
+
+        for table, ids in relation_specs:
+            if ids is None:
+                continue
+
+            await self.__replace_association_ids(
+                table=table,
+                video_id=video_id,
+                fk_ids=ids,
+            )
 
     async def recover_rendition(
         self,
@@ -1312,6 +1375,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             jancode=video.jancode,
             maker_product=video.maker_product,
             release_date=video.release_date,
+            visibility=video.visibility or _VISIBILITY_UNLISTED,
             error_code=video.error_code,
             error_message=video.error_message,
             ready_at=video.ready_at,
@@ -1416,6 +1480,89 @@ class VideoUploadService(VideoUploadMediaMixin):
         await self._session.commit()
         await self._session.refresh(video)
         await sync_video_search_document(self._session, video.id)
+
+    async def __reconcile_master_playlist(
+        self,
+        *,
+        video: Video,
+        progress_rows: list[VideoRenditionProgress],
+    ) -> None:
+        """Rewrite master index.m3u8 from READY rungs that exist in storage.
+
+        Covers interruptions after a rung uploaded but before the master was
+        republished so the player always lists every playable resolution.
+        """
+
+        if video.public_id is None or not progress_rows:
+            return
+
+        public_id = video.public_id
+        ready_specs: list[tuple[str, int, int, int]] = []
+
+        for row in progress_rows:
+            if (row.status or "").upper() != _STATUS_READY:
+                continue
+
+            if not row.playlist_key:
+                continue
+
+            playlist_key = f"{public_id}/{row.label}/playlist.m3u8"
+            exists = await self._storage.object_exists(
+                playlist_key,
+                bucket=self._storage.streams_bucket,
+            )
+
+            if not exists:
+                _logger.warning(
+                    "master reconcile: missing playlist public_id=%s key=%s",
+                    public_id,
+                    playlist_key,
+                )
+
+                continue
+
+            ready_specs.append(
+                (row.label, row.width, row.height, row.video_kbps),
+            )
+
+        if not ready_specs:
+            return
+
+        body = build_master_playlist(ready_specs)
+        object_key = f"{public_id}/index.m3u8"
+
+        with tempfile.TemporaryDirectory(prefix="hls-master-") as tmp:
+            master_path = Path(tmp) / "index.m3u8"
+            master_path.write_text(body, encoding="utf-8")
+            master_url = await self._storage.upload_file(
+                object_key=object_key,
+                file_path=master_path,
+                content_type="application/vnd.apple.mpegurl",
+                bucket=self._storage.streams_bucket,
+            )
+
+        result = await self._session.exec(
+            select(VideoM3u8).where(
+                VideoM3u8.fk_id == video.id,
+                VideoM3u8.m3u8_url == master_url,
+            ),
+        )
+        existing = result.first()
+
+        if existing is None:
+            self._session.add(
+                VideoM3u8(
+                    fk_id=video.id,
+                    m3u8_url=master_url,
+                ),
+            )
+            await self._session.commit()
+
+        _logger.info(
+            "master reconciled public_id=%s rungs=%s",
+            public_id,
+            [spec[0] for spec in ready_specs],
+        )
 
     async def list_activity(
         self,

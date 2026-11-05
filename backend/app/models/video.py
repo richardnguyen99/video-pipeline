@@ -62,7 +62,6 @@ class Video(IdTimestampMixin, table=True):
             postgresql_ops={"title_lower": "gin_trgm_ops"},
             postgresql_using="gin",
         ),
-        UniqueConstraint("video_id"),
         {"schema": "public", "extend_existing": True},
     )
 
@@ -138,6 +137,11 @@ class Video(IdTimestampMixin, table=True):
     source_bytes: Optional[int] = Field(
         default=None,
         sa_column=Column("source_bytes", BigInteger, nullable=True),
+    )
+    visibility: str = Field(
+        default="public",
+        max_length=20,
+        sa_column_kwargs={"server_default": text("'public'")},
     )
     status: Optional[str] = Field(default=None, max_length=20)
     width: Optional[int] = Field(default=None)
