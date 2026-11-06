@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Callable
 from concurrent.futures import Future, ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
+from multiprocessing import current_process
 from pathlib import Path
 from typing import cast
 
 import cv2
 import numpy as np
+
+_WORKER_NAME_SLOT_RE = re.compile(r"(\d+)$")
 
 _IMAGE_SUFFIXES = frozenset(
     {
@@ -58,6 +62,8 @@ class UpscaleResult:
     destination: Path
     ok: bool
     message: str
+    worker_pid: int = 0
+    worker_slot: int = 1
 
 
 def collect_image_files(input_dir: Path) -> list[Path]:
@@ -375,6 +381,22 @@ def upscale_with_model(
     return resize_traditional(upscaled, target_width)
 
 
+def resolve_worker_slot() -> int:
+    """Return the 1-based pool worker index for the current process.
+
+    ``ProcessPoolExecutor`` names workers ``ForkProcess-1``, ``SpawnProcess-2``,
+    etc. The trailing number is the worker slot. The main process (serial path)
+    falls back to slot ``1``.
+    """
+
+    match = _WORKER_NAME_SLOT_RE.search(current_process().name)
+
+    if match is None:
+        return 1
+
+    return max(1, int(match.group(1)))
+
+
 def process_one_image(
     source: Path,
     destination: Path,
@@ -382,6 +404,9 @@ def process_one_image(
     model_path: Path | None,
 ) -> UpscaleResult:
     """Upscale a single image to ``destination``."""
+
+    worker_pid = os.getpid()
+    worker_slot = resolve_worker_slot()
 
     try:
         image = load_bgr_image(source)
@@ -400,6 +425,8 @@ def process_one_image(
             destination=destination,
             ok=True,
             message=f"{width}x{height}",
+            worker_pid=worker_pid,
+            worker_slot=worker_slot,
         )
     except MemoryError:
         return UpscaleResult(
@@ -410,6 +437,8 @@ def process_one_image(
                 "Out of memory while upscaling. "
                 "Try a smaller --width, a lighter model, or omit --model."
             ),
+            worker_pid=worker_pid,
+            worker_slot=worker_slot,
         )
     except (ValueError, OSError, cv2.error) as exc:
         return UpscaleResult(
@@ -417,6 +446,8 @@ def process_one_image(
             destination=destination,
             ok=False,
             message=str(exc),
+            worker_pid=worker_pid,
+            worker_slot=worker_slot,
         )
 
 
@@ -477,7 +508,7 @@ def _run_serial(
     on_start: Callable[[int, int, Path], None] | None,
     on_result: Callable[[int, int, UpscaleResult], None] | None,
 ) -> list[UpscaleResult]:
-    """Process payloads on the current process."""
+    """Process payloads on the current process (always worker slot 1)."""
 
     total = len(payloads)
     results: list[UpscaleResult] = []
@@ -503,7 +534,11 @@ def _run_parallel(
     on_start: Callable[[int, int, Path], None] | None,
     on_result: Callable[[int, int, UpscaleResult], None] | None,
 ) -> list[UpscaleResult]:
-    """Process payloads with a process pool."""
+    """Process payloads with a process pool.
+
+    Worker slot numbers come from the process name assigned by the pool
+    (``ForkProcess-1``, ``SpawnProcess-2``, …), not from the image ordinal.
+    """
 
     total = len(payloads)
     results: list[UpscaleResult] = []
@@ -546,8 +581,12 @@ def run_upscale_batch(
     """Upscale all images in ``input_dir`` into ``output_dir``.
 
     Optional callbacks:
-    * ``on_start(index, total, source)`` — before each image starts
+    * ``on_start(index, total, source)`` — when a job is submitted / begins
     * ``on_result(index, total, result)`` — after each image finishes
+
+    ``jobs`` is the process-pool size. Values greater than 1 always use
+    ``ProcessPoolExecutor`` so multiple images are processed concurrently
+    (including when a DNN ``model_path`` is set).
     """
 
     _validate_batch_args(input_dir, target_width, jobs, model_path)
@@ -557,12 +596,10 @@ def run_upscale_batch(
     if not work:
         return []
 
-    # Multiple worker processes each load the DNN weights; force serial
-    # inference when a model is active to avoid multiplying peak RAM.
-    effective_jobs = 1 if model_path is not None else jobs
     payloads = _build_payloads(work, target_width, model_path)
+    worker_count = min(jobs, len(payloads))
 
-    if effective_jobs == 1:
+    if worker_count <= 1:
         return _run_serial(payloads, on_start, on_result)
 
-    return _run_parallel(payloads, effective_jobs, on_start, on_result)
+    return _run_parallel(payloads, worker_count, on_start, on_result)

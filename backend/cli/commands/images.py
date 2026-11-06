@@ -81,20 +81,36 @@ def upscale_command(
     first, then fits the requested width.
     """
 
-    def on_start(index: int, total: int, source: Path) -> None:
-        typer.echo(f"[{index}/{total}] Working {source.name}…")
+    mode = "DNN model" if model is not None else "Lanczos resize"
 
-    def on_result(index: int, total: int, result: UpscaleResult) -> None:
+    def job_prefix(slot: int, address: str) -> str:
+        return f"[Job {slot}@{address}]"
+
+    def on_start(_index: int, _total: int, source: Path) -> None:
+        typer.echo(f"[queued] start  {source.name}")
+
+    def on_result(_index: int, _total: int, result: UpscaleResult) -> None:
+        slot = result.worker_slot if result.worker_slot > 0 else 1
+        address = (
+            str(result.worker_pid) if result.worker_pid > 0 else "unknown"
+        )
+        prefix = job_prefix(slot, address)
+
         if result.ok:
             typer.echo(
-                f"[{index}/{total}] OK  {result.source.name} -> "
+                f"{prefix} OK    {result.source.name} -> "
                 f"{result.destination} ({result.message})",
             )
         else:
             typer.echo(
-                f"[{index}/{total}] ERR {result.source.name}: {result.message}",
+                f"{prefix} ERR   {result.source.name}: {result.message}",
                 err=True,
             )
+
+    typer.echo(
+        f"Upscaling from {input_dir} -> {output_dir} "
+        f"(width={width}, mode={mode}, workers={jobs})",
+    )
 
     try:
         results = run_upscale_batch(
@@ -119,7 +135,8 @@ def upscale_command(
     failures = sum(1 for result in results if not result.ok)
 
     typer.echo(
-        f"Done: {len(results) - failures} succeeded, {failures} failed.",
+        f"Done: {len(results) - failures} succeeded, {failures} failed "
+        f"({'parallel process pool' if jobs > 1 else 'serial'}).",
     )
 
     if failures:
