@@ -9,7 +9,13 @@ from typing import Annotated, Optional
 import typer
 
 from cli import __version__
-from cli.commands import elasticsearch, recommendations, user, video_upload
+from cli.commands import (
+    elasticsearch,
+    images,
+    recommendations,
+    user,
+    video_upload,
+)
 
 
 def _version_callback(value: bool) -> None:
@@ -31,6 +37,7 @@ app.add_typer(recommendations.app, name="recommendations")
 app.add_typer(elasticsearch.app, name="elasticsearch")
 app.add_typer(user.app, name="user")
 app.add_typer(video_upload.app, name="video-upload")
+app.add_typer(images.app, name="images")
 
 
 @app.callback()
