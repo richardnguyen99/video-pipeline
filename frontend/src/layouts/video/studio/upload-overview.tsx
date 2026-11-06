@@ -34,6 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { DeleteUploadDialog } from "@/layouts/video/studio/delete-upload-dialog";
 import { ConfirmAccessDialog, ManageAccessDialog } from "@/layouts/video/studio/manage-access-dialog";
+import { RebuildStreamDialog } from "@/layouts/video/studio/rebuild-stream-dialog";
 import { defaultStepForStatus } from "@/layouts/video/studio/session-persist";
 import { VISIBILITY_OPTIONS } from "@/layouts/video/studio/types";
 import type { VisibilityValue } from "@/layouts/video/studio/types";
@@ -256,6 +257,7 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
   const queryClient = useQueryClient();
   const [actionBusy, setActionBusy] = useState<"rebuild" | "delete" | "access" | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [rebuildOpen, setRebuildOpen] = useState(false);
   const [accessOpen, setAccessOpen] = useState(false);
   const [confirmAccessOpen, setConfirmAccessOpen] = useState(false);
   const [pendingVisibility, setPendingVisibility] = useState<VisibilityValue | null>(null);
@@ -322,6 +324,7 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
         refetchType: "active",
       });
       void statusQuery.refetch();
+      setRebuildOpen(false);
       toast.add({
         type: "success",
         title: "Stream rebuild started",
@@ -508,7 +511,7 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
                 <DropdownMenuItem
                   disabled={actionBusy != null}
                   onClick={() => {
-                    void handleRebuildStream();
+                    setRebuildOpen(true);
                   }}
                 >
                   <RefreshCw className="size-4" aria-hidden />
@@ -658,6 +661,22 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
         videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
         onConfirm={() => {
           void handleDeleteVideo();
+        }}
+      />
+
+      <RebuildStreamDialog
+        open={rebuildOpen}
+        onOpenChange={(open) => {
+          if (actionBusy === "rebuild") {
+            return;
+          }
+
+          setRebuildOpen(open);
+        }}
+        isPending={actionBusy === "rebuild"}
+        videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
+        onConfirm={() => {
+          void handleRebuildStream();
         }}
       />
 
