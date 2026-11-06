@@ -16,6 +16,7 @@ from cli.commands import (
     user,
     video_upload,
 )
+from cli.console import configure as configure_console
 
 
 def _version_callback(value: bool) -> None:
@@ -51,8 +52,26 @@ def main_callback(
             is_eager=True,
         ),
     ] = None,
+    quiet: Annotated[
+        bool,
+        typer.Option(
+            "--quiet",
+            "-q",
+            help="Disable informational log output (errors still print).",
+        ),
+    ] = False,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Show extra logs (worker addresses, database SQL, debug).",
+        ),
+    ] = False,
 ) -> None:
     """Root callback for global options."""
+
+    configure_console(quiet=quiet, verbose=verbose)
 
 
 def main() -> None:
