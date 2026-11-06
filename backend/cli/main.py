@@ -57,7 +57,10 @@ def main_callback(
         typer.Option(
             "--quiet",
             "-q",
-            help="Disable informational log output (errors still print).",
+            help=(
+                "Disable informational log output "
+                "(errors and summaries still print)."
+            ),
         ),
     ] = False,
     verbose: Annotated[
@@ -68,10 +71,18 @@ def main_callback(
             help="Show extra logs (worker addresses, database SQL, debug).",
         ),
     ] = False,
+    yes: Annotated[
+        bool,
+        typer.Option(
+            "--yes",
+            "-y",
+            help="Bypass interactive prompts and assume yes.",
+        ),
+    ] = False,
 ) -> None:
     """Root callback for global options."""
 
-    configure_console(quiet=quiet, verbose=verbose)
+    configure_console(quiet=quiet, verbose=verbose, yes=yes)
 
 
 def main() -> None:

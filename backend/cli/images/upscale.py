@@ -66,16 +66,24 @@ class UpscaleResult:
     worker_slot: int = 1
 
 
+def natural_sort_key(path: Path) -> list[object]:
+    """Sort key that orders embedded numbers numerically (1, 2, 10 not 1, 10, 2)."""
+
+    parts = re.split(r"(\d+)", path.name.lower())
+
+    return [int(part) if part.isdigit() else part for part in parts]
+
+
 def collect_image_files(input_dir: Path) -> list[Path]:
-    """Return image files under ``input_dir`` (non-recursive)."""
+    """Return image files under ``input_dir`` (non-recursive, natural order)."""
 
     files = [
         path
-        for path in sorted(input_dir.iterdir())
+        for path in input_dir.iterdir()
         if path.is_file() and path.suffix.lower() in _IMAGE_SUFFIXES
     ]
 
-    return files
+    return sorted(files, key=natural_sort_key)
 
 
 def build_jobs(input_dir: Path, output_dir: Path) -> list[UpscaleJob]:

@@ -14,6 +14,7 @@ class ConsoleOptions:
 
     quiet: bool = False
     verbose: bool = False
+    yes: bool = False
 
 
 _OPTIONS = ConsoleOptions()
@@ -37,16 +38,23 @@ def is_verbose() -> bool:
     return _OPTIONS.verbose
 
 
+def is_yes() -> bool:
+    """Return whether prompts should auto-confirm."""
+
+    return _OPTIONS.yes
+
+
 def configure(
     *,
     quiet: bool = False,
     verbose: bool = False,
+    yes: bool = False,
 ) -> ConsoleOptions:
-    """Apply global quiet / verbose flags and configure Python logging.
+    """Apply global quiet / verbose / yes flags and configure logging.
 
-    Quiet suppresses normal informational output (errors still print).
-    Verbose enables extra detail and raises library log levels (SQLAlchemy,
-    etc.). Quiet and verbose cannot both be true.
+    Quiet suppresses normal informational output (errors and summaries still
+    print). Verbose enables extra detail and raises library log levels.
+    Quiet and verbose cannot both be true. ``yes`` skips interactive prompts.
     """
 
     if quiet and verbose:
@@ -54,6 +62,7 @@ def configure(
 
     _OPTIONS.quiet = quiet
     _OPTIONS.verbose = verbose
+    _OPTIONS.yes = yes
     _configure_logging(quiet=quiet, verbose=verbose)
 
     return _OPTIONS
@@ -101,6 +110,12 @@ def echo(message: str, *, err: bool = False) -> None:
     typer.echo(message, err=err)
 
 
+def summary(message: str, *, err: bool = False) -> None:
+    """Print a final/summary line even when quiet mode is on."""
+
+    typer.echo(message, err=err)
+
+
 def verbose(message: str, *, err: bool = False) -> None:
     """Print only when verbose mode is on (and not quiet)."""
 
@@ -114,3 +129,16 @@ def error(message: str) -> None:
     """Print an error line to stderr (never suppressed by quiet)."""
 
     typer.echo(message, err=True)
+
+
+def confirm(message: str, *, default: bool = True) -> bool:
+    """Interactive yes/no prompt honoring ``--yes``.
+
+    Prompts remain visible under ``--quiet``. With ``--yes``, returns True
+    without asking.
+    """
+
+    if _OPTIONS.yes:
+        return True
+
+    return bool(typer.confirm(message, default=default))
