@@ -196,6 +196,29 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
     [navigate, status?.public_id, uploadId],
   );
 
+  const goToOverview = useCallback(() => {
+    const publicId = status?.public_id ?? uploadId;
+
+    if (publicId == null) {
+      return;
+    }
+
+    scrollStudioMainToTop();
+
+    void navigate({
+      to: "/studio/uploads/$uploadId",
+      params: { uploadId: publicId },
+    });
+  }, [navigate, status?.public_id, uploadId]);
+
+  useEffect(() => {
+    if (activeStep !== 7) {
+      return;
+    }
+
+    goToOverview();
+  }, [activeStep, goToOverview]);
+
   useEffect(() => {
     if (!file) {
       return;
@@ -908,6 +931,14 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
 
   const goNext = () => {
     if (activeStep === 7) {
+      goToOverview();
+
+      return;
+    }
+
+    if (activeStep === 6) {
+      goToOverview();
+
       return;
     }
 
@@ -1244,11 +1275,7 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
                 disabled={!canContinue || savingMetadata || (activeStep === 7 && (status == null || phase === "error"))}
                 onClick={() => {
                   if (activeStep === 7) {
-                    if (status == null) {
-                      return;
-                    }
-
-                    window.open(`/videos/${status.id}`, "_blank", "noopener,noreferrer");
+                    goToOverview();
 
                     return;
                   }
@@ -1257,7 +1284,7 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
                 }}
               >
                 {activeStep === 7
-                  ? "Open video page"
+                  ? "Open upload overview"
                   : activeStep === 5
                     ? status != null &&
                       status.renditions.length > 0 &&
@@ -1265,7 +1292,7 @@ export function UploadStudio({ uploadId = null, initialStatus = null, initialSte
                       ? "Continue to media"
                       : "Continue with available stream"
                     : activeStep === 6
-                      ? "Continue to preview"
+                      ? "Finish and open overview"
                       : activeStep === 2 && status?.public_id != null && savingMetadata
                         ? "Saving…"
                         : "Continue"}
