@@ -1,10 +1,8 @@
 import { useId, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Eye, Heart, MessageCircle } from "lucide-react";
+import { Eye, Heart, MessageCircle } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getVideoUploadObservability, videoUploadObservabilityQueryKey } from "@/queries/video-upload";
 import type {
@@ -19,8 +17,6 @@ const CHART_WIDTH = 720;
 const CHART_HEIGHT = 280;
 const CHART_PADDING_TOP = 12;
 const CHART_PADDING_BOTTOM = 8;
-const CHART_PADDING_LEFT = 40;
-const CHART_PADDING_RIGHT = 12;
 
 const METRICS = [
   {
@@ -49,7 +45,7 @@ const METRICS = [
 type MetricKey = (typeof METRICS)[number]["key"];
 
 type StudioAnalyticsProps = {
-  uploadId?: string;
+  uploadId: string;
   days?: number;
 };
 
@@ -169,14 +165,13 @@ function plotSeries(
   stroke: string,
   gradientFrom: string,
   scaleMax: number,
-  plotWidth: number,
   plotTop: number,
   plotBottom: number,
 ): SeriesPlot {
   const plotHeight = Math.max(plotBottom - plotTop, 1);
   const lastIndex = Math.max(series.points.length - 1, 1);
   const points = series.points.map((point, index) => {
-    const x = CHART_PADDING_LEFT + (index / lastIndex) * plotWidth;
+    const x = (index / lastIndex) * CHART_WIDTH;
     const ratio = scaleMax > 0 ? point.count / scaleMax : 0;
     const y = plotBottom - ratio * plotHeight;
 
@@ -219,7 +214,6 @@ function buildCombinedPlots(data: VideoUploadObservabilityResponse): {
   ];
   const rawMax = Math.max(1, ...allPoints.map((point) => point.count));
   const scaleMax = niceMax(rawMax);
-  const plotWidth = CHART_WIDTH - CHART_PADDING_LEFT - CHART_PADDING_RIGHT;
   const plotTop = CHART_PADDING_TOP;
   const plotBottom = CHART_HEIGHT - CHART_PADDING_BOTTOM;
   const plots = METRICS.map((metric) =>
@@ -230,7 +224,6 @@ function buildCombinedPlots(data: VideoUploadObservabilityResponse): {
       metric.stroke,
       metric.gradientFrom,
       scaleMax,
-      plotWidth,
       plotTop,
       plotBottom,
     ),
@@ -343,175 +336,177 @@ function CombinedAnalyticsChart({
 
   return (
     <div className="bg-card flex flex-col gap-4 rounded-xl border p-4 sm:p-5">
-      <div className="flex w-full flex-col gap-1">
-        <div
-          ref={plotRef}
-          className="relative h-64 w-full sm:h-80"
-          onPointerMove={handlePointerMove}
-          onPointerLeave={handlePointerLeave}
-        >
-          <svg
-            viewBox={`0 0 ${String(CHART_WIDTH)} ${String(CHART_HEIGHT)}`}
-            className="h-full w-full"
-            preserveAspectRatio="none"
-            role="img"
-            aria-label="Views, likes, and comments trend"
+      <div className="flex w-full gap-2">
+        <div className="relative h-64 w-8 shrink-0 sm:h-80">
+          {yTicks.map((tick) => (
+            <span
+              key={`ylabel-${String(tick.value)}`}
+              className="text-muted-foreground absolute right-0 -translate-y-1/2 pr-1 text-[10px] tabular-nums"
+              style={{
+                top: `${String((tick.y / CHART_HEIGHT) * 100)}%`,
+              }}
+            >
+              {tick.value.toLocaleString()}
+            </span>
+          ))}
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <div
+            ref={plotRef}
+            className="relative h-64 w-full sm:h-80"
+            onPointerMove={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
           >
-            <defs>
-              {plots.map((plot) => (
-                <linearGradient
-                  key={plot.key}
-                  id={`analytics-fill-${gradientId}-${plot.key}`}
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="1"
-                >
-                  <stop offset="0%" stopColor={plot.gradientFrom} stopOpacity={0.28} />
+            <svg
+              viewBox={`0 0 ${String(CHART_WIDTH)} ${String(CHART_HEIGHT)}`}
+              className="h-full w-full"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Views, likes, and comments trend"
+            >
+              <defs>
+                {plots.map((plot) => (
+                  <linearGradient
+                    key={plot.key}
+                    id={`analytics-fill-${gradientId}-${plot.key}`}
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="1"
+                  >
+                    <stop offset="0%" stopColor={plot.gradientFrom} stopOpacity={0.28} />
 
-                  <stop offset="100%" stopColor={plot.gradientFrom} stopOpacity={0.02} />
-                </linearGradient>
-              ))}
-            </defs>
+                    <stop offset="100%" stopColor={plot.gradientFrom} stopOpacity={0.02} />
+                  </linearGradient>
+                ))}
+              </defs>
 
-            {yTicks.map((tick) => (
-              <g key={`ytick-${String(tick.value)}`}>
+              {yTicks.map((tick) => (
                 <line
-                  x1={CHART_PADDING_LEFT}
+                  key={`ygrid-${String(tick.value)}`}
+                  x1={0}
                   y1={tick.y}
-                  x2={CHART_WIDTH - CHART_PADDING_RIGHT}
+                  x2={CHART_WIDTH}
                   y2={tick.y}
                   stroke="currentColor"
                   strokeOpacity={0.12}
                   vectorEffect="non-scaling-stroke"
                 />
-              </g>
-            ))}
+              ))}
 
-            {plots.map((plot) => (
-              <path key={`${plot.key}-area`} d={plot.area} fill={`url(#analytics-fill-${gradientId}-${plot.key})`} />
-            ))}
+              {plots.map((plot) => (
+                <path key={`${plot.key}-area`} d={plot.area} fill={`url(#analytics-fill-${gradientId}-${plot.key})`} />
+              ))}
 
-            {plots.map((plot) => (
-              <path
-                key={`${plot.key}-line`}
-                d={plot.line}
-                fill="none"
-                stroke={plot.stroke}
-                strokeWidth="2.25"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            ))}
-          </svg>
+              {plots.map((plot) => (
+                <path
+                  key={`${plot.key}-line`}
+                  d={plot.line}
+                  fill="none"
+                  stroke={plot.stroke}
+                  strokeWidth="2.25"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+            </svg>
 
-          <div className="pointer-events-none absolute inset-0">
-            {yTicks.map((tick) => (
-              <span
-                key={`ylabel-${String(tick.value)}`}
-                className="text-muted-foreground absolute -translate-y-1/2 text-[10px] tabular-nums"
-                style={{
-                  left: 0,
-                  top: `${String((tick.y / CHART_HEIGHT) * 100)}%`,
-                  width: `${String((CHART_PADDING_LEFT / CHART_WIDTH) * 100)}%`,
-                  paddingRight: 6,
-                  textAlign: "right",
-                }}
-              >
-                {tick.value.toLocaleString()}
-              </span>
-            ))}
+            {activeIndex != null && activeDate != null && tooltipPlacement != null ? (
+              <>
+                {plots.map((plot) => {
+                  const point = plot.points[activeIndex];
+
+                  return (
+                    <div
+                      key={`marker-${plot.key}`}
+                      className="pointer-events-none absolute size-2.5 rounded-full border-2 bg-card"
+                      style={{
+                        left: `${String((point.x / CHART_WIDTH) * 100)}%`,
+                        top: `${String((point.y / CHART_HEIGHT) * 100)}%`,
+                        borderColor: plot.stroke,
+                        transform: "translate(-50%, -50%)",
+                      }}
+                    />
+                  );
+                })}
+
+                <div
+                  className="bg-background pointer-events-none absolute z-10 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-xs shadow-md"
+                  style={{
+                    left: `${String(tooltipPlacement.leftPercent)}%`,
+                    top: `${String(tooltipPlacement.topPercent)}%`,
+                    transform: tooltipPlacement.transform,
+                    marginLeft: tooltipPlacement.marginLeft,
+                    marginTop: -12,
+                  }}
+                >
+                  <div className="text-muted-foreground mb-1">{formatDayLabel(activeDate)}</div>
+
+                  <div className="flex flex-col gap-0.5">
+                    {plots.map((plot) => {
+                      const point = plot.points[activeIndex];
+
+                      return (
+                        <div key={`tip-${plot.key}`} className="flex items-center gap-2 tabular-nums">
+                          <span
+                            className="size-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: plot.stroke }}
+                            aria-hidden
+                          />
+
+                          <span className="text-muted-foreground min-w-16">{plot.label}</span>
+
+                          <span className="font-medium">{point.count.toLocaleString()}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : null}
           </div>
 
-          {activeIndex != null && activeDate != null && tooltipPlacement != null ? (
-            <>
-              {plots.map((plot) => {
-                const point = plot.points[activeIndex];
+          <div className="text-muted-foreground relative h-4 w-full text-[10px]">
+            {(() => {
+              if (referencePoints.length === 0) {
+                return null;
+              }
 
-                return (
-                  <div
-                    key={`marker-${plot.key}`}
-                    className="pointer-events-none absolute size-2.5 rounded-full border-2 bg-card"
-                    style={{
-                      left: `${String((point.x / CHART_WIDTH) * 100)}%`,
-                      top: `${String((point.y / CHART_HEIGHT) * 100)}%`,
-                      borderColor: plot.stroke,
-                      transform: "translate(-50%, -50%)",
-                    }}
-                  />
-                );
-              })}
+              const maxLabels = Math.min(referencePoints.length, 7);
+              const step = Math.max(1, Math.floor((referencePoints.length - 1) / Math.max(maxLabels - 1, 1)));
+              const indices = new Set<number>();
 
-              <div
-                className="bg-background pointer-events-none absolute z-10 whitespace-nowrap rounded-md border px-2.5 py-1.5 text-xs shadow-md"
-                style={{
-                  left: `${String(tooltipPlacement.leftPercent)}%`,
-                  top: `${String(tooltipPlacement.topPercent)}%`,
-                  transform: tooltipPlacement.transform,
-                  marginLeft: tooltipPlacement.marginLeft,
-                  marginTop: -12,
-                }}
-              >
-                <div className="text-muted-foreground mb-1">{formatDayLabel(activeDate)}</div>
+              for (let index = 0; index < referencePoints.length; index += step) {
+                indices.add(index);
+              }
 
-                <div className="flex flex-col gap-0.5">
-                  {plots.map((plot) => {
-                    const point = plot.points[activeIndex];
+              indices.add(referencePoints.length - 1);
 
-                    return (
-                      <div key={`tip-${plot.key}`} className="flex items-center gap-2 tabular-nums">
-                        <span
-                          className="size-2 shrink-0 rounded-full"
-                          style={{ backgroundColor: plot.stroke }}
-                          aria-hidden
-                        />
+              return Array.from(indices)
+                .sort((a, b) => a - b)
+                .map((index) => {
+                  const point = referencePoints[index];
+                  const leftPercent = (point.x / CHART_WIDTH) * 100;
+                  const isFirst = index === 0;
+                  const isLast = index === referencePoints.length - 1;
 
-                        <span className="text-muted-foreground min-w-16">{plot.label}</span>
-
-                        <span className="font-medium">{point.count.toLocaleString()}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          ) : null}
-        </div>
-
-        <div className="text-muted-foreground relative h-4 w-full text-[10px]">
-          {(() => {
-            if (referencePoints.length === 0) {
-              return null;
-            }
-
-            const maxLabels = Math.min(referencePoints.length, 7);
-            const step = Math.max(1, Math.floor((referencePoints.length - 1) / Math.max(maxLabels - 1, 1)));
-            const indices = new Set<number>();
-
-            for (let index = 0; index < referencePoints.length; index += step) {
-              indices.add(index);
-            }
-
-            indices.add(referencePoints.length - 1);
-
-            return Array.from(indices)
-              .sort((a, b) => a - b)
-              .map((index) => {
-                const point = referencePoints[index];
-                const leftPercent = (point.x / CHART_WIDTH) * 100;
-
-                return (
-                  <span
-                    key={point.date}
-                    className="absolute -translate-x-1/2 whitespace-nowrap"
-                    style={{ left: `${String(leftPercent)}%` }}
-                  >
-                    {formatDayLabel(point.date)}
-                  </span>
-                );
-              });
-          })()}
+                  return (
+                    <span
+                      key={point.date}
+                      className="absolute whitespace-nowrap"
+                      style={{
+                        left: `${String(leftPercent)}%`,
+                        transform: isFirst ? "none" : isLast ? "translateX(-100%)" : "translateX(-50%)",
+                      }}
+                    >
+                      {formatDayLabel(point.date)}
+                    </span>
+                  );
+                });
+            })()}
+          </div>
         </div>
       </div>
 
@@ -532,96 +527,64 @@ function CombinedAnalyticsChart({
 }
 
 export function StudioAnalytics({ uploadId, days = DEFAULT_DAYS }: StudioAnalyticsProps) {
-  const resolvedUploadId = uploadId ?? "";
-  const enabled = resolvedUploadId.length > 0;
   const query = useQuery({
-    queryKey: videoUploadObservabilityQueryKey(resolvedUploadId, days),
-    queryFn: () => getVideoUploadObservability(resolvedUploadId, days),
-    enabled,
+    queryKey: videoUploadObservabilityQueryKey(uploadId, days),
+    queryFn: () => getVideoUploadObservability(uploadId, days),
     staleTime: 30_000,
   });
 
   const data = query.data ?? null;
-  const loading = enabled && query.isLoading && data == null;
+  const loading = query.isLoading && data == null;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-lg font-semibold tracking-tight">Analytics</h1>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-lg font-semibold tracking-tight">Analytics</h1>
 
-          <p className="text-muted-foreground text-sm">
-            Combined views, likes, and comments
-            {enabled ? ` over the last ${String(days)} days` : ""}
-          </p>
-        </div>
-
-        {enabled ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            nativeButton={false}
-            render={<Link to="/studio/uploads/$uploadId" params={{ uploadId: resolvedUploadId }} />}
-          >
-            <ArrowLeft data-icon="inline-start" className="size-4" />
-            Back to upload
-          </Button>
-        ) : null}
+        <p className="text-muted-foreground text-sm">
+          Combined views, likes, and comments over the last {String(days)} days
+        </p>
       </div>
 
-      {!enabled ? (
-        <div className="bg-card flex flex-col items-start gap-3 rounded-xl border p-6">
-          <p className="text-muted-foreground text-sm">
-            Open analytics from an upload overview to inspect views, likes, and comments for that video.
-          </p>
+      <div className="flex flex-col gap-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          {METRICS.map((metric) => {
+            const series = data == null ? null : data[metric.key];
+            const Icon = metric.icon;
 
-          <Button type="button" variant="secondary" nativeButton={false} render={<Link to="/studio/uploads" />}>
-            Browse uploads
-          </Button>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-3">
-            {METRICS.map((metric) => {
-              const series = data == null ? null : data[metric.key];
-              const Icon = metric.icon;
-
-              return (
-                <div key={metric.key} className="bg-card flex items-center justify-between gap-3 rounded-xl border p-4">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                      {metric.label}
-                    </span>
-
-                    {loading || series == null ? (
-                      <Skeleton className="h-7 w-16" />
-                    ) : (
-                      <span className="text-2xl font-semibold tracking-tight tabular-nums">
-                        {series.total.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-
-                  <span
-                    className={cn(
-                      "rounded-md p-2",
-                      metric.key === "views" && "bg-blue-500/15 text-blue-500",
-                      metric.key === "likes" && "bg-rose-500/15 text-rose-500",
-                      metric.key === "comments" && "bg-amber-500/15 text-amber-500",
-                    )}
-                  >
-                    <Icon className="size-4" aria-hidden />
+            return (
+              <div key={metric.key} className="bg-card flex items-center justify-between gap-3 rounded-xl border p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+                    {metric.label}
                   </span>
-                </div>
-              );
-            })}
-          </div>
 
-          <CombinedAnalyticsChart data={data} loading={loading} />
+                  {loading || series == null ? (
+                    <Skeleton className="h-7 w-16" />
+                  ) : (
+                    <span className="text-2xl font-semibold tracking-tight tabular-nums">
+                      {series.total.toLocaleString()}
+                    </span>
+                  )}
+                </div>
+
+                <span
+                  className={cn(
+                    "rounded-md p-2",
+                    metric.key === "views" && "bg-blue-500/15 text-blue-500",
+                    metric.key === "likes" && "bg-rose-500/15 text-rose-500",
+                    metric.key === "comments" && "bg-amber-500/15 text-amber-500",
+                  )}
+                >
+                  <Icon className="size-4" aria-hidden />
+                </span>
+              </div>
+            );
+          })}
         </div>
-      )}
+
+        <CombinedAnalyticsChart data={data} loading={loading} />
+      </div>
     </div>
   );
 }

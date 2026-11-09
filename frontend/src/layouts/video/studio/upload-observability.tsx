@@ -295,7 +295,7 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
           size="sm"
           className="shrink-0"
           nativeButton={false}
-          render={<Link to="/studio/analytics" search={{ uploadId, days }} />}
+          render={<Link to="/studio/uploads/$uploadId/analytics" params={{ uploadId }} />}
         >
           Analytics
           <ArrowUpRight data-icon="inline-end" className="size-4" />

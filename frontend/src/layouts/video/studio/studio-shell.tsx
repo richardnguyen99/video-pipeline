@@ -46,7 +46,7 @@ const NAV_ITEMS = [
     id: "analytics",
     label: "Analytics",
     icon: BarChart3,
-    to: "/studio/analytics" as const,
+    to: null,
   },
   {
     id: "audience",
@@ -56,7 +56,7 @@ const NAV_ITEMS = [
   },
 ] as const;
 
-type UploadDetailTab = "summary" | "metadata" | "media" | "logs";
+type UploadDetailTab = "summary" | "metadata" | "media" | "analytics" | "logs";
 
 type UploadDetailContext = {
   uploadId: string;
@@ -80,7 +80,10 @@ function parseUploadDetailContext(pathname: string): UploadDetailContext | null 
     return { uploadId, tab: "summary" };
   }
 
-  if (segments.length === 4 && (segments[3] === "metadata" || segments[3] === "media" || segments[3] === "logs")) {
+  if (
+    segments.length === 4 &&
+    (segments[3] === "metadata" || segments[3] === "media" || segments[3] === "analytics" || segments[3] === "logs")
+  ) {
     return { uploadId, tab: segments[3] };
   }
 
@@ -91,6 +94,7 @@ const UPLOAD_DETAIL_TABS: Array<{ id: UploadDetailTab; label: string }> = [
   { id: "summary", label: "Summary" },
   { id: "metadata", label: "Metadata" },
   { id: "media", label: "Media" },
+  { id: "analytics", label: "Analytics" },
   { id: "logs", label: "Logs" },
 ];
 
@@ -167,7 +171,7 @@ function SidebarNavLink({
   collapsed: boolean;
   label: string;
   isActive: boolean;
-  to: "/studio" | "/studio/uploads" | "/studio/analytics";
+  to: "/studio" | "/studio/uploads";
   onNavigate?: () => void;
   children: ReactNode;
 }) {
@@ -338,10 +342,15 @@ function StudioTopBar() {
                           to: "/studio/uploads/$uploadId/media" as const,
                           params: { uploadId: uploadDetail.uploadId },
                         }
-                      : {
-                          to: "/studio/uploads/$uploadId/logs" as const,
-                          params: { uploadId: uploadDetail.uploadId },
-                        };
+                      : tab.id === "analytics"
+                        ? {
+                            to: "/studio/uploads/$uploadId/analytics" as const,
+                            params: { uploadId: uploadDetail.uploadId },
+                          }
+                        : {
+                            to: "/studio/uploads/$uploadId/logs" as const,
+                            params: { uploadId: uploadDetail.uploadId },
+                          };
 
               return (
                 <Link
