@@ -4,6 +4,7 @@ import { sendVideoPlayHeartbeat, startVideoPlay } from "@/queries/video-watch";
 import { useAuthStore } from "@/stores/auth-store";
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 10_000;
+const REWATCH_POSITION_SECONDS = 3;
 
 type UseVideoWatchTrackingOptions = {
   videoId: number | null | undefined;
@@ -22,9 +23,10 @@ export type VideoWatchTrackingResult = {
 
 /**
  * For authenticated users on ``/videos/$id``:
- * 1. ``POST /play`` once per video visit (cooldown + session id)
+ * 1. ``POST /play`` once per playback session (cooldown + session id)
  * 2. Heartbeats every ~10s while playing (position + watched delta)
  * 3. When saved ``position_seconds`` > 0, expose a resume dialog choice
+ * 4. Open a new session after cooldown or when the viewer restarts from the start
  */
 export function useVideoWatchTracking({
   videoId,
@@ -43,30 +45,117 @@ export function useVideoWatchTracking({
   const startedForVideoRef = useRef<number | null>(null);
   const startRequestIdRef = useRef(0);
   const resumePositionRef = useRef(0);
+  const isEligibleRef = useRef(true);
+  const cooldownSecondsRef = useRef(0);
+  const eligibleThresholdRef = useRef(30);
+  const maxPositionRef = useRef(0);
+  const sessionStartedAtRef = useRef(0);
+  const renewTimerRef = useRef<number | null>(null);
 
   const [resumeDialogOpen, setResumeDialogOpen] = useState(false);
   const [resumePositionSeconds, setResumePositionSeconds] = useState(0);
   const [trackedVideoId, setTrackedVideoId] = useState(videoId);
+  const [sessionEpoch, setSessionEpoch] = useState(0);
 
-  // Reset resume UI when the route video changes (render-time adjust, not an effect).
   if (videoId !== trackedVideoId) {
     setTrackedVideoId(videoId);
     setResumeDialogOpen(false);
     setResumePositionSeconds(0);
   }
 
-  // Refs are not for rendering; reset them after videoId changes.
   useEffect(() => {
     sessionIdRef.current = null;
     lastHeartbeatAtRef.current = null;
     currentTimeRef.current = 0;
     startedForVideoRef.current = null;
     resumePositionRef.current = 0;
+    isEligibleRef.current = true;
+    maxPositionRef.current = 0;
+    sessionStartedAtRef.current = 0;
+
+    if (renewTimerRef.current != null) {
+      window.clearTimeout(renewTimerRef.current);
+      renewTimerRef.current = null;
+    }
   }, [videoId]);
 
   useEffect(() => {
     currentTimeRef.current = currentTime;
+
+    if (currentTime > maxPositionRef.current) {
+      maxPositionRef.current = currentTime;
+    }
   }, [currentTime]);
+
+  const clearRenewTimer = useCallback(() => {
+    if (renewTimerRef.current != null) {
+      window.clearTimeout(renewTimerRef.current);
+      renewTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleSessionRenewal = useCallback(
+    (delaySeconds: number) => {
+      clearRenewTimer();
+
+      if (delaySeconds <= 0) {
+        return;
+      }
+
+      renewTimerRef.current = window.setTimeout(() => {
+        sessionIdRef.current = null;
+        startedForVideoRef.current = null;
+        lastHeartbeatAtRef.current = null;
+        maxPositionRef.current = 0;
+        setSessionEpoch((value) => value + 1);
+      }, delaySeconds * 1000);
+    },
+    [clearRenewTimer],
+  );
+
+  const beginSession = useCallback(
+    async (nextVideoId: number, requestId: number) => {
+      try {
+        const result = await startVideoPlay(nextVideoId);
+
+        if (requestId !== startRequestIdRef.current) {
+          return;
+        }
+
+        sessionIdRef.current = result.playback_session_id;
+        startedForVideoRef.current = nextVideoId;
+        intervalSecondsRef.current = Math.max(5, result.heartbeat_interval_seconds || 10);
+        lastHeartbeatAtRef.current = Date.now();
+        sessionStartedAtRef.current = Date.now();
+        isEligibleRef.current = result.is_eligible;
+        cooldownSecondsRef.current = Math.max(0, result.cooldown_seconds || 0);
+        eligibleThresholdRef.current = Math.max(1, result.eligible_threshold_seconds || 30);
+        maxPositionRef.current = Math.max(maxPositionRef.current, currentTimeRef.current);
+
+        if (!result.is_eligible && result.cooldown_seconds > 0) {
+          scheduleSessionRenewal(result.cooldown_seconds);
+        } else {
+          clearRenewTimer();
+        }
+
+        const saved = result.position_seconds;
+
+        if (Number.isFinite(saved) && saved > 0 && resumePositionRef.current === 0) {
+          resumePositionRef.current = saved;
+          setResumePositionSeconds(saved);
+          setResumeDialogOpen(true);
+        }
+      } catch {
+        if (requestId !== startRequestIdRef.current) {
+          return;
+        }
+
+        sessionIdRef.current = null;
+        startedForVideoRef.current = null;
+      }
+    },
+    [clearRenewTimer, scheduleSessionRenewal],
+  );
 
   useEffect(() => {
     if (
@@ -88,42 +177,37 @@ export function useVideoWatchTracking({
     startRequestIdRef.current += 1;
     const requestId = startRequestIdRef.current;
 
-    void (async () => {
-      try {
-        const result = await startVideoPlay(videoId);
-
-        if (requestId !== startRequestIdRef.current) {
-          return;
-        }
-
-        sessionIdRef.current = result.playback_session_id;
-        startedForVideoRef.current = videoId;
-        intervalSecondsRef.current = Math.max(5, result.heartbeat_interval_seconds || 10);
-        lastHeartbeatAtRef.current = Date.now();
-
-        const saved = result.position_seconds;
-
-        if (Number.isFinite(saved) && saved > 0) {
-          resumePositionRef.current = saved;
-          setResumePositionSeconds(saved);
-          setResumeDialogOpen(true);
-        }
-      } catch {
-        if (requestId !== startRequestIdRef.current) {
-          return;
-        }
-
-        sessionIdRef.current = null;
-        startedForVideoRef.current = null;
-      }
-    })();
+    void beginSession(videoId, requestId);
 
     return () => {
       if (startRequestIdRef.current === requestId) {
         startRequestIdRef.current += 1;
       }
     };
-  }, [videoId, user, accessToken, isRestoring]);
+  }, [videoId, user, accessToken, isRestoring, sessionEpoch, beginSession]);
+
+  // After an eligible watch, restarting near the beginning opens a new session
+  // so a rewatch can count once the cooldown window allows it.
+  useEffect(() => {
+    if (videoId == null || user == null || accessToken == null || sessionIdRef.current == null || !isPlaying) {
+      return;
+    }
+
+    const watchedDeep = maxPositionRef.current >= Math.max(eligibleThresholdRef.current, REWATCH_POSITION_SECONDS + 1);
+    const restartedNearStart = currentTime <= REWATCH_POSITION_SECONDS;
+    const sessionAgeMs = Date.now() - sessionStartedAtRef.current;
+
+    if (!watchedDeep || !restartedNearStart || sessionAgeMs < 5_000) {
+      return;
+    }
+
+    clearRenewTimer();
+    sessionIdRef.current = null;
+    startedForVideoRef.current = null;
+    lastHeartbeatAtRef.current = null;
+    maxPositionRef.current = currentTime;
+    setSessionEpoch((value) => value + 1);
+  }, [videoId, user, accessToken, isPlaying, currentTime, clearRenewTimer]);
 
   useEffect(() => {
     if (videoId == null || user == null || accessToken == null || sessionIdRef.current == null || !isPlaying) {
@@ -158,15 +242,16 @@ export function useVideoWatchTracking({
     return () => {
       window.clearInterval(id);
     };
-  }, [videoId, user, accessToken, isPlaying]);
+  }, [videoId, user, accessToken, isPlaying, sessionEpoch]);
 
   useEffect(() => {
     return () => {
+      clearRenewTimer();
+
       const sessionId = sessionIdRef.current;
       const id = startedForVideoRef.current;
       const position = Math.max(0, currentTimeRef.current);
 
-      // Avoid flushing a zero position on leave (resets saved seek).
       if (sessionId == null || id == null || user == null || position <= 0) {
         return;
       }
@@ -177,7 +262,7 @@ export function useVideoWatchTracking({
         watched_seconds_delta: Math.min(intervalSecondsRef.current, 10),
       }).catch(() => undefined);
     };
-  }, [user]);
+  }, [user, clearRenewTimer]);
 
   const onResume = useCallback(() => {
     const target = resumePositionRef.current;
@@ -193,7 +278,13 @@ export function useVideoWatchTracking({
     seek(0);
     resumePositionRef.current = 0;
     setResumeDialogOpen(false);
-  }, [seek]);
+    clearRenewTimer();
+    sessionIdRef.current = null;
+    startedForVideoRef.current = null;
+    lastHeartbeatAtRef.current = null;
+    maxPositionRef.current = 0;
+    setSessionEpoch((value) => value + 1);
+  }, [seek, clearRenewTimer]);
 
   const onDismissResumeDialog = useCallback(() => {
     setResumeDialogOpen(false);

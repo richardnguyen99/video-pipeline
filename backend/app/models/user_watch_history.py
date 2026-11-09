@@ -15,6 +15,8 @@ from sqlalchemy.sql.functions import now
 from sqlmodel import Field, SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
+from app.models.video_view import VideoView
+
 
 class UserWatchHistory(SQLModel, table=True):
     """Per-user watch history and resume position for one video."""
@@ -148,6 +150,15 @@ class UserWatchHistory(SQLModel, table=True):
                 row.total_view_count = int(row.total_view_count) + 1
 
             session.add(row)
+
+        # Each countable view gets its own timestamped event for analytics.
+        if increment_view:
+            session.add(
+                VideoView.create(
+                    video_id=video_id,
+                    user_id=user_id,
+                ),
+            )
 
         await session.commit()
         await session.refresh(row)

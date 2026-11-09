@@ -35,19 +35,27 @@ function buildAreaPath(
   }
 
   const max = Math.max(1, ...points.map((point) => point.count));
-  const stepX = points.length > 1 ? width / (points.length - 1) : width;
+  // Discrete daily buckets: hold each day's value across its slot so adjacent
+  // non-zero days stay visually separate instead of blending into one ramp.
+  const slot = width / points.length;
 
-  const coords = points.map((point, index) => {
-    const x = index * stepX;
+  const segments: Array<string> = [];
+
+  points.forEach((point, index) => {
+    const x0 = index * slot;
+    const x1 = (index + 1) * slot;
     const y = height - (point.count / max) * (height - 4) - 2;
 
-    return { x, y };
+    if (index === 0) {
+      segments.push(`M ${x0.toFixed(2)} ${y.toFixed(2)}`);
+    } else {
+      segments.push(`L ${x0.toFixed(2)} ${y.toFixed(2)}`);
+    }
+
+    segments.push(`L ${x1.toFixed(2)} ${y.toFixed(2)}`);
   });
 
-  const line = coords
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
-    .join(" ");
-
+  const line = segments.join(" ");
   const area = `${line} L ${width.toFixed(2)} ${height.toFixed(2)} L 0 ${height.toFixed(2)} Z`;
 
   return { line, area };

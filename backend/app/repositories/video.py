@@ -1,26 +1,15 @@
 """Video data-access repository."""
 
-# pylint: disable=too-many-locals,too-many-positional-arguments
-
 import asyncio
-from datetime import datetime, timedelta
-from typing import Any, Optional, Type
+from typing import Any, Optional, Type, cast
 
-from sqlalchemy import Table, and_, case, delete, func, or_
+from sqlalchemy import Table, and_, func, or_
 from sqlalchemy import select as sa_select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import ColumnElement
-from sqlalchemy.sql.selectable import ScalarSelect
 from sqlmodel import col, select
 
 from app.models.actress import Actress, ActressAka
-from app.models.associations import (
-    t_video_actress,
-    t_video_genre,
-    t_video_label,
-    t_video_maker,
-    t_video_series,
-)
 from app.models.base import AkaMixin, DmmCatalogMixin
 from app.models.comments import Comment
 from app.models.director import Director, DirectorAka
@@ -28,15 +17,15 @@ from app.models.genre import Genre, GenreAka
 from app.models.label import Label, LabelAka
 from app.models.maker import Maker, MakerAka
 from app.models.series import Series, SeriesAka
-from app.models.user_watch_history import UserWatchHistory
 from app.models.video import (
     Video,
     VideoImageUrl,
     VideoM3u8,
 )
 from app.models.video_reaction import VideoReaction
-from app.models.video_recommendation import VideoRecommendation
+from app.models.video_view import VideoView
 from app.repositories.base import BaseRepository
+from app.repositories.video_recommendations import VideoRecommendationMixin
 from app.schemas.video import VideoEngagementCounts
 from app.schemas.video_filters import VideoListFilters
 from app.utils import relationship_attr
@@ -49,8 +38,57 @@ from app.utils.video import (
 )
 
 
-class VideoRepository(BaseRepository):
+class VideoRepository(VideoRecommendationMixin, BaseRepository):
     """Read operations for ``Video`` rows."""
+
+    @staticmethod
+    def _catalog_ilike_predicates(
+        entity: Type[DmmCatalogMixin],
+        aka_model: Type[AkaMixin],
+        terms: list[str],
+    ) -> list[ColumnElement[bool]]:
+        """Build ILIKE predicates for catalog name, ruby, and aka fields."""
+
+        patterns = [f"%{term}%" for term in terms]
+
+        return [
+            *[col(entity.name).ilike(pattern) for pattern in patterns],
+            *[col(entity.ruby).ilike(pattern) for pattern in patterns],
+            *[
+                col(aka_model.translated_name).ilike(pattern)
+                for pattern in patterns
+            ],
+        ]
+
+    @staticmethod
+    def _assign_catalog_ids_to_terms(
+        terms: list[str],
+        rows: list[Any],
+    ) -> list[list[int]]:
+        """Map joined catalog rows onto each search term's matching ids."""
+
+        per_term: list[list[int]] = [[] for _ in terms]
+        seen: list[set[int]] = [set() for _ in terms]
+
+        for row in rows:
+            entity_id = int(row[0])
+            haystacks = (
+                (row[1] or "").lower(),
+                (row[2] or "").lower(),
+                (row[3] or "").lower(),
+            )
+
+            for term_index, term in enumerate(terms):
+                needle = term.lower()
+
+                if (
+                    any(needle in value for value in haystacks)
+                    and entity_id not in seen[term_index]
+                ):
+                    seen[term_index].add(entity_id)
+                    per_term[term_index].append(entity_id)
+
+        return per_term
 
     async def _resolve_one_catalog(
         self,
@@ -61,11 +99,6 @@ class VideoRepository(BaseRepository):
         locale_key: str,
     ) -> tuple[str, list[list[int]]]:
         """Resolve catalog ids for all terms in one joined query."""
-
-        patterns = [f"%{term}%" for term in terms]
-        name_preds = [col(entity.name).ilike(p) for p in patterns]
-        ruby_preds = [col(entity.ruby).ilike(p) for p in patterns]
-        aka_preds = [col(aka_model.translated_name).ilike(p) for p in patterns]
 
         statement = (
             sa_select(
@@ -84,33 +117,13 @@ class VideoRepository(BaseRepository):
             )
             .where(
                 or_(
-                    *name_preds,
-                    *ruby_preds,
-                    *aka_preds,
+                    *self._catalog_ilike_predicates(entity, aka_model, terms),
                 ),
             )
         )
-        rows = (await self.session.execute(statement)).all()
+        rows = list((await self.session.execute(statement)).all())
 
-        per_term: list[list[int]] = [[] for _ in terms]
-        seen: list[set[int]] = [set() for _ in terms]
-
-        for row in rows:
-            entity_id = int(row[0])
-            name = (row[1] or "").lower()
-            ruby = (row[2] or "").lower()
-            translated = (row[3] or "").lower()
-
-            for term_index, term in enumerate(terms):
-                needle = term.lower()
-
-                if (
-                    needle in name or needle in ruby or needle in translated
-                ) and entity_id not in seen[term_index]:
-                    seen[term_index].add(entity_id)
-                    per_term[term_index].append(entity_id)
-
-        return key, per_term
+        return key, self._assign_catalog_ids_to_terms(terms, rows)
 
     async def _resolve_actress_ids_for_terms(
         self,
@@ -177,132 +190,121 @@ class VideoRepository(BaseRepository):
     async def _resolve_catalog_ids_for_terms(
         self,
         terms: list[str],
-        locale: str,
+        locale: Optional[str],
     ) -> list[dict[str, list[int]]]:
-        """Resolve matching catalog/actress primary keys per search term.
+        """Resolve catalog entity ids for each search term (parallel).
 
-        Runs one joined query per catalog type (and actresses) in parallel.
+        Returns one dict per term with keys expected by
+        ``apply_search_with_catalog_ids`` (``actress``, ``genre``, …).
         """
 
         if not terms:
             return []
 
-        locale_key = locale.strip().lower() or "en-us"
+        locale_key = (locale or "en-us").lower()
         catalog_specs: list[
             tuple[str, Type[DmmCatalogMixin], Type[AkaMixin]]
         ] = [
-            ("genre", Genre, GenreAka),
             ("maker", Maker, MakerAka),
-            ("label", Label, LabelAka),
+            ("genre", Genre, GenreAka),
             ("series", Series, SeriesAka),
+            ("label", Label, LabelAka),
             ("director", Director, DirectorAka),
         ]
 
-        catalog_task = asyncio.gather(
-            *[
-                self._resolve_one_catalog(
-                    key,
-                    entity,
-                    aka_model,
-                    terms,
-                    locale_key,
-                )
-                for key, entity, aka_model in catalog_specs
-            ],
-        )
         actress_task = self._resolve_actress_ids_for_terms(terms)
-        resolved, actress_per_term = await asyncio.gather(
-            catalog_task,
+        catalog_tasks = [
+            self._resolve_one_catalog(
+                key,
+                entity,
+                aka_model,
+                terms,
+                locale_key,
+            )
+            for key, entity, aka_model in catalog_specs
+        ]
+        results = await asyncio.gather(
             actress_task,
+            *catalog_tasks,
         )
 
-        result: list[dict[str, list[int]]] = [
-            {
-                "actress": [],
-                "genre": [],
-                "maker": [],
-                "label": [],
-                "series": [],
-                "director": [],
+        actress_result: list[list[int]] = cast(list[list[int]], results[0])
+        catalog_results: list[tuple[str, list[list[int]]]] = cast(
+            list[tuple[str, list[list[int]]]],
+            results[1:],
+        )
+
+        by_entity: dict[str, list[list[int]]] = {
+            "actress": actress_result,
+        }
+
+        for key, per_term in catalog_results:
+            by_entity[str(key)] = per_term
+
+        catalog_by_term: list[dict[str, list[int]]] = []
+
+        for term_index in range(len(terms)):
+            term_ids: dict[str, list[int]] = {
+                entity_key: entity_values[term_index]
+                for entity_key, entity_values in by_entity.items()
             }
-            for _ in terms
-        ]
+            catalog_by_term.append(term_ids)
 
-        for key, per_term in resolved:
-            for term_index, ids in enumerate(per_term):
-                result[term_index][key] = ids
-
-        for term_index, ids in enumerate(actress_per_term):
-            result[term_index]["actress"] = ids
-
-        return result
+        return catalog_by_term
 
     async def list_and_count_videos(
         self,
+        filters: VideoListFilters,
         *,
-        filters: Optional[VideoListFilters] = None,
-        limit: int = 20,
+        limit: Optional[int] = None,
         offset: int = 0,
     ) -> tuple[list[Video], int]:
-        """Return a page of videos and total count with shared search work."""
+        """Return filtered videos and the matching total count."""
 
-        resolved = filters or VideoListFilters()
-        catalog_by_term: list[dict[str, list[int]]] | None = None
-
-        if resolved.q and resolved.q.strip():
-            terms = search_terms(resolved.q)
-            catalog_by_term = await self._resolve_catalog_ids_for_terms(
-                terms,
-                resolved.locale,
-            )
-
-        def _with_search(stmt: Any) -> Any:
-            stmt = apply_filters(stmt, resolved)
-
-            if catalog_by_term is not None:
-                stmt = apply_search_with_catalog_ids(
-                    stmt,
-                    resolved,
-                    catalog_by_term,
-                )
-
-            return stmt
-
-        count_statement = _with_search(
-            select(func.count()).select_from(Video),
+        terms = search_terms(filters.q or "")
+        catalog_by_term = (
+            await self._resolve_catalog_ids_for_terms(terms, filters.locale)
+            if terms
+            else []
         )
-        total = int((await self.session.exec(count_statement)).one())
 
-        page_statement = apply_sort(
-            _with_search(select(Video)),
-            resolved.sort,
-            resolved,
+        statement = select(Video).options(*DETAIL_OPTIONS)
+        statement = apply_filters(statement, filters)
+        statement = apply_search_with_catalog_ids(
+            statement,
+            filters,
+            catalog_by_term,
         )
-        page_statement = page_statement.options(
-            media_load(
-                Video.video_image_url,
-                VideoImageUrl.id,
-                VideoImageUrl.url,
-                VideoImageUrl.type,
-            ),
-        )
-        page_statement = page_statement.offset(offset).limit(limit)
-        rows = list((await self.session.exec(page_statement)).all())
+        statement = apply_sort(statement, filters.sort)
 
-        return rows, total
+        count_statement = select(func.count()).select_from(Video)
+        count_statement = apply_filters(count_statement, filters)
+        count_statement = apply_search_with_catalog_ids(
+            count_statement,
+            filters,
+            catalog_by_term,
+        )
+
+        if limit is not None:
+            statement = statement.limit(limit)
+
+        if offset:
+            statement = statement.offset(offset)
+
+        rows_result, total_result = await asyncio.gather(
+            self.session.exec(statement),
+            self.session.exec(count_statement),
+        )
+
+        return list(rows_result.all()), int(total_result.one())
 
     async def list_videos_by_ids(
         self,
         video_ids: list[int],
+        *,
+        preserve_order: bool = True,
     ) -> list[Video]:
-        """Load videos by primary key preserving the given order.
-
-        Args:
-            video_ids: Ordered list of ``Video.id`` values.
-
-        Returns:
-            Matching ``Video`` rows with ``video_image_url`` loaded.
-        """
+        """Load videos by primary key, optionally preserving input order."""
 
         if not video_ids:
             return []
@@ -310,105 +312,76 @@ class VideoRepository(BaseRepository):
         statement = (
             select(Video)
             .where(col(Video.id).in_(video_ids))
-            .options(
-                media_load(
-                    Video.video_image_url,
-                    VideoImageUrl.id,
-                    VideoImageUrl.url,
-                    VideoImageUrl.type,
-                ),
-            )
+            .options(*DETAIL_OPTIONS)
         )
         rows = list((await self.session.exec(statement)).all())
+
+        if not preserve_order:
+            return rows
+
         by_id = {video.id: video for video in rows}
 
         return [by_id[video_id] for video_id in video_ids if video_id in by_id]
 
     async def list_videos(
         self,
+        filters: VideoListFilters,
         *,
-        filters: Optional[VideoListFilters] = None,
-        limit: int = 20,
+        limit: Optional[int] = None,
         offset: int = 0,
     ) -> list[Video]:
-        """Return a page of videos with filters and sort (no relations).
+        """Return filtered video rows."""
 
-        Args:
-            filters: Optional discover filters and sort.
-            limit: Maximum rows to return.
-            offset: Number of rows to skip.
-
-        Returns:
-            Matching ``Video`` instances without nested collections.
-        """
-
-        resolved = filters or VideoListFilters()
-        statement = select(Video)
-        statement = apply_filters(statement, resolved)
-
-        if resolved.q and resolved.q.strip():
-            terms = search_terms(resolved.q)
-            catalog_by_term = await self._resolve_catalog_ids_for_terms(
-                terms,
-                resolved.locale,
-            )
-            statement = apply_search_with_catalog_ids(
-                statement,
-                resolved,
-                catalog_by_term,
-            )
-
-        statement = apply_sort(statement, resolved.sort, resolved)
-        statement = statement.options(
-            media_load(
-                Video.video_image_url,
-                VideoImageUrl.id,
-                VideoImageUrl.url,
-                VideoImageUrl.type,
-            ),
+        terms = search_terms(filters.q or "")
+        catalog_by_term = (
+            await self._resolve_catalog_ids_for_terms(terms, filters.locale)
+            if terms
+            else []
         )
-        statement = statement.offset(offset).limit(limit)
+        statement = select(Video).options(*DETAIL_OPTIONS)
+        statement = apply_filters(statement, filters)
+        statement = apply_search_with_catalog_ids(
+            statement,
+            filters,
+            catalog_by_term,
+        )
+        statement = apply_sort(statement, filters.sort)
+
+        if limit is not None:
+            statement = statement.limit(limit)
+
+        if offset:
+            statement = statement.offset(offset)
+
         result = await self.session.exec(statement)
 
         return list(result.all())
 
     async def count_videos(
         self,
-        *,
-        filters: Optional[VideoListFilters] = None,
+        filters: VideoListFilters,
     ) -> int:
-        """Return the number of videos matching optional filters."""
+        """Return the number of videos matching filters."""
 
-        resolved = filters or VideoListFilters()
+        terms = search_terms(filters.q or "")
+        catalog_by_term = (
+            await self._resolve_catalog_ids_for_terms(terms, filters.locale)
+            if terms
+            else []
+        )
         statement = select(func.count()).select_from(Video)
-        statement = apply_filters(statement, resolved)
-
-        if resolved.q and resolved.q.strip():
-            terms = search_terms(resolved.q)
-            catalog_by_term = await self._resolve_catalog_ids_for_terms(
-                terms,
-                resolved.locale,
-            )
-            statement = apply_search_with_catalog_ids(
-                statement,
-                resolved,
-                catalog_by_term,
-            )
-
+        statement = apply_filters(statement, filters)
+        statement = apply_search_with_catalog_ids(
+            statement,
+            filters,
+            catalog_by_term,
+        )
         result = await self.session.exec(statement)
-        total = result.one()
 
-        return int(total)
+        return int(result.one())
 
     async def get_by_id(self, video_id: int) -> Optional[Video]:
-        """Return one video by primary key with full relation graph.
-
-        Args:
-            video_id: ``Video.id`` primary key (not the string code).
-
-        Returns:
-            The ``Video`` row or ``None`` when missing.
-        """
+        """Return one video with detail relationships loaded."""
 
         statement = (
             select(Video)
@@ -420,62 +393,58 @@ class VideoRepository(BaseRepository):
         return result.first()
 
     async def get_by_ids(self, video_ids: list[int]) -> list[Video]:
-        """Return videos for the given primary keys (order preserved)."""
+        """Return videos for the given primary keys."""
 
         if not video_ids:
             return []
 
-        unique_ids = list(dict.fromkeys(video_ids))
         statement = (
             select(Video)
-            .where(col(Video.id).in_(unique_ids))
+            .where(col(Video.id).in_(video_ids))
             .options(*DETAIL_OPTIONS)
         )
         result = await self.session.exec(statement)
-        by_id = {int(row.id): row for row in result.all()}
 
-        return [by_id[vid] for vid in video_ids if vid in by_id]
+        return list(result.all())
 
     async def list_public_by_uploader(
         self,
-        uploader_id: object,
+        uploader_id: Any,
         *,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Video], int]:
-        """Return public READY videos uploaded by ``uploader_id``.
+        """Return public uploads for an uploader and the total count."""
 
-        Ordered by ``created_at`` descending (newest first).
-        """
-
-        safe_limit = max(1, min(limit, 100))
-        safe_offset = max(0, offset)
-        image_options = media_load(
-            Video.video_image_url,
-            VideoImageUrl.id,
-            VideoImageUrl.url,
-            VideoImageUrl.type,
-        )
-        filters = (
+        filters = [
             col(Video.uploader_id) == uploader_id,
             col(Video.visibility) == "public",
-            col(Video.status) == "READY",
+            col(Video.origin) == "upload",
+        ]
+        statement = (
+            select(Video)
+            .where(*filters)
+            .options(
+                media_load(
+                    Video.video_image_url,
+                    VideoImageUrl.id,
+                    VideoImageUrl.url,
+                    VideoImageUrl.type,
+                ),
+            )
+            .order_by(col(Video.created_at).desc())
+            .offset(offset)
+            .limit(limit)
         )
         count_statement = (
             select(func.count()).select_from(Video).where(*filters)
         )
-        total = int((await self.session.exec(count_statement)).one())
-        statement = (
-            select(Video)
-            .where(*filters)
-            .order_by(col(Video.created_at).desc())
-            .options(image_options)
-            .offset(safe_offset)
-            .limit(safe_limit)
+        rows_result, total_result = await asyncio.gather(
+            self.session.exec(statement),
+            self.session.exec(count_statement),
         )
-        rows = list((await self.session.exec(statement)).all())
 
-        return rows, total
+        return list(rows_result.all()), int(total_result.one())
 
     async def exists_by_id(self, video_id: int) -> bool:
         """Return whether a video primary key exists."""
@@ -496,368 +465,6 @@ class VideoRepository(BaseRepository):
         rows = (await self.session.exec(statement)).all()
 
         return [int(row) for row in rows]
-
-    @staticmethod
-    def _shared_entity_count(
-        table: Table,
-        seed_ids: list[int],
-    ) -> ScalarSelect[int]:
-        """Correlated count of shared association rows for a candidate video."""
-
-        if not seed_ids:
-            return sa_select(func.coalesce(0, 0)).scalar_subquery()
-
-        return (
-            sa_select(func.count())
-            .select_from(table)
-            .where(
-                table.c.video_id == col(Video.id),
-                table.c.fk_id.in_(seed_ids),
-            )
-            .correlate(Video)
-            .scalar_subquery()
-        )
-
-    async def list_recommended_for_video(
-        self,
-        video_id: int,
-        *,
-        limit: int = 12,
-    ) -> list[Video]:
-        """Return recommendations for ``video_id``.
-
-        Prefers pre-computed ``video_recommendation`` rows. When none exist
-        (e.g. a newly inserted video not yet processed by the offline job),
-        falls back to the live ranking query so the sidebar is never empty.
-
-        Args:
-            video_id: Source ``Video.id`` primary key.
-            limit: Maximum number of recommendations to return.
-
-        Returns:
-            Ordered ``Video`` rows with ``video_image_url`` loaded.
-        """
-
-        safe_limit = max(1, min(limit, 50))
-        image_options = media_load(
-            Video.video_image_url,
-            VideoImageUrl.id,
-            VideoImageUrl.url,
-            VideoImageUrl.type,
-        )
-
-        precomputed_statement = (
-            select(Video)
-            .join(
-                VideoRecommendation,
-                col(VideoRecommendation.recommended_video_id) == col(Video.id),
-            )
-            .where(
-                col(VideoRecommendation.video_id) == video_id,
-                col(Video.visibility) == "public",
-            )
-            .order_by(
-                col(VideoRecommendation.rank).asc(),
-            )
-            .options(image_options)
-            .limit(safe_limit)
-        )
-        precomputed = list(
-            (await self.session.exec(precomputed_statement)).all()
-        )
-
-        if precomputed:
-            return precomputed
-
-        candidates = await self.compute_recommendation_candidates(
-            video_id,
-            limit=safe_limit,
-        )
-
-        if not candidates:
-            return []
-
-        candidate_ids = [recommended_id for recommended_id, _ in candidates]
-        live_statement = (
-            select(Video)
-            .where(col(Video.id).in_(candidate_ids))
-            .options(image_options)
-        )
-        loaded = list((await self.session.exec(live_statement)).all())
-        by_id = {video.id: video for video in loaded}
-
-        return [
-            by_id[recommended_id]
-            for recommended_id in candidate_ids
-            if recommended_id in by_id
-        ]
-
-    async def compute_recommendation_candidates(
-        self,
-        video_id: int,
-        *,
-        limit: int = 50,
-    ) -> list[tuple[int, float]]:
-        """Compute ranked recommendation candidates for one video.
-
-        Ranking priority (highest first):
-        exact featured-actress count match, shared series, shared actress
-        count, release date within ±6 months of the source, count proximity,
-        shared genres, labels, makers.
-
-        Candidates must share at least one actress or the same series (when
-        the source has those links). Genre/label/maker-only overlap is used
-        only when the source has no actresses and no series.
-
-        Args:
-            video_id: Source ``Video.id`` primary key.
-            limit: Maximum candidates to return (clamped to 1–50).
-
-        Returns:
-            Ordered ``(recommended_video_id, score)`` pairs.
-        """
-
-        safe_limit = max(1, min(limit, 50))
-        release_window = timedelta(days=183)
-
-        source_row = (
-            await self.session.exec(
-                select(Video.release_date).where(col(Video.id) == video_id),
-            )
-        ).first()
-        source_release: datetime | None = (
-            source_row if isinstance(source_row, datetime) else None
-        )
-
-        actress_ids = await self.association_fk_ids(t_video_actress, video_id)
-        genre_ids = await self.association_fk_ids(t_video_genre, video_id)
-        series_ids = await self.association_fk_ids(t_video_series, video_id)
-        label_ids = await self.association_fk_ids(t_video_label, video_id)
-        maker_ids = await self.association_fk_ids(t_video_maker, video_id)
-        source_actress_count = len(actress_ids)
-
-        if not any((actress_ids, genre_ids, series_ids, label_ids, maker_ids)):
-            return []
-
-        shared_actress = self._shared_entity_count(
-            t_video_actress, actress_ids
-        )
-        shared_genre = self._shared_entity_count(t_video_genre, genre_ids)
-        shared_series = self._shared_entity_count(t_video_series, series_ids)
-        shared_label = self._shared_entity_count(t_video_label, label_ids)
-        shared_maker = self._shared_entity_count(t_video_maker, maker_ids)
-
-        candidate_actress_count = (
-            sa_select(func.count())
-            .select_from(t_video_actress)
-            .where(t_video_actress.c.video_id == col(Video.id))
-            .correlate(Video)
-            .scalar_subquery()
-        )
-        count_delta = func.abs(candidate_actress_count - source_actress_count)
-        features_exact = case(
-            (count_delta == 0, 1),
-            else_=0,
-        )
-
-        if source_release is not None:
-            window_low = source_release - release_window
-            window_high = source_release + release_window
-            release_in_window = case(
-                (
-                    and_(
-                        col(Video.release_date).is_not(None),
-                        col(Video.release_date) >= window_low,
-                        col(Video.release_date) <= window_high,
-                    ),
-                    1,
-                ),
-                else_=0,
-            )
-            release_delta_days = case(
-                (
-                    col(Video.release_date).is_not(None),
-                    func.abs(
-                        func.extract(
-                            "epoch",
-                            col(Video.release_date) - source_release,
-                        )
-                        / 86400.0,
-                    ),
-                ),
-                else_=99999.0,
-            )
-        else:
-            release_in_window = case((col(Video.id) == -1, 1), else_=0)
-            release_delta_days = case(
-                (col(Video.release_date).is_(None), 99999.0),
-                else_=99999.0,
-            )
-
-        rank_score = (
-            features_exact * 1_000_000
-            + shared_series * 200_000
-            + shared_actress * 100_000
-            + release_in_window * 10_000
-            - count_delta * 100
-            + shared_genre * 10
-            + shared_label * 3
-            + shared_maker
-        )
-
-        overlap_clauses: list[ColumnElement[bool]] = []
-
-        if actress_ids:
-            overlap_clauses.append(shared_actress > 0)
-
-        if series_ids:
-            overlap_clauses.append(shared_series > 0)
-
-        if not overlap_clauses:
-            if genre_ids:
-                overlap_clauses.append(shared_genre > 0)
-
-            if label_ids:
-                overlap_clauses.append(shared_label > 0)
-
-            if maker_ids:
-                overlap_clauses.append(shared_maker > 0)
-
-        if not overlap_clauses:
-            return []
-
-        overlap_predicate = or_(*overlap_clauses)
-
-        statement = (
-            select(col(Video.id), rank_score)
-            .where(
-                col(Video.id) != video_id,
-                overlap_predicate,
-            )
-            .order_by(
-                rank_score.desc(),
-                release_delta_days.asc(),
-                col(Video.id).desc(),
-            )
-            .limit(safe_limit)
-        )
-        result = await self.session.exec(statement)
-
-        return [(int(row[0]), float(row[1])) for row in result.all()]
-
-    async def replace_recommendations_for_video(
-        self,
-        video_id: int,
-        *,
-        limit: int = 50,
-    ) -> int:
-        """Recompute and persist recommendations for one video.
-
-        Deletes existing ``video_recommendation`` rows for ``video_id`` and
-        inserts the newly ranked candidates.
-
-        Args:
-            video_id: Source ``Video.id`` primary key.
-            limit: Max candidates to store (clamped to 1–50).
-
-        Returns:
-            Number of recommendation rows written.
-        """
-
-        candidates = await self.compute_recommendation_candidates(
-            video_id,
-            limit=limit,
-        )
-
-        await self.session.execute(
-            delete(VideoRecommendation).where(
-                col(VideoRecommendation.video_id) == video_id,
-            ),
-        )
-
-        for rank, (recommended_id, score) in enumerate(candidates, start=1):
-            self.session.add(
-                VideoRecommendation(
-                    video_id=video_id,
-                    recommended_video_id=recommended_id,
-                    rank=rank,
-                    score=score,
-                ),
-            )
-
-        await self.session.commit()
-
-        return len(candidates)
-
-    async def list_video_ids_missing_recommendations(self) -> list[int]:
-        """Return video ids that have no pre-computed recommendation rows."""
-
-        has_rows = (
-            sa_select(col(VideoRecommendation.video_id))
-            .where(col(VideoRecommendation.video_id) == col(Video.id))
-            .exists()
-        )
-        statement = (
-            select(col(Video.id))
-            .where(~has_rows)
-            .order_by(col(Video.id).asc())
-        )
-        rows = (await self.session.exec(statement)).all()
-
-        return [int(row) for row in rows]
-
-    async def list_video_ids_created_since(
-        self,
-        since: datetime,
-    ) -> list[int]:
-        """Return video ids with ``created_at`` strictly after ``since``."""
-
-        statement = (
-            select(col(Video.id))
-            .where(col(Video.created_at) > since)
-            .order_by(col(Video.id).asc())
-        )
-        rows = (await self.session.exec(statement)).all()
-
-        return [int(row) for row in rows]
-
-    async def list_related_recommendation_source_ids(
-        self,
-        video_id: int,
-    ) -> list[int]:
-        """Return other video ids that share actresses or series with ``video_id``.
-
-        Used after inserting a new video so existing sources can rank it into
-        their recommendation lists.
-        """
-
-        actress_ids = await self.association_fk_ids(t_video_actress, video_id)
-        series_ids = await self.association_fk_ids(t_video_series, video_id)
-        related: set[int] = set()
-
-        if actress_ids:
-            actress_result = await self.session.execute(
-                sa_select(t_video_actress.c.video_id)
-                .where(
-                    t_video_actress.c.fk_id.in_(actress_ids),
-                    t_video_actress.c.video_id != video_id,
-                )
-                .distinct(),
-            )
-            related.update(int(row[0]) for row in actress_result.all())
-
-        if series_ids:
-            series_result = await self.session.execute(
-                sa_select(t_video_series.c.video_id)
-                .where(
-                    t_video_series.c.fk_id.in_(series_ids),
-                    t_video_series.c.video_id != video_id,
-                )
-                .distinct(),
-            )
-            related.update(int(row[0]) for row in series_result.all())
-
-        return sorted(related)
 
     async def count_engagement_for_videos(
         self,
@@ -889,13 +496,16 @@ class VideoRepository(BaseRepository):
             for video_id in unique_ids
         }
 
+        # Countable views are append-only ``VideoView`` rows (one per eligible
+        # session). ``UserWatchHistory.total_view_count`` is a denormalized
+        # per-user counter and cannot date individual views.
         view_statement = (
             select(
-                col(UserWatchHistory.video_id),
-                func.sum(col(UserWatchHistory.total_view_count)),
+                col(VideoView.video_id),
+                func.count(),
             )
-            .where(col(UserWatchHistory.video_id).in_(unique_ids))
-            .group_by(col(UserWatchHistory.video_id))
+            .where(col(VideoView.video_id).in_(unique_ids))
+            .group_by(col(VideoView.video_id))
         )
         view_result = await self.session.exec(view_statement)
 
@@ -935,22 +545,15 @@ class VideoRepository(BaseRepository):
             totals[int(video_id)]["comments"] = int(total)
 
         return {
-            video_id: VideoEngagementCounts(**values)
-            for video_id, values in totals.items()
+            video_id: VideoEngagementCounts(**counts)
+            for video_id, counts in totals.items()
         }
 
     async def list_comments_for_video(
         self,
         video_id: int,
     ) -> list[Comment]:
-        """Return non-deleted comments for a video with authors loaded.
-
-        Args:
-            video_id: ``Video.id`` primary key.
-
-        Returns:
-            Comments ordered by creation time ascending.
-        """
+        """Return comments for a video with authors loaded."""
 
         statement = (
             select(Comment)
@@ -966,33 +569,13 @@ class VideoRepository(BaseRepository):
         return list(result.all())
 
     async def get_master_m3u8_url(self, video_id: int) -> Optional[str]:
-        """Return the master HLS playlist path for a video, if any.
+        """Return the master playlist URL for a video, if any."""
 
-        Prefers an ``index.m3u8`` entry when several rows exist; otherwise
-        the earliest ``VideoM3u8`` row by primary key.
-
-        Args:
-            video_id: ``Video.id`` primary key (``video_m3u8.fk_id``).
-
-        Returns:
-            Local or remote master playlist URL, or ``None``.
-        """
-
-        statement = (
-            select(VideoM3u8)
-            .where(col(VideoM3u8.fk_id) == video_id)
-            .order_by(col(VideoM3u8.id).asc())
-        )
+        statement = select(VideoM3u8).where(col(VideoM3u8.fk_id) == video_id)
         result = await self.session.exec(statement)
-        rows = list(result.all())
+        row = result.first()
 
-        if not rows:
+        if row is None:
             return None
 
-        for row in rows:
-            url = (row.m3u8_url or "").rstrip("/")
-
-            if url.endswith("index.m3u8"):
-                return row.m3u8_url
-
-        return rows[0].m3u8_url
+        return str(row.m3u8_url)

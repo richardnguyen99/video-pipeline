@@ -175,10 +175,28 @@ class WatchService:
                 detail="Video not found",
             )
 
-        eligible_raw = await redis.get(
-            f"watch:session:{playback_session_id}:eligible"
-        )
+        eligible_key = f"watch:session:{playback_session_id}:eligible"
+        eligible_raw = await redis.get(eligible_key)
         is_eligible = _redis_flag_is_true(eligible_raw)
+
+        # A session may start while cooldown is active. Once the cooldown key
+        # expires, promote the session so a continued (or resumed) watch can
+        # still count after the valid window.
+        if not is_eligible:
+            cooldown_key = _COOLDOWN_KEY.format(
+                user_id=user_id,
+                video_id=video_id,
+            )
+            cooldown_seconds = _cooldown_seconds()
+
+            if cooldown_seconds <= 0 or await redis.exists(cooldown_key) == 0:
+                is_eligible = True
+                await redis.set(
+                    eligible_key,
+                    "1",
+                    ex=_session_ttl_seconds(),
+                )
+
         delta = (
             float(watched_seconds_delta)
             if watched_seconds_delta is not None
