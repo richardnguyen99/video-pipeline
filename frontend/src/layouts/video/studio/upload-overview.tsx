@@ -35,6 +35,7 @@ import { toast } from "@/components/ui/toast";
 import { DeleteUploadDialog } from "@/layouts/video/studio/delete-upload-dialog";
 import { ConfirmAccessDialog, ManageAccessDialog } from "@/layouts/video/studio/manage-access-dialog";
 import { RebuildStreamDialog } from "@/layouts/video/studio/rebuild-stream-dialog";
+import { UploadObservability } from "@/layouts/video/studio/upload-observability";
 import { defaultStepForStatus } from "@/layouts/video/studio/session-persist";
 import { VISIBILITY_OPTIONS } from "@/layouts/video/studio/types";
 import type { VisibilityValue } from "@/layouts/video/studio/types";
@@ -453,301 +454,305 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
   const heading = `${status.video_id} — ${title}`;
 
   return (
-    <section className="bg-card overflow-hidden rounded-xl border">
-      <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">{heading}</h1>
+    <div className="flex flex-col gap-4">
+      <section className="bg-card overflow-hidden rounded-xl border">
+        <div className="flex flex-col gap-3 border-b px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <h1 className="min-w-0 truncate text-lg font-semibold tracking-tight">{heading}</h1>
 
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {status.status.toUpperCase() !== "READY" ? (
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {status.status.toUpperCase() !== "READY" ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                nativeButton={false}
+                render={
+                  <Link
+                    to="/studio/uploads/$uploadId/$step"
+                    params={{
+                      uploadId: status.public_id,
+                      step: continueStep,
+                    }}
+                  />
+                }
+              >
+                Continue process
+              </Button>
+            ) : null}
+
             <Button
               type="button"
-              variant="outline"
               size="sm"
               nativeButton={false}
-              render={
-                <Link
-                  to="/studio/uploads/$uploadId/$step"
-                  params={{
-                    uploadId: status.public_id,
-                    step: continueStep,
-                  }}
-                />
-              }
+              render={<a href={pagePath} target="_blank" rel="noreferrer" />}
             >
-              Continue process
+              <ExternalLink data-icon="inline-start" className="size-4" />
+              Open video
             </Button>
-          ) : null}
 
-          <Button
-            type="button"
-            size="sm"
-            nativeButton={false}
-            render={<a href={pagePath} target="_blank" rel="noreferrer" />}
-          >
-            <ExternalLink data-icon="inline-start" className="size-4" />
-            Open video
-          </Button>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              type="button"
-              disabled={actionBusy != null}
-              className={cn(
-                "border-input bg-background hover:bg-muted inline-flex size-8 items-center justify-center rounded-md border shadow-xs transition-colors",
-                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
-                "disabled:pointer-events-none disabled:opacity-50",
-              )}
-              aria-label="More actions"
-            >
-              {actionBusy != null ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
-              ) : (
-                <Ellipsis className="size-4" aria-hidden />
-              )}
-            </DropdownMenuTrigger>
-
-            <DropdownMenuContent align="end" className="min-w-52">
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  disabled={actionBusy != null}
-                  onClick={() => {
-                    setRebuildOpen(true);
-                  }}
-                >
-                  <RefreshCw className="size-4" aria-hidden />
-                  Rebuild stream
-                </DropdownMenuItem>
-
-                <DropdownMenuItem
-                  disabled={actionBusy != null}
-                  onClick={() => {
-                    setAccessOpen(true);
-                  }}
-                >
-                  <Shield className="size-4" aria-hidden />
-                  Manage access
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-
-              <DropdownMenuSeparator />
-
-              <DropdownMenuGroup>
-                <DropdownMenuItem
-                  variant="destructive"
-                  disabled={actionBusy != null}
-                  onClick={() => {
-                    setDeleteOpen(true);
-                  }}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                  Delete video
-                </DropdownMenuItem>
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-0 lg:flex-row">
-        <div className="bg-muted relative aspect-video w-full shrink-0 overflow-hidden lg:w-[min(100%,22rem)] lg:self-stretch">
-          {mediaPending ? (
-            <Skeleton className="absolute inset-0 size-full rounded-none" />
-          ) : thumbnailUrl != null ? (
-            <img src={thumbnailUrl} alt="" className="absolute inset-0 size-full object-cover" />
-          ) : (
-            <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2">
-              <FileVideo className="size-10 opacity-50" />
-              <span className="text-xs">No thumbnail yet</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 sm:p-6">
-          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
-            <div className="flex flex-col gap-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Status</dt>
-
-              <dd className="flex items-center gap-2 text-sm font-medium">
-                <span className={cn("size-2 shrink-0 rounded-full", statusDotTone(status.status))} aria-hidden />
-
-                <span className={statusTone(status.status)}>{statusLabel(status.status)}</span>
-              </dd>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Visibility</dt>
-
-              <dd className="flex items-center gap-2 text-sm font-medium">
-                <VisibilityStateIcon value={status.visibility} />
-
-                <span className={visibilityIconTone(status.visibility)}>{visibilityLabel(status.visibility)}</span>
-              </dd>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Upload date</dt>
-
-              <dd className="flex items-center gap-2 text-sm font-medium">
-                <Clock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-
-                <span>{uploadDateLabel}</span>
-              </dd>
-            </div>
-          </dl>
-
-          <dl className="grid min-w-0 gap-4 text-sm">
-            <div className="flex flex-col gap-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Video page</dt>
-
-              <dd className="flex min-w-0 items-center gap-2">
-                <a
-                  href={pagePath}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary truncate text-sm font-medium hover:underline"
-                >
-                  {pageHref}
-                </a>
-
-                <ExternalLink className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
-              </dd>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Upload metadata</dt>
-
-              <dd className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                <span className="text-foreground font-medium">{sizeLabel}</span>
-
-                <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-
-                {mediaPending ? (
-                  <>
-                    <Skeleton className="h-4 w-24" />
-                    <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-                    <Skeleton className="h-4 w-20" />
-                  </>
-                ) : (
-                  <>
-                    <span className="inline-flex items-center gap-1.5">
-                      <ImageIcon className="size-3.5 shrink-0" aria-hidden />
-                      {thumbnailCount} thumbnail{thumbnailCount === 1 ? "" : "s"}
-                    </span>
-
-                    <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-
-                    <span>
-                      {sampleCount} sample{sampleCount === 1 ? "" : "s"}
-                    </span>
-                  </>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                type="button"
+                disabled={actionBusy != null}
+                className={cn(
+                  "border-input bg-background hover:bg-muted inline-flex size-8 items-center justify-center rounded-md border shadow-xs transition-colors",
+                  "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+                  "disabled:pointer-events-none disabled:opacity-50",
                 )}
+                aria-label="More actions"
+              >
+                {actionBusy != null ? (
+                  <Loader2 className="size-4 animate-spin" aria-hidden />
+                ) : (
+                  <Ellipsis className="size-4" aria-hidden />
+                )}
+              </DropdownMenuTrigger>
 
-                {status.original_filename != null && status.original_filename.length > 0 ? (
-                  <>
-                    <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
-                    <span className="truncate">{status.original_filename}</span>
-                  </>
-                ) : null}
-              </dd>
-            </div>
-          </dl>
+              <DropdownMenuContent align="end" className="min-w-52">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    disabled={actionBusy != null}
+                    onClick={() => {
+                      setRebuildOpen(true);
+                    }}
+                  >
+                    <RefreshCw className="size-4" aria-hidden />
+                    Rebuild stream
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    disabled={actionBusy != null}
+                    onClick={() => {
+                      setAccessOpen(true);
+                    }}
+                  >
+                    <Shield className="size-4" aria-hidden />
+                    Manage access
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+
+                <DropdownMenuSeparator />
+
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={actionBusy != null}
+                    onClick={() => {
+                      setDeleteOpen(true);
+                    }}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                    Delete video
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
-      </div>
 
-      <DeleteUploadDialog
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        isPending={actionBusy === "delete"}
-        videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
-        onConfirm={() => {
-          void handleDeleteVideo();
-        }}
-      />
+        <div className="flex flex-col gap-0 lg:flex-row">
+          <div className="bg-muted relative aspect-video w-full shrink-0 overflow-hidden lg:w-[min(100%,22rem)] lg:self-stretch">
+            {mediaPending ? (
+              <Skeleton className="absolute inset-0 size-full rounded-none" />
+            ) : thumbnailUrl != null ? (
+              <img src={thumbnailUrl} alt="" className="absolute inset-0 size-full object-cover" />
+            ) : (
+              <div className="text-muted-foreground absolute inset-0 flex flex-col items-center justify-center gap-2">
+                <FileVideo className="size-10 opacity-50" />
+                <span className="text-xs">No thumbnail yet</span>
+              </div>
+            )}
+          </div>
 
-      <RebuildStreamDialog
-        open={rebuildOpen}
-        onOpenChange={(open) => {
-          if (actionBusy === "rebuild") {
-            return;
-          }
+          <div className="flex min-w-0 flex-1 flex-col gap-5 p-5 sm:p-6">
+            <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-3">
+              <div className="flex flex-col gap-1">
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Status</dt>
 
-          setRebuildOpen(open);
-        }}
-        isPending={actionBusy === "rebuild"}
-        videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
-        onConfirm={() => {
-          void handleRebuildStream();
-        }}
-      />
+                <dd className="flex items-center gap-2 text-sm font-medium">
+                  <span className={cn("size-2 shrink-0 rounded-full", statusDotTone(status.status))} aria-hidden />
 
-      <ManageAccessDialog
-        open={accessOpen}
-        onOpenChange={(open) => {
-          if (actionBusy === "access") {
-            return;
-          }
+                  <span className={statusTone(status.status)}>{statusLabel(status.status)}</span>
+                </dd>
+              </div>
 
-          setAccessOpen(open);
+              <div className="flex flex-col gap-1">
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Visibility</dt>
 
-          if (!open) {
-            setConfirmAccessOpen(false);
-            setPendingVisibility(null);
-          }
-        }}
-        currentVisibility={status.visibility}
-        isPending={actionBusy === "access"}
-        onRequestChange={handleRequestAccessChange}
-      />
+                <dd className="flex items-center gap-2 text-sm font-medium">
+                  <VisibilityStateIcon value={status.visibility} />
 
-      <ConfirmAccessDialog
-        open={confirmAccessOpen}
-        onOpenChange={(open) => {
-          if (actionBusy === "access") {
-            return;
-          }
+                  <span className={visibilityIconTone(status.visibility)}>{visibilityLabel(status.visibility)}</span>
+                </dd>
+              </div>
 
-          setConfirmAccessOpen(open);
+              <div className="flex flex-col gap-1">
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Upload date</dt>
 
-          if (!open) {
-            setPendingVisibility(null);
-          }
-        }}
-        nextVisibility={pendingVisibility}
-        isPending={actionBusy === "access"}
-        onConfirm={() => {
-          void handleConfirmAccessChange();
-        }}
-      />
+                <dd className="flex items-center gap-2 text-sm font-medium">
+                  <Clock className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
 
-      <Collapsible defaultOpen className="group/resolutions border-t">
-        <CollapsibleTrigger className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-medium sm:px-6">
-          <span>Stream resolutions</span>
+                  <span>{uploadDateLabel}</span>
+                </dd>
+              </div>
+            </dl>
 
-          <span className="text-muted-foreground flex items-center gap-2 text-xs font-normal">
-            {status.renditions.length > 0
-              ? `${String(
-                  status.renditions.filter((row) => row.status.toUpperCase() === "READY").length,
-                )} / ${String(status.renditions.length)} ready`
-              : "No encodings yet"}
-            <ChevronDown className="size-4 transition-transform group-data-panel-open/resolutions:rotate-180" />
-          </span>
-        </CollapsibleTrigger>
+            <dl className="grid min-w-0 gap-4 text-sm">
+              <div className="flex flex-col gap-1">
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Video page</dt>
 
-        <CollapsibleContent>
-          {status.renditions.length === 0 ? (
-            <p className="text-muted-foreground px-5 py-4 text-sm sm:px-6">
-              Encoding has not produced resolution rungs for this upload yet.
-            </p>
-          ) : (
-            <div className="border-t">
-              {status.renditions.map((row) => (
-                <RenditionRow key={`${row.label}-${String(row.height)}`} row={row} />
-              ))}
-            </div>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
-    </section>
+                <dd className="flex min-w-0 items-center gap-2">
+                  <a
+                    href={pagePath}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary truncate text-sm font-medium hover:underline"
+                  >
+                    {pageHref}
+                  </a>
+
+                  <ExternalLink className="text-muted-foreground size-3.5 shrink-0" aria-hidden />
+                </dd>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <dt className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Upload metadata</dt>
+
+                <dd className="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  <span className="text-foreground font-medium">{sizeLabel}</span>
+
+                  <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+
+                  {mediaPending ? (
+                    <>
+                      <Skeleton className="h-4 w-24" />
+                      <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+                      <Skeleton className="h-4 w-20" />
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-flex items-center gap-1.5">
+                        <ImageIcon className="size-3.5 shrink-0" aria-hidden />
+                        {thumbnailCount} thumbnail{thumbnailCount === 1 ? "" : "s"}
+                      </span>
+
+                      <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+
+                      <span>
+                        {sampleCount} sample{sampleCount === 1 ? "" : "s"}
+                      </span>
+                    </>
+                  )}
+
+                  {status.original_filename != null && status.original_filename.length > 0 ? (
+                    <>
+                      <span className="bg-border hidden h-3 w-px sm:inline" aria-hidden />
+                      <span className="truncate">{status.original_filename}</span>
+                    </>
+                  ) : null}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+
+        <DeleteUploadDialog
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          isPending={actionBusy === "delete"}
+          videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
+          onConfirm={() => {
+            void handleDeleteVideo();
+          }}
+        />
+
+        <RebuildStreamDialog
+          open={rebuildOpen}
+          onOpenChange={(open) => {
+            if (actionBusy === "rebuild") {
+              return;
+            }
+
+            setRebuildOpen(open);
+          }}
+          isPending={actionBusy === "rebuild"}
+          videoLabel={`${status.video_id}${status.title != null && status.title.length > 0 ? ` — ${status.title}` : ""}`}
+          onConfirm={() => {
+            void handleRebuildStream();
+          }}
+        />
+
+        <ManageAccessDialog
+          open={accessOpen}
+          onOpenChange={(open) => {
+            if (actionBusy === "access") {
+              return;
+            }
+
+            setAccessOpen(open);
+
+            if (!open) {
+              setConfirmAccessOpen(false);
+              setPendingVisibility(null);
+            }
+          }}
+          currentVisibility={status.visibility}
+          isPending={actionBusy === "access"}
+          onRequestChange={handleRequestAccessChange}
+        />
+
+        <ConfirmAccessDialog
+          open={confirmAccessOpen}
+          onOpenChange={(open) => {
+            if (actionBusy === "access") {
+              return;
+            }
+
+            setConfirmAccessOpen(open);
+
+            if (!open) {
+              setPendingVisibility(null);
+            }
+          }}
+          nextVisibility={pendingVisibility}
+          isPending={actionBusy === "access"}
+          onConfirm={() => {
+            void handleConfirmAccessChange();
+          }}
+        />
+
+        <Collapsible defaultOpen className="group/resolutions border-t">
+          <CollapsibleTrigger className="hover:bg-muted/40 flex w-full items-center justify-between gap-3 px-5 py-3 text-left text-sm font-medium sm:px-6">
+            <span>Stream resolutions</span>
+
+            <span className="text-muted-foreground flex items-center gap-2 text-xs font-normal">
+              {status.renditions.length > 0
+                ? `${String(
+                    status.renditions.filter((row) => row.status.toUpperCase() === "READY").length,
+                  )} / ${String(status.renditions.length)} ready`
+                : "No encodings yet"}
+              <ChevronDown className="size-4 transition-transform group-data-panel-open/resolutions:rotate-180" />
+            </span>
+          </CollapsibleTrigger>
+
+          <CollapsibleContent>
+            {status.renditions.length === 0 ? (
+              <p className="text-muted-foreground px-5 py-4 text-sm sm:px-6">
+                Encoding has not produced resolution rungs for this upload yet.
+              </p>
+            ) : (
+              <div className="border-t">
+                {status.renditions.map((row) => (
+                  <RenditionRow key={`${row.label}-${String(row.height)}`} row={row} />
+                ))}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      </section>
+
+      <UploadObservability uploadId={status.public_id} />
+    </div>
   );
 }
 

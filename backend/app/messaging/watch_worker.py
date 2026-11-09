@@ -11,6 +11,7 @@ from app.database import async_session_factory
 from app.messaging.redis_client import get_redis_client
 from app.messaging.watch_event_archive import buffer_watch_event
 from app.models.user_watch_history import UserWatchHistory
+from app.models.video_view import VideoView
 
 _logger = logging.getLogger("uvicorn.error")
 
@@ -149,6 +150,14 @@ async def process_watch_message(payload: dict[str, Any]) -> None:
             position_seconds=position_seconds,
             increment_view=True,
         )
+        # Persist an append-only view event for observability time-series.
+        session.add(
+            VideoView.create(
+                video_id=video_id,
+                user_id=user_id,
+            ),
+        )
+        await session.commit()
 
     _logger.info(
         "Eligible view counted video_id=%s user_id=%s session=%s total_s=%.1f",

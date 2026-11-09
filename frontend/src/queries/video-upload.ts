@@ -343,6 +343,36 @@ export async function listVideoUploadActivity(publicId: string): Promise<VideoUp
   return apiFetch<VideoUploadActivityListResponse>(`/videos/uploads/${publicId}/activity`);
 }
 
+export type VideoUploadMetricPoint = {
+  date: string;
+  count: number;
+};
+
+export type VideoUploadMetricSeries = {
+  total: number;
+  points: Array<VideoUploadMetricPoint>;
+};
+
+export type VideoUploadObservabilityResponse = {
+  public_id: string;
+  video_id: number;
+  days: number;
+  views: VideoUploadMetricSeries;
+  likes: VideoUploadMetricSeries;
+  comments: VideoUploadMetricSeries;
+};
+
+export function videoUploadObservabilityQueryKey(publicId: string, days: number) {
+  return ["video-uploads", "observability", publicId, days] as const;
+}
+
+export async function getVideoUploadObservability(
+  publicId: string,
+  days = 7,
+): Promise<VideoUploadObservabilityResponse> {
+  return apiFetch<VideoUploadObservabilityResponse>(`/videos/uploads/${publicId}/observability?days=${String(days)}`);
+}
+
 export const VIDEO_UPLOADS_LIST_QUERY_KEY = ["video-uploads", "list"] as const;
 
 export async function listVideoUploads(options?: {

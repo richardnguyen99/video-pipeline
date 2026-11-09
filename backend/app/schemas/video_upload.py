@@ -262,3 +262,28 @@ class VideoMediaLinkRequest(BaseModel):
 
     image_type: str = Field(min_length=1, max_length=32)
     url: str = Field(min_length=1, max_length=2048)
+
+
+class VideoUploadMetricPoint(BaseModel):
+    """One daily bucket in an upload observability series."""
+
+    date: str
+    count: int
+
+
+class VideoUploadMetricSeries(BaseModel):
+    """Named metric series with total and daily points."""
+
+    total: int
+    points: list[VideoUploadMetricPoint] = Field(default_factory=list)
+
+
+class VideoUploadObservabilityResponse(BaseModel):
+    """Engagement observability for an owned upload."""
+
+    public_id: UUID
+    video_id: int
+    days: int
+    views: VideoUploadMetricSeries
+    likes: VideoUploadMetricSeries
+    comments: VideoUploadMetricSeries

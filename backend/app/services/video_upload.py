@@ -10,11 +10,12 @@ import math
 import re
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
+from typing import Any, cast
 
 from fastapi import HTTPException, status
-from sqlalchemy import Table, delete, func, insert
+from sqlalchemy import ColumnElement, Table, delete, func, insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlmodel import col, select
@@ -37,6 +38,8 @@ from app.models.associations import (
     t_video_maker,
     t_video_series,
 )
+from app.models.comments import Comment
+from app.models.user_watch_history import UserWatchHistory
 from app.models.video import (
     Video,
     VideoImageUrl,
@@ -45,10 +48,12 @@ from app.models.video import (
     VideoSampleImageUrl,
     VideoSampleMovieUrl,
 )
+from app.models.video_reaction import VideoReaction
 from app.models.video_upload_activity import (
     VideoUploadActivity,
     VideoUploadActivityType,
 )
+from app.models.video_view import VideoView
 from app.schemas.video_upload import (
     ExistingVideoSummary,
     PresignedPart,
@@ -63,6 +68,9 @@ from app.schemas.video_upload import (
     VideoUploadListItem,
     VideoUploadListResponse,
     VideoUploadMetadataUpdateRequest,
+    VideoUploadMetricPoint,
+    VideoUploadMetricSeries,
+    VideoUploadObservabilityResponse,
     VideoUploadPartsResponse,
     VideoUploadStatusResponse,
 )
@@ -473,6 +481,138 @@ class VideoUploadService(VideoUploadMediaMixin):
         await self._session.refresh(video)
 
         return self.__to_status(video)
+
+    async def get_observability(
+        self,
+        *,
+        public_id: uuid.UUID,
+        uploader_id: uuid.UUID,
+        days: int = 7,
+    ) -> VideoUploadObservabilityResponse:
+        """Return daily views, likes, and comments for an owned upload."""
+
+        window_days = max(1, min(days, 90))
+        video = await self.__get_owned_upload(public_id, uploader_id)
+        # Postgres timestamp columns are stored without tz; keep bounds naive UTC.
+        start = datetime.now(timezone.utc).replace(tzinfo=None).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ) - timedelta(days=window_days - 1)
+
+        views = await self.__views_metric_series(
+            video_id=int(video.id),
+            start=start,
+            days=window_days,
+        )
+        likes = await self.__daily_metric_series(
+            cast(ColumnElement[Any], col(VideoReaction.created_at)),
+            col(VideoReaction.video_id) == video.id,
+            col(VideoReaction.is_like).is_(True),
+            start=start,
+            days=window_days,
+        )
+        comments = await self.__daily_metric_series(
+            cast(ColumnElement[Any], col(Comment.created_at)),
+            col(Comment.video_id) == video.id,
+            col(Comment.is_deleted).is_(False),
+            start=start,
+            days=window_days,
+        )
+
+        return VideoUploadObservabilityResponse(
+            public_id=public_id,
+            video_id=int(video.id),
+            days=window_days,
+            views=views,
+            likes=likes,
+            comments=comments,
+        )
+
+    async def __views_metric_series(
+        self,
+        *,
+        video_id: int,
+        start: datetime,
+        days: int,
+    ) -> VideoUploadMetricSeries:
+        """Build view totals from watch history and daily points from view events.
+
+        Engagement surfaces sum ``UserWatchHistory.total_view_count``. Daily
+        charts use append-only ``VideoView`` rows written when a session becomes
+        eligible. When event rows are sparse, last-watched activity is used as
+        a daily fallback so the chart is not empty for historical watches.
+        """
+
+        total_statement = select(
+            func.coalesce(func.sum(col(UserWatchHistory.total_view_count)), 0),
+        ).where(col(UserWatchHistory.video_id) == video_id)
+        total = int((await self._session.exec(total_statement)).one())
+
+        series = await self.__daily_metric_series(
+            cast(ColumnElement[Any], col(VideoView.created_at)),
+            col(VideoView.video_id) == video_id,
+            start=start,
+            days=days,
+        )
+
+        if series.total > 0 or total == 0:
+            return VideoUploadMetricSeries(total=total, points=series.points)
+
+        fallback = await self.__daily_metric_series(
+            cast(ColumnElement[Any], col(UserWatchHistory.last_watched_at)),
+            col(UserWatchHistory.video_id) == video_id,
+            col(UserWatchHistory.total_view_count) > 0,
+            start=start,
+            days=days,
+        )
+
+        return VideoUploadMetricSeries(total=total, points=fallback.points)
+
+    async def __daily_metric_series(
+        self,
+        timestamp_column: ColumnElement[Any],
+        *filters: ColumnElement[bool],
+        start: datetime,
+        days: int,
+    ) -> VideoUploadMetricSeries:
+        """Count rows per UTC day for the given filters."""
+
+        day_bucket = func.date_trunc("day", timestamp_column)
+        time_filter: ColumnElement[bool] = timestamp_column >= start
+        statement = (
+            select(day_bucket.label("day"), func.count().label("count"))
+            .where(*filters, time_filter)
+            .group_by(day_bucket)
+            .order_by(day_bucket)
+        )
+        rows = (await self._session.exec(statement)).all()
+        by_day: dict[str, int] = {}
+
+        for row in rows:
+            day_value = row[0]
+            count_value = int(row[1])
+
+            if isinstance(day_value, datetime):
+                if day_value.tzinfo is not None:
+                    day_value = day_value.astimezone(timezone.utc).replace(
+                        tzinfo=None,
+                    )
+
+                key = day_value.date().isoformat()
+            else:
+                key = str(day_value)[:10]
+
+            by_day[key] = count_value
+
+        points: list[VideoUploadMetricPoint] = []
+        total = 0
+
+        for offset in range(days):
+            day = (start + timedelta(days=offset)).date().isoformat()
+            count_value = by_day.get(day, 0)
+            total += count_value
+            points.append(VideoUploadMetricPoint(date=day, count=count_value))
+
+        return VideoUploadMetricSeries(total=total, points=points)
 
     async def get_status(
         self,

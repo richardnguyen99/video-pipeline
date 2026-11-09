@@ -20,6 +20,7 @@ from app.schemas.video_upload import (
     VideoUploadCreateResponse,
     VideoUploadListResponse,
     VideoUploadMetadataUpdateRequest,
+    VideoUploadObservabilityResponse,
     VideoUploadPartsRequest,
     VideoUploadPartsResponse,
     VideoUploadStatusResponse,
@@ -189,6 +190,27 @@ async def rebuild_video_upload_stream(
     return await service.rebuild_stream(
         public_id=public_id,
         uploader_id=current_user.id,
+    )
+
+
+@router.get(
+    "/videos/uploads/{public_id}/observability",
+    response_model=VideoUploadObservabilityResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Upload engagement observability (views, likes, comments)",
+)
+async def get_video_upload_observability(
+    public_id: UUID,
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+    days: Annotated[int, Query(ge=1, le=90)] = 7,
+) -> VideoUploadObservabilityResponse:
+    """Return daily engagement series for an upload owned by the user."""
+
+    return await service.get_observability(
+        public_id=public_id,
+        uploader_id=current_user.id,
+        days=days,
     )
 
 
