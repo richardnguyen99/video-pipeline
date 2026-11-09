@@ -284,6 +284,8 @@ class VideoUploadObservabilityResponse(BaseModel):
     public_id: UUID
     video_id: int
     days: int
+    range: str = "week"
+    granularity: str = "day"
     views: VideoUploadMetricSeries
     likes: VideoUploadMetricSeries
     comments: VideoUploadMetricSeries

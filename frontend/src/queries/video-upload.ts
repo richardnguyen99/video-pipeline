@@ -353,24 +353,44 @@ export type VideoUploadMetricSeries = {
   points: Array<VideoUploadMetricPoint>;
 };
 
+export type ObservabilityRange = "week" | "months" | "year" | "all";
+export type ObservabilityGranularity = "day" | "week" | "month";
+
 export type VideoUploadObservabilityResponse = {
   public_id: string;
   video_id: number;
   days: number;
+  range: ObservabilityRange;
+  granularity: ObservabilityGranularity;
   views: VideoUploadMetricSeries;
   likes: VideoUploadMetricSeries;
   comments: VideoUploadMetricSeries;
 };
 
-export function videoUploadObservabilityQueryKey(publicId: string, days: number) {
-  return ["video-uploads", "observability", publicId, days] as const;
+export type VideoUploadObservabilityQuery = {
+  days?: number;
+  range?: ObservabilityRange;
+};
+
+export function videoUploadObservabilityQueryKey(publicId: string, query: VideoUploadObservabilityQuery = {}) {
+  return ["video-uploads", "observability", publicId, query.range ?? null, query.days ?? null] as const;
 }
 
 export async function getVideoUploadObservability(
   publicId: string,
-  days = 7,
+  query: VideoUploadObservabilityQuery = {},
 ): Promise<VideoUploadObservabilityResponse> {
-  return apiFetch<VideoUploadObservabilityResponse>(`/videos/uploads/${publicId}/observability?days=${String(days)}`);
+  const params = new URLSearchParams();
+
+  if (query.range != null) {
+    params.set("range", query.range);
+  } else if (query.days != null) {
+    params.set("days", String(query.days));
+  } else {
+    params.set("days", "7");
+  }
+
+  return apiFetch<VideoUploadObservabilityResponse>(`/videos/uploads/${publicId}/observability?${params.toString()}`);
 }
 
 export const VIDEO_UPLOADS_LIST_QUERY_KEY = ["video-uploads", "list"] as const;

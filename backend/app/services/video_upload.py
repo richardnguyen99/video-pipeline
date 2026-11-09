@@ -10,7 +10,7 @@ import math
 import re
 import tempfile
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -18,6 +18,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import Date, Table, cast, delete, func, insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql.elements import ColumnElement
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from types_aiobotocore_s3.type_defs import CompletedPartTypeDef
@@ -487,121 +488,232 @@ class VideoUploadService(VideoUploadMediaMixin):
         public_id: uuid.UUID,
         uploader_id: uuid.UUID,
         days: int = 7,
+        range_key: str | None = None,
     ) -> VideoUploadObservabilityResponse:
-        """Return daily views, likes, and comments for an owned upload."""
+        """Return views, likes, and comments for an owned upload."""
 
-        window_days = max(1, min(days, 90))
         video = await self.__get_owned_upload(public_id, uploader_id)
-        # Postgres timestamp columns are stored without tz; keep bounds naive UTC.
-        start = datetime.now(timezone.utc).replace(tzinfo=None).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ) - timedelta(days=window_days - 1)
-
-        views = await self.__views_metric_series(
-            video_id=int(video.id),
-            start=start,
-            days=window_days,
+        now = (
+            datetime.now(timezone.utc)
+            .replace(tzinfo=None)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
         )
-        likes = await self.__daily_metric_series(
+        resolved_range, granularity, start, end, window_days = (
+            self.__resolve_observability_window(
+                range_key=range_key,
+                days=days,
+                now=now,
+                uploaded_at=video.created_at,
+            )
+        )
+        bucket_keys = self.__observability_bucket_keys(
+            start=start,
+            end=end,
+            granularity=granularity,
+        )
+
+        views = await self.__bucketed_metric_series(
+            col(VideoView.created_at),
+            col(VideoView.video_id) == video.id,
+            start=start,
+            end=end,
+            granularity=granularity,
+            bucket_keys=bucket_keys,
+        )
+        likes = await self.__bucketed_metric_series(
             col(VideoReaction.created_at),
             col(VideoReaction.video_id) == video.id,
             col(VideoReaction.is_like).is_(True),
             start=start,
-            days=window_days,
+            end=end,
+            granularity=granularity,
+            bucket_keys=bucket_keys,
         )
-        comments = await self.__daily_metric_series(
+        comments = await self.__bucketed_metric_series(
             col(Comment.created_at),
             col(Comment.video_id) == video.id,
             col(Comment.is_deleted).is_(False),
             start=start,
-            days=window_days,
+            end=end,
+            granularity=granularity,
+            bucket_keys=bucket_keys,
         )
 
         return VideoUploadObservabilityResponse(
             public_id=public_id,
             video_id=int(video.id),
             days=window_days,
+            range=resolved_range,
+            granularity=granularity,
             views=views,
             likes=likes,
             comments=comments,
         )
 
-    async def __views_metric_series(
-        self,
+    @staticmethod
+    def __resolve_observability_window(
         *,
-        video_id: int,
-        start: datetime,
+        range_key: str | None,
         days: int,
-    ) -> VideoUploadMetricSeries:
-        """Build view totals and daily points from append-only ``VideoView`` rows.
+        now: datetime,
+        uploaded_at: datetime | None,
+    ) -> tuple[str, str, datetime, datetime, int]:
+        """Map range/days into start, end, granularity, and window length."""
 
-        Each eligible watch session inserts one ``VideoView`` with its own
-        ``created_at``. ``UserWatchHistory.total_view_count`` remains a
-        per-user counter for resume UX and is not used for dated analytics.
-        """
+        end = now + timedelta(days=1)
+        normalized = (range_key or "").strip().lower()
 
-        total_statement = select(func.count()).where(
-            col(VideoView.video_id) == video_id,
-        )
-        total = int((await self._session.exec(total_statement)).one())
-        series = await self.__daily_metric_series(
-            col(VideoView.created_at),
-            col(VideoView.video_id) == video_id,
-            start=start,
-            days=days,
-        )
+        if normalized in {"week", "1week", "7d"}:
+            start = now - timedelta(days=6)
+            return "week", "day", start, end, 7
 
-        return VideoUploadMetricSeries(total=total, points=series.points)
+        if normalized in {"3months", "3month", "90d"}:
+            start = now - timedelta(days=89)
+            return "3months", "week", start, end, 90
 
-    async def __daily_metric_series(
+        if normalized in {"year", "1year", "365d"}:
+            start = now - timedelta(days=364)
+            return "year", "month", start, end, 365
+
+        if normalized in {"all", "alltime", "all_time"}:
+            origin = uploaded_at or now
+
+            if origin.tzinfo is not None:
+                origin = origin.astimezone(timezone.utc).replace(tzinfo=None)
+
+            start = min(
+                origin.replace(
+                    hour=0,
+                    minute=0,
+                    second=0,
+                    microsecond=0,
+                ),
+                now,
+            )
+
+            span_days = max(1, (now.date() - start.date()).days + 1)
+
+            if span_days <= 14:
+                granularity = "day"
+            elif span_days <= 120:
+                granularity = "week"
+            else:
+                granularity = "month"
+
+            return "all", granularity, start, end, span_days
+
+        window_days = max(1, min(days, 90))
+        start = now - timedelta(days=window_days - 1)
+        return "week", "day", start, end, window_days
+
+    @staticmethod
+    def __observability_bucket_keys(
+        *,
+        start: datetime,
+        end: datetime,
+        granularity: str,
+    ) -> list[str]:
+        """Generate ordered bucket keys covering ``[start, end)``."""
+
+        keys: list[str] = []
+        cursor = start.date()
+        end_date = end.date()
+
+        if granularity == "month":
+            cursor = cursor.replace(day=1)
+            while cursor < end_date:
+                keys.append(cursor.isoformat())
+                if cursor.month == 12:
+                    cursor = cursor.replace(year=cursor.year + 1, month=1)
+                else:
+                    cursor = cursor.replace(month=cursor.month + 1)
+            return keys
+
+        if granularity == "week":
+            cursor = cursor - timedelta(days=cursor.weekday())
+            while cursor < end_date:
+                keys.append(cursor.isoformat())
+                cursor = cursor + timedelta(days=7)
+            return keys
+
+        while cursor < end_date:
+            keys.append(cursor.isoformat())
+            cursor = cursor + timedelta(days=1)
+
+        return keys
+
+    @staticmethod
+    def __bucket_key_from_value(value: Any, granularity: str) -> str:
+        day: date
+
+        if isinstance(value, datetime):
+            normalized = value
+
+            if normalized.tzinfo is not None:
+                normalized = normalized.astimezone(timezone.utc).replace(
+                    tzinfo=None,
+                )
+
+            day = normalized.date()
+        elif isinstance(value, date):
+            day = value
+        else:
+            raw = str(value)[:10]
+            day = datetime.strptime(raw, "%Y-%m-%d").date()
+
+        if granularity == "month":
+            key = day.replace(day=1).isoformat()
+        elif granularity == "week":
+            key = (day - timedelta(days=day.weekday())).isoformat()
+        else:
+            key = day.isoformat()
+
+        return str(key)
+
+    async def __bucketed_metric_series(
         self,
         timestamp_column: Any,
         *filters: Any,
         start: datetime,
-        days: int,
+        end: datetime,
+        granularity: str,
+        bucket_keys: list[str],
     ) -> VideoUploadMetricSeries:
-        """Count rows per calendar day for the given filters.
+        """Count rows per day/week/month bucket for the selected window."""
 
-        Uses ``CAST(... AS DATE)`` so buckets follow the stored timestamp's
-        calendar day (naive UTC) and line up with the generated day keys.
-        """
+        bucket_expr: ColumnElement[Any]
 
-        day_bucket = cast(timestamp_column, Date)
+        if granularity == "month":
+            bucket_expr = func.date_trunc("month", timestamp_column)
+        elif granularity == "week":
+            bucket_expr = func.date_trunc("week", timestamp_column)
+        else:
+            bucket_expr = cast(timestamp_column, Date)
+
         statement = (
-            select(day_bucket.label("day"), func.count().label("count"))
-            .where(*filters, timestamp_column >= start)
-            .group_by(day_bucket)
-            .order_by(day_bucket)
+            select(bucket_expr.label("bucket"), func.count().label("count"))
+            .where(
+                *filters,
+                timestamp_column >= start,
+                timestamp_column < end,
+            )
+            .group_by(bucket_expr)
+            .order_by(bucket_expr)
         )
         rows = (await self._session.exec(statement)).all()
-        by_day: dict[str, int] = {}
+        by_bucket: dict[str, int] = {}
 
         for row in rows:
-            day_value = row[0]
-            count_value = int(row[1])
-
-            if isinstance(day_value, datetime):
-                if day_value.tzinfo is not None:
-                    day_value = day_value.astimezone(timezone.utc).replace(
-                        tzinfo=None,
-                    )
-
-                key = day_value.date().isoformat()
-            elif hasattr(day_value, "isoformat"):
-                key = day_value.isoformat()[:10]
-            else:
-                key = str(day_value)[:10]
-
-            by_day[key] = by_day.get(key, 0) + count_value
+            key = self.__bucket_key_from_value(row[0], granularity)
+            by_bucket[key] = by_bucket.get(key, 0) + int(row[1])
 
         points: list[VideoUploadMetricPoint] = []
         total = 0
 
-        for offset in range(days):
-            day = (start + timedelta(days=offset)).date().isoformat()
-            count_value = int(by_day.get(day, 0))
+        for key in bucket_keys:
+            count_value = int(by_bucket.get(key, 0))
             total += count_value
-            points.append(VideoUploadMetricPoint(date=day, count=count_value))
+            points.append(VideoUploadMetricPoint(date=key, count=count_value))
 
         return VideoUploadMetricSeries(total=total, points=points)
 

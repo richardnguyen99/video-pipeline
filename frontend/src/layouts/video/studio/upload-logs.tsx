@@ -249,6 +249,7 @@ export function UploadLogs({ uploadId }: UploadLogsProps) {
 
             return (
               <button
+                data-slot="filter-tag"
                 key={option.value}
                 type="button"
                 onClick={() => {

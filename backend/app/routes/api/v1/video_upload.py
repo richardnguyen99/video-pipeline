@@ -3,7 +3,7 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Query, UploadFile, status
@@ -204,13 +204,18 @@ async def get_video_upload_observability(
     current_user: CurrentUserDep,
     service: VideoUploadServiceDep,
     days: Annotated[int, Query(ge=1, le=90)] = 7,
+    range_key: Annotated[
+        Literal["week", "months", "year", "all"] | None,
+        Query(alias="range"),
+    ] = None,
 ) -> VideoUploadObservabilityResponse:
-    """Return daily engagement series for an upload owned by the user."""
+    """Return engagement series for an upload owned by the user."""
 
     return await service.get_observability(
         public_id=public_id,
         uploader_id=current_user.id,
         days=days,
+        range_key=range_key,
     )
 
 

@@ -1,18 +1,37 @@
 import { useId, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Heart, MessageCircle } from "lucide-react";
+import { ChevronDown, Eye, Heart, ListFilter, MessageCircle } from "lucide-react";
 
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getVideoUploadObservability, videoUploadObservabilityQueryKey } from "@/queries/video-upload";
 import type {
+  ObservabilityGranularity,
+  ObservabilityRange,
   VideoUploadMetricPoint,
   VideoUploadMetricSeries,
   VideoUploadObservabilityResponse,
 } from "@/queries/video-upload";
 import { cn } from "@/libs/utils";
 
-const DEFAULT_DAYS = 7;
 const CHART_WIDTH = 720;
 const CHART_HEIGHT = 280;
 const CHART_PADDING_TOP = 12;
@@ -44,9 +63,15 @@ const METRICS = [
 
 type MetricKey = (typeof METRICS)[number]["key"];
 
+const RANGE_OPTIONS: Array<{ value: ObservabilityRange; label: string }> = [
+  { value: "week", label: "1 week" },
+  { value: "months", label: "3 months" },
+  { value: "year", label: "1 year" },
+  { value: "all", label: "All time" },
+];
+
 type StudioAnalyticsProps = {
   uploadId: string;
-  days?: number;
 };
 
 type PlottedPoint = {
@@ -54,6 +79,7 @@ type PlottedPoint = {
   y: number;
   date: string;
   count: number;
+  label: string;
 };
 
 type SeriesPlot = {
@@ -72,18 +98,46 @@ type YTick = {
   y: number;
 };
 
-function formatDayLabel(isoDate: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+function parseIsoDate(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
 
   if (match == null) {
+    return new Date(value);
+  }
+
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+function formatBucketLabel(isoDate: string, granularity: ObservabilityGranularity): string {
+  const date = parseIsoDate(isoDate);
+
+  if (Number.isNaN(date.getTime())) {
     return isoDate;
   }
 
-  const month = Number(match[2]);
-  const day = Number(match[3]);
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[date.getUTCMonth()] ?? "";
+  const day = date.getUTCDate();
+  const year = date.getUTCFullYear();
 
-  return `${months[month - 1] ?? match[2]} ${String(day)}`;
+  if (granularity === "month") {
+    return `${month} ${String(year)}`;
+  }
+
+  if (granularity === "week") {
+    const end = new Date(date);
+    end.setUTCDate(end.getUTCDate() + 6);
+    const endMonth = months[end.getUTCMonth()] ?? "";
+    const endDay = end.getUTCDate();
+
+    if (date.getUTCMonth() === end.getUTCMonth()) {
+      return `${month} ${String(day)}–${String(endDay)}`;
+    }
+
+    return `${month} ${String(day)} – ${endMonth} ${String(endDay)}`;
+  }
+
+  return `${month} ${String(day)}`;
 }
 
 function buildLinearPath(points: Array<PlottedPoint>): string {
@@ -167,6 +221,7 @@ function plotSeries(
   scaleMax: number,
   plotTop: number,
   plotBottom: number,
+  granularity: ObservabilityGranularity,
 ): SeriesPlot {
   const plotHeight = Math.max(plotBottom - plotTop, 1);
   const lastIndex = Math.max(series.points.length - 1, 1);
@@ -180,6 +235,7 @@ function plotSeries(
       y,
       date: point.date,
       count: point.count,
+      label: formatBucketLabel(point.date, granularity),
     };
   });
   const line = buildLinearPath(points);
@@ -202,21 +258,20 @@ function plotSeries(
   };
 }
 
-function buildCombinedPlots(data: VideoUploadObservabilityResponse): {
+function buildCombinedPlots(
+  data: VideoUploadObservabilityResponse,
+  enabledMetrics: ReadonlySet<MetricKey>,
+): {
   plots: Array<SeriesPlot>;
   yTicks: Array<YTick>;
-  scaleMax: number;
 } {
-  const allPoints: Array<VideoUploadMetricPoint> = [
-    ...data.views.points,
-    ...data.likes.points,
-    ...data.comments.points,
-  ];
-  const rawMax = Math.max(1, ...allPoints.map((point) => point.count));
+  const selected = METRICS.filter((metric) => enabledMetrics.has(metric.key));
+  const allPoints: Array<VideoUploadMetricPoint> = selected.flatMap((metric) => data[metric.key].points);
+  const rawMax = Math.max(1, ...allPoints.map((point) => point.count), 0);
   const scaleMax = niceMax(rawMax);
   const plotTop = CHART_PADDING_TOP;
   const plotBottom = CHART_HEIGHT - CHART_PADDING_BOTTOM;
-  const plots = METRICS.map((metric) =>
+  const plots = selected.map((metric) =>
     plotSeries(
       data[metric.key],
       metric.key,
@@ -226,11 +281,12 @@ function buildCombinedPlots(data: VideoUploadObservabilityResponse): {
       scaleMax,
       plotTop,
       plotBottom,
+      data.granularity,
     ),
   );
   const yTicks = buildYTicks(scaleMax, plotTop, plotBottom);
 
-  return { plots, yTicks, scaleMax };
+  return { plots, yTicks };
 }
 
 function findClosestDayIndex(referencePoints: Array<PlottedPoint>, pointerX: number): number | null {
@@ -256,28 +312,29 @@ function findClosestDayIndex(referencePoints: Array<PlottedPoint>, pointerX: num
 function CombinedAnalyticsChart({
   data,
   loading,
+  enabledMetrics,
 }: {
   data: VideoUploadObservabilityResponse | null;
   loading: boolean;
+  enabledMetrics: ReadonlySet<MetricKey>;
 }) {
   const gradientId = useId().replace(/:/g, "");
   const plotRef = useRef<HTMLDivElement | null>(null);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const chartModel = useMemo(() => {
-    if (data == null) {
+    if (data == null || enabledMetrics.size === 0) {
       return {
         plots: [] as Array<SeriesPlot>,
         yTicks: [] as Array<YTick>,
-        scaleMax: 1,
       };
     }
 
-    return buildCombinedPlots(data);
-  }, [data]);
+    return buildCombinedPlots(data, enabledMetrics);
+  }, [data, enabledMetrics]);
   const { plots, yTicks } = chartModel;
   const referencePoints = plots[0]?.points ?? [];
-  const activeDate =
-    activeIndex == null || activeIndex >= referencePoints.length ? null : referencePoints[activeIndex].date;
+  const activePoint =
+    activeIndex == null || activeIndex >= referencePoints.length ? null : referencePoints[activeIndex];
 
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     const container = plotRef.current;
@@ -299,7 +356,7 @@ function CombinedAnalyticsChart({
   };
 
   const tooltipPlacement = useMemo(() => {
-    if (activeIndex == null) {
+    if (activeIndex == null || plots.length === 0) {
       return null;
     }
 
@@ -326,10 +383,18 @@ function CombinedAnalyticsChart({
     return <Skeleton className="h-80 w-full rounded-xl" />;
   }
 
-  if (data == null || plots.length === 0) {
+  if (data == null) {
     return (
       <div className="text-muted-foreground flex h-80 items-center justify-center rounded-xl border border-dashed text-sm">
         No analytics data available
+      </div>
+    );
+  }
+
+  if (enabledMetrics.size === 0) {
+    return (
+      <div className="text-muted-foreground flex h-80 items-center justify-center rounded-xl border border-dashed text-sm">
+        Select at least one metric to display the chart
       </div>
     );
   }
@@ -363,7 +428,7 @@ function CombinedAnalyticsChart({
               className="h-full w-full"
               preserveAspectRatio="none"
               role="img"
-              aria-label="Views, likes, and comments trend"
+              aria-label="Engagement trend"
             >
               <defs>
                 {plots.map((plot) => (
@@ -413,7 +478,7 @@ function CombinedAnalyticsChart({
               ))}
             </svg>
 
-            {activeIndex != null && activeDate != null && tooltipPlacement != null ? (
+            {activeIndex != null && activePoint != null && tooltipPlacement != null ? (
               <>
                 {plots.map((plot) => {
                   const point = plot.points[activeIndex];
@@ -442,7 +507,7 @@ function CombinedAnalyticsChart({
                     marginTop: -12,
                   }}
                 >
-                  <div className="text-muted-foreground mb-1">{formatDayLabel(activeDate)}</div>
+                  <div className="text-muted-foreground mb-1">{activePoint.label}</div>
 
                   <div className="flex flex-col gap-0.5">
                     {plots.map((plot) => {
@@ -474,7 +539,7 @@ function CombinedAnalyticsChart({
                 return null;
               }
 
-              const maxLabels = Math.min(referencePoints.length, 7);
+              const maxLabels = Math.min(referencePoints.length, 8);
               const step = Math.max(1, Math.floor((referencePoints.length - 1) / Math.max(maxLabels - 1, 1)));
               const indices = new Set<number>();
 
@@ -501,7 +566,7 @@ function CombinedAnalyticsChart({
                         transform: isFirst ? "none" : isLast ? "translateX(-100%)" : "translateX(-50%)",
                       }}
                     >
-                      {formatDayLabel(point.date)}
+                      {point.label}
                     </span>
                   );
                 });
@@ -526,24 +591,135 @@ function CombinedAnalyticsChart({
   );
 }
 
-export function StudioAnalytics({ uploadId, days = DEFAULT_DAYS }: StudioAnalyticsProps) {
+export function StudioAnalytics({ uploadId }: StudioAnalyticsProps) {
+  const [range, setRange] = useState<ObservabilityRange>("week");
+  const [enabledMetrics, setEnabledMetrics] = useState<Set<MetricKey>>(() => new Set(["views", "likes", "comments"]));
   const query = useQuery({
-    queryKey: videoUploadObservabilityQueryKey(uploadId, days),
-    queryFn: () => getVideoUploadObservability(uploadId, days),
+    queryKey: videoUploadObservabilityQueryKey(uploadId, { range }),
+    queryFn: () => getVideoUploadObservability(uploadId, { range }),
     staleTime: 30_000,
   });
 
   const data = query.data ?? null;
   const loading = query.isLoading && data == null;
 
+  const toggleMetric = (key: MetricKey) => {
+    setEnabledMetrics((current) => {
+      const next = new Set(current);
+
+      if (next.has(key)) {
+        if (next.size === 1) {
+          return current;
+        }
+
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+
+      return next;
+    });
+  };
+
+  const metricFilterLabel = (() => {
+    if (enabledMetrics.size === METRICS.length) {
+      return "All metrics";
+    }
+
+    const labels = METRICS.filter((metric) => enabledMetrics.has(metric.key)).map((metric) => metric.label);
+
+    if (labels.length === 0) {
+      return "Metrics";
+    }
+
+    return labels.join(", ");
+  })();
+
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-lg font-semibold tracking-tight">Analytics</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="text-lg font-semibold tracking-tight">Analytics</h1>
 
-        <p className="text-muted-foreground text-sm">
-          Combined views, likes, and comments over the last {String(days)} days
-        </p>
+          <p className="text-muted-foreground text-sm">Combined views, likes, and comments</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Select
+            value={range}
+            items={RANGE_OPTIONS}
+            onValueChange={(value) => {
+              if (value == null) {
+                return;
+              }
+
+              setRange(value);
+            }}
+          >
+            <SelectTrigger className="w-35" size="sm" aria-label="Date range">
+              <SelectValue />
+            </SelectTrigger>
+
+            <SelectContent align="end">
+              <SelectGroup>
+                <SelectLabel>Date range</SelectLabel>
+                {RANGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              type="button"
+              className={cn(
+                "border-input bg-background hover:bg-muted inline-flex h-7 min-w-35 items-center justify-between gap-2 rounded-lg border px-2.5 text-sm shadow-xs transition-colors",
+                "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
+              )}
+              aria-label="Filter metrics"
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <ListFilter className="size-3.5 shrink-0" aria-hidden />
+                <span className="truncate">{metricFilterLabel}</span>
+              </span>
+              <ChevronDown className="size-3.5 shrink-0 opacity-60" aria-hidden />
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Metrics</DropdownMenuLabel>
+              </DropdownMenuGroup>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuGroup>
+                {METRICS.map((metric) => {
+                  const active = enabledMetrics.has(metric.key);
+
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={metric.key}
+                      checked={active}
+                      onCheckedChange={() => {
+                        toggleMetric(metric.key);
+                      }}
+                    >
+                      <span
+                        className="size-2 shrink-0 rounded-full"
+                        style={{ backgroundColor: metric.stroke }}
+                        aria-hidden
+                      />
+                      {metric.label}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">
@@ -551,9 +727,22 @@ export function StudioAnalytics({ uploadId, days = DEFAULT_DAYS }: StudioAnalyti
           {METRICS.map((metric) => {
             const series = data == null ? null : data[metric.key];
             const Icon = metric.icon;
+            const active = enabledMetrics.has(metric.key);
 
             return (
-              <div key={metric.key} className="bg-card flex items-center justify-between gap-3 rounded-xl border p-4">
+              <button
+                key={metric.key}
+                type="button"
+                data-slot="filter-tag"
+                className={cn(
+                  "bg-card flex items-center justify-between gap-3 rounded-xl border p-4 text-left transition-opacity",
+                  !active && "opacity-50",
+                )}
+                aria-pressed={active}
+                onClick={() => {
+                  toggleMetric(metric.key);
+                }}
+              >
                 <div className="flex flex-col gap-1">
                   <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
                     {metric.label}
@@ -578,12 +767,12 @@ export function StudioAnalytics({ uploadId, days = DEFAULT_DAYS }: StudioAnalyti
                 >
                   <Icon className="size-4" aria-hidden />
                 </span>
-              </div>
+              </button>
             );
           })}
         </div>
 
-        <CombinedAnalyticsChart data={data} loading={loading} />
+        <CombinedAnalyticsChart data={data} loading={loading} enabledMetrics={enabledMetrics} />
       </div>
     </div>
   );

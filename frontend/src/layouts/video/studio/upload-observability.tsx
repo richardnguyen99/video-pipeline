@@ -272,8 +272,8 @@ function MetricCard({ title, series, accentClassName, stroke, gradientFrom, icon
 
 export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObservabilityProps) {
   const query = useQuery({
-    queryKey: videoUploadObservabilityQueryKey(uploadId, days),
-    queryFn: () => getVideoUploadObservability(uploadId, days),
+    queryKey: videoUploadObservabilityQueryKey(uploadId, { days }),
+    queryFn: () => getVideoUploadObservability(uploadId, { days }),
     staleTime: 30_000,
   });
 
