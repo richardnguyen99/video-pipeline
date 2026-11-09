@@ -1,8 +1,10 @@
 import { useId, useMemo, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Heart, MessageCircle } from "lucide-react";
+import { ArrowUpRight, Eye, Heart, MessageCircle } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getVideoUploadObservability, videoUploadObservabilityQueryKey } from "@/queries/video-upload";
 import type { VideoUploadMetricPoint, VideoUploadMetricSeries } from "@/queries/video-upload";
@@ -286,6 +288,18 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
 
           <p className="text-muted-foreground text-xs">Views, likes, and comments over the last {String(days)} days</p>
         </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          nativeButton={false}
+          render={<Link to="/studio/analytics" search={{ uploadId, days }} />}
+        >
+          Analytics
+          <ArrowUpRight data-icon="inline-end" className="size-4" />
+        </Button>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

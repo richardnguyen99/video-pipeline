@@ -29,6 +29,7 @@ import { Route as UUsernameRouteRouteImport } from './routes/u/$username/route'
 import { Route as VideosIndexRouteImport } from './routes/videos/index'
 import { Route as VideosIdRouteImport } from './routes/videos/$id'
 import { Route as AuthenticatedStudioIndexRouteImport } from './routes/_authenticated/studio/index'
+import { Route as AuthenticatedStudioAnalyticsRouteImport } from './routes/_authenticated/studio/analytics'
 import { Route as UUsernameIndexRouteImport } from './routes/u/$username/index'
 import { Route as UUsernameBlockedAccountsRouteImport } from './routes/u/$username/blocked-accounts'
 import { Route as UUsernameContentPreferenceRouteImport } from './routes/u/$username/content-preference'
@@ -151,6 +152,12 @@ const AuthenticatedStudioIndexRoute =
   AuthenticatedStudioIndexRouteImport.update({
     id: '/',
     path: '/',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
+  } as any)
+const AuthenticatedStudioAnalyticsRoute =
+  AuthenticatedStudioAnalyticsRouteImport.update({
+    id: '/analytics',
+    path: '/analytics',
     getParentRoute: () => AuthenticatedStudioRouteRoute,
   } as any)
 const UUsernameIndexRoute = UUsernameIndexRouteImport.update({
@@ -299,6 +306,7 @@ export interface FileRoutesByFullPath {
   '/videos/': typeof VideosIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
+  '/studio/analytics': typeof AuthenticatedStudioAnalyticsRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -337,6 +345,7 @@ export interface FileRoutesByTo {
   '/videos/$id': typeof VideosIdRoute
   '/actresses': typeof ActressesIndexRoute
   '/videos': typeof VideosIndexRoute
+  '/studio/analytics': typeof AuthenticatedStudioAnalyticsRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -383,6 +392,7 @@ export interface FileRoutesById {
   '/videos/': typeof VideosIndexRoute
   '/u/$username/playlists': typeof UUsernamePlaylistsRouteRouteWithChildren
   '/u/$username/videos': typeof UUsernameVideosRouteRouteWithChildren
+  '/_authenticated/studio/analytics': typeof AuthenticatedStudioAnalyticsRoute
   '/u/$username/blocked-accounts': typeof UUsernameBlockedAccountsRoute
   '/u/$username/content-preference': typeof UUsernameContentPreferenceRoute
   '/u/$username/deactivate': typeof UUsernameDeactivateRoute
@@ -428,6 +438,7 @@ export interface FileRouteTypes {
     | '/videos/'
     | '/u/$username/playlists'
     | '/u/$username/videos'
+    | '/studio/analytics'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -466,6 +477,7 @@ export interface FileRouteTypes {
     | '/videos/$id'
     | '/actresses'
     | '/videos'
+    | '/studio/analytics'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -511,6 +523,7 @@ export interface FileRouteTypes {
     | '/videos/'
     | '/u/$username/playlists'
     | '/u/$username/videos'
+    | '/_authenticated/studio/analytics'
     | '/u/$username/blocked-accounts'
     | '/u/$username/content-preference'
     | '/u/$username/deactivate'
@@ -693,6 +706,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioIndexRouteImport
       parentRoute: typeof AuthenticatedStudioRouteRoute
     }
+    '/_authenticated/studio/analytics': {
+      id: '/_authenticated/studio/analytics'
+      path: '/analytics'
+      fullPath: '/studio/analytics'
+      preLoaderRoute: typeof AuthenticatedStudioAnalyticsRouteImport
+      parentRoute: typeof AuthenticatedStudioRouteRoute
+    }
     '/u/$username/': {
       id: '/u/$username/'
       path: '/'
@@ -872,6 +892,7 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
 )
 
 interface AuthenticatedStudioRouteRouteChildren {
+  AuthenticatedStudioAnalyticsRoute: typeof AuthenticatedStudioAnalyticsRoute
   AuthenticatedStudioIndexRoute: typeof AuthenticatedStudioIndexRoute
   AuthenticatedStudioUploadsNewRoute: typeof AuthenticatedStudioUploadsNewRoute
   AuthenticatedStudioUploadsIndexRoute: typeof AuthenticatedStudioUploadsIndexRoute
@@ -884,6 +905,7 @@ interface AuthenticatedStudioRouteRouteChildren {
 
 const AuthenticatedStudioRouteRouteChildren: AuthenticatedStudioRouteRouteChildren =
   {
+    AuthenticatedStudioAnalyticsRoute: AuthenticatedStudioAnalyticsRoute,
     AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
     AuthenticatedStudioUploadsNewRoute: AuthenticatedStudioUploadsNewRoute,
     AuthenticatedStudioUploadsIndexRoute: AuthenticatedStudioUploadsIndexRoute,

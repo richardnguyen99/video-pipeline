@@ -46,7 +46,7 @@ const NAV_ITEMS = [
     id: "analytics",
     label: "Analytics",
     icon: BarChart3,
-    to: null,
+    to: "/studio/analytics" as const,
   },
   {
     id: "audience",
@@ -167,7 +167,7 @@ function SidebarNavLink({
   collapsed: boolean;
   label: string;
   isActive: boolean;
-  to: "/studio" | "/studio/uploads";
+  to: "/studio" | "/studio/uploads" | "/studio/analytics";
   onNavigate?: () => void;
   children: ReactNode;
 }) {
