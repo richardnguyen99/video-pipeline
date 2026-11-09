@@ -1,14 +1,16 @@
-import { useMemo } from "react";
-import type { ReactNode } from "react";
+import { useId, useMemo, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, Heart, MessageCircle } from "lucide-react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { getVideoUploadObservability, videoUploadObservabilityQueryKey } from "@/queries/video-upload";
-import type { VideoUploadMetricSeries } from "@/queries/video-upload";
+import type { VideoUploadMetricPoint, VideoUploadMetricSeries } from "@/queries/video-upload";
 import { cn } from "@/libs/utils";
 
 const DEFAULT_DAYS = 7;
+const CHART_WIDTH = 240;
+const CHART_HEIGHT = 72;
 
 type UploadObservabilityProps = {
   uploadId: string;
@@ -19,67 +21,155 @@ type MetricCardProps = {
   title: string;
   series: VideoUploadMetricSeries | null;
   accentClassName: string;
-  strokeClassName: string;
-  fillClassName: string;
+  stroke: string;
+  gradientFrom: string;
   icon: ReactNode;
   loading?: boolean;
 };
 
-function buildAreaPath(
-  points: Array<{ count: number }>,
-  width: number,
-  height: number,
-): { line: string; area: string } {
+type PlottedPoint = {
+  x: number;
+  y: number;
+  date: string;
+  count: number;
+};
+
+type ChartGeometry = {
+  line: string;
+  area: string;
+  points: Array<PlottedPoint>;
+};
+
+function formatDayLabel(isoDate: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+
+  if (match == null) {
+    return isoDate;
+  }
+
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  return `${months[month - 1] ?? match[2]} ${String(day)}`;
+}
+
+function buildLinearPath(points: Array<PlottedPoint>): string {
   if (points.length === 0) {
-    return { line: "", area: "" };
+    return "";
+  }
+
+  return points
+    .map((point, index) => {
+      const command = index === 0 ? "M" : "L";
+
+      return `${command} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
+    })
+    .join(" ");
+}
+
+function buildChartGeometry(points: Array<VideoUploadMetricPoint>, width: number, height: number): ChartGeometry {
+  if (points.length === 0) {
+    return { line: "", area: "", points: [] };
   }
 
   const max = Math.max(1, ...points.map((point) => point.count));
-  // Discrete daily buckets: hold each day's value across its slot so adjacent
-  // non-zero days stay visually separate instead of blending into one ramp.
-  const slot = width / points.length;
+  const lastIndex = Math.max(points.length - 1, 1);
+  const plotted = points.map((point, index) => {
+    const x = (index / lastIndex) * width;
+    const y = height - (point.count / max) * (height - 8) - 4;
 
-  const segments: Array<string> = [];
-
-  points.forEach((point, index) => {
-    const x0 = index * slot;
-    const x1 = (index + 1) * slot;
-    const y = height - (point.count / max) * (height - 4) - 2;
-
-    if (index === 0) {
-      segments.push(`M ${x0.toFixed(2)} ${y.toFixed(2)}`);
-    } else {
-      segments.push(`L ${x0.toFixed(2)} ${y.toFixed(2)}`);
-    }
-
-    segments.push(`L ${x1.toFixed(2)} ${y.toFixed(2)}`);
+    return {
+      x,
+      y,
+      date: point.date,
+      count: point.count,
+    };
   });
+  const line = buildLinearPath(plotted);
+  const first = plotted[0];
+  const last = plotted[plotted.length - 1];
+  const area = `${line} L ${last.x.toFixed(2)} ${height.toFixed(2)} L ${first.x.toFixed(2)} ${height.toFixed(2)} Z`;
 
-  const line = segments.join(" ");
-  const area = `${line} L ${width.toFixed(2)} ${height.toFixed(2)} L 0 ${height.toFixed(2)} Z`;
-
-  return { line, area };
+  return { line, area, points: plotted };
 }
 
-function MetricCard({
-  title,
-  series,
-  accentClassName,
-  strokeClassName,
-  fillClassName,
-  icon,
-  loading = false,
-}: MetricCardProps) {
+function findClosestPointIndex(points: Array<PlottedPoint>, pointerX: number): number | null {
+  if (points.length === 0) {
+    return null;
+  }
+
+  let closestIndex = 0;
+  let closestDistance = Math.abs(points[0].x - pointerX);
+
+  for (let index = 1; index < points.length; index += 1) {
+    const distance = Math.abs(points[index].x - pointerX);
+
+    if (distance < closestDistance) {
+      closestDistance = distance;
+      closestIndex = index;
+    }
+  }
+
+  return closestIndex;
+}
+
+function MetricCard({ title, series, accentClassName, stroke, gradientFrom, icon, loading = false }: MetricCardProps) {
+  const gradientId = useId().replace(/:/g, "");
+  const chartRef = useRef<HTMLDivElement | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const chart = useMemo(() => {
     if (series == null) {
-      return { line: "", area: "" };
+      return { line: "", area: "", points: [] as Array<PlottedPoint> };
     }
 
-    return buildAreaPath(series.points, 240, 72);
+    return buildChartGeometry(series.points, CHART_WIDTH, CHART_HEIGHT);
   }, [series]);
+  const activePoint = activeIndex == null ? null : (chart.points[activeIndex] ?? null);
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const container = chartRef.current;
+
+    if (container == null || chart.points.length === 0) {
+      return;
+    }
+
+    const bounds = container.getBoundingClientRect();
+    const ratioX = (event.clientX - bounds.left) / Math.max(bounds.width, 1);
+    const pointerX = ratioX * CHART_WIDTH;
+    const nextIndex = findClosestPointIndex(chart.points, pointerX);
+
+    setActiveIndex(nextIndex);
+  };
+
+  const handlePointerLeave = () => {
+    setActiveIndex(null);
+  };
+
+  const tooltipPlacement = useMemo(() => {
+    if (activePoint == null) {
+      return null;
+    }
+
+    const leftPercent = (activePoint.x / CHART_WIDTH) * 100;
+    const topPercent = (activePoint.y / CHART_HEIGHT) * 100;
+    const alignNearRight = leftPercent > 72;
+    const alignNearLeft = leftPercent < 18;
+
+    return {
+      leftPercent,
+      topPercent,
+      transform: alignNearRight
+        ? "translate(-100%, -100%)"
+        : alignNearLeft
+          ? "translate(0, -100%)"
+          : "translate(-50%, -100%)",
+      marginLeft: alignNearRight ? -4 : alignNearLeft ? 4 : 0,
+    };
+  }, [activePoint]);
 
   return (
-    <div className="bg-card flex min-h-36 flex-col gap-3 rounded-xl border p-4">
+    <div className="bg-card flex min-h-40 flex-col gap-3 rounded-xl border p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-1">
           <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{title}</span>
@@ -94,29 +184,85 @@ function MetricCard({
         <span className={cn("rounded-md p-2", accentClassName)}>{icon}</span>
       </div>
 
-      <div className="mt-auto h-18 w-full">
+      <div
+        ref={chartRef}
+        className="relative mt-auto h-20 w-full"
+        onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
+      >
         {loading || series == null ? (
           <Skeleton className="h-full w-full rounded-md" />
         ) : (
-          <svg
-            viewBox="0 0 240 72"
-            className="h-full w-full overflow-visible"
-            preserveAspectRatio="none"
-            role="img"
-            aria-label={`${title} trend`}
-          >
-            <path d={chart.area} className={cn(fillClassName, "opacity-30")} />
+          <>
+            <svg
+              viewBox={`0 0 ${String(CHART_WIDTH)} ${String(CHART_HEIGHT)}`}
+              className="h-full w-full"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label={`${title} trend`}
+            >
+              <defs>
+                <linearGradient id={`metric-fill-${gradientId}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={gradientFrom} stopOpacity={0.35} />
 
-            <path
-              d={chart.line}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              className={strokeClassName}
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
+                  <stop offset="100%" stopColor={gradientFrom} stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+
+              <path d={chart.area} fill={`url(#metric-fill-${gradientId})`} />
+
+              <path
+                d={chart.line}
+                fill="none"
+                stroke={stroke}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            </svg>
+
+            {activePoint != null && tooltipPlacement != null ? (
+              <>
+                <div
+                  className="pointer-events-none absolute size-2.5 rounded-full border-2 bg-card"
+                  style={{
+                    left: `${String(tooltipPlacement.leftPercent)}%`,
+                    top: `${String(tooltipPlacement.topPercent)}%`,
+                    borderColor: stroke,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                />
+
+                <div
+                  className="bg-background pointer-events-none absolute z-10 whitespace-nowrap rounded-md border px-2 py-1 text-xs shadow-md"
+                  style={{
+                    left: `${String(tooltipPlacement.leftPercent)}%`,
+                    top: `${String(tooltipPlacement.topPercent)}%`,
+                    transform: tooltipPlacement.transform,
+                    marginLeft: tooltipPlacement.marginLeft,
+                    marginTop: -10,
+                  }}
+                >
+                  <div className="text-muted-foreground">{formatDayLabel(activePoint.date)}</div>
+
+                  <div className="font-medium tabular-nums">
+                    {activePoint.count.toLocaleString()} {title.toLowerCase()}
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </>
         )}
+      </div>
+
+      <div className="text-muted-foreground flex items-center gap-2 text-xs">
+        <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: stroke }} aria-hidden />
+
+        <span className="whitespace-nowrap">
+          {title}
+          {series != null ? ` · ${String(series.points.length)} days` : ""}
+        </span>
       </div>
     </div>
   );
@@ -148,8 +294,8 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
           series={data?.views ?? null}
           loading={loading}
           accentClassName="bg-blue-500/15 text-blue-500"
-          strokeClassName="text-blue-500"
-          fillClassName="fill-blue-500"
+          stroke="#3b82f6"
+          gradientFrom="#3b82f6"
           icon={<Eye className="size-4" aria-hidden />}
         />
 
@@ -158,8 +304,8 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
           series={data?.likes ?? null}
           loading={loading}
           accentClassName="bg-rose-500/15 text-rose-500"
-          strokeClassName="text-rose-500"
-          fillClassName="fill-rose-500"
+          stroke="#f43f5e"
+          gradientFrom="#f43f5e"
           icon={<Heart className="size-4" aria-hidden />}
         />
 
@@ -168,8 +314,8 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
           series={data?.comments ?? null}
           loading={loading}
           accentClassName="bg-amber-500/15 text-amber-500"
-          strokeClassName="text-amber-500"
-          fillClassName="fill-amber-500"
+          stroke="#f59e0b"
+          gradientFrom="#f59e0b"
           icon={<MessageCircle className="size-4" aria-hidden />}
         />
       </div>
