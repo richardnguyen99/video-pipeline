@@ -1,18 +1,19 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRight, Eye, Heart, MessageCircle } from "lucide-react";
+import { Area, AreaChart, YAxis } from "recharts";
 
 import { Button } from "@/components/ui/button";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import type { ChartConfig } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getVideoUploadObservability, videoUploadObservabilityQueryKey } from "@/queries/video-upload";
-import type { VideoUploadMetricPoint, VideoUploadMetricSeries } from "@/queries/video-upload";
+import type { VideoUploadMetricSeries } from "@/queries/video-upload";
 import { cn } from "@/libs/utils";
 
 const DEFAULT_DAYS = 7;
-const CHART_WIDTH = 240;
-const CHART_HEIGHT = 72;
 
 type UploadObservabilityProps = {
   uploadId: string;
@@ -24,22 +25,9 @@ type MetricCardProps = {
   series: VideoUploadMetricSeries | null;
   accentClassName: string;
   stroke: string;
-  gradientFrom: string;
+  metricKey: string;
   icon: ReactNode;
   loading?: boolean;
-};
-
-type PlottedPoint = {
-  x: number;
-  y: number;
-  date: string;
-  count: number;
-};
-
-type ChartGeometry = {
-  line: string;
-  area: string;
-  points: Array<PlottedPoint>;
 };
 
 function formatDayLabel(isoDate: string): string {
@@ -56,119 +44,29 @@ function formatDayLabel(isoDate: string): string {
   return `${months[month - 1] ?? match[2]} ${String(day)}`;
 }
 
-function buildLinearPath(points: Array<PlottedPoint>): string {
-  if (points.length === 0) {
-    return "";
-  }
+function MetricCard({ title, series, accentClassName, stroke, metricKey, icon, loading = false }: MetricCardProps) {
+  const chartConfig = useMemo(
+    () =>
+      ({
+        [metricKey]: {
+          label: title,
+          color: stroke,
+        },
+      }) satisfies ChartConfig,
+    [metricKey, stroke, title],
+  );
 
-  return points
-    .map((point, index) => {
-      const command = index === 0 ? "M" : "L";
-
-      return `${command} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-    })
-    .join(" ");
-}
-
-function buildChartGeometry(points: Array<VideoUploadMetricPoint>, width: number, height: number): ChartGeometry {
-  if (points.length === 0) {
-    return { line: "", area: "", points: [] };
-  }
-
-  const max = Math.max(1, ...points.map((point) => point.count));
-  const lastIndex = Math.max(points.length - 1, 1);
-  const plotted = points.map((point, index) => {
-    const x = (index / lastIndex) * width;
-    const y = height - (point.count / max) * (height - 8) - 4;
-
-    return {
-      x,
-      y,
-      date: point.date,
-      count: point.count,
-    };
-  });
-  const line = buildLinearPath(plotted);
-  const first = plotted[0];
-  const last = plotted[plotted.length - 1];
-  const area = `${line} L ${last.x.toFixed(2)} ${height.toFixed(2)} L ${first.x.toFixed(2)} ${height.toFixed(2)} Z`;
-
-  return { line, area, points: plotted };
-}
-
-function findClosestPointIndex(points: Array<PlottedPoint>, pointerX: number): number | null {
-  if (points.length === 0) {
-    return null;
-  }
-
-  let closestIndex = 0;
-  let closestDistance = Math.abs(points[0].x - pointerX);
-
-  for (let index = 1; index < points.length; index += 1) {
-    const distance = Math.abs(points[index].x - pointerX);
-
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestIndex = index;
-    }
-  }
-
-  return closestIndex;
-}
-
-function MetricCard({ title, series, accentClassName, stroke, gradientFrom, icon, loading = false }: MetricCardProps) {
-  const gradientId = useId().replace(/:/g, "");
-  const chartRef = useRef<HTMLDivElement | null>(null);
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const chart = useMemo(() => {
+  const chartData = useMemo(() => {
     if (series == null) {
-      return { line: "", area: "", points: [] as Array<PlottedPoint> };
+      return [];
     }
 
-    return buildChartGeometry(series.points, CHART_WIDTH, CHART_HEIGHT);
-  }, [series]);
-  const activePoint = activeIndex == null ? null : (chart.points[activeIndex] ?? null);
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const container = chartRef.current;
-
-    if (container == null || chart.points.length === 0) {
-      return;
-    }
-
-    const bounds = container.getBoundingClientRect();
-    const ratioX = (event.clientX - bounds.left) / Math.max(bounds.width, 1);
-    const pointerX = ratioX * CHART_WIDTH;
-    const nextIndex = findClosestPointIndex(chart.points, pointerX);
-
-    setActiveIndex(nextIndex);
-  };
-
-  const handlePointerLeave = () => {
-    setActiveIndex(null);
-  };
-
-  const tooltipPlacement = useMemo(() => {
-    if (activePoint == null) {
-      return null;
-    }
-
-    const leftPercent = (activePoint.x / CHART_WIDTH) * 100;
-    const topPercent = (activePoint.y / CHART_HEIGHT) * 100;
-    const alignNearRight = leftPercent > 72;
-    const alignNearLeft = leftPercent < 18;
-
-    return {
-      leftPercent,
-      topPercent,
-      transform: alignNearRight
-        ? "translate(-100%, -100%)"
-        : alignNearLeft
-          ? "translate(0, -100%)"
-          : "translate(-50%, -100%)",
-      marginLeft: alignNearRight ? -4 : alignNearLeft ? 4 : 0,
-    };
-  }, [activePoint]);
+    return series.points.map((point) => ({
+      date: point.date,
+      label: formatDayLabel(point.date),
+      [metricKey]: point.count,
+    }));
+  }, [metricKey, series]);
 
   return (
     <div className="bg-card flex min-h-40 flex-col gap-3 rounded-xl border p-4">
@@ -186,75 +84,53 @@ function MetricCard({ title, series, accentClassName, stroke, gradientFrom, icon
         <span className={cn("rounded-md p-2", accentClassName)}>{icon}</span>
       </div>
 
-      <div
-        ref={chartRef}
-        className="relative mt-auto h-20 w-full"
-        onPointerMove={handlePointerMove}
-        onPointerLeave={handlePointerLeave}
-      >
+      <div className="mt-auto h-20 w-full">
         {loading || series == null ? (
           <Skeleton className="h-full w-full rounded-md" />
+        ) : chartData.length === 0 ? (
+          <div className="text-muted-foreground flex h-full items-center justify-center text-xs">No data</div>
         ) : (
-          <>
-            <svg
-              viewBox={`0 0 ${String(CHART_WIDTH)} ${String(CHART_HEIGHT)}`}
-              className="h-full w-full"
-              preserveAspectRatio="none"
-              role="img"
-              aria-label={`${title} trend`}
-            >
+          <ChartContainer
+            config={chartConfig}
+            className="aspect-auto h-full w-full overflow-visible [&_.recharts-surface]:overflow-visible"
+            initialDimension={{ width: 240, height: 80 }}
+          >
+            <AreaChart accessibilityLayer data={chartData} margin={{ top: 8, right: 6, left: 6, bottom: 8 }}>
               <defs>
-                <linearGradient id={`metric-fill-${gradientId}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={gradientFrom} stopOpacity={0.35} />
+                <linearGradient id={`fill-${metricKey}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={`var(--color-${metricKey})`} stopOpacity={0.35} />
 
-                  <stop offset="100%" stopColor={gradientFrom} stopOpacity={0.02} />
+                  <stop offset="100%" stopColor={`var(--color-${metricKey})`} stopOpacity={0.02} />
                 </linearGradient>
               </defs>
 
-              <path d={chart.area} fill={`url(#metric-fill-${gradientId})`} />
+              <YAxis domain={[0, "auto"]} hide width={0} />
 
-              <path
-                d={chart.line}
-                fill="none"
-                stroke={stroke}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
+              <ChartTooltip
+                cursor={false}
+                content={
+                  <ChartTooltipContent
+                    indicator="dot"
+                    labelFormatter={(_value, payload) => {
+                      const point = payload[0]?.payload as { label?: string } | undefined;
+
+                      return point?.label ?? "";
+                    }}
+                  />
+                }
               />
-            </svg>
 
-            {activePoint != null && tooltipPlacement != null ? (
-              <>
-                <div
-                  className="pointer-events-none absolute size-2.5 rounded-full border-2 bg-card"
-                  style={{
-                    left: `${String(tooltipPlacement.leftPercent)}%`,
-                    top: `${String(tooltipPlacement.topPercent)}%`,
-                    borderColor: stroke,
-                    transform: "translate(-50%, -50%)",
-                  }}
-                />
-
-                <div
-                  className="bg-background pointer-events-none absolute z-10 whitespace-nowrap rounded-md border px-2 py-1 text-xs shadow-md"
-                  style={{
-                    left: `${String(tooltipPlacement.leftPercent)}%`,
-                    top: `${String(tooltipPlacement.topPercent)}%`,
-                    transform: tooltipPlacement.transform,
-                    marginLeft: tooltipPlacement.marginLeft,
-                    marginTop: -10,
-                  }}
-                >
-                  <div className="text-muted-foreground">{formatDayLabel(activePoint.date)}</div>
-
-                  <div className="font-medium tabular-nums">
-                    {activePoint.count.toLocaleString()} {title.toLowerCase()}
-                  </div>
-                </div>
-              </>
-            ) : null}
-          </>
+              <Area
+                type="linear"
+                dataKey={metricKey}
+                stroke={`var(--color-${metricKey})`}
+                fill={`url(#fill-${metricKey})`}
+                strokeWidth={2}
+                dot={false}
+                activeDot={{ r: 3, strokeWidth: 0 }}
+              />
+            </AreaChart>
+          </ChartContainer>
         )}
       </div>
 
@@ -309,7 +185,7 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
           loading={loading}
           accentClassName="bg-blue-500/15 text-blue-500"
           stroke="#3b82f6"
-          gradientFrom="#3b82f6"
+          metricKey="views"
           icon={<Eye className="size-4" aria-hidden />}
         />
 
@@ -319,7 +195,7 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
           loading={loading}
           accentClassName="bg-rose-500/15 text-rose-500"
           stroke="#f43f5e"
-          gradientFrom="#f43f5e"
+          metricKey="likes"
           icon={<Heart className="size-4" aria-hidden />}
         />
 
@@ -329,7 +205,7 @@ export function UploadObservability({ uploadId, days = DEFAULT_DAYS }: UploadObs
           loading={loading}
           accentClassName="bg-amber-500/15 text-amber-500"
           stroke="#f59e0b"
-          gradientFrom="#f59e0b"
+          metricKey="comments"
           icon={<MessageCircle className="size-4" aria-hidden />}
         />
       </div>
