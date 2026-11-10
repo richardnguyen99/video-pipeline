@@ -289,3 +289,23 @@ class VideoUploadObservabilityResponse(BaseModel):
     views: VideoUploadMetricSeries
     likes: VideoUploadMetricSeries
     comments: VideoUploadMetricSeries
+
+
+class StudioAnalyticsLine(BaseModel):
+    """One plotted series on the studio analytics chart."""
+
+    id: str
+    label: str
+    kind: str
+    total: int
+    points: list[VideoUploadMetricPoint] = Field(default_factory=list)
+
+
+class StudioAnalyticsResponse(BaseModel):
+    """Studio-wide engagement analytics across owned uploads."""
+
+    metric: str
+    range: str
+    granularity: str
+    days: int
+    lines: list[StudioAnalyticsLine] = Field(default_factory=list)

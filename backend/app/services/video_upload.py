@@ -57,6 +57,8 @@ from app.models.video_view import VideoView
 from app.schemas.video_upload import (
     ExistingVideoSummary,
     PresignedPart,
+    StudioAnalyticsLine,
+    StudioAnalyticsResponse,
     VideoCodeConflictDetail,
     VideoMediaResponse,
     VideoRenditionProgress,
@@ -549,6 +551,404 @@ class VideoUploadService(VideoUploadMediaMixin):
             likes=likes,
             comments=comments,
         )
+
+    async def get_studio_analytics(
+        self,
+        *,
+        uploader_id: uuid.UUID,
+        metric: str = "overall",
+        range_key: str | None = None,
+        days: int = 7,
+    ) -> StudioAnalyticsResponse:
+        """Return studio-wide engagement series across owned uploads."""
+
+        normalized_metric = (metric or "overall").strip().lower()
+
+        if normalized_metric not in {"overall", "views", "likes", "comments"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="metric must be overall, views, likes, or comments",
+            )
+
+        videos = await self.__list_owned_upload_videos(uploader_id)
+        window = self.__studio_analytics_window(videos, range_key, days)
+
+        if normalized_metric == "overall":
+            lines = await self.__studio_overall_lines(videos, window)
+        else:
+            lines = await self.__studio_metric_lines(
+                videos,
+                window,
+                normalized_metric,
+            )
+
+        return StudioAnalyticsResponse(
+            metric=normalized_metric,
+            range=window["range"],
+            granularity=window["granularity"],
+            days=window["days"],
+            lines=lines,
+        )
+
+    async def __list_owned_upload_videos(
+        self,
+        uploader_id: uuid.UUID,
+    ) -> list[Video]:
+        statement = (
+            select(Video)
+            .where(col(Video.uploader_id) == uploader_id)
+            .where(col(Video.origin) == _ORIGIN_UPLOAD)
+            .order_by(col(Video.created_at).asc())
+        )
+
+        return list((await self._session.exec(statement)).all())
+
+    def __studio_analytics_window(
+        self,
+        videos: list[Video],
+        range_key: str | None,
+        days: int,
+    ) -> dict[str, Any]:
+        now = (
+            datetime.now(timezone.utc)
+            .replace(tzinfo=None)
+            .replace(hour=0, minute=0, second=0, microsecond=0)
+        )
+        earliest = videos[0].created_at if videos else now
+        resolved_range, granularity, start, end, window_days = (
+            self.__resolve_observability_window(
+                range_key=range_key,
+                days=days,
+                now=now,
+                uploaded_at=earliest,
+            )
+        )
+        bucket_keys = self.__observability_bucket_keys(
+            start=start,
+            end=end,
+            granularity=granularity,
+        )
+
+        return {
+            "range": resolved_range,
+            "granularity": granularity,
+            "start": start,
+            "end": end,
+            "days": window_days,
+            "bucket_keys": bucket_keys,
+        }
+
+    @staticmethod
+    def __empty_metric_series(
+        bucket_keys: list[str],
+    ) -> VideoUploadMetricSeries:
+        return VideoUploadMetricSeries(
+            total=0,
+            points=[
+                VideoUploadMetricPoint(date=key_name, count=0)
+                for key_name in bucket_keys
+            ],
+        )
+
+    async def __studio_overall_lines(
+        self,
+        videos: list[Video],
+        window: dict[str, Any],
+    ) -> list[StudioAnalyticsLine]:
+        video_ids = [int(video.id) for video in videos if video.id is not None]
+        lines: list[StudioAnalyticsLine] = []
+
+        for key, label, column, filters in self.__overall_metric_specs(
+            video_ids
+        ):
+            series = await self.__windowed_metric_series(
+                column,
+                filters,
+                video_ids=video_ids,
+                window=window,
+            )
+            lines.append(
+                StudioAnalyticsLine(
+                    id=key,
+                    label=label,
+                    kind="metric",
+                    total=series.total,
+                    points=series.points,
+                )
+            )
+
+        return lines
+
+    @staticmethod
+    def __overall_metric_specs(
+        video_ids: list[int],
+    ) -> list[tuple[str, str, Any, list[Any]]]:
+        return [
+            (
+                "views",
+                "Views",
+                col(VideoView.created_at),
+                [col(VideoView.video_id).in_(video_ids)] if video_ids else [],
+            ),
+            (
+                "likes",
+                "Likes",
+                col(VideoReaction.created_at),
+                (
+                    [
+                        col(VideoReaction.video_id).in_(video_ids),
+                        col(VideoReaction.is_like).is_(True),
+                    ]
+                    if video_ids
+                    else [col(VideoReaction.is_like).is_(True)]
+                ),
+            ),
+            (
+                "comments",
+                "Comments",
+                col(Comment.created_at),
+                (
+                    [
+                        col(Comment.video_id).in_(video_ids),
+                        col(Comment.is_deleted).is_(False),
+                    ]
+                    if video_ids
+                    else [col(Comment.is_deleted).is_(False)]
+                ),
+            ),
+        ]
+
+    async def __windowed_metric_series(
+        self,
+        column: Any,
+        filters: list[Any],
+        *,
+        video_ids: list[int],
+        window: dict[str, Any],
+    ) -> VideoUploadMetricSeries:
+        if not video_ids:
+            return self.__empty_metric_series(window["bucket_keys"])
+
+        return await self.__bucketed_metric_series(
+            column,
+            *filters,
+            start=window["start"],
+            end=window["end"],
+            granularity=window["granularity"],
+            bucket_keys=window["bucket_keys"],
+        )
+
+    async def __studio_metric_lines(
+        self,
+        videos: list[Video],
+        window: dict[str, Any],
+        metric: str,
+    ) -> list[StudioAnalyticsLine]:
+        video_ids = [int(video.id) for video in videos if video.id is not None]
+        timestamp_column, base_filters, id_column = (
+            self.__studio_metric_columns(
+                metric,
+            )
+        )
+        aggregate_filters = list(base_filters)
+
+        if video_ids:
+            aggregate_filters.append(id_column.in_(video_ids))
+
+        aggregate = await self.__windowed_metric_series(
+            timestamp_column,
+            aggregate_filters,
+            video_ids=video_ids,
+            window=window,
+        )
+        lines = [
+            StudioAnalyticsLine(
+                id="aggregate",
+                label="All uploads",
+                kind="aggregate",
+                total=aggregate.total,
+                points=aggregate.points,
+            )
+        ]
+
+        if not video_ids:
+            return lines
+
+        by_video = await self.__bucketed_metric_series_by_video(
+            timestamp_column,
+            id_column,
+            *base_filters,
+            video_ids=video_ids,
+            start=window["start"],
+            end=window["end"],
+            granularity=window["granularity"],
+            bucket_keys=window["bucket_keys"],
+        )
+        lines.extend(
+            self.__studio_upload_lines(
+                videos,
+                by_video,
+                window["bucket_keys"],
+            )
+        )
+
+        return lines
+
+    def __studio_upload_lines(
+        self,
+        videos: list[Video],
+        by_video: dict[int, VideoUploadMetricSeries],
+        bucket_keys: list[str],
+    ) -> list[StudioAnalyticsLine]:
+        lines: list[StudioAnalyticsLine] = []
+
+        for video in videos:
+            if video.id is None or video.public_id is None:
+                continue
+
+            resolved = by_video.get(
+                int(video.id),
+                self.__empty_metric_series(bucket_keys),
+            )
+            lines.append(
+                self.__studio_upload_line(video, resolved),
+            )
+
+        return lines
+
+    @staticmethod
+    def __studio_upload_line(
+        video: Video,
+        series: VideoUploadMetricSeries,
+    ) -> StudioAnalyticsLine:
+        assert video.public_id is not None
+        code = video.video_id or str(video.public_id)[:8]
+        title = (video.title or "").strip()
+        label = f"{code} — {title}" if title else code
+
+        return StudioAnalyticsLine(
+            id=str(video.public_id),
+            label=label,
+            kind="upload",
+            total=series.total,
+            points=series.points,
+        )
+
+    @staticmethod
+    def __studio_metric_columns(
+        metric: str,
+    ) -> tuple[Any, list[Any], Any]:
+        if metric == "views":
+            return col(VideoView.created_at), [], col(VideoView.video_id)
+
+        if metric == "likes":
+            return (
+                col(VideoReaction.created_at),
+                [col(VideoReaction.is_like).is_(True)],
+                col(VideoReaction.video_id),
+            )
+
+        return (
+            col(Comment.created_at),
+            [col(Comment.is_deleted).is_(False)],
+            col(Comment.video_id),
+        )
+
+    async def __bucketed_metric_series_by_video(
+        self,
+        timestamp_column: Any,
+        id_column: Any,
+        *filters: Any,
+        video_ids: list[int],
+        start: datetime,
+        end: datetime,
+        granularity: str,
+        bucket_keys: list[str],
+    ) -> dict[int, VideoUploadMetricSeries]:
+        """Count rows per video and day/week/month bucket."""
+
+        nested = await self.__fetch_video_bucket_counts(
+            timestamp_column,
+            id_column,
+            *filters,
+            video_ids=video_ids,
+            start=start,
+            end=end,
+            granularity=granularity,
+        )
+
+        return {
+            video_key: self.__series_from_bucket_map(
+                nested.get(video_key, {}),
+                bucket_keys,
+            )
+            for video_key in video_ids
+        }
+
+    async def __fetch_video_bucket_counts(
+        self,
+        timestamp_column: Any,
+        id_column: Any,
+        *filters: Any,
+        video_ids: list[int],
+        start: datetime,
+        end: datetime,
+        granularity: str,
+    ) -> dict[int, dict[str, int]]:
+        bucket_expr = self.__bucket_expression(timestamp_column, granularity)
+        statement = (
+            select(
+                id_column.label("video_id"),
+                bucket_expr.label("bucket"),
+                func.count().label("count"),
+            )
+            .where(
+                *filters,
+                id_column.in_(video_ids),
+                timestamp_column >= start,
+                timestamp_column < end,
+            )
+            .group_by(id_column, bucket_expr)
+            .order_by(id_column, bucket_expr)
+        )
+        rows = (await self._session.exec(statement)).all()
+        nested: dict[int, dict[str, int]] = {}
+
+        for row in rows:
+            video_key = int(row[0])
+            bucket_key = self.__bucket_key_from_value(row[1], granularity)
+            by_bucket = nested.setdefault(video_key, {})
+            by_bucket[bucket_key] = by_bucket.get(bucket_key, 0) + int(row[2])
+
+        return nested
+
+    @staticmethod
+    def __bucket_expression(
+        timestamp_column: Any,
+        granularity: str,
+    ) -> ColumnElement[Any]:
+        if granularity == "month":
+            return func.date_trunc("month", timestamp_column)
+
+        if granularity == "week":
+            return func.date_trunc("week", timestamp_column)
+
+        return cast(timestamp_column, Date)
+
+    def __series_from_bucket_map(
+        self,
+        by_bucket: dict[str, int],
+        bucket_keys: list[str],
+    ) -> VideoUploadMetricSeries:
+        points: list[VideoUploadMetricPoint] = []
+        total = 0
+
+        for key in bucket_keys:
+            count_value = int(by_bucket.get(key, 0))
+            total += count_value
+            points.append(VideoUploadMetricPoint(date=key, count=count_value))
+
+        return VideoUploadMetricSeries(total=total, points=points)
 
     @staticmethod
     def __resolve_observability_window(

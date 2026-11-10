@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from app.dependencies import CurrentUserDep, VideoUploadServiceDep
 from app.messaging.transcode_progress import iter_progress_events
 from app.schemas.video_upload import (
+    StudioAnalyticsResponse,
     VideoMediaLinkRequest,
     VideoMediaResponse,
     VideoUploadActivityListResponse,
@@ -67,6 +68,35 @@ async def list_video_uploads(
         uploader_id=current_user.id,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get(
+    "/videos/uploads/analytics",
+    response_model=StudioAnalyticsResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Studio-wide engagement analytics across owned uploads",
+)
+async def get_studio_uploads_analytics(
+    current_user: CurrentUserDep,
+    service: VideoUploadServiceDep,
+    metric: Annotated[
+        Literal["overall", "views", "likes", "comments"],
+        Query(),
+    ] = "overall",
+    days: Annotated[int, Query(ge=1, le=90)] = 7,
+    range_key: Annotated[
+        Literal["week", "3months", "year", "all"] | None,
+        Query(alias="range"),
+    ] = None,
+) -> StudioAnalyticsResponse:
+    """Return aggregated and per-upload engagement series for the studio."""
+
+    return await service.get_studio_analytics(
+        uploader_id=current_user.id,
+        metric=metric,
+        range_key=range_key,
+        days=days,
     )
 
 
@@ -205,7 +235,7 @@ async def get_video_upload_observability(
     service: VideoUploadServiceDep,
     days: Annotated[int, Query(ge=1, le=90)] = 7,
     range_key: Annotated[
-        Literal["week", "months", "year", "all"] | None,
+        Literal["week", "3months", "year", "all"] | None,
         Query(alias="range"),
     ] = None,
 ) -> VideoUploadObservabilityResponse:

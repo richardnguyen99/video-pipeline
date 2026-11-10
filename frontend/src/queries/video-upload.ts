@@ -353,7 +353,7 @@ export type VideoUploadMetricSeries = {
   points: Array<VideoUploadMetricPoint>;
 };
 
-export type ObservabilityRange = "week" | "months" | "year" | "all";
+export type ObservabilityRange = "week" | "3months" | "year" | "all";
 export type ObservabilityGranularity = "day" | "week" | "month";
 
 export type VideoUploadObservabilityResponse = {
@@ -732,3 +732,36 @@ export { mergeLiveProgress };
 
 export const DEFAULT_PART_SIZE_BYTES = 8 * 1024 * 1024;
 export const MAX_PARALLEL_PARTS = 4;
+
+export type StudioAnalyticsMetric = "overall" | "views" | "likes" | "comments";
+
+export type StudioAnalyticsLine = {
+  id: string;
+  label: string;
+  kind: "metric" | "aggregate" | "upload";
+  total: number;
+  points: Array<VideoUploadMetricPoint>;
+};
+
+export type StudioAnalyticsResponse = {
+  metric: StudioAnalyticsMetric;
+  range: ObservabilityRange;
+  granularity: ObservabilityGranularity;
+  days: number;
+  lines: Array<StudioAnalyticsLine>;
+};
+
+export function studioAnalyticsQueryKey(metric: StudioAnalyticsMetric, range: ObservabilityRange) {
+  return ["studio-analytics", metric, range] as const;
+}
+
+export async function getStudioAnalytics(
+  metric: StudioAnalyticsMetric,
+  range: ObservabilityRange,
+): Promise<StudioAnalyticsResponse> {
+  const params = new URLSearchParams();
+  params.set("metric", metric);
+  params.set("range", range);
+
+  return apiFetch<StudioAnalyticsResponse>(`/videos/uploads/analytics?${params.toString()}`);
+}

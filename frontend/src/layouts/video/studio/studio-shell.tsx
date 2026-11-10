@@ -46,7 +46,7 @@ const NAV_ITEMS = [
     id: "analytics",
     label: "Analytics",
     icon: BarChart3,
-    to: null,
+    to: "/studio/analytics" as const,
   },
   {
     id: "audience",
@@ -96,6 +96,37 @@ const UPLOAD_DETAIL_TABS: Array<{ id: UploadDetailTab; label: string }> = [
   { id: "media", label: "Media" },
   { id: "analytics", label: "Analytics" },
   { id: "logs", label: "Logs" },
+];
+
+type StudioAnalyticsTab = "overall" | "views" | "likes" | "comments";
+
+type StudioAnalyticsContext = {
+  tab: StudioAnalyticsTab;
+};
+
+function parseStudioAnalyticsContext(pathname: string): StudioAnalyticsContext | null {
+  const segments = pathname.split("/").filter((part) => part.length > 0);
+
+  if (segments.length < 2 || segments[0] !== "studio" || segments[1] !== "analytics") {
+    return null;
+  }
+
+  if (segments.length === 2) {
+    return { tab: "overall" };
+  }
+
+  if (segments.length === 3 && (segments[2] === "views" || segments[2] === "likes" || segments[2] === "comments")) {
+    return { tab: segments[2] };
+  }
+
+  return null;
+}
+
+const STUDIO_ANALYTICS_TABS: Array<{ id: StudioAnalyticsTab; label: string }> = [
+  { id: "overall", label: "Overall" },
+  { id: "views", label: "Views" },
+  { id: "likes", label: "Likes" },
+  { id: "comments", label: "Comments" },
 ];
 
 function isNavActive(pathname: string, to: string | null): boolean {
@@ -171,7 +202,7 @@ function SidebarNavLink({
   collapsed: boolean;
   label: string;
   isActive: boolean;
-  to: "/studio" | "/studio/uploads";
+  to: "/studio" | "/studio/uploads" | "/studio/analytics";
   onNavigate?: () => void;
   children: ReactNode;
 }) {
@@ -266,6 +297,7 @@ function StudioTopBar() {
   const [query, setQuery] = useState(urlQuery);
   const [syncedUrlQuery, setSyncedUrlQuery] = useState(urlQuery);
   const uploadDetail = parseUploadDetailContext(pathname);
+  const studioAnalytics = parseStudioAnalyticsContext(pathname);
 
   if (urlQuery !== syncedUrlQuery) {
     setSyncedUrlQuery(urlQuery);
@@ -351,6 +383,40 @@ function StudioTopBar() {
                             to: "/studio/uploads/$uploadId/logs" as const,
                             params: { uploadId: uploadDetail.uploadId },
                           };
+
+              return (
+                <Link
+                  key={tab.id}
+                  {...linkProps}
+                  className={cn(
+                    "inline-flex h-8 shrink-0 items-center rounded-md px-3 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  )}
+                  aria-current={active ? "page" : undefined}
+                >
+                  {tab.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      ) : null}
+
+      {studioAnalytics != null ? (
+        <div className="border-border flex w-full items-center gap-1 overflow-x-auto border-t px-4 py-2 sm:px-6 lg:px-10">
+          <nav className="flex items-center gap-1" aria-label="Analytics sections">
+            {STUDIO_ANALYTICS_TABS.map((tab) => {
+              const active = studioAnalytics.tab === tab.id;
+              const linkProps =
+                tab.id === "overall"
+                  ? { to: "/studio/analytics" as const }
+                  : tab.id === "views"
+                    ? { to: "/studio/analytics/views" as const }
+                    : tab.id === "likes"
+                      ? { to: "/studio/analytics/likes" as const }
+                      : { to: "/studio/analytics/comments" as const };
 
               return (
                 <Link
