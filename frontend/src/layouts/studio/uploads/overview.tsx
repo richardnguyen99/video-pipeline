@@ -32,14 +32,14 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
-import { DeleteUploadDialog } from "@/layouts/video/studio/delete-upload-dialog";
-import { ConfirmAccessDialog, ManageAccessDialog } from "@/layouts/video/studio/manage-access-dialog";
-import { RebuildStreamDialog } from "@/layouts/video/studio/rebuild-stream-dialog";
-import { UploadObservability } from "@/layouts/video/studio/upload-observability";
-import { defaultStepForStatus } from "@/layouts/video/studio/session-persist";
-import { VISIBILITY_OPTIONS } from "@/layouts/video/studio/types";
-import type { VisibilityValue } from "@/layouts/video/studio/types";
-import { formatFileSize } from "@/layouts/video/studio/upload-helpers";
+import { DeleteUploadDialog } from "@/components/studio/delete-upload-dialog";
+import { ConfirmAccessDialog, ManageAccessDialog } from "@/components/studio/manage-access-dialog";
+import { RebuildStreamDialog } from "@/components/studio/rebuild-stream-dialog";
+import { UploadObservability } from "@/layouts/studio/uploads/observability";
+import { defaultStepForStatus } from "@/components/studio/session-persist";
+import { VISIBILITY_OPTIONS } from "@/components/studio/types";
+import type { VisibilityValue } from "@/components/studio/types";
+import { formatFileSize } from "@/components/studio/upload-helpers";
 import { getApiErrorMessage } from "@/libs/auth";
 import { cn } from "@/libs/utils";
 import {

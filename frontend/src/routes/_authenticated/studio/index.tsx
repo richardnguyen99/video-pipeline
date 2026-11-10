@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { StudioDashboard } from "@/layouts/video/studio/studio-dashboard";
+import { StudioDashboard } from "@/layouts/studio/dashboard";
 
 export const Route = createFileRoute("/_authenticated/studio/")({
   component: StudioPage,

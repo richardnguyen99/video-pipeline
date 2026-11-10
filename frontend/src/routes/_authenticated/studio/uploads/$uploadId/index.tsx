@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { UploadOverview, UploadOverviewSkeleton } from "@/layouts/video/studio/upload-overview";
+import { UploadOverview, UploadOverviewSkeleton } from "@/layouts/studio/uploads/overview";
 import { videoUploadStatusQueryKey, videoUploadStatusQueryOptions } from "@/queries/video-upload";
 import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 import { fetchVideoUploadStatusServer } from "@/server/video-upload.functions";

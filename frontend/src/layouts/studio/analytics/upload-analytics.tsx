@@ -21,8 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StudioMetricsChart } from "@/layouts/video/studio/studio-metrics-chart";
-import type { StudioMetricsChartSeries } from "@/layouts/video/studio/studio-metrics-chart";
+import { StudioMetricsChart } from "@/components/studio/metrics-chart";
+import type { StudioMetricsChartSeries } from "@/components/studio/metrics-chart";
 import { getVideoUploadObservability, videoUploadObservabilityQueryKey } from "@/queries/video-upload";
 import type { ObservabilityRange, VideoUploadObservabilityResponse } from "@/queries/video-upload";
 import { cn } from "@/libs/utils";

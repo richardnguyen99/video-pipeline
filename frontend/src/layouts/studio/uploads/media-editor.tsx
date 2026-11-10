@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MediaStep } from "@/layouts/video/studio/steps/media-step";
+import { MediaStep } from "@/layouts/studio/uploads/steps/media-step";
 import { videoUploadStatusQueryKey, videoUploadStatusQueryOptions } from "@/queries/video-upload";
 import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 

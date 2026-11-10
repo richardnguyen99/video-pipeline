@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { StudioAnalytics, StudioAnalyticsSkeleton } from "@/layouts/video/studio/studio-analytics";
+import { StudioAnalytics, StudioAnalyticsSkeleton } from "@/layouts/studio/analytics/upload-analytics";
 
 export const Route = createFileRoute("/_authenticated/studio/uploads/$uploadId/analytics")({
   ssr: false,

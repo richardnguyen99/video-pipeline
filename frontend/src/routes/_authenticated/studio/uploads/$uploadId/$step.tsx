@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { UploadStudio } from "@/layouts/video/studio/upload-studio";
-import { UploadStudioSkeleton } from "@/layouts/video/studio/upload-studio-skeleton";
+import { UploadStudio } from "@/layouts/studio/uploads/wizard";
+import { UploadStudioSkeleton } from "@/layouts/studio/uploads/wizard-skeleton";
 import { videoUploadStatusQueryKey, videoUploadStatusQueryOptions } from "@/queries/video-upload";
 import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 import { fetchVideoUploadStatusServer } from "@/server/video-upload.functions";

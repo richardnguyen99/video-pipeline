@@ -2,8 +2,8 @@ import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle } from "@/components/ui/dialog";
-import { VISIBILITY_OPTIONS } from "@/layouts/video/studio/types";
-import type { VisibilityValue } from "@/layouts/video/studio/types";
+import { VISIBILITY_OPTIONS } from "@/components/studio/types";
+import type { VisibilityValue } from "@/components/studio/types";
 import { cn } from "@/libs/utils";
 
 type ManageAccessDialogProps = {

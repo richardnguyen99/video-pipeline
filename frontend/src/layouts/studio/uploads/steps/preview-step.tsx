@@ -2,8 +2,8 @@ import { Link } from "@tanstack/react-router";
 import { Check, ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { RELATION_KEYS } from "@/layouts/video/studio/types";
-import type { StudioPreviewModel } from "@/layouts/video/studio/types";
+import { RELATION_KEYS } from "@/components/studio/types";
+import type { StudioPreviewModel } from "@/components/studio/types";
 
 const RELATION_LABELS: Record<(typeof RELATION_KEYS)[number], string> = {
   actresses: "Actresses",

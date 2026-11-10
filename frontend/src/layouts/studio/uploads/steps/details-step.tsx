@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import type { RelationKey, RelationSelections } from "@/layouts/video/studio/types";
+import type { RelationKey, RelationSelections } from "@/components/studio/types";
 import { buttonVariants } from "@/libs/shadcn_variants";
 import { cn } from "@/libs/utils";
 

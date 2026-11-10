@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-import { UploadsList } from "@/layouts/video/studio/uploads-list";
+import { UploadsList } from "@/layouts/studio/uploads/list";
 
 const uploadsSearchSchema = z.object({
   q: z.string().optional().catch(undefined),

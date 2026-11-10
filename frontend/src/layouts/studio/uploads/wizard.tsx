@@ -5,24 +5,24 @@ import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ConflictDialog } from "@/layouts/video/studio/conflict-dialog";
+import { ConflictDialog } from "@/components/studio/conflict-dialog";
 import {
   clearActiveUploadStudioPointer,
   defaultStepForStatus,
   loadUploadStudioSession,
   saveUploadStudioSession,
-} from "@/layouts/video/studio/session-persist";
-import { SessionSummary } from "@/layouts/video/studio/session-summary";
-import { UploadStudioSkeleton } from "@/layouts/video/studio/upload-studio-skeleton";
-import { DetailsStep } from "@/layouts/video/studio/steps/details-step";
-import { MediaStep } from "@/layouts/video/studio/steps/media-step";
-import { PreviewStep } from "@/layouts/video/studio/steps/preview-step";
-import { ProcessStep } from "@/layouts/video/studio/steps/process-step";
-import { SelectFileStep } from "@/layouts/video/studio/steps/select-file-step";
-import { UploadStep } from "@/layouts/video/studio/steps/upload-step";
-import { VisibilityStep } from "@/layouts/video/studio/steps/visibility-step";
-import { ALLOWED_EXTENSIONS, EMPTY_RELATIONS, STEPS } from "@/layouts/video/studio/types";
-import type { RelationKey, RelationSelections, UploadPhase, VisibilityValue } from "@/layouts/video/studio/types";
+} from "@/components/studio/session-persist";
+import { SessionSummary } from "@/components/studio/session-summary";
+import { UploadStudioSkeleton } from "@/layouts/studio/uploads/wizard-skeleton";
+import { DetailsStep } from "@/layouts/studio/uploads/steps/details-step";
+import { MediaStep } from "@/layouts/studio/uploads/steps/media-step";
+import { PreviewStep } from "@/layouts/studio/uploads/steps/preview-step";
+import { ProcessStep } from "@/layouts/studio/uploads/steps/process-step";
+import { SelectFileStep } from "@/layouts/studio/uploads/steps/select-file-step";
+import { UploadStep } from "@/layouts/studio/uploads/steps/upload-step";
+import { VisibilityStep } from "@/layouts/studio/uploads/steps/visibility-step";
+import { ALLOWED_EXTENSIONS, EMPTY_RELATIONS, STEPS } from "@/components/studio/types";
+import type { RelationKey, RelationSelections, UploadPhase, VisibilityValue } from "@/components/studio/types";
 import {
   ACCESS_TOKEN_MIN_TTL_SECONDS,
   formatFileSize,
@@ -30,7 +30,7 @@ import {
   putPart,
   SESSION_KEEPALIVE_CHECK_MS,
   stepTitle,
-} from "@/layouts/video/studio/upload-helpers";
+} from "@/components/studio/upload-helpers";
 import { ApiError, ensureFreshAccessToken } from "@/libs/api-client";
 import { getApiErrorMessage } from "@/libs/auth";
 import { HttpStatus } from "@/libs/http-status";

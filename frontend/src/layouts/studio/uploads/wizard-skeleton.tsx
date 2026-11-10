@@ -1,4 +1,4 @@
-import { STEPS } from "@/layouts/video/studio/types";
+import { STEPS } from "@/components/studio/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/libs/utils";
 

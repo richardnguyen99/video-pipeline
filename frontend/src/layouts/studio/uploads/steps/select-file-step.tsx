@@ -2,7 +2,7 @@ import type { ChangeEvent, DragEvent, KeyboardEvent, RefObject } from "react";
 import { CloudUpload, FileVideo, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ALLOWED_EXTENSIONS } from "@/layouts/video/studio/types";
+import { ALLOWED_EXTENSIONS } from "@/components/studio/types";
 import { cn } from "@/libs/utils";
 
 type SelectFileStepProps = {

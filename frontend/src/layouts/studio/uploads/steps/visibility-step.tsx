@@ -1,5 +1,5 @@
-import { VISIBILITY_OPTIONS } from "@/layouts/video/studio/types";
-import type { VisibilityValue } from "@/layouts/video/studio/types";
+import { VISIBILITY_OPTIONS } from "@/components/studio/types";
+import type { VisibilityValue } from "@/components/studio/types";
 import { cn } from "@/libs/utils";
 
 type VisibilityStepProps = {

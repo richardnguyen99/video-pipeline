@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Check, ExternalLink, Loader2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { ProcessTrace } from "@/layouts/video/studio/process-trace";
+import { ProcessTrace } from "@/components/studio/process-trace";
 import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 
 type ProcessStepProps = {

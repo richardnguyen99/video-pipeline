@@ -1,6 +1,6 @@
 import { FileVideo } from "lucide-react";
 
-import type { RelationSelections, UploadPhase, VisibilityValue } from "@/layouts/video/studio/types";
+import type { RelationSelections, UploadPhase, VisibilityValue } from "@/components/studio/types";
 
 type SessionSummaryProps = {
   fileName: string | null;

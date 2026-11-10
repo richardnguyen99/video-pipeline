@@ -1,9 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  StudioOverallAnalytics,
-  StudioOverallAnalyticsSkeleton,
-} from "@/layouts/video/studio/studio-overall-analytics";
+import { StudioOverallAnalytics, StudioOverallAnalyticsSkeleton } from "@/layouts/studio/analytics/overall-analytics";
 
 export const Route = createFileRoute("/_authenticated/studio/analytics/comments")({
   ssr: false,

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { UploadMediaEditor, UploadMediaEditorSkeleton } from "@/layouts/video/studio/upload-media-editor";
+import { UploadMediaEditor, UploadMediaEditorSkeleton } from "@/layouts/studio/uploads/media-editor";
 import { videoUploadStatusQueryKey, videoUploadStatusQueryOptions } from "@/queries/video-upload";
 import type { VideoUploadStatusResponse } from "@/queries/video-upload";
 import { fetchVideoUploadStatusServer } from "@/server/video-upload.functions";

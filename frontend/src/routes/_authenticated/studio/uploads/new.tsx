@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { UploadStudio } from "@/layouts/video/studio/upload-studio";
+import { UploadStudio } from "@/layouts/studio/uploads/wizard";
 
 export const Route = createFileRoute("/_authenticated/studio/uploads/new")({
   ssr: true,

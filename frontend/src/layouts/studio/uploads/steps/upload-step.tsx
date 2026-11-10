@@ -3,7 +3,7 @@ import { Check, CloudUpload, FileVideo, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
-import type { UploadPhase } from "@/layouts/video/studio/types";
+import type { UploadPhase } from "@/components/studio/types";
 import { cn } from "@/libs/utils";
 
 type UploadStepProps = {

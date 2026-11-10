@@ -22,7 +22,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatFileSize } from "@/layouts/video/studio/upload-helpers";
+import { formatFileSize } from "@/components/studio/upload-helpers";
 import { cn } from "@/libs/utils";
 import { listVideoUploads, VIDEO_UPLOADS_LIST_QUERY_KEY } from "@/queries/video-upload";
 import type { VideoUploadListItem } from "@/queries/video-upload";

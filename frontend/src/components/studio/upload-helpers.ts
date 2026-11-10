@@ -1,4 +1,4 @@
-import { STEPS } from "@/layouts/video/studio/types";
+import { STEPS } from "@/components/studio/types";
 
 export const SESSION_KEEPALIVE_CHECK_MS = 60 * 1000;
 export const ACCESS_TOKEN_MIN_TTL_SECONDS = 120;

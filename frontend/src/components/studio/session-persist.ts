@@ -1,5 +1,5 @@
-import type { RelationSelections, VisibilityValue } from "@/layouts/video/studio/types";
-import { EMPTY_RELATIONS } from "@/layouts/video/studio/types";
+import type { RelationSelections, VisibilityValue } from "@/components/studio/types";
+import { EMPTY_RELATIONS } from "@/components/studio/types";
 
 const STORAGE_PREFIX = "vp.upload-studio.session.";
 const ACTIVE_KEY = "vp.upload-studio.active";

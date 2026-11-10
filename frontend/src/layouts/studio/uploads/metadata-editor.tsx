@@ -5,9 +5,9 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
-import { DetailsStep } from "@/layouts/video/studio/steps/details-step";
-import { EMPTY_RELATIONS } from "@/layouts/video/studio/types";
-import type { RelationKey, RelationSelections } from "@/layouts/video/studio/types";
+import { DetailsStep } from "@/layouts/studio/uploads/steps/details-step";
+import { EMPTY_RELATIONS } from "@/components/studio/types";
+import type { RelationKey, RelationSelections } from "@/components/studio/types";
 import { getApiErrorMessage } from "@/libs/auth";
 import {
   updateVideoUploadMetadata,
