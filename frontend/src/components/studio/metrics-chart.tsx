@@ -11,6 +11,7 @@ import {
 import type { ChartConfig } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { ObservabilityGranularity } from "@/queries/video-upload";
+import { cn } from "@/libs/utils";
 
 export type StudioMetricsChartSeries = {
   key: string;
@@ -70,6 +71,14 @@ function formatBucketLabel(isoDate: string, granularity: ObservabilityGranularit
   return `${month} ${String(day)}`;
 }
 
+function formatLegendLabel(label: string, total: number): string {
+  const separator = " — ";
+  const index = label.indexOf(separator);
+  const code = index >= 0 ? label.slice(0, index).trim() : label.trim();
+
+  return `${code} (${total.toLocaleString()})`;
+}
+
 function buildChartRows(
   series: Array<StudioMetricsChartSeries>,
   granularity: ObservabilityGranularity,
@@ -105,7 +114,7 @@ export function StudioMetricsChart({
 
     for (const item of series) {
       config[item.key] = {
-        label: item.label,
+        label: formatLegendLabel(item.label, item.total),
         color: item.color,
       };
     }
@@ -116,21 +125,26 @@ export function StudioMetricsChart({
   const data = useMemo(() => buildChartRows(series, granularity), [series, granularity]);
 
   if (loading) {
-    return <Skeleton className="h-80 w-full rounded-xl" />;
+    return <Skeleton className={cn("h-80 w-full rounded-xl", className)} />;
   }
 
   if (series.length === 0 || data.length === 0) {
     return (
-      <div className="text-muted-foreground flex h-80 items-center justify-center rounded-xl border border-dashed text-sm">
+      <div
+        className={cn(
+          "text-muted-foreground flex h-80 items-center justify-center rounded-xl border border-dashed text-sm",
+          className,
+        )}
+      >
         {emptyMessage}
       </div>
     );
   }
 
   return (
-    <div className={className ?? "bg-card rounded-xl border p-4 sm:p-5"}>
-      <ChartContainer config={chartConfig} className="aspect-auto h-80 w-full">
-        <LineChart accessibilityLayer data={data} margin={{ left: 8, right: 8, top: 8, bottom: 0 }}>
+    <div className={cn("bg-card flex min-h-0 min-w-0 flex-1 flex-col rounded-xl border p-4 sm:p-5", className)}>
+      <ChartContainer config={chartConfig} className="min-h-64 min-w-0 flex-1 aspect-auto h-full w-full">
+        <LineChart accessibilityLayer data={data} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
           <CartesianGrid vertical={false} />
 
           <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} minTickGap={24} />
@@ -139,13 +153,14 @@ export function StudioMetricsChart({
 
           <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="dot" />} />
 
-          <ChartLegend content={<ChartLegendContent />} />
+          <ChartLegend content={<ChartLegendContent className="flex-wrap" />} />
 
           {series.map((item) => (
             <Line
               key={item.key}
               type="linear"
               dataKey={item.key}
+              name={formatLegendLabel(item.label, item.total)}
               stroke={`var(--color-${item.key})`}
               strokeWidth={2}
               dot={false}

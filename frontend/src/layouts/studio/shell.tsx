@@ -570,7 +570,7 @@ export function StudioShell() {
         </div>
       </aside>
 
-      <section data-studio-main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto [overflow-anchor:none]">
+      <section data-studio-main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden [overflow-anchor:none]">
         <div className="flex shrink-0 items-center gap-2 px-4 pt-3 sm:px-6 lg:hidden">
           <Button
             type="button"
@@ -587,7 +587,7 @@ export function StudioShell() {
 
         <StudioTopBar />
 
-        <div className="flex min-w-0 flex-1 flex-col px-4 py-4 sm:px-6 lg:px-10 lg:py-6">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-4 py-4 sm:px-6 lg:px-10 lg:py-6">
           <Outlet />
         </div>
       </section>

@@ -3,6 +3,18 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Eye, Heart, ListFilter, MessageCircle } from "lucide-react";
 
 import {
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+  useComboboxAnchor,
+} from "@/components/ui/combobox";
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -31,6 +43,8 @@ import type {
   StudioAnalyticsResponse,
 } from "@/queries/video-upload";
 import { cn } from "@/libs/utils";
+
+const MAX_SELECTED_UPLOADS = 5;
 
 const RANGE_OPTIONS: Array<{ value: ObservabilityRange; label: string }> = [
   { value: "week", label: "1 week" },
@@ -67,6 +81,12 @@ const METRIC_FILTER_OPTIONS = [
 
 type MetricFilterKey = (typeof METRIC_FILTER_OPTIONS)[number]["key"];
 
+type UploadOption = {
+  id: string;
+  label: string;
+  total: number;
+};
+
 const PAGE_COPY: Record<StudioAnalyticsMetric, { title: string; description: string }> = {
   overall: {
     title: "Overall",
@@ -96,13 +116,13 @@ function strokeForLine(line: StudioAnalyticsLine, uploadIndex: number): string {
 
 function buildSeries(
   data: StudioAnalyticsResponse,
-  showUploads: boolean,
+  selectedUploadIds: ReadonlySet<string>,
   enabledMetrics: ReadonlySet<string>,
 ): Array<StudioMetricsChartSeries> {
   let uploadIndex = 0;
   const visible = data.lines.filter((line) => {
     if (line.kind === "upload") {
-      return showUploads;
+      return selectedUploadIds.has(line.id);
     }
 
     if (line.kind === "metric") {
@@ -131,10 +151,11 @@ function buildSeries(
 
 export function StudioOverallAnalytics({ metric }: { metric: StudioAnalyticsMetric }) {
   const [range, setRange] = useState<ObservabilityRange>("week");
-  const [showUploads, setShowUploads] = useState(true);
+  const [selectedUploads, setSelectedUploads] = useState<Array<UploadOption>>([]);
   const [enabledMetrics, setEnabledMetrics] = useState<Set<MetricFilterKey>>(
     () => new Set(["views", "likes", "comments"]),
   );
+  const uploadAnchor = useComboboxAnchor();
   const query = useQuery({
     queryKey: studioAnalyticsQueryKey(metric, range),
     queryFn: () => getStudioAnalytics(metric, range),
@@ -149,6 +170,24 @@ export function StudioOverallAnalytics({ metric }: { metric: StudioAnalyticsMetr
     data == null
       ? []
       : data.lines.filter((line) => (metric === "overall" ? line.kind === "metric" : line.kind === "aggregate"));
+
+  const uploadOptions = useMemo((): Array<UploadOption> => {
+    if (data == null) {
+      return [];
+    }
+
+    return data.lines
+      .filter((line) => line.kind === "upload")
+      .slice()
+      .sort((left, right) => right.total - left.total)
+      .map((line) => ({
+        id: line.id,
+        label: line.label,
+        total: line.total,
+      }));
+  }, [data]);
+
+  const selectedUploadIds = useMemo(() => new Set(selectedUploads.map((item) => item.id)), [selectedUploads]);
 
   const toggleMetric = (key: MetricFilterKey) => {
     setEnabledMetrics((current) => {
@@ -187,12 +226,28 @@ export function StudioOverallAnalytics({ metric }: { metric: StudioAnalyticsMetr
       return [];
     }
 
-    return buildSeries(data, supportsUploads && showUploads, enabledMetrics);
-  }, [data, enabledMetrics, showUploads, supportsUploads]);
+    return buildSeries(data, selectedUploadIds, enabledMetrics);
+  }, [data, enabledMetrics, selectedUploadIds]);
+
+  const handleUploadSelectionChange = (next: Array<UploadOption> | null) => {
+    if (next == null) {
+      setSelectedUploads([]);
+
+      return;
+    }
+
+    if (next.length > MAX_SELECTED_UPLOADS) {
+      setSelectedUploads(next.slice(0, MAX_SELECTED_UPLOADS));
+
+      return;
+    }
+
+    setSelectedUploads(next);
+  };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
+      <div className="flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="text-lg font-semibold tracking-tight">{copy.title}</h1>
 
@@ -280,49 +335,83 @@ export function StudioOverallAnalytics({ metric }: { metric: StudioAnalyticsMetr
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}
-
-          {supportsUploads ? (
-            <button
-              type="button"
-              data-slot="filter-tag"
-              className={cn(
-                "inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium transition-colors",
-                showUploads ? "bg-muted text-foreground border-border" : "text-muted-foreground hover:bg-muted/60",
-              )}
-              aria-pressed={showUploads}
-              onClick={() => {
-                setShowUploads((value) => !value);
-              }}
-            >
-              Individual uploads
-            </button>
-          ) : null}
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {(metric === "overall"
-          ? [
-              { key: "views", label: "Views", icon: Eye },
-              { key: "likes", label: "Likes", icon: Heart },
-              { key: "comments", label: "Comments", icon: MessageCircle },
-            ]
-          : [
-              {
-                key: metric,
-                label: copy.title,
-                icon: metric === "views" ? Eye : metric === "likes" ? Heart : MessageCircle,
-              },
-            ]
-        ).map((card) => {
-          const matched = summaryLines.find((item) => item.id === card.key);
-          const line = matched ?? (summaryLines.length > 0 ? summaryLines[0] : undefined);
-          const Icon = card.icon;
-          const showSkeleton = loading || line === undefined;
-          const filterKey = card.key === "views" || card.key === "likes" || card.key === "comments" ? card.key : null;
-          const active = filterKey == null || !supportsMetricFilter ? true : enabledMetrics.has(filterKey);
+      {supportsUploads ? (
+        <div className="flex shrink-0 flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-muted-foreground text-xs">
+              Compare up to {String(MAX_SELECTED_UPLOADS)} uploads against the aggregate
+            </p>
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {String(selectedUploads.length)}/{String(MAX_SELECTED_UPLOADS)}
+            </span>
+          </div>
 
-          if (supportsMetricFilter && filterKey != null) {
+          <Combobox
+            multiple
+            autoHighlight
+            items={uploadOptions}
+            value={selectedUploads}
+            onValueChange={handleUploadSelectionChange}
+            itemToStringValue={(item) => item.label}
+          >
+            <ComboboxChips ref={uploadAnchor} className="w-full">
+              <ComboboxValue>
+                {(values: Array<UploadOption>) => (
+                  <>
+                    {values.map((item) => (
+                      <ComboboxChip key={item.id} className="max-w-56">
+                        <span className="truncate">{item.label}</span>
+                      </ComboboxChip>
+                    ))}
+                  </>
+                )}
+              </ComboboxValue>
+              <ComboboxChipsInput
+                placeholder={
+                  selectedUploads.length >= MAX_SELECTED_UPLOADS
+                    ? "Maximum uploads selected"
+                    : "Search uploads by title or video id..."
+                }
+                disabled={selectedUploads.length >= MAX_SELECTED_UPLOADS}
+              />
+            </ComboboxChips>
+
+            <ComboboxContent anchor={uploadAnchor}>
+              <ComboboxEmpty>No uploads found.</ComboboxEmpty>
+              <ComboboxList>
+                {(item: UploadOption) => {
+                  const selected = selectedUploadIds.has(item.id);
+                  const atLimit = !selected && selectedUploads.length >= MAX_SELECTED_UPLOADS;
+
+                  return (
+                    <ComboboxItem key={item.id} value={item} disabled={atLimit}>
+                      <span className="min-w-0 flex-1">
+                        <span className="line-clamp-1">{item.label}</span>
+                        <span className="text-muted-foreground mt-0.5 block text-xs tabular-nums">
+                          {item.total.toLocaleString()} total
+                        </span>
+                      </span>
+                    </ComboboxItem>
+                  );
+                }}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </div>
+      ) : null}
+
+      {supportsMetricFilter ? (
+        <div className="grid shrink-0 gap-3 sm:grid-cols-3">
+          {METRIC_FILTER_OPTIONS.map((card) => {
+            const matched = summaryLines.find((item) => item.id === card.key);
+            const line = matched ?? (summaryLines.length > 0 ? summaryLines[0] : undefined);
+            const Icon = card.key === "views" ? Eye : card.key === "likes" ? Heart : MessageCircle;
+            const showSkeleton = loading || line === undefined;
+            const active = enabledMetrics.has(card.key);
+
             return (
               <button
                 key={card.key}
@@ -334,7 +423,7 @@ export function StudioOverallAnalytics({ metric }: { metric: StudioAnalyticsMetr
                 )}
                 aria-pressed={active}
                 onClick={() => {
-                  toggleMetric(filterKey);
+                  toggleMetric(card.key);
                 }}
               >
                 <div className="flex flex-col gap-1">
@@ -363,38 +452,12 @@ export function StudioOverallAnalytics({ metric }: { metric: StudioAnalyticsMetr
                 </span>
               </button>
             );
-          }
-
-          return (
-            <div key={card.key} className="bg-card flex items-center justify-between gap-3 rounded-xl border p-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">{card.label}</span>
-
-                {showSkeleton ? (
-                  <Skeleton className="h-7 w-16" />
-                ) : (
-                  <span className="text-2xl font-semibold tracking-tight tabular-nums">
-                    {line.total.toLocaleString()}
-                  </span>
-                )}
-              </div>
-
-              <span
-                className={cn(
-                  "rounded-md p-2",
-                  card.key === "views" && "bg-blue-500/15 text-blue-500",
-                  card.key === "likes" && "bg-rose-500/15 text-rose-500",
-                  card.key === "comments" && "bg-amber-500/15 text-amber-500",
-                )}
-              >
-                <Icon className="size-4" aria-hidden />
-              </span>
-            </div>
-          );
-        })}
-      </div>
+          })}
+        </div>
+      ) : null}
 
       <StudioMetricsChart
+        className="min-h-0 flex-1"
         series={series}
         granularity={data?.granularity ?? "day"}
         loading={loading}
@@ -410,19 +473,15 @@ export function StudioOverallAnalytics({ metric }: { metric: StudioAnalyticsMetr
 
 export function StudioOverallAnalyticsSkeleton() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-6">
+      <div className="flex shrink-0 flex-col gap-2">
         <Skeleton className="h-7 w-40" />
         <Skeleton className="h-4 w-72" />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-24 rounded-xl" />
-        <Skeleton className="h-24 rounded-xl" />
-      </div>
+      <Skeleton className="h-10 w-full shrink-0 rounded-lg" />
 
-      <Skeleton className="h-80 w-full rounded-xl" />
+      <Skeleton className="min-h-80 w-full flex-1 rounded-xl" />
     </div>
   );
 }
