@@ -19,6 +19,7 @@ export type StudioMetricsChartSeries = {
   color: string;
   points: Array<{ date: string; count: number }>;
   total: number;
+  videoId?: string | null;
 };
 
 type StudioMetricsChartProps = {
@@ -71,10 +72,8 @@ function formatBucketLabel(isoDate: string, granularity: ObservabilityGranularit
   return `${month} ${String(day)}`;
 }
 
-function formatLegendLabel(label: string, total: number): string {
-  const separator = " — ";
-  const index = label.indexOf(separator);
-  const code = index >= 0 ? label.slice(0, index).trim() : label.trim();
+function formatLegendLabel(label: string, total: number, videoId?: string | null): string {
+  const code = (videoId ?? "").trim() || label.trim();
 
   return `${code} (${total.toLocaleString()})`;
 }
@@ -114,7 +113,7 @@ export function StudioMetricsChart({
 
     for (const item of series) {
       config[item.key] = {
-        label: formatLegendLabel(item.label, item.total),
+        label: formatLegendLabel(item.label, item.total, item.videoId),
         color: item.color,
       };
     }
@@ -160,7 +159,7 @@ export function StudioMetricsChart({
               key={item.key}
               type="linear"
               dataKey={item.key}
-              name={formatLegendLabel(item.label, item.total)}
+              name={formatLegendLabel(item.label, item.total, item.videoId)}
               stroke={`var(--color-${item.key})`}
               strokeWidth={2}
               dot={false}

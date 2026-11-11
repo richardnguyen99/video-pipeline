@@ -48,7 +48,7 @@ const MAX_SELECTED_UPLOADS = 5;
 
 const RANGE_OPTIONS: Array<{ value: ObservabilityRange; label: string }> = [
   { value: "week", label: "1 week" },
-  { value: "3months", label: "3 months" },
+  { value: "months", label: "3 months" },
   { value: "year", label: "1 year" },
   { value: "all", label: "All time" },
 ];
@@ -145,6 +145,7 @@ function buildSeries(
       color,
       points: line.points,
       total: line.total,
+      videoId: line.video_id,
     };
   });
 }

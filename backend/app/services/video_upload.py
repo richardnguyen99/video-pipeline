@@ -831,6 +831,7 @@ class VideoUploadService(VideoUploadMediaMixin):
             label=label,
             kind="upload",
             total=series.total,
+            video_id=code,
             points=series.points,
         )
 
@@ -967,9 +968,9 @@ class VideoUploadService(VideoUploadMediaMixin):
             start = now - timedelta(days=6)
             return "week", "day", start, end, 7
 
-        if normalized in {"3months", "3month", "90d"}:
+        if normalized in {"months", "month", "90d"}:
             start = now - timedelta(days=89)
-            return "3months", "week", start, end, 90
+            return "months", "week", start, end, 90
 
         if normalized in {"year", "1year", "365d"}:
             start = now - timedelta(days=364)

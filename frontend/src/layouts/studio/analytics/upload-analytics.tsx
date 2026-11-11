@@ -52,7 +52,7 @@ type MetricKey = (typeof METRICS)[number]["key"];
 
 const RANGE_OPTIONS: Array<{ value: ObservabilityRange; label: string }> = [
   { value: "week", label: "1 week" },
-  { value: "3months", label: "3 months" },
+  { value: "months", label: "3 months" },
   { value: "year", label: "1 year" },
   { value: "all", label: "All time" },
 ];

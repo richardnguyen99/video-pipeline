@@ -86,7 +86,7 @@ async def get_studio_uploads_analytics(
     ] = "overall",
     days: Annotated[int, Query(ge=1, le=90)] = 7,
     range_key: Annotated[
-        Literal["week", "3months", "year", "all"] | None,
+        Literal["week", "months", "year", "all"] | None,
         Query(alias="range"),
     ] = None,
 ) -> StudioAnalyticsResponse:
@@ -235,7 +235,7 @@ async def get_video_upload_observability(
     service: VideoUploadServiceDep,
     days: Annotated[int, Query(ge=1, le=90)] = 7,
     range_key: Annotated[
-        Literal["week", "3months", "year", "all"] | None,
+        Literal["week", "months", "year", "all"] | None,
         Query(alias="range"),
     ] = None,
 ) -> VideoUploadObservabilityResponse:

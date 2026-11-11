@@ -1,31 +1,22 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight, FileVideo, FolderOpen, Upload } from "lucide-react";
 
+import { StudioMetricsChart } from "@/components/studio/metrics-chart";
+import type { StudioMetricsChartSeries } from "@/components/studio/metrics-chart";
+import { formatFileSize } from "@/components/studio/upload-helpers";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/libs/utils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn, formatCompactNumber, formatRelativeDate } from "@/libs/utils";
+import {
+  getStudioAnalytics,
+  listVideoUploads,
+  studioAnalyticsQueryKey,
+  VIDEO_UPLOADS_LIST_QUERY_KEY,
+} from "@/queries/video-upload";
+import type { StudioAnalyticsLine, VideoUploadListItem } from "@/queries/video-upload";
 import { useAuthStore } from "@/stores/auth-store";
-
-const RECENT_VIDEOS = [
-  {
-    title: "Behind the scenes — episode 04",
-    size: "1.8 GB",
-    uploaded: "Uploaded today",
-    status: "Published",
-  },
-  {
-    title: "Creator Q&A highlights",
-    size: "842 MB",
-    uploaded: "Uploaded yesterday",
-    status: "Processing",
-  },
-  {
-    title: "Summer lookbook",
-    size: "2.4 GB",
-    uploaded: "Jun 18, 2026",
-    status: "Published",
-  },
-] as const;
 
 function greetingHourLabel(): string {
   const hour = new Date().getHours();
@@ -42,17 +33,109 @@ function greetingHourLabel(): string {
 }
 
 function statusClass(status: string): string {
-  const key = status.toLowerCase();
+  const key = status.toUpperCase();
 
-  if (key === "published") {
+  if (key === "READY") {
     return "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400";
   }
 
-  if (key === "processing") {
+  if (key === "ENCODING" || key === "UPLOADED" || key === "PENDING") {
     return "bg-amber-500/15 text-amber-700 dark:text-amber-400";
   }
 
+  if (key === "FAILED") {
+    return "bg-rose-500/15 text-rose-600 dark:text-rose-400";
+  }
+
   return "bg-muted text-muted-foreground";
+}
+
+function statusLabel(status: string): string {
+  const key = status.toUpperCase();
+
+  if (key === "READY") {
+    return "Published";
+  }
+
+  if (key === "ENCODING") {
+    return "Processing";
+  }
+
+  if (key === "UPLOADED") {
+    return "Uploaded";
+  }
+
+  if (key === "PENDING") {
+    return "Pending";
+  }
+
+  if (key === "FAILED") {
+    return "Failed";
+  }
+
+  return status;
+}
+
+function displayTitle(item: VideoUploadListItem): string {
+  const title = item.title?.trim();
+
+  if (title) {
+    return title;
+  }
+
+  const filename = item.original_filename?.trim();
+
+  if (filename) {
+    return filename;
+  }
+
+  return item.video_id;
+}
+
+function lineTotal(lines: Array<StudioAnalyticsLine>, id: string): number {
+  return lines.find((line) => line.id === id)?.total ?? 0;
+}
+
+function percentChange(current: number, previous: number): number | null {
+  if (previous <= 0) {
+    return current > 0 ? 100 : null;
+  }
+
+  return ((current - previous) / previous) * 100;
+}
+
+function splitHalfTotals(line: StudioAnalyticsLine | undefined): {
+  recent: number;
+  previous: number;
+} {
+  if (line == null || line.points.length === 0) {
+    return { recent: 0, previous: 0 };
+  }
+
+  const midpoint = Math.floor(line.points.length / 2);
+  const previous = line.points.slice(0, midpoint).reduce((sum, point) => sum + point.count, 0);
+  const recent = line.points.slice(midpoint).reduce((sum, point) => sum + point.count, 0);
+
+  return { recent, previous };
+}
+
+const METRIC_COLORS: Record<string, string> = {
+  views: "#3b82f6",
+  likes: "#f43f5e",
+  comments: "#f59e0b",
+};
+
+function metricsSeries(lines: Array<StudioAnalyticsLine>): Array<StudioMetricsChartSeries> {
+  return lines
+    .filter((line) => line.kind === "metric")
+    .map((line) => ({
+      key: line.id,
+      label: line.label,
+      color: METRIC_COLORS[line.id] ?? "#a78bfa",
+      points: line.points,
+      total: line.total,
+      videoId: line.video_id,
+    }));
 }
 
 export function StudioDashboard() {
@@ -63,6 +146,50 @@ export function StudioDashboard() {
   }, [user]);
 
   const greeting = `${greetingHourLabel()}, ${displayName}.`;
+
+  const analyticsMonth = useQuery({
+    queryKey: studioAnalyticsQueryKey("overall", "months"),
+    queryFn: () => getStudioAnalytics("overall", "months"),
+    staleTime: 30_000,
+  });
+
+  const analyticsAll = useQuery({
+    queryKey: studioAnalyticsQueryKey("overall", "all"),
+    queryFn: () => getStudioAnalytics("overall", "all"),
+    staleTime: 60_000,
+  });
+
+  const uploadsQuery = useQuery({
+    queryKey: [...VIDEO_UPLOADS_LIST_QUERY_KEY, "dashboard", 8],
+    queryFn: () => listVideoUploads({ limit: 8, offset: 0 }),
+    staleTime: 30_000,
+  });
+
+  const monthLines = analyticsMonth.data?.lines ?? [];
+  const allLines = analyticsAll.data?.lines ?? [];
+
+  const totalViews = lineTotal(allLines, "views");
+  const totalLikes = lineTotal(allLines, "likes");
+  const totalComments = lineTotal(allLines, "comments");
+
+  const viewsSplit = splitHalfTotals(monthLines.find((line) => line.id === "views"));
+  const likesSplit = splitHalfTotals(monthLines.find((line) => line.id === "likes"));
+  const commentsSplit = splitHalfTotals(monthLines.find((line) => line.id === "comments"));
+
+  const viewsDelta = percentChange(viewsSplit.recent, viewsSplit.previous);
+  const likesDelta = percentChange(likesSplit.recent, likesSplit.previous);
+  const commentsDelta = percentChange(commentsSplit.recent, commentsSplit.previous);
+
+  const uploads = uploadsQuery.data?.items ?? [];
+  const publishedCount = uploadsQuery.data?.items.filter((item) => item.status.toUpperCase() === "READY").length ?? 0;
+  const publishedTotal = uploadsQuery.data?.total ?? 0;
+
+  const chartSeries = metricsSeries(monthLines);
+  const statsLoading =
+    (analyticsAll.isLoading && typeof analyticsAll.data === "undefined") ||
+    (uploadsQuery.isLoading && typeof uploadsQuery.data === "undefined");
+  const chartLoading = analyticsMonth.isLoading && typeof analyticsMonth.data === "undefined";
+  const recentLoading = uploadsQuery.isLoading && typeof uploadsQuery.data === "undefined";
 
   return (
     <div className="flex flex-col gap-6">
@@ -82,31 +209,70 @@ export function StudioDashboard() {
       </header>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: "Total views", value: "128.4K", note: "+18.6% this month", positive: true },
-          { label: "Published videos", value: "24", note: "3 this month", positive: false },
-          { label: "Watch time", value: "2,840h", note: "+12.4% this month", positive: true },
-          { label: "Subscribers", value: "8,492", note: "+4.8% this month", positive: true },
-        ].map((stat) => (
+        {(
+          [
+            {
+              label: "Total views",
+              value: formatCompactNumber(totalViews),
+              note:
+                viewsDelta == null
+                  ? "No comparison yet"
+                  : `${viewsDelta >= 0 ? "+" : ""}${viewsDelta.toFixed(1)}% this month`,
+              positive: viewsDelta == null ? false : viewsDelta >= 0,
+            },
+            {
+              label: "Uploads",
+              value: String(publishedTotal),
+              note: `${String(publishedCount)} ready of ${String(uploads.length)} recent`,
+              positive: false,
+            },
+            {
+              label: "Total likes",
+              value: formatCompactNumber(totalLikes),
+              note:
+                likesDelta == null
+                  ? "No comparison yet"
+                  : `${likesDelta >= 0 ? "+" : ""}${likesDelta.toFixed(1)}% this month`,
+              positive: likesDelta == null ? false : likesDelta >= 0,
+            },
+            {
+              label: "Total comments",
+              value: formatCompactNumber(totalComments),
+              note:
+                commentsDelta == null
+                  ? "No comparison yet"
+                  : `${commentsDelta >= 0 ? "+" : ""}${commentsDelta.toFixed(1)}% this month`,
+              positive: commentsDelta == null ? false : commentsDelta >= 0,
+            },
+          ] as const
+        ).map((stat) => (
           <div key={stat.label} className="bg-card flex flex-col gap-1 rounded-xl border p-4">
             <span className="text-muted-foreground text-xs">{stat.label}</span>
 
-            <strong className="text-2xl font-semibold tracking-tight">{stat.value}</strong>
+            {statsLoading ? (
+              <Skeleton className="h-8 w-20" />
+            ) : (
+              <strong className="text-2xl font-semibold tracking-tight">{stat.value}</strong>
+            )}
 
-            <small
-              className={cn(
-                "text-xs",
-                stat.positive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
-              )}
-            >
-              {stat.note}
-            </small>
+            {statsLoading ? (
+              <Skeleton className="h-3 w-28" />
+            ) : (
+              <small
+                className={cn(
+                  "text-xs",
+                  stat.positive ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
+                )}
+              >
+                {stat.note}
+              </small>
+            )}
           </div>
         ))}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <article className="bg-card flex flex-col gap-4 rounded-xl border p-5">
+        <article className="bg-card flex min-h-80 flex-col gap-4 rounded-xl border p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex flex-col gap-1">
               <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Performance</span>
@@ -114,139 +280,180 @@ export function StudioDashboard() {
               <h2 className="text-lg font-semibold">Channel overview</h2>
             </div>
 
-            <Button type="button" variant="ghost" size="sm">
-              Last 30 days
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={<Link to="/studio/analytics" />}
+            >
+              Analytics
               <ChevronRight data-icon="inline-end" className="size-3.5" />
             </Button>
           </div>
 
-          <div className="text-primary relative h-48 w-full">
-            <div className="text-muted-foreground absolute inset-y-0 left-0 flex flex-col justify-between py-1 text-[10px]">
-              <span>8k</span>
-              <span>6k</span>
-              <span>4k</span>
-              <span>2k</span>
-              <span>0</span>
-            </div>
-
-            <svg
-              className="ml-6 h-full w-[calc(100%-1.5rem)]"
-              viewBox="0 0 640 190"
-              preserveAspectRatio="none"
-              aria-label="Channel views chart"
-            >
-              <path
-                d="M0 155 C60 145 70 115 130 126 S200 155 250 105 S315 78 360 96 S420 120 470 62 S535 75 580 38 S610 30 640 14"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-              />
-            </svg>
-          </div>
-
-          <div className="text-muted-foreground ml-6 flex justify-between text-[10px]">
-            <span>May 22</span>
-            <span>May 29</span>
-            <span>Jun 05</span>
-            <span>Jun 12</span>
-            <span>Jun 19</span>
-          </div>
+          <StudioMetricsChart
+            className="min-h-56 flex-1 border-0 bg-transparent sm:p-0 shadow-none"
+            series={chartSeries}
+            granularity={analyticsMonth.data?.granularity ?? "day"}
+            loading={chartLoading}
+            emptyMessage="No engagement activity in this period"
+          />
         </article>
 
-        <article className="bg-card flex flex-col gap-3 rounded-xl border p-5">
+        <aside className="bg-card flex flex-col gap-4 rounded-xl border p-5">
           <div className="flex flex-col gap-1">
             <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Quick actions</span>
 
             <h2 className="text-lg font-semibold">Keep creating</h2>
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            className="h-auto justify-start gap-3 px-3 py-3 text-left"
-            nativeButton={false}
-            render={<Link to="/studio/uploads/new" />}
-          >
-            <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md">
-              <Upload className="size-4" />
-            </span>
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto justify-between px-4 py-3"
+              nativeButton={false}
+              render={<Link to="/studio/uploads/new" />}
+            >
+              <span className="flex min-w-0 items-start gap-3 text-left">
+                <Upload className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-sm font-medium">Upload a new video</span>
+                  <span className="text-muted-foreground text-xs">Share something with your audience</span>
+                </span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 opacity-60" aria-hidden />
+            </Button>
 
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="font-medium">Upload a new video</span>
-              <span className="text-muted-foreground text-xs font-normal">Share something with your audience</span>
-            </span>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto justify-between px-4 py-3"
+              nativeButton={false}
+              render={<Link to="/studio/uploads" />}
+            >
+              <span className="flex min-w-0 items-start gap-3 text-left">
+                <FolderOpen className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-sm font-medium">Manage your library</span>
+                  <span className="text-muted-foreground text-xs">Browse all your uploaded videos</span>
+                </span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 opacity-60" aria-hidden />
+            </Button>
 
-            <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-          </Button>
-
-          <Button type="button" variant="outline" className="h-auto justify-start gap-3 px-3 py-3 text-left">
-            <span className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md">
-              <FolderOpen className="size-4" />
-            </span>
-
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="font-medium">Manage your library</span>
-              <span className="text-muted-foreground text-xs font-normal">Browse all your uploaded videos</span>
-            </span>
-
-            <ChevronRight className="text-muted-foreground size-4 shrink-0" />
-          </Button>
-        </article>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto justify-between px-4 py-3"
+              nativeButton={false}
+              render={<Link to="/studio/analytics/views" />}
+            >
+              <span className="flex min-w-0 items-start gap-3 text-left">
+                <FileVideo className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="text-sm font-medium">View performance</span>
+                  <span className="text-muted-foreground text-xs">Open detailed studio analytics</span>
+                </span>
+              </span>
+              <ChevronRight className="size-4 shrink-0 opacity-60" aria-hidden />
+            </Button>
+          </div>
+        </aside>
       </div>
 
-      <article className="bg-card flex flex-col gap-4 rounded-xl border p-5">
-        <div className="flex items-start justify-between gap-3">
+      <section className="bg-card flex flex-col gap-4 rounded-xl border p-5">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
             <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Your library</span>
 
             <h2 className="text-lg font-semibold">Recently uploaded</h2>
           </div>
 
-          <Button type="button" variant="ghost" size="sm">
+          <Button type="button" variant="ghost" size="sm" nativeButton={false} render={<Link to="/studio/uploads" />}>
             View all
             <ChevronRight data-icon="inline-end" className="size-3.5" />
           </Button>
         </div>
 
         <div className="overflow-x-auto">
-          <div className="text-muted-foreground grid min-w-xl grid-cols-[minmax(0,2fr)_6rem_9rem_7rem] gap-3 border-b px-1 pb-2 text-xs font-medium">
-            <span>Video</span>
-            <span>Size</span>
-            <span>Uploaded</span>
-            <span>Status</span>
-          </div>
+          <table className="w-full min-w-160 text-left text-sm">
+            <thead>
+              <tr className="text-muted-foreground border-b text-xs">
+                <th className="pb-2 font-medium">Video</th>
+                <th className="pb-2 font-medium">Size</th>
+                <th className="pb-2 font-medium">Uploaded</th>
+                <th className="pb-2 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentLoading
+                ? Array.from({ length: 4 }).map((_, index) => (
+                    <tr key={index} className="border-b border-border/50">
+                      <td className="py-3">
+                        <Skeleton className="h-4 w-48" />
+                      </td>
+                      <td className="py-3">
+                        <Skeleton className="h-4 w-16" />
+                      </td>
+                      <td className="py-3">
+                        <Skeleton className="h-4 w-24" />
+                      </td>
+                      <td className="py-3">
+                        <Skeleton className="h-5 w-20 rounded-full" />
+                      </td>
+                    </tr>
+                  ))
+                : null}
 
-          <div className="flex min-w-xl flex-col">
-            {RECENT_VIDEOS.map((row) => (
-              <div
-                key={row.title}
-                className="grid grid-cols-[minmax(0,2fr)_6rem_9rem_7rem] items-center gap-3 border-b px-1 py-3 last:border-b-0"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className="bg-muted text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-md">
-                    <FileVideo className="size-4" />
-                  </span>
+              {!recentLoading && uploads.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-muted-foreground py-8 text-center text-sm">
+                    No uploads yet. Start by uploading your first video.
+                  </td>
+                </tr>
+              ) : null}
 
-                  <strong className="truncate text-sm font-medium">{row.title}</strong>
-                </div>
-
-                <span className="text-muted-foreground text-sm">{row.size}</span>
-
-                <span className="text-muted-foreground text-sm">{row.uploaded}</span>
-
-                <span
-                  className={cn(
-                    "inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium",
-                    statusClass(row.status),
-                  )}
-                >
-                  {row.status}
-                </span>
-              </div>
-            ))}
-          </div>
+              {!recentLoading
+                ? uploads.map((item) => (
+                    <tr key={item.public_id} className="border-b border-border/50 last:border-0">
+                      <td className="py-3">
+                        <Link
+                          to="/studio/uploads/$uploadId"
+                          params={{ uploadId: item.public_id }}
+                          className="hover:text-primary flex min-w-0 items-center gap-3 transition-colors"
+                        >
+                          <span className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-md">
+                            <FileVideo className="size-3.5 opacity-70" aria-hidden />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="line-clamp-1 font-medium">{displayTitle(item)}</span>
+                            <span className="text-muted-foreground block text-xs tabular-nums">{item.video_id}</span>
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="text-muted-foreground py-3 tabular-nums">
+                        {item.source_bytes != null ? formatFileSize(item.source_bytes) : "—"}
+                      </td>
+                      <td className="text-muted-foreground py-3">{formatRelativeDate(item.created_at)}</td>
+                      <td className="py-3">
+                        <span
+                          className={cn(
+                            "inline-flex rounded-full px-2 py-0.5 text-xs font-medium",
+                            statusClass(item.status),
+                          )}
+                        >
+                          {statusLabel(item.status)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                : null}
+            </tbody>
+          </table>
         </div>
-      </article>
+      </section>
     </div>
   );
 }

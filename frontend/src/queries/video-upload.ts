@@ -353,7 +353,7 @@ export type VideoUploadMetricSeries = {
   points: Array<VideoUploadMetricPoint>;
 };
 
-export type ObservabilityRange = "week" | "3months" | "year" | "all";
+export type ObservabilityRange = "week" | "months" | "year" | "all";
 export type ObservabilityGranularity = "day" | "week" | "month";
 
 export type VideoUploadObservabilityResponse = {
@@ -740,6 +740,7 @@ export type StudioAnalyticsLine = {
   label: string;
   kind: "metric" | "aggregate" | "upload";
   total: number;
+  video_id?: string | null;
   points: Array<VideoUploadMetricPoint>;
 };
 

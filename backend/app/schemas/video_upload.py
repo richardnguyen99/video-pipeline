@@ -298,6 +298,7 @@ class StudioAnalyticsLine(BaseModel):
     label: str
     kind: str
     total: int
+    video_id: str | None = None
     points: list[VideoUploadMetricPoint] = Field(default_factory=list)
 
 
