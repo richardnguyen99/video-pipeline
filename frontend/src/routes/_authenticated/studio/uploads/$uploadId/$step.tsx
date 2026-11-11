@@ -3,9 +3,8 @@ import { z } from "zod";
 
 import { UploadStudio } from "@/layouts/studio/uploads/wizard";
 import { UploadStudioSkeleton } from "@/layouts/studio/uploads/wizard-skeleton";
-import { videoUploadStatusQueryKey, videoUploadStatusQueryOptions } from "@/queries/video-upload";
-import type { VideoUploadStatusResponse } from "@/queries/video-upload";
-import { fetchVideoUploadStatusServer } from "@/server/video-upload.functions";
+
+import { Route as UploadDetailRoute } from "./route";
 
 const stepParamsSchema = z.object({
   step: z.coerce.number().int().min(1).max(7),
@@ -23,41 +22,6 @@ export const Route = createFileRoute("/_authenticated/studio/uploads/$uploadId/$
     }),
   },
   ssr: true,
-  loader: async ({ context, params }): Promise<{ status: VideoUploadStatusResponse | null }> => {
-    const uploadId = params.uploadId;
-    const cached = context.queryClient.getQueryData<VideoUploadStatusResponse>(videoUploadStatusQueryKey(uploadId));
-
-    if (cached != null) {
-      return { status: cached };
-    }
-
-    if (typeof window === "undefined") {
-      const status = await fetchVideoUploadStatusServer({
-        data: { publicId: uploadId },
-      });
-
-      if (status != null) {
-        context.queryClient.setQueryData(videoUploadStatusQueryKey(uploadId), status);
-      }
-
-      return { status };
-    }
-
-    if (!context.auth.isReady || context.auth.user == null) {
-      return { status: null };
-    }
-
-    try {
-      const status = await context.queryClient.query({
-        ...videoUploadStatusQueryOptions(uploadId),
-        staleTime: 30_000,
-      });
-
-      return { status };
-    } catch {
-      return { status: null };
-    }
-  },
   pendingComponent: StudioUploadDetailPending,
   component: StudioUploadDetailPage,
 });
@@ -69,7 +33,7 @@ function StudioUploadDetailPending() {
 }
 
 function StudioUploadDetailPage() {
-  const { status } = Route.useLoaderData();
+  const { status } = UploadDetailRoute.useLoaderData();
   const { uploadId, step } = Route.useParams();
 
   return <UploadStudio key={uploadId} uploadId={uploadId} initialStatus={status} initialStep={step} />;

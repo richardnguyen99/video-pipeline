@@ -44,6 +44,7 @@ import { Route as AuthenticatedStudioAnalyticsCommentsRouteImport } from './rout
 import { Route as AuthenticatedStudioAnalyticsLikesRouteImport } from './routes/_authenticated/studio/analytics/likes'
 import { Route as AuthenticatedStudioAnalyticsViewsRouteImport } from './routes/_authenticated/studio/analytics/views'
 import { Route as AuthenticatedStudioUploadsIndexRouteImport } from './routes/_authenticated/studio/uploads/index'
+import { Route as AuthenticatedStudioUploadsUploadIdRouteRouteImport } from './routes/_authenticated/studio/uploads/$uploadId/route'
 import { Route as AuthenticatedStudioUploadsNewRouteImport } from './routes/_authenticated/studio/uploads/new'
 import { Route as UUsernamePlaylistsIndexRouteImport } from './routes/u/$username/playlists/index'
 import { Route as UUsernamePlaylistsPlaylistIdRouteImport } from './routes/u/$username/playlists/$playlistId'
@@ -240,6 +241,12 @@ const AuthenticatedStudioUploadsIndexRoute =
     path: '/uploads/',
     getParentRoute: () => AuthenticatedStudioRouteRoute,
   } as any)
+const AuthenticatedStudioUploadsUploadIdRouteRoute =
+  AuthenticatedStudioUploadsUploadIdRouteRouteImport.update({
+    id: '/uploads/$uploadId',
+    path: '/uploads/$uploadId',
+    getParentRoute: () => AuthenticatedStudioRouteRoute,
+  } as any)
 const AuthenticatedStudioUploadsNewRoute =
   AuthenticatedStudioUploadsNewRouteImport.update({
     id: '/uploads/new',
@@ -279,39 +286,39 @@ const UUsernameVideosPublicRoute = UUsernameVideosPublicRouteImport.update({
 } as any)
 const AuthenticatedStudioUploadsUploadIdIndexRoute =
   AuthenticatedStudioUploadsUploadIdIndexRouteImport.update({
-    id: '/uploads/$uploadId/',
-    path: '/uploads/$uploadId/',
-    getParentRoute: () => AuthenticatedStudioRouteRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedStudioUploadsUploadIdRouteRoute,
   } as any)
 const AuthenticatedStudioUploadsUploadIdStepRoute =
   AuthenticatedStudioUploadsUploadIdStepRouteImport.update({
-    id: '/uploads/$uploadId/$step',
-    path: '/uploads/$uploadId/$step',
-    getParentRoute: () => AuthenticatedStudioRouteRoute,
+    id: '/$step',
+    path: '/$step',
+    getParentRoute: () => AuthenticatedStudioUploadsUploadIdRouteRoute,
   } as any)
 const AuthenticatedStudioUploadsUploadIdAnalyticsRoute =
   AuthenticatedStudioUploadsUploadIdAnalyticsRouteImport.update({
-    id: '/uploads/$uploadId/analytics',
-    path: '/uploads/$uploadId/analytics',
-    getParentRoute: () => AuthenticatedStudioRouteRoute,
+    id: '/analytics',
+    path: '/analytics',
+    getParentRoute: () => AuthenticatedStudioUploadsUploadIdRouteRoute,
   } as any)
 const AuthenticatedStudioUploadsUploadIdLogsRoute =
   AuthenticatedStudioUploadsUploadIdLogsRouteImport.update({
-    id: '/uploads/$uploadId/logs',
-    path: '/uploads/$uploadId/logs',
-    getParentRoute: () => AuthenticatedStudioRouteRoute,
+    id: '/logs',
+    path: '/logs',
+    getParentRoute: () => AuthenticatedStudioUploadsUploadIdRouteRoute,
   } as any)
 const AuthenticatedStudioUploadsUploadIdMediaRoute =
   AuthenticatedStudioUploadsUploadIdMediaRouteImport.update({
-    id: '/uploads/$uploadId/media',
-    path: '/uploads/$uploadId/media',
-    getParentRoute: () => AuthenticatedStudioRouteRoute,
+    id: '/media',
+    path: '/media',
+    getParentRoute: () => AuthenticatedStudioUploadsUploadIdRouteRoute,
   } as any)
 const AuthenticatedStudioUploadsUploadIdMetadataRoute =
   AuthenticatedStudioUploadsUploadIdMetadataRouteImport.update({
-    id: '/uploads/$uploadId/metadata',
-    path: '/uploads/$uploadId/metadata',
-    getParentRoute: () => AuthenticatedStudioRouteRoute,
+    id: '/metadata',
+    path: '/metadata',
+    getParentRoute: () => AuthenticatedStudioUploadsUploadIdRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -343,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/studio/': typeof AuthenticatedStudioIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/studio/uploads/$uploadId': typeof AuthenticatedStudioUploadsUploadIdRouteRouteWithChildren
   '/studio/analytics/comments': typeof AuthenticatedStudioAnalyticsCommentsRoute
   '/studio/analytics/likes': typeof AuthenticatedStudioAnalyticsLikesRoute
   '/studio/analytics/views': typeof AuthenticatedStudioAnalyticsViewsRoute
@@ -437,6 +445,7 @@ export interface FileRoutesById {
   '/u/$username/subscriptions': typeof UUsernameSubscriptionsRoute
   '/_authenticated/studio/': typeof AuthenticatedStudioIndexRoute
   '/u/$username/': typeof UUsernameIndexRoute
+  '/_authenticated/studio/uploads/$uploadId': typeof AuthenticatedStudioUploadsUploadIdRouteRouteWithChildren
   '/_authenticated/studio/analytics/comments': typeof AuthenticatedStudioAnalyticsCommentsRoute
   '/_authenticated/studio/analytics/likes': typeof AuthenticatedStudioAnalyticsLikesRoute
   '/_authenticated/studio/analytics/views': typeof AuthenticatedStudioAnalyticsViewsRoute
@@ -487,6 +496,7 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/studio/'
     | '/u/$username/'
+    | '/studio/uploads/$uploadId'
     | '/studio/analytics/comments'
     | '/studio/analytics/likes'
     | '/studio/analytics/views'
@@ -580,6 +590,7 @@ export interface FileRouteTypes {
     | '/u/$username/subscriptions'
     | '/_authenticated/studio/'
     | '/u/$username/'
+    | '/_authenticated/studio/uploads/$uploadId'
     | '/_authenticated/studio/analytics/comments'
     | '/_authenticated/studio/analytics/likes'
     | '/_authenticated/studio/analytics/views'
@@ -863,6 +874,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioUploadsIndexRouteImport
       parentRoute: typeof AuthenticatedStudioRouteRoute
     }
+    '/_authenticated/studio/uploads/$uploadId': {
+      id: '/_authenticated/studio/uploads/$uploadId'
+      path: '/uploads/$uploadId'
+      fullPath: '/studio/uploads/$uploadId'
+      preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRouteImport
+      parentRoute: typeof AuthenticatedStudioRouteRoute
+    }
     '/_authenticated/studio/uploads/new': {
       id: '/_authenticated/studio/uploads/new'
       path: '/uploads/new'
@@ -914,45 +932,45 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/studio/uploads/$uploadId/': {
       id: '/_authenticated/studio/uploads/$uploadId/'
-      path: '/uploads/$uploadId'
+      path: '/'
       fullPath: '/studio/uploads/$uploadId/'
       preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdIndexRouteImport
-      parentRoute: typeof AuthenticatedStudioRouteRoute
+      parentRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRoute
     }
     '/_authenticated/studio/uploads/$uploadId/$step': {
       id: '/_authenticated/studio/uploads/$uploadId/$step'
-      path: '/uploads/$uploadId/$step'
+      path: '/$step'
       fullPath: '/studio/uploads/$uploadId/$step'
       preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdStepRouteImport
-      parentRoute: typeof AuthenticatedStudioRouteRoute
+      parentRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRoute
     }
     '/_authenticated/studio/uploads/$uploadId/analytics': {
       id: '/_authenticated/studio/uploads/$uploadId/analytics'
-      path: '/uploads/$uploadId/analytics'
+      path: '/analytics'
       fullPath: '/studio/uploads/$uploadId/analytics'
       preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdAnalyticsRouteImport
-      parentRoute: typeof AuthenticatedStudioRouteRoute
+      parentRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRoute
     }
     '/_authenticated/studio/uploads/$uploadId/logs': {
       id: '/_authenticated/studio/uploads/$uploadId/logs'
-      path: '/uploads/$uploadId/logs'
+      path: '/logs'
       fullPath: '/studio/uploads/$uploadId/logs'
       preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdLogsRouteImport
-      parentRoute: typeof AuthenticatedStudioRouteRoute
+      parentRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRoute
     }
     '/_authenticated/studio/uploads/$uploadId/media': {
       id: '/_authenticated/studio/uploads/$uploadId/media'
-      path: '/uploads/$uploadId/media'
+      path: '/media'
       fullPath: '/studio/uploads/$uploadId/media'
       preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdMediaRouteImport
-      parentRoute: typeof AuthenticatedStudioRouteRoute
+      parentRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRoute
     }
     '/_authenticated/studio/uploads/$uploadId/metadata': {
       id: '/_authenticated/studio/uploads/$uploadId/metadata'
-      path: '/uploads/$uploadId/metadata'
+      path: '/metadata'
       fullPath: '/studio/uploads/$uploadId/metadata'
       preLoaderRoute: typeof AuthenticatedStudioUploadsUploadIdMetadataRouteImport
-      parentRoute: typeof AuthenticatedStudioRouteRoute
+      parentRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRoute
     }
   }
 }
@@ -971,14 +989,7 @@ const VideosRouteRouteWithChildren = VideosRouteRoute._addFileChildren(
   VideosRouteRouteChildren,
 )
 
-interface AuthenticatedStudioRouteRouteChildren {
-  AuthenticatedStudioIndexRoute: typeof AuthenticatedStudioIndexRoute
-  AuthenticatedStudioAnalyticsCommentsRoute: typeof AuthenticatedStudioAnalyticsCommentsRoute
-  AuthenticatedStudioAnalyticsLikesRoute: typeof AuthenticatedStudioAnalyticsLikesRoute
-  AuthenticatedStudioAnalyticsViewsRoute: typeof AuthenticatedStudioAnalyticsViewsRoute
-  AuthenticatedStudioUploadsNewRoute: typeof AuthenticatedStudioUploadsNewRoute
-  AuthenticatedStudioAnalyticsIndexRoute: typeof AuthenticatedStudioAnalyticsIndexRoute
-  AuthenticatedStudioUploadsIndexRoute: typeof AuthenticatedStudioUploadsIndexRoute
+interface AuthenticatedStudioUploadsUploadIdRouteRouteChildren {
   AuthenticatedStudioUploadsUploadIdStepRoute: typeof AuthenticatedStudioUploadsUploadIdStepRoute
   AuthenticatedStudioUploadsUploadIdAnalyticsRoute: typeof AuthenticatedStudioUploadsUploadIdAnalyticsRoute
   AuthenticatedStudioUploadsUploadIdLogsRoute: typeof AuthenticatedStudioUploadsUploadIdLogsRoute
@@ -987,19 +998,8 @@ interface AuthenticatedStudioRouteRouteChildren {
   AuthenticatedStudioUploadsUploadIdIndexRoute: typeof AuthenticatedStudioUploadsUploadIdIndexRoute
 }
 
-const AuthenticatedStudioRouteRouteChildren: AuthenticatedStudioRouteRouteChildren =
+const AuthenticatedStudioUploadsUploadIdRouteRouteChildren: AuthenticatedStudioUploadsUploadIdRouteRouteChildren =
   {
-    AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
-    AuthenticatedStudioAnalyticsCommentsRoute:
-      AuthenticatedStudioAnalyticsCommentsRoute,
-    AuthenticatedStudioAnalyticsLikesRoute:
-      AuthenticatedStudioAnalyticsLikesRoute,
-    AuthenticatedStudioAnalyticsViewsRoute:
-      AuthenticatedStudioAnalyticsViewsRoute,
-    AuthenticatedStudioUploadsNewRoute: AuthenticatedStudioUploadsNewRoute,
-    AuthenticatedStudioAnalyticsIndexRoute:
-      AuthenticatedStudioAnalyticsIndexRoute,
-    AuthenticatedStudioUploadsIndexRoute: AuthenticatedStudioUploadsIndexRoute,
     AuthenticatedStudioUploadsUploadIdStepRoute:
       AuthenticatedStudioUploadsUploadIdStepRoute,
     AuthenticatedStudioUploadsUploadIdAnalyticsRoute:
@@ -1012,6 +1012,39 @@ const AuthenticatedStudioRouteRouteChildren: AuthenticatedStudioRouteRouteChildr
       AuthenticatedStudioUploadsUploadIdMetadataRoute,
     AuthenticatedStudioUploadsUploadIdIndexRoute:
       AuthenticatedStudioUploadsUploadIdIndexRoute,
+  }
+
+const AuthenticatedStudioUploadsUploadIdRouteRouteWithChildren =
+  AuthenticatedStudioUploadsUploadIdRouteRoute._addFileChildren(
+    AuthenticatedStudioUploadsUploadIdRouteRouteChildren,
+  )
+
+interface AuthenticatedStudioRouteRouteChildren {
+  AuthenticatedStudioIndexRoute: typeof AuthenticatedStudioIndexRoute
+  AuthenticatedStudioUploadsUploadIdRouteRoute: typeof AuthenticatedStudioUploadsUploadIdRouteRouteWithChildren
+  AuthenticatedStudioAnalyticsCommentsRoute: typeof AuthenticatedStudioAnalyticsCommentsRoute
+  AuthenticatedStudioAnalyticsLikesRoute: typeof AuthenticatedStudioAnalyticsLikesRoute
+  AuthenticatedStudioAnalyticsViewsRoute: typeof AuthenticatedStudioAnalyticsViewsRoute
+  AuthenticatedStudioUploadsNewRoute: typeof AuthenticatedStudioUploadsNewRoute
+  AuthenticatedStudioAnalyticsIndexRoute: typeof AuthenticatedStudioAnalyticsIndexRoute
+  AuthenticatedStudioUploadsIndexRoute: typeof AuthenticatedStudioUploadsIndexRoute
+}
+
+const AuthenticatedStudioRouteRouteChildren: AuthenticatedStudioRouteRouteChildren =
+  {
+    AuthenticatedStudioIndexRoute: AuthenticatedStudioIndexRoute,
+    AuthenticatedStudioUploadsUploadIdRouteRoute:
+      AuthenticatedStudioUploadsUploadIdRouteRouteWithChildren,
+    AuthenticatedStudioAnalyticsCommentsRoute:
+      AuthenticatedStudioAnalyticsCommentsRoute,
+    AuthenticatedStudioAnalyticsLikesRoute:
+      AuthenticatedStudioAnalyticsLikesRoute,
+    AuthenticatedStudioAnalyticsViewsRoute:
+      AuthenticatedStudioAnalyticsViewsRoute,
+    AuthenticatedStudioUploadsNewRoute: AuthenticatedStudioUploadsNewRoute,
+    AuthenticatedStudioAnalyticsIndexRoute:
+      AuthenticatedStudioAnalyticsIndexRoute,
+    AuthenticatedStudioUploadsIndexRoute: AuthenticatedStudioUploadsIndexRoute,
   }
 
 const AuthenticatedStudioRouteRouteWithChildren =

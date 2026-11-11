@@ -250,10 +250,10 @@ function RenditionRow({ row }: { row: VideoRenditionProgress }) {
 
 type UploadOverviewProps = {
   uploadId: string;
-  initialStatus?: VideoUploadStatusResponse | null;
+  initialStatus: VideoUploadStatusResponse;
 };
 
-export function UploadOverview({ uploadId, initialStatus = null }: UploadOverviewProps) {
+export function UploadOverview({ uploadId, initialStatus }: UploadOverviewProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [actionBusy, setActionBusy] = useState<"rebuild" | "delete" | "access" | null>(null);
@@ -265,18 +265,28 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
 
   const statusQuery = useQuery({
     ...videoUploadStatusQueryOptions(uploadId),
-    initialData: initialStatus ?? undefined,
+    initialData: initialStatus,
     queryKey: videoUploadStatusQueryKey(uploadId),
+    refetchOnWindowFocus: false,
     refetchInterval: (current) => {
+      if (current.state.status === "error" || current.state.error != null) {
+        return false;
+      }
+
       const data = current.state.data;
-      const nextStatus = data?.status.toUpperCase() ?? "";
+
+      if (data == null) {
+        return false;
+      }
+
+      const nextStatus = data.status.toUpperCase();
 
       if (nextStatus === "FAILED") {
         return false;
       }
 
       if (nextStatus === "READY") {
-        const rungs = data?.renditions ?? [];
+        const rungs = data.renditions;
         const allReady = rungs.length > 0 && rungs.every((row) => row.status.toUpperCase() === "READY");
 
         return allReady ? false : 2_000;
@@ -289,11 +299,11 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
   const mediaQuery = useQuery({
     queryKey: ["video-upload-media", uploadId],
     queryFn: () => listVideoUploadMedia(uploadId),
-    enabled: statusQuery.data != null,
+    enabled: true,
     staleTime: 10_000,
   });
 
-  const status = statusQuery.data ?? initialStatus;
+  const status = statusQuery.data;
   const media = mediaQuery.data;
 
   const thumbnailUrl = useMemo(() => {
@@ -416,32 +426,6 @@ export function UploadOverview({ uploadId, initialStatus = null }: UploadOvervie
       setActionBusy(null);
     }
   }, [actionBusy, pendingVisibility, queryClient, uploadId]);
-
-  if (statusQuery.isLoading && status == null) {
-    return <UploadOverviewSkeleton />;
-  }
-
-  if (status == null) {
-    return (
-      <section className="bg-card flex flex-col gap-3 rounded-xl border p-6">
-        <h1 className="text-lg font-semibold">Upload not found</h1>
-
-        <p className="text-muted-foreground text-sm">
-          This upload could not be loaded. It may have been removed or you may not have access.
-        </p>
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-fit"
-          nativeButton={false}
-          render={<Link to="/studio/uploads" />}
-        >
-          Back to uploads
-        </Button>
-      </section>
-    );
-  }
 
   const mediaPending = mediaQuery.isLoading && media == null;
 

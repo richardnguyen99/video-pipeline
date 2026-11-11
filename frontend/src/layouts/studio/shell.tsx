@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import type { ReactNode, SyntheticEvent } from "react";
-import { Link, Outlet, useNavigate, useRouteContext, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Link, Outlet, useMatch, useNavigate, useRouteContext, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3,
   ChevronLeft,
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/libs/utils";
+import { videoUploadStatusQueryOptions } from "@/queries/video-upload";
 import { useAuthStore } from "@/stores/auth-store";
 
 const STUDIO_TOOLTIP_CLASS = "bg-popover text-popover-foreground border-border border shadow-md";
@@ -298,6 +300,19 @@ function StudioTopBar() {
   const [syncedUrlQuery, setSyncedUrlQuery] = useState(urlQuery);
   const uploadDetail = parseUploadDetailContext(pathname);
   const studioAnalytics = parseStudioAnalyticsContext(pathname);
+  const isNotFound = useRouterState({ select: (state) => state.isNotFound });
+  const uploadDetailMatch = useMatch({
+    from: "/_authenticated/studio/uploads/$uploadId",
+    shouldThrow: false,
+  });
+  const uploadLoaderData = uploadDetailMatch?.loaderData as { accessible?: boolean; status?: unknown } | undefined;
+  const uploadStatusQuery = useQuery({
+    ...videoUploadStatusQueryOptions(uploadDetail?.uploadId ?? ""),
+    enabled: uploadDetail != null && uploadDetail.uploadId.length > 0 && !isNotFound,
+  });
+  const uploadAccessible =
+    uploadLoaderData?.accessible === true || (uploadStatusQuery.data != null && !uploadStatusQuery.isError);
+  const uploadTabsDisabled = uploadDetail != null && !uploadAccessible;
 
   if (urlQuery !== syncedUrlQuery) {
     setSyncedUrlQuery(urlQuery);
@@ -383,6 +398,18 @@ function StudioTopBar() {
                             to: "/studio/uploads/$uploadId/logs" as const,
                             params: { uploadId: uploadDetail.uploadId },
                           };
+
+              if (uploadTabsDisabled) {
+                return (
+                  <span
+                    key={tab.id}
+                    className="text-muted-foreground inline-flex h-8 shrink-0 cursor-not-allowed items-center rounded-md px-3 text-sm font-medium opacity-50"
+                    aria-disabled="true"
+                  >
+                    {tab.label}
+                  </span>
+                );
+              }
 
               return (
                 <Link

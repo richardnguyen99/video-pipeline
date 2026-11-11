@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
-import { apiFetch, getApiBaseUrl } from "@/libs/api-client";
+import { ApiError, apiFetch, getApiBaseUrl } from "@/libs/api-client";
 import { getAccessToken } from "@/stores/auth-store";
 
 export type PresignedPart = {
@@ -286,11 +287,78 @@ export async function getVideoUploadStatus(publicId: string): Promise<VideoUploa
 
 export const videoUploadStatusQueryKey = (publicId: string) => ["video-upload-status", publicId] as const;
 
+function isAuthzStatusError(error: unknown): boolean {
+  return error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 404);
+}
+
 export function videoUploadStatusQueryOptions(publicId: string) {
   return queryOptions({
     queryKey: videoUploadStatusQueryKey(publicId),
     queryFn: () => getVideoUploadStatus(publicId),
+    retry: (failureCount, error) => {
+      if (isAuthzStatusError(error)) {
+        return false;
+      }
+
+      return failureCount < 2;
+    },
+    refetchOnMount: (query) => {
+      if (isAuthzStatusError(query.state.error)) {
+        return false;
+      }
+
+      return true;
+    },
+    refetchOnWindowFocus: (query) => {
+      if (isAuthzStatusError(query.state.error)) {
+        return false;
+      }
+
+      return true;
+    },
+    refetchOnReconnect: (query) => {
+      if (isAuthzStatusError(query.state.error)) {
+        return false;
+      }
+
+      return true;
+    },
   });
+}
+
+export function markVideoUploadStatusUnavailable(
+  queryClient: QueryClient,
+  publicId: string,
+  statusCode: number = 404,
+  message: string = "Upload not found.",
+): void {
+  const queryKey = videoUploadStatusQueryKey(publicId);
+  const error = new ApiError(message, statusCode, null);
+  const cache = queryClient.getQueryCache();
+  const existing = cache.find({ queryKey });
+
+  if (existing != null) {
+    existing.setState({
+      data: undefined,
+      error,
+      status: "error",
+      fetchStatus: "idle",
+    });
+
+    return;
+  }
+
+  cache
+    .build(queryClient, {
+      queryKey,
+      queryFn: () => Promise.reject(error),
+    })
+    .setState({
+      data: undefined,
+      error,
+      status: "error",
+      fetchStatus: "idle",
+    });
 }
 
 export async function updateVideoUploadMetadata(

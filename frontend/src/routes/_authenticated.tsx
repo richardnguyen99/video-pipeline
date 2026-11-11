@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { AuthPendingShell } from "@/components/auth/auth-pending-shell";
+import { AuthRequiredShell } from "@/components/auth/auth-required-shell";
 import { useAuthStore } from "@/stores/auth-store";
 
 /**
@@ -55,8 +56,12 @@ function AuthenticatedLayout() {
     return <AuthPendingShell />;
   }
 
-  if (isRestoring || user === null) {
+  if (isRestoring || !routeAuth.isReady) {
     return <AuthPendingShell />;
+  }
+
+  if (user === null) {
+    return <AuthRequiredShell />;
   }
 
   return <Outlet />;

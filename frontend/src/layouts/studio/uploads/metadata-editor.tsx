@@ -1,12 +1,10 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "@/components/ui/toast";
 import { DetailsStep } from "@/layouts/studio/uploads/steps/details-step";
-import { EMPTY_RELATIONS } from "@/components/studio/types";
 import type { RelationKey, RelationSelections } from "@/components/studio/types";
 import { getApiErrorMessage } from "@/libs/auth";
 import {
@@ -40,33 +38,33 @@ function hydrateFromStatus(status: VideoUploadStatusResponse) {
 
 type UploadMetadataEditorProps = {
   uploadId: string;
-  initialStatus?: VideoUploadStatusResponse | null;
+  initialStatus: VideoUploadStatusResponse;
 };
 
-export function UploadMetadataEditor({ uploadId, initialStatus = null }: UploadMetadataEditorProps) {
+export function UploadMetadataEditor({ uploadId, initialStatus }: UploadMetadataEditorProps) {
   const queryClient = useQueryClient();
   const statusQuery = useQuery({
     ...videoUploadStatusQueryOptions(uploadId),
-    initialData: initialStatus ?? undefined,
+    initialData: initialStatus,
     queryKey: videoUploadStatusQueryKey(uploadId),
   });
 
-  const status = statusQuery.data ?? initialStatus;
-  const hydrated = status != null ? hydrateFromStatus(status) : null;
+  const status = statusQuery.data;
+  const hydrated = hydrateFromStatus(status);
 
-  const [title, setTitle] = useState(hydrated?.title ?? "");
-  const [description, setDescription] = useState(hydrated?.description ?? "");
-  const [videoCode, setVideoCode] = useState(hydrated?.videoCode ?? "");
-  const [cid, setCid] = useState(hydrated?.cid ?? "");
-  const [jancode, setJancode] = useState(hydrated?.jancode ?? "");
-  const [makerProduct, setMakerProduct] = useState(hydrated?.makerProduct ?? "");
-  const [releaseDate, setReleaseDate] = useState(hydrated?.releaseDate ?? "");
-  const [relations, setRelations] = useState<RelationSelections>(hydrated?.relations ?? EMPTY_RELATIONS);
+  const [title, setTitle] = useState(hydrated.title);
+  const [description, setDescription] = useState(hydrated.description);
+  const [videoCode, setVideoCode] = useState(hydrated.videoCode);
+  const [cid, setCid] = useState(hydrated.cid);
+  const [jancode, setJancode] = useState(hydrated.jancode);
+  const [makerProduct, setMakerProduct] = useState(hydrated.makerProduct);
+  const [releaseDate, setReleaseDate] = useState(hydrated.releaseDate);
+  const [relations, setRelations] = useState<RelationSelections>(hydrated.relations);
   const [notifySubscribers, setNotifySubscribers] = useState(false);
-  const [syncedPublicId, setSyncedPublicId] = useState(status?.public_id ?? null);
+  const [syncedPublicId, setSyncedPublicId] = useState(status.public_id);
   const [saving, setSaving] = useState(false);
 
-  if (status != null && status.public_id !== syncedPublicId) {
+  if (status.public_id !== syncedPublicId) {
     const next = hydrateFromStatus(status);
     setSyncedPublicId(status.public_id);
     setTitle(next.title);
@@ -84,7 +82,7 @@ export function UploadMetadataEditor({ uploadId, initialStatus = null }: UploadM
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (status?.public_id == null || saving) {
+    if (saving) {
       return;
     }
 
@@ -147,30 +145,6 @@ export function UploadMetadataEditor({ uploadId, initialStatus = null }: UploadM
       setSaving(false);
     }
   }, [cid, jancode, makerProduct, queryClient, relations, releaseDate, saving, status, title, uploadId, videoCode]);
-
-  if (status == null && statusQuery.isLoading) {
-    return <UploadMetadataEditorSkeleton />;
-  }
-
-  if (status == null) {
-    return (
-      <section className="bg-card flex flex-col gap-3 rounded-xl border p-6">
-        <h1 className="text-lg font-semibold">Upload not found</h1>
-
-        <p className="text-muted-foreground text-sm">This upload could not be loaded.</p>
-
-        <Button
-          type="button"
-          variant="outline"
-          className="w-fit"
-          nativeButton={false}
-          render={<Link to="/studio/uploads" />}
-        >
-          Back to uploads
-        </Button>
-      </section>
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6">

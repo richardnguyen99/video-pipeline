@@ -1,47 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { UploadMetadataEditor, UploadMetadataEditorSkeleton } from "@/layouts/studio/uploads/metadata-editor";
-import { videoUploadStatusQueryKey, videoUploadStatusQueryOptions } from "@/queries/video-upload";
-import type { VideoUploadStatusResponse } from "@/queries/video-upload";
-import { fetchVideoUploadStatusServer } from "@/server/video-upload.functions";
+
+import { Route as UploadDetailRoute } from "./route";
 
 export const Route = createFileRoute("/_authenticated/studio/uploads/$uploadId/metadata")({
   ssr: true,
-  loader: async ({ context, params }): Promise<{ status: VideoUploadStatusResponse | null }> => {
-    const uploadId = params.uploadId;
-    const cached = context.queryClient.getQueryData<VideoUploadStatusResponse>(videoUploadStatusQueryKey(uploadId));
-
-    if (cached != null) {
-      return { status: cached };
-    }
-
-    if (typeof window === "undefined") {
-      const status = await fetchVideoUploadStatusServer({
-        data: { publicId: uploadId },
-      });
-
-      if (status != null) {
-        context.queryClient.setQueryData(videoUploadStatusQueryKey(uploadId), status);
-      }
-
-      return { status };
-    }
-
-    if (!context.auth.isReady || context.auth.user == null) {
-      return { status: null };
-    }
-
-    try {
-      const status = await context.queryClient.query({
-        ...videoUploadStatusQueryOptions(uploadId),
-        staleTime: 30_000,
-      });
-
-      return { status };
-    } catch {
-      return { status: null };
-    }
-  },
   pendingComponent: UploadMetadataPending,
   component: UploadMetadataPage,
 });
@@ -51,7 +15,7 @@ function UploadMetadataPending() {
 }
 
 function UploadMetadataPage() {
-  const { status } = Route.useLoaderData();
+  const { status } = UploadDetailRoute.useLoaderData();
   const { uploadId } = Route.useParams();
 
   return <UploadMetadataEditor key={uploadId} uploadId={uploadId} initialStatus={status} />;

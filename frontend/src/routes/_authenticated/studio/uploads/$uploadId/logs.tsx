@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { UploadLogs, UploadLogsSkeleton } from "@/layouts/studio/uploads/logs";
 
 export const Route = createFileRoute("/_authenticated/studio/uploads/$uploadId/logs")({
-  ssr: false,
+  ssr: true,
   pendingComponent: UploadLogsSkeleton,
   component: StudioUploadLogsPage,
 });
