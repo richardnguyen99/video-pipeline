@@ -20,7 +20,17 @@ from app.dependencies import (
     VideoServiceDep,
     WatchServiceDep,
 )
-from app.schemas.video import VideoDetailResponse, VideoListResponse
+from app.schemas.comment import (
+    CommentCreateRequest,
+    CommentDeleteResponse,
+    CommentReactionRequest,
+    CommentReactionResponse,
+)
+from app.schemas.video import (
+    VideoCommentResponse,
+    VideoDetailResponse,
+    VideoListResponse,
+)
 from app.schemas.video_filters import VideoSort
 from app.schemas.video_reaction import (
     VideoReactionRequest,
@@ -487,5 +497,127 @@ async def get_video_reaction(
 
     return await service.get_reaction(
         video_id,
+        user_id=current_user.id,
+    )
+
+
+@router.post(
+    "/videos/{video_id}/comments",
+    response_model=VideoCommentResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Post a comment on a video",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Video or parent comment not found",
+        },
+    },
+)
+async def create_video_comment(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    payload: CommentCreateRequest,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+) -> VideoCommentResponse:
+    """Create a top-level comment or a reply under an existing comment."""
+
+    return await service.create_comment(
+        video_id,
+        user_id=current_user.id,
+        content=payload.content,
+        parent_id=payload.parent_id,
+    )
+
+
+@router.delete(
+    "/videos/{video_id}/comments/{comment_id}",
+    response_model=CommentDeleteResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete own comment on a video",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_403_FORBIDDEN: {
+            "description": "Not the comment author",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Comment not found",
+        },
+    },
+)
+async def delete_video_comment(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+    comment_id: str = Path(..., min_length=1, description="Comment UUID."),
+) -> CommentDeleteResponse:
+    """Soft-delete a comment owned by the authenticated user."""
+
+    return await service.delete_comment(
+        video_id,
+        comment_id,
+        user_id=current_user.id,
+    )
+
+
+@router.put(
+    "/videos/{video_id}/comments/{comment_id}/reaction",
+    response_model=CommentReactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Like or dislike a comment",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Comment not found",
+        },
+    },
+)
+async def set_video_comment_reaction(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    payload: CommentReactionRequest,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+    comment_id: str = Path(..., min_length=1, description="Comment UUID."),
+) -> CommentReactionResponse:
+    """Set or update the authenticated user's like/dislike on a comment."""
+
+    return await service.set_comment_reaction(
+        video_id,
+        comment_id,
+        user_id=current_user.id,
+        is_like=payload.is_like,
+    )
+
+
+@router.delete(
+    "/videos/{video_id}/comments/{comment_id}/reaction",
+    response_model=CommentReactionResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Clear like or dislike on a comment",
+    responses={
+        status.HTTP_401_UNAUTHORIZED: {
+            "description": "Missing or invalid authentication",
+        },
+        status.HTTP_404_NOT_FOUND: {
+            "description": "Comment not found",
+        },
+    },
+)
+async def clear_video_comment_reaction(
+    service: VideoServiceDep,
+    current_user: CurrentUserDep,
+    video_id: int = Path(..., ge=1, description="Primary key ``Video.id``."),
+    comment_id: str = Path(..., min_length=1, description="Comment UUID."),
+) -> CommentReactionResponse:
+    """Remove the authenticated user's reaction on a comment if present."""
+
+    return await service.clear_comment_reaction(
+        video_id,
+        comment_id,
         user_id=current_user.id,
     )

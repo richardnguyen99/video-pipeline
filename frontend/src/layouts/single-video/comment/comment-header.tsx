@@ -1,6 +1,6 @@
 import { Quote } from "lucide-react";
 
-import type { CommentUser } from "@/mocks/comments";
+import type { CommentUser } from "@/queries/comments";
 import { cn, formatRelativeDate } from "@/libs/utils";
 
 import { CommentMoreMenu } from "./comment-more-menu";

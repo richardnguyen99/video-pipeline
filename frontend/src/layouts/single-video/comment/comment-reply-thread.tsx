@@ -1,4 +1,4 @@
-import type { CommentUser, VideoComment } from "@/mocks/comments";
+import type { CommentUser, VideoComment } from "@/queries/comments";
 import { cn } from "@/libs/utils";
 
 import { CommentItem } from "./comment-item";
@@ -13,20 +13,30 @@ const BRANCH_W = 16;
 
 interface CommentReplyThreadProps {
   replies: Array<VideoComment>;
-  currentUser: CommentUser;
+  currentUser: CommentUser | null;
   depth?: number;
+  onReply?: (parentId: string, content: string) => void;
+  onDelete?: (commentId: string) => void;
+  onVote?: (commentId: string, next: "like" | "dislike" | null, previous: "like" | "dislike" | null) => void;
 }
 
-export function CommentReplyThread({ replies, currentUser, depth = 0 }: CommentReplyThreadProps) {
-  if (replies.length === 0) return null;
+export function CommentReplyThread({
+  replies,
+  currentUser,
+  depth = 0,
+  onReply,
+  onDelete,
+  onVote,
+}: CommentReplyThreadProps) {
+  if (replies.length === 0) {
+    return null;
+  }
 
   return (
     <ul className="relative">
       {replies.map((reply, index) => {
         const isLast = index === replies.length - 1;
         const isFirst = index === 0;
-        // Padding is inside the li so the stem covers the gap; branch Y
-        // shifts down by that padding for non-first siblings.
         const gap = isFirst ? 0 : SIBLING_GAP;
         const branchY = gap + AVATAR_CENTER;
 
@@ -56,7 +66,14 @@ export function CommentReplyThread({ replies, currentUser, depth = 0 }: CommentR
               <path d={branchPath} stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
             </svg>
 
-            <CommentItem comment={reply} currentUser={currentUser} depth={depth + 1} />
+            <CommentItem
+              comment={reply}
+              currentUser={currentUser}
+              depth={depth + 1}
+              onReply={onReply}
+              onDelete={onDelete}
+              onVote={onVote}
+            />
           </li>
         );
       })}

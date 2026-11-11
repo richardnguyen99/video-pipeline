@@ -223,15 +223,14 @@ class VideoRepository(VideoRecommendationMixin, BaseRepository):
             )
             for key, entity, aka_model in catalog_specs
         ]
-        results = await asyncio.gather(
+        gather_result = await asyncio.gather(
             actress_task,
             *catalog_tasks,
         )
-
-        actress_result: list[list[int]] = cast(list[list[int]], results[0])
-        catalog_results: list[tuple[str, list[list[int]]]] = cast(
+        actress_result = cast(list[list[int]], gather_result[0])
+        catalog_results = cast(
             list[tuple[str, list[list[int]]]],
-            results[1:],
+            list(gather_result[1:]),
         )
 
         by_entity: dict[str, list[list[int]]] = {
@@ -239,7 +238,7 @@ class VideoRepository(VideoRecommendationMixin, BaseRepository):
         }
 
         for key, per_term in catalog_results:
-            by_entity[str(key)] = per_term
+            by_entity[key] = per_term
 
         catalog_by_term: list[dict[str, list[int]]] = []
 
@@ -553,13 +552,16 @@ class VideoRepository(VideoRecommendationMixin, BaseRepository):
         self,
         video_id: int,
     ) -> list[Comment]:
-        """Return comments for a video with authors loaded."""
+        """Return comments for a video with authors loaded.
+
+        Soft-deleted comments are included so reply threads keep structure;
+        the API maps deleted bodies to empty strings.
+        """
 
         statement = (
             select(Comment)
             .where(
                 col(Comment.video_id) == video_id,
-                col(Comment.is_deleted).is_(False),
             )
             .options(selectinload(relationship_attr(Comment.user)))
             .order_by(col(Comment.created_at).asc())

@@ -12,6 +12,8 @@ from sqlalchemy.exc import NoInspectionAvailable
 
 from app.config import settings
 from app.models.associations import t_video_actress
+from app.models.comment_reaction import CommentReaction
+from app.models.comments import Comment
 from app.models.user_activity import UserActivity, UserActivityType
 from app.models.video import Video
 from app.models.video_reaction import VideoReaction
@@ -19,6 +21,10 @@ from app.models.video_view import VideoView
 from app.models.video_watch_progress import VideoWatchProgress
 from app.repositories.user import UserRepository
 from app.repositories.video import VideoRepository
+from app.schemas.comment import (
+    CommentDeleteResponse,
+    CommentReactionResponse,
+)
 from app.schemas.video import (
     CommentUserResponse,
     VideoAkaResponse,
@@ -135,39 +141,82 @@ class VideoService:
         self,
         comment: object,
         *,
+        likes: int = 0,
+        dislikes: int = 0,
+        viewer_vote: str | None = None,
         replies: list[VideoCommentResponse] | None = None,
     ) -> VideoCommentResponse:
         """Map one ORM comment to the frontend ``VideoComment`` shape."""
 
         parent_id = getattr(comment, "parent_id", None)
+        content = str(getattr(comment, "content"))
+        is_deleted = bool(getattr(comment, "is_deleted", False))
+
+        if is_deleted:
+            content = ""
 
         return VideoCommentResponse(
             id=str(getattr(comment, "id")),
             video_id=int(getattr(comment, "video_id")),
             user=self._map_comment_user(getattr(comment, "user")),
-            content=str(getattr(comment, "content")),
+            content=content,
             is_edited=bool(getattr(comment, "is_edited", False)),
-            is_deleted=bool(getattr(comment, "is_deleted", False)),
+            is_deleted=is_deleted,
             created_at=getattr(comment, "created_at"),
             updated_at=getattr(comment, "updated_at"),
             parent_id=str(parent_id) if parent_id is not None else None,
-            likes=0,
-            dislikes=0,
-            viewer_vote=None,
+            likes=likes,
+            dislikes=dislikes,
+            viewer_vote=viewer_vote,
             replies=list(replies or []),
         )
 
-    def _build_comment_tree(
+    async def _build_comment_tree(
         self,
         comments: list[object],
+        *,
+        viewer_id: UUID | None = None,
     ) -> list[VideoCommentResponse]:
         """Nest replies under parents; top-level nodes have no parent."""
+
+        comment_ids = [
+            getattr(comment, "id")
+            for comment in comments
+            if getattr(comment, "id", None) is not None
+        ]
+        counts = await CommentReaction.counts_for_comments(
+            self._repository.session,
+            comment_ids,
+        )
+        votes: dict = {}
+
+        if viewer_id is not None and comment_ids:
+            votes = await CommentReaction.viewer_votes_for_comments(
+                self._repository.session,
+                user_id=viewer_id,
+                comment_ids=comment_ids,
+            )
 
         nodes: dict[str, VideoCommentResponse] = {}
         children: dict[str | None, list[str]] = {}
 
         for comment in comments:
-            node = self._map_comment_node(comment)
+            comment_id = getattr(comment, "id")
+            like_count, dislike_count = counts.get(comment_id, (0, 0))
+            vote_value = votes.get(comment_id)
+            viewer_vote = None
+
+            if vote_value is True:
+                viewer_vote = "like"
+            elif vote_value is False:
+                viewer_vote = "dislike"
+
+            node = self._map_comment_node(
+                comment,
+                likes=like_count,
+                dislikes=dislike_count,
+                viewer_vote=viewer_vote,
+            )
             nodes[node.id] = node
             parent_key = node.parent_id
             children.setdefault(parent_key, []).append(node.id)
@@ -334,6 +383,7 @@ class VideoService:
         comments: list[object],
         m3u8_url: Optional[str],
         locale: Optional[str] = None,
+        viewer_id: Optional[UUID] = None,
     ) -> VideoDetailResponse:
         """Validate a detail row and attach engagement fields."""
 
@@ -402,7 +452,9 @@ class VideoService:
                 "views": counts.views,
                 "likes": counts.likes,
                 "dislikes": counts.dislikes,
-                "comments": self._build_comment_tree(comments),
+                "comments": await self._build_comment_tree(
+                    comments, viewer_id=viewer_id
+                ),
             },
         )
 
@@ -714,6 +766,7 @@ class VideoService:
             comments=list(comments),
             m3u8_url=master_m3u8,
             locale=locale,
+            viewer_id=viewer_id,
         )
 
     async def record_watch(
@@ -1205,4 +1258,211 @@ class VideoService:
             total=total,
             limit=safe_limit,
             offset=safe_offset,
+        )
+
+    async def create_comment(
+        self,
+        video_id: int,
+        *,
+        user_id: UUID,
+        content: str,
+        parent_id: str | None = None,
+    ) -> VideoCommentResponse:
+        """Create a top-level comment or reply on a video."""
+
+        trimmed = content.strip()
+
+        if not trimmed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Comment content is required",
+            )
+
+        if not await self._repository.exists_by_id(video_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Video not found",
+            )
+
+        parent_uuid = None
+
+        if parent_id is not None and parent_id.strip():
+            try:
+                parent_uuid = UUID(parent_id)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid parent comment id",
+                ) from exc
+
+            parent = await self._repository.session.get(Comment, parent_uuid)
+
+            if (
+                parent is None
+                or parent.video_id != video_id
+                or parent.is_deleted
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Parent comment not found",
+                )
+
+        comment = Comment.create(
+            user_id=user_id,
+            video_id=video_id,
+            content=trimmed,
+            parent_id=parent_uuid,
+        )
+        self._repository.session.add(comment)
+        await self._repository.session.commit()
+        await self._repository.session.refresh(comment)
+
+        user_repository = UserRepository(self._repository.session)
+        user = await user_repository.get_by_id(user_id)
+
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        comment.user = user
+
+        return self._map_comment_node(comment)
+
+    async def delete_comment(
+        self,
+        video_id: int,
+        comment_id: str,
+        *,
+        user_id: UUID,
+    ) -> CommentDeleteResponse:
+        """Soft-delete a comment owned by the current user."""
+
+        try:
+            comment_uuid = UUID(comment_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid comment id",
+            ) from exc
+
+        comment = await self._repository.session.get(Comment, comment_uuid)
+
+        if (
+            comment is None
+            or comment.video_id != video_id
+            or comment.is_deleted
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found",
+            )
+
+        if comment.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only delete your own comments",
+            )
+
+        comment.is_deleted = True
+        comment.content = ""
+        await self._repository.session.commit()
+
+        return CommentDeleteResponse(id=str(comment.id), is_deleted=True)
+
+    async def set_comment_reaction(
+        self,
+        video_id: int,
+        comment_id: str,
+        *,
+        user_id: UUID,
+        is_like: bool,
+    ) -> CommentReactionResponse:
+        """Set or update the authenticated user's reaction on a comment."""
+
+        try:
+            comment_uuid = UUID(comment_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid comment id",
+            ) from exc
+
+        comment = await self._repository.session.get(Comment, comment_uuid)
+
+        if (
+            comment is None
+            or comment.video_id != video_id
+            or comment.is_deleted
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found",
+            )
+
+        await CommentReaction.set(
+            self._repository.session,
+            user_id=user_id,
+            comment_id=comment_uuid,
+            is_like=is_like,
+        )
+        counts = await CommentReaction.counts_for_comments(
+            self._repository.session,
+            [comment_uuid],
+        )
+        likes, dislikes = counts.get(comment_uuid, (0, 0))
+
+        return CommentReactionResponse(
+            comment_id=str(comment_uuid),
+            is_like=is_like,
+            likes=likes,
+            dislikes=dislikes,
+        )
+
+    async def clear_comment_reaction(
+        self,
+        video_id: int,
+        comment_id: str,
+        *,
+        user_id: UUID,
+    ) -> CommentReactionResponse:
+        """Remove the authenticated user's reaction on a comment."""
+
+        try:
+            comment_uuid = UUID(comment_id)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid comment id",
+            ) from exc
+
+        comment = await self._repository.session.get(Comment, comment_uuid)
+
+        if (
+            comment is None
+            or comment.video_id != video_id
+            or comment.is_deleted
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Comment not found",
+            )
+
+        await CommentReaction.clear(
+            self._repository.session,
+            user_id=user_id,
+            comment_id=comment_uuid,
+        )
+        counts = await CommentReaction.counts_for_comments(
+            self._repository.session,
+            [comment_uuid],
+        )
+        likes, dislikes = counts.get(comment_uuid, (0, 0))
+
+        return CommentReactionResponse(
+            comment_id=str(comment_uuid),
+            is_like=None,
+            likes=likes,
+            dislikes=dislikes,
         )

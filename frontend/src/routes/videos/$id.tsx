@@ -10,7 +10,8 @@ import { VideoReviewImages } from "@/layouts/single-video/video-review-images";
 import { VideoSidebar } from "@/layouts/single-video/video-sidebar";
 import { VideoSidebarSkeleton } from "@/layouts/single-video/video-sidebar-skeleton";
 import { ApiError } from "@/libs/api-client";
-import { pickVideoImageUrl, videoCommentList, videoDisplayTitle } from "@/mocks/videos";
+import { pickVideoImageUrl, videoDisplayTitle } from "@/mocks/videos";
+import type { VideoComment } from "@/queries/comments";
 import {
   DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
   videoDetailQueryOptions,
@@ -79,7 +80,7 @@ function VideoPage() {
 
   const video = detailQuery.data;
 
-  const comments = videoCommentList(video);
+  const comments: Array<VideoComment> = Array.isArray(video.comments) ? video.comments : [];
   const streamSrc =
     (typeof video.m3u8_url === "string" && video.m3u8_url) ||
     (Array.isArray(video.m3u8_urls) && video.m3u8_urls[0]) ||

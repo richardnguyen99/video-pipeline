@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
-import type { CommentUser, VideoComment } from "@/mocks/comments";
+import type { CommentUser, VideoComment } from "@/queries/comments";
 import { cn } from "@/libs/utils";
 
 import { CommentBody } from "./comment-body";
@@ -12,17 +12,28 @@ import { CommentReplyThread } from "./comment-reply-thread";
 
 interface CommentItemProps {
   comment: VideoComment;
-  currentUser: CommentUser;
+  currentUser: CommentUser | null;
   depth?: number;
   className?: string;
+  onReply?: (parentId: string, content: string) => void;
+  onDelete?: (commentId: string) => void;
+  onVote?: (commentId: string, next: "like" | "dislike" | null, previous: "like" | "dislike" | null) => void;
 }
 
-export function CommentItem({ comment, currentUser, depth = 0, className }: CommentItemProps) {
+export function CommentItem({
+  comment,
+  currentUser,
+  depth = 0,
+  className,
+  onReply,
+  onDelete,
+  onVote,
+}: CommentItemProps) {
   const [isReplying, setIsReplying] = useState(false);
   const [quoteText, setQuoteText] = useState<string | undefined>();
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const isOwner = comment.user.id === currentUser.id;
+  const isOwner = currentUser != null && comment.user.id === currentUser.id;
   const replies = comment.replies ?? [];
   const hasReplies = replies.length > 0;
   const canNest = depth < 6;
@@ -32,12 +43,20 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
   const initial = (comment.user.display_name ?? comment.user.username).slice(0, 1).toUpperCase();
 
   function handleQuote() {
+    if (currentUser == null || onReply == null) {
+      return;
+    }
+
     setQuoteText(comment.content);
     setIsReplying(true);
     setIsExpanded(true);
   }
 
   function handleReply() {
+    if (currentUser == null || onReply == null) {
+      return;
+    }
+
     setQuoteText(undefined);
     setIsReplying(true);
     setIsExpanded(true);
@@ -72,10 +91,7 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
               </span>
             )}
           </span>
-          {/*
-            Stem only when there are sub-comments. Reply editor alone
-            (no children) must not show a trail.
-          */}
+
           {hasReplies && showThread ? <span className="mt-1 w-px flex-1 bg-border" aria-hidden /> : null}
         </div>
 
@@ -86,9 +102,14 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
             isEdited={comment.is_edited}
             isOwner={isOwner}
             showAvatar={false}
-            onQuote={handleQuote}
-            onEdit={isOwner ? () => undefined : undefined}
-            onDelete={isOwner ? () => undefined : undefined}
+            onQuote={currentUser != null && onReply != null ? handleQuote : undefined}
+            onDelete={
+              isOwner && onDelete != null
+                ? () => {
+                    onDelete(comment.id);
+                  }
+                : undefined
+            }
             onReport={!isOwner ? () => undefined : undefined}
           />
 
@@ -104,8 +125,16 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
                     likes={comment.likes}
                     dislikes={comment.dislikes}
                     initialVote={comment.viewer_vote}
-                    onReply={handleReply}
+                    onReply={currentUser != null && onReply != null ? handleReply : undefined}
+                    onVote={
+                      onVote != null
+                        ? (next, previous) => {
+                            onVote(comment.id, next, previous);
+                          }
+                        : undefined
+                    }
                   />
+
                   {hasReplies ? (
                     <button
                       type="button"
@@ -135,22 +164,33 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
 
       {showThread ? (
         <div className="ml-4.5">
-          {isReplying ? (
+          {isReplying && currentUser != null ? (
             <div className={cn("relative pl-4", hasReplies && "border-l border-border pb-5")}>
               <CommentComposer
                 currentUser={currentUser}
-                showAvatar={false}
-                placeholder={`Reply to @${comment.user.username}…`}
-                initialValue={`@${comment.user.username} `}
+                placeholder="Add a reply…"
                 quotePreview={quoteText}
                 autoFocus
+                showAvatar={false}
                 onCancel={closeComposer}
-                onSubmit={closeComposer}
+                onSubmit={(content) => {
+                  onReply?.(comment.id, content);
+                  closeComposer();
+                }}
               />
             </div>
           ) : null}
 
-          {hasReplies ? <CommentReplyThread replies={replies} currentUser={currentUser} depth={depth} /> : null}
+          {hasReplies ? (
+            <CommentReplyThread
+              replies={replies}
+              currentUser={currentUser}
+              depth={depth + 1}
+              onReply={onReply}
+              onDelete={onDelete}
+              onVote={onVote}
+            />
+          ) : null}
         </div>
       ) : null}
     </article>
@@ -158,5 +198,17 @@ export function CommentItem({ comment, currentUser, depth = 0, className }: Comm
 }
 
 function countReplies(replies: Array<VideoComment>): number {
-  return replies.reduce((sum, r) => sum + 1 + countReplies(r.replies ?? []), 0);
+  let total = 0;
+
+  for (const reply of replies) {
+    if (!reply.is_deleted) {
+      total += 1;
+    }
+
+    if (reply.replies != null && reply.replies.length > 0) {
+      total += countReplies(reply.replies);
+    }
+  }
+
+  return total;
 }

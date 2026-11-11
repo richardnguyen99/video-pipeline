@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { CommentUser } from "@/mocks/comments";
+import type { CommentUser } from "@/queries/comments";
 import { cn } from "@/libs/utils";
 
 interface CommentComposerProps {
