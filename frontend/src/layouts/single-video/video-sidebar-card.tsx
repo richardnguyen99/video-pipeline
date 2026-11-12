@@ -10,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { Video } from "@/mocks/videos";
-import { pickVideoImageUrl, pickVideoSampleImages } from "@/mocks/videos";
+import type { Video } from "@/types/video";
+import { pickVideoImageUrl, pickVideoSampleImages } from "@/types/video";
 import { cn, formatCompactNumber, formatDuration, formatRelativeDate } from "@/libs/utils";
 
 export type VideoCardBadge = "recommended" | "new" | "trending";

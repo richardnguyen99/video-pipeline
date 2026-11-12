@@ -3,7 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { apiFetch } from "@/libs/api-client";
 import type { FeaturesCountRange, VideoDiscoverFilters, VideoSort } from "@/libs/discover-videos";
 import { DEFAULT_VIDEO_SORT, VIDEO_DISCOVER_PAGE_SIZE, stringifyFeaturesCnt } from "@/libs/discover-videos";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 export type VideoListApiResponse = {
   items: Array<Video>;

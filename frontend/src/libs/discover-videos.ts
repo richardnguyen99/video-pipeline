@@ -1,7 +1,6 @@
 import { z } from "zod";
 
-import type { NamedEntity, Video } from "@/mocks/videos";
-import { mockVideos } from "@/mocks/videos";
+import type { NamedEntity, Video } from "@/types/video";
 
 export const VIDEO_SORT_VALUES = [
   "trending-week",
@@ -597,7 +596,7 @@ export function getDiscoverVideos(
   const sort = options.sort ?? DEFAULT_VIDEO_SORT;
   const filters = options.filters ?? DEFAULT_VIDEO_FILTERS;
   const pageSize = options.pageSize ?? VIDEO_DISCOVER_PAGE_SIZE;
-  const source = options.videos ?? mockVideos;
+  const source = options.videos ?? [];
   const filtered = filterDiscoverVideos(source, filters);
   const sorted = sortDiscoverVideos(filtered, sort);
   const total = sorted.length;
@@ -632,26 +631,26 @@ function collectNamed(
   return [...map.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function getAvailableDiscoverActresses(videos: Array<Video> = mockVideos): Array<NamedEntity> {
+export function getAvailableDiscoverActresses(videos: Array<Video> = []): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.actresses ?? []);
 }
 
-export function getAvailableDiscoverGenres(videos: Array<Video> = mockVideos): Array<NamedEntity> {
+export function getAvailableDiscoverGenres(videos: Array<Video> = []): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.genres ?? []);
 }
 
-export function getAvailableDiscoverMakers(videos: Array<Video> = mockVideos): Array<NamedEntity> {
+export function getAvailableDiscoverMakers(videos: Array<Video> = []): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.maker ?? null);
 }
 
-export function getAvailableDiscoverLabels(videos: Array<Video> = mockVideos): Array<NamedEntity> {
+export function getAvailableDiscoverLabels(videos: Array<Video> = []): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.label ?? null);
 }
 
-export function getAvailableDiscoverDirectors(videos: Array<Video> = mockVideos): Array<NamedEntity> {
+export function getAvailableDiscoverDirectors(videos: Array<Video> = []): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.director ?? null);
 }
 
-export function getAvailableDiscoverSeries(videos: Array<Video> = mockVideos): Array<NamedEntity> {
+export function getAvailableDiscoverSeries(videos: Array<Video> = []): Array<NamedEntity> {
   return collectNamed(videos, (v) => v.series ?? null);
 }

@@ -4,8 +4,8 @@ import { ChevronDown } from "lucide-react";
 
 import { EntityTag } from "@/layouts/single-video/entity-tag";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { actressDisplayName, normalizeVideoEntities, pickActressImageUrl, videoDisplayTitle } from "@/mocks/videos";
-import type { ActressRef, NamedEntity, Video } from "@/mocks/videos";
+import { actressDisplayName, normalizeVideoEntities, pickActressImageUrl, videoDisplayTitle } from "@/types/video";
+import type { ActressRef, NamedEntity, Video } from "@/types/video";
 import { formatReleaseDate } from "@/libs/utils";
 
 interface VideoInfoProps {

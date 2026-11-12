@@ -1,6 +1,4 @@
-import { mockActressCatalog } from "@/mocks/actresses";
-import type { ActressRef, NamedEntity, Video } from "@/mocks/videos";
-import { mockVideos } from "@/mocks/videos";
+import type { ActressRef, NamedEntity, Video } from "@/types/video";
 
 export const ACTRESSES_PAGE_SIZE = 24;
 
@@ -41,7 +39,7 @@ export const DEFAULT_ACTRESS_FILTERS: ActressFilters = {
   cups: [],
 };
 
-export const DEFAULT_ACTRESS_SORT: ActressSort = "most-videos";
+export const DEFAULT_ACTRESS_SORT: ActressSort = "trending-month";
 
 export interface ActressBannerRef {
   id: number;
@@ -106,53 +104,28 @@ function engagementFromVideos(videos: Array<Video>): Map<
         genres: new Map<number, string>(),
         makers: new Map<number, string>(),
       };
+
       cur.videoCount += 1;
       cur.totalViews += video.views ?? 0;
       cur.totalLikes += video.likes ?? 0;
-      cur.totalComments += video.comments ?? 0;
+      cur.totalComments += video.comments?.length ?? 0;
+
       if (video.label) cur.labels.set(video.label.id, video.label.name);
       if (video.maker) cur.makers.set(video.maker.id, video.maker.name);
+
       for (const g of video.genres ?? []) cur.genres.set(g.id, g.name);
+
       map.set(actress.id, cur);
     }
   }
   return map;
 }
 
-const LABEL_POOL: Array<NamedEntity> = [
-  { id: 1, name: "Velvet Soft" },
-  { id: 2, name: "Night Pulse" },
-  { id: 3, name: "Cherry Line" },
-  { id: 4, name: "Summer Wave" },
-  { id: 5, name: "Urban Glow" },
-];
+const LABEL_POOL: Array<NamedEntity> = [];
 
-const GENRE_POOL: Array<NamedEntity> = [
-  { id: 1, name: "Drama" },
-  { id: 2, name: "Romance" },
-  { id: 3, name: "Thriller" },
-  { id: 4, name: "Adventure" },
-  { id: 5, name: "Comedy" },
-  { id: 6, name: "Office" },
-  { id: 7, name: "Horror" },
-  { id: 8, name: "Family" },
-  { id: 9, name: "Slice of Life" },
-  { id: 10, name: "Ensemble" },
-  { id: 11, name: "Seasonal" },
-  { id: 12, name: "Action" },
-];
+const GENRE_POOL: Array<NamedEntity> = [];
 
-const MAKER_POOL: Array<NamedEntity> = [
-  { id: 1, name: "STUDIO-A" },
-  { id: 2, name: "DREAM-STUDIO" },
-  { id: 3, name: "HORIZON-FILMS" },
-  { id: 4, name: "PREMIUM-LINE" },
-  { id: 5, name: "SHADOW-HOUSE" },
-  { id: 6, name: "SUNSHINE-PROD" },
-  { id: 7, name: "NIGHT-RIDER" },
-  { id: 8, name: "NEON-WORKS" },
-  { id: 9, name: "SNOW-FILM" },
-];
+const MAKER_POOL: Array<NamedEntity> = [];
 
 export const CUP_SIZES = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q"] as const;
 
@@ -172,103 +145,60 @@ export function getAvailableCupSizes(): Array<string> {
   return [...CUP_SIZES];
 }
 
-export function getActressSummaries(videos: Array<Video> = mockVideos): Array<ActressSummary> {
+export function getActressSummaries(videos: Array<Video> = []): Array<ActressSummary> {
   const engagement = engagementFromVideos(videos);
+  const summaries: Array<ActressSummary> = [];
 
-  return mockActressCatalog.map((profile, index) => {
-    const stats = engagement.get(profile.id);
-    const seed = profile.id * 17 + index;
-    const labelCount = 1 + (seed % 2);
-    const genreCount = 1 + (seed % 3);
-    const seededLabels = Array.from({ length: labelCount }, (_, i) => {
-      return LABEL_POOL[(seed + i * 3) % LABEL_POOL.length];
-    });
-    const seededGenres = Array.from({ length: genreCount }, (_, i) => {
-      return GENRE_POOL[(seed + i * 5) % GENRE_POOL.length];
-    });
-    const seededMakers = [MAKER_POOL[(seed + 2) % MAKER_POOL.length]];
-    const totalViews = stats?.totalViews ?? 5_000 + seed * 130;
+  for (const [actressId, stats] of engagement.entries()) {
+    let profile: ActressRef | null = null;
 
-    return {
+    for (const video of videos) {
+      const match = (video.actresses ?? []).find((actress) => actress.id === actressId);
+
+      if (match != null) {
+        profile = match;
+        break;
+      }
+    }
+
+    if (profile == null) {
+      continue;
+    }
+
+    summaries.push({
       id: profile.id,
       name: profile.name,
       image_url: profile.image_url,
       ruby: profile.ruby ?? null,
-      birthday: profile.birthday ?? null,
-      bust: profile.bust ?? null,
-      cup: profile.cup ?? null,
-      waist: profile.waist ?? null,
-      hip: profile.hip ?? null,
-      height: profile.height ?? null,
-      videoCount: getVideosByActressId(profile.id, videos).length,
-      totalViews,
-      totalLikes: stats?.totalLikes ?? 200 + seed * 3,
-      totalComments: stats?.totalComments ?? 20 + (seed % 90),
-      subscribers: 1_000 + seed * 11,
-      viewsYear: Math.floor(totalViews * (0.55 + (seed % 30) / 100)),
-      viewsMonth: Math.floor(totalViews * (0.12 + (seed % 20) / 100)),
-      viewsWeek: Math.floor(totalViews * (0.03 + (seed % 10) / 100)),
-      labels:
-        stats && stats.labels.size > 0
-          ? [...stats.labels.entries()].map(([id, name]) => ({ id, name }))
-          : [...new Map(seededLabels.map((e) => [e.id, e])).values()],
-      genres:
-        stats && stats.genres.size > 0
-          ? [...stats.genres.entries()].map(([id, name]) => ({ id, name }))
-          : [...new Map(seededGenres.map((e) => [e.id, e])).values()],
-      makers:
-        stats && stats.makers.size > 0 ? [...stats.makers.entries()].map(([id, name]) => ({ id, name })) : seededMakers,
-    };
-  });
-}
-
-export function getActressById(id: number, videos: Array<Video> = mockVideos): ActressSummary | undefined {
-  return getActressSummaries(videos).find((a) => a.id === id);
-}
-
-export function getVideosByActressId(id: number, videos: Array<Video> = mockVideos): Array<Video> {
-  const matched = videos.filter((v) => (v.actresses ?? []).some((a) => a.id === id));
-
-  const actress = mockActressCatalog.find((a) => a.id === id);
-  if (!actress || videos.length === 0) {
-    return matched;
-  }
-
-  // Enough items for multi-page grids (4x4 = 16 per page)
-  const targetCount = matched.length > 0 ? Math.max(matched.length, 24 + (id % 17)) : 24 + (id % 17);
-
-  const pool = matched.length > 0 ? matched : videos;
-  const start = (id * 5) % pool.length;
-  const result: Array<Video> = [];
-
-  for (let i = 0; result.length < targetCount; i += 1) {
-    const base = pool[(start + i) % pool.length];
-    const cloneIndex = Math.floor(i / pool.length);
-    const videoId =
-      cloneIndex === 0 && matched.some((v) => v.video_id === base.video_id)
-        ? base.video_id
-        : `${base.video_id}__${result.length}`;
-
-    result.push({
-      ...base,
-      id: base.id * 1000 + result.length,
-      video_id: videoId,
-      title: cloneIndex === 0 ? base.title : `${base.title} (${cloneIndex + 1})`,
-      views: (base.views ?? 0) + result.length * 137,
-      likes: (base.likes ?? 0) + result.length * 11,
-      comments: (base.comments ?? 0) + (result.length % 9),
-      actresses: [
-        {
-          id: actress.id,
-          name: actress.name,
-          image_url: actress.image_url,
-        },
-        ...(base.actresses ?? []).filter((a) => a.id !== actress.id).slice(0, 2),
-      ],
+      birthday: null,
+      bust: null,
+      cup: null,
+      waist: null,
+      hip: null,
+      height: null,
+      videoCount: stats.videoCount,
+      totalViews: stats.totalViews,
+      totalLikes: stats.totalLikes,
+      totalComments: stats.totalComments,
+      subscribers: 0,
+      viewsYear: stats.totalViews,
+      viewsMonth: stats.totalViews,
+      viewsWeek: stats.totalViews,
+      labels: [...stats.labels.entries()].map(([id, name]) => ({ id, name })),
+      genres: [...stats.genres.entries()].map(([id, name]) => ({ id, name })),
+      makers: [...stats.makers.entries()].map(([id, name]) => ({ id, name })),
     });
   }
 
-  return result;
+  return summaries.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function getActressById(id: number, videos: Array<Video> = []): ActressSummary | undefined {
+  return getActressSummaries(videos).find((a) => a.id === id);
+}
+
+export function getVideosByActressId(id: number, videos: Array<Video> = []): Array<Video> {
+  return videos.filter((v) => (v.actresses ?? []).some((a) => a.id === id));
 }
 
 export function formatAge(birthday?: string | null): number | null {

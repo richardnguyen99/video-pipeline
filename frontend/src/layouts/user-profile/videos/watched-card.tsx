@@ -3,7 +3,7 @@ import { Eye, MessageCircle, ThumbsUp } from "lucide-react";
 
 import { Progress } from "@/components/ui/progress";
 import { WatchedCardMenu } from "@/layouts/user-profile/videos/watched-card-menu";
-import { commentCount, watchProgressPercent, watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
+import { watchProgressPercent, watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
 import { formatCompactNumber } from "@/libs/utils";
 import type { WatchedVideo } from "@/queries/video-watch";
 
@@ -16,7 +16,7 @@ type WatchedCardProps = {
 export function WatchedCard({ video, onSaveToPlaylists, onRemoveFromHistory }: WatchedCardProps) {
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
-  const comments = commentCount(video);
+  const comments = video.comments?.length ?? 0;
   const poster = watchedThumbnail(video);
   const progressPercent = watchProgressPercent(video);
 

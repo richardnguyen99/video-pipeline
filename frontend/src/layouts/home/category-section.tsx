@@ -5,8 +5,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CategoryVideoCard } from "@/components/video/category-video-card";
 import type { VideoSort } from "@/libs/discover-videos";
-import type { Video } from "@/mocks/videos";
-import { mockVideos } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 type CategoryMoreLink = { to: "/videos"; search?: { sort?: VideoSort; genre?: Array<number> } };
 
@@ -185,7 +184,7 @@ function CategoryRow({ collection }: CategoryRowProps) {
 }
 
 export default function CategorySection() {
-  const collections = useMemo(() => buildCategoryCollections(mockVideos), []);
+  const collections = useMemo(() => buildCategoryCollections([]), []);
 
   return (
     <section id="categories" className="relative py-16 sm:py-24">

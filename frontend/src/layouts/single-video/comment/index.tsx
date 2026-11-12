@@ -7,13 +7,14 @@ import {
   countComments,
   createVideoComment,
   deleteVideoComment,
+  filterVisibleComments,
   setCommentReaction,
   clearCommentReaction,
 } from "@/queries/comments";
 import type { CommentUser, VideoComment } from "@/queries/comments";
 import { videoDetailQueryKey } from "@/queries/videos";
 import { useAuthStore } from "@/stores/auth-store";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 import { CommentComposer } from "./comment-composer";
 import { CommentItem } from "./comment-item";
@@ -79,35 +80,33 @@ function insertReply(comments: Array<VideoComment>, parentId: string, reply: Vid
   });
 }
 
-function softDeleteComment(comments: Array<VideoComment>, commentId: string): Array<VideoComment> {
-  return comments.map((comment) => {
+function removeComment(comments: Array<VideoComment>, commentId: string): Array<VideoComment> {
+  const next: Array<VideoComment> = [];
+
+  for (const comment of comments) {
     if (comment.id === commentId) {
-      return {
-        ...comment,
-        content: "",
-        is_deleted: true,
-        likes: 0,
-        dislikes: 0,
-        viewer_vote: null,
-      };
+      if (comment.replies != null && comment.replies.length > 0) {
+        next.push(...comment.replies);
+      }
+
+      continue;
     }
 
-    if (comment.replies != null && comment.replies.length > 0) {
-      return {
-        ...comment,
-        replies: softDeleteComment(comment.replies, commentId),
-      };
-    }
+    next.push({
+      ...comment,
+      replies: comment.replies != null && comment.replies.length > 0 ? removeComment(comment.replies, commentId) : [],
+    });
+  }
 
-    return comment;
-  });
+  return next;
 }
 
 export function VideoComments({ comments, videoId }: VideoCommentsProps) {
   const queryClient = useQueryClient();
   const authUser = useAuthStore((state) => state.user);
   const currentUser = toCommentUser(authUser);
-  const total = countComments(comments);
+  const visibleComments = filterVisibleComments(comments);
+  const total = countComments(visibleComments);
 
   const detailKey = videoDetailQueryKey(videoId);
 
@@ -119,7 +118,7 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
           return current;
         }
 
-        const existing = Array.isArray(current.comments) ? current.comments : [];
+        const existing: Array<VideoComment> = current.comments ?? [];
 
         if (variables.parent_id) {
           return {
@@ -146,7 +145,7 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
 
         return {
           ...current,
-          comments: softDeleteComment(current.comments, commentId),
+          comments: removeComment(current.comments, commentId),
         };
       });
     },
@@ -220,7 +219,7 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
       {createError != null ? <p className="mb-4 text-sm text-destructive">{createError}</p> : null}
 
       <div className="space-y-8">
-        {comments.map((comment) => (
+        {visibleComments.map((comment) => (
           <CommentItem
             key={comment.id}
             comment={comment}
@@ -250,7 +249,7 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
         ))}
       </div>
 
-      {comments.length === 0 ? (
+      {visibleComments.length === 0 ? (
         <p className="text-sm text-muted-foreground">No comments yet. Be the first to share your thoughts.</p>
       ) : null}
     </section>

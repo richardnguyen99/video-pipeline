@@ -2,9 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { Eye, MessageCircle, ThumbsUp } from "lucide-react";
 
 import { LikedCardMenu } from "@/layouts/user-profile/videos/liked-card-menu";
-import { commentCount, watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
+import { watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
 import { formatCompactNumber } from "@/libs/utils";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 type LikedCardProps = {
   video: Video;
@@ -15,7 +15,7 @@ type LikedCardProps = {
 export function LikedCard({ video, onSaveToPlaylists, onRemoveFromLiked }: LikedCardProps) {
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
-  const comments = commentCount(video);
+  const comments = video.comments?.length ?? 0;
   const poster = watchedThumbnail(video);
 
   return (

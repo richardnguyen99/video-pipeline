@@ -1,6 +1,6 @@
 import { LibrarySection } from "@/layouts/user-profile/videos/library-section";
 import { librarySections } from "@/layouts/user-profile/videos/section-config";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import type { PlaylistSummary } from "@/queries/playlist";
 import type { WatchedVideo } from "@/queries/video-watch";
 

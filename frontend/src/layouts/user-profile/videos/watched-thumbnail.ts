@@ -1,4 +1,4 @@
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import type { WatchedVideo } from "@/queries/video-watch";
 
 export function watchedThumbnail(video: Video): string {
@@ -17,18 +17,6 @@ export function watchedThumbnail(video: Video): string {
   }
 
   return "https://placehold.co/1280x720?text=No+Thumbnail";
-}
-
-export function commentCount(video: Video): number {
-  if (typeof video.comments === "number") {
-    return video.comments;
-  }
-
-  if (Array.isArray(video.comments)) {
-    return video.comments.length;
-  }
-
-  return 0;
 }
 
 export function watchProgressPercent(video: WatchedVideo): number {

@@ -46,7 +46,7 @@ import {
   hasActiveDiscoverFilters,
 } from "@/libs/discover-videos";
 import { buttonVariants } from "@/libs/shadcn_variants";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import { cn, restoreScrollPosition } from "@/libs/utils";
 
 interface VideoBrowseProps {

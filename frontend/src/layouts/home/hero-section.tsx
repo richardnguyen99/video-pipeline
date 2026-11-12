@@ -3,19 +3,17 @@ import { Link } from "@tanstack/react-router";
 import { Play, Plus, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { Video } from "@/mocks/videos";
-import { mockVideos } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 const SLIDE_DURATION = 6000;
 const PARALLAX_FACTOR = 0.35;
-const FEATURED_COUNT = 6;
-
 function getThumbnail(video: Video): string {
   return video.image_urls?.[0] ?? video.video_image_url?.[0]?.url ?? "https://placehold.co/1920x1080";
 }
 
 function formatDuration(seconds?: number): string {
   if (seconds == null || seconds <= 0) return "";
+
   const totalSec = Math.round(seconds);
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
@@ -25,7 +23,7 @@ function formatDuration(seconds?: number): string {
   return `${m}m`;
 }
 
-const featuredVideos = mockVideos.slice(0, FEATURED_COUNT);
+const featuredVideos: Array<Video> = [];
 
 export default function HeroSection() {
   const [active, setActive] = useState(0);
@@ -33,10 +31,18 @@ export default function HeroSection() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const goTo = useCallback((index: number) => {
+    if (featuredVideos.length === 0) {
+      return;
+    }
+
     setActive((index + featuredVideos.length) % featuredVideos.length);
   }, []);
 
   useEffect(() => {
+    if (featuredVideos.length === 0) {
+      return;
+    }
+
     timerRef.current = setTimeout(() => {
       setActive((prev) => (prev + 1) % featuredVideos.length);
     }, SLIDE_DURATION);

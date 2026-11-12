@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 function getThumbnail(video: Video): string {
   return video.image_urls?.[0] ?? video.video_image_url?.[0]?.url ?? "https://placehold.co/640/360";

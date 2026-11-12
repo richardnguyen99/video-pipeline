@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Eye, MessageCircle, ThumbsUp } from "lucide-react";
 
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import { cn, formatCompactNumber } from "@/libs/utils";
 
 const REVIEW_MAX_SECONDS = 30;
@@ -50,7 +50,7 @@ export function CategoryVideoCard({ video, className, variant = "carousel" }: Ca
 
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
-  const comments = video.comments ?? 0;
+  const comments = video.comments ?? [];
 
   function pauseAndResetVideo(el: HTMLVideoElement | null) {
     if (!el) {

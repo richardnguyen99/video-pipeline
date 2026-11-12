@@ -14,7 +14,7 @@ import { ActressVideosToolbar } from "@/layouts/single-actress/actress-videos-to
 import type { ActressVideoFilters, ActressVideoSort } from "@/libs/actress-videos";
 import { ACTRESS_VIDEO_PAGE_SIZE, buildActressVideoSearch } from "@/libs/actress-videos";
 import { buttonVariants } from "@/libs/shadcn_variants";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import { captureScrollPosition, cn, restoreScrollPosition } from "@/libs/utils";
 
 interface ActressVideosShellProps {

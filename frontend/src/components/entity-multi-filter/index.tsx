@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import type { NamedEntity } from "@/mocks/videos";
+import type { NamedEntity } from "@/types/video";
 import { cn } from "@/libs/utils";
 
 const SEARCH_DEBOUNCE_MS = 300;

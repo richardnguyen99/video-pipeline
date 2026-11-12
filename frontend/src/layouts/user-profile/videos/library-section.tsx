@@ -4,7 +4,7 @@ import { PublicUploadsSection } from "@/layouts/user-profile/videos/public-uploa
 import { SectionHeader } from "@/layouts/user-profile/videos/section-header";
 import type { LibrarySection as LibrarySectionConfig } from "@/layouts/user-profile/videos/section-config";
 import { WatchedSection } from "@/layouts/user-profile/videos/watched-section";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import type { PlaylistSummary } from "@/queries/playlist";
 import type { WatchedVideo } from "@/queries/video-watch";
 

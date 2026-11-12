@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 export type PlaylistVisibility = "public" | "restricted" | "private";
 

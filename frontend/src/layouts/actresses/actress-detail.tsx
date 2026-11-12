@@ -2,7 +2,7 @@ import { ActressBannerBackground, ActressProfileHeader } from "@/layouts/single-
 import { ActressVideos } from "@/layouts/single-actress/actress-videos";
 import { DEFAULT_ACTRESS_VIDEO_FILTERS, DEFAULT_ACTRESS_VIDEO_SORT } from "@/libs/actress-videos";
 import type { ActressSummary } from "@/libs/actresses";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 
 interface ActressDetailProps {
   actress: ActressSummary;

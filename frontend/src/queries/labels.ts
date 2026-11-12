@@ -1,7 +1,7 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import { apiFetch } from "@/libs/api-client";
-import type { NamedEntity } from "@/mocks/videos";
+import type { NamedEntity } from "@/types/video";
 
 export const LABEL_FILTER_OPTIONS_LIMIT = 100;
 

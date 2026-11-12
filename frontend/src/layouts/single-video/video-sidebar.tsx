@@ -4,7 +4,7 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 
 import { Button } from "@/components/ui/button";
 import { VideoSidebarCard } from "@/layouts/single-video/video-sidebar-card";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import {
   DEFAULT_VIDEO_RECOMMENDATIONS_LIMIT,
   VIDEO_RECOMMENDATIONS_EXPANDED_LIMIT,
@@ -42,7 +42,7 @@ function SidebarCardList({ videos, startIndex = 0 }: { videos: Array<Video>; sta
             video={video}
             views={video.views ?? 0}
             likes={video.likes ?? 0}
-            comments={typeof video.comments === "number" ? video.comments : (video.comments?.length ?? 0)}
+            comments={video.comments?.length ?? 0}
             badge={sidebarCardBadge(absoluteIndex)}
           />
         );

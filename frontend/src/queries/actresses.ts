@@ -4,7 +4,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/libs/api-client";
 import type { ActressFilters, ActressPageResult, ActressSort, ActressSummary } from "@/libs/actresses";
 import { ACTRESSES_PAGE_SIZE, DEFAULT_ACTRESS_FILTERS, DEFAULT_ACTRESS_SORT } from "@/libs/actresses";
-import type { NamedEntity } from "@/mocks/videos";
+import type { NamedEntity } from "@/types/video";
 
 /** List/detail metadata is mostly static; only engagement counts change often. */
 export const ACTRESS_LIST_STALE_MS = 60 * 60_000;

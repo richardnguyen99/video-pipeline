@@ -6,7 +6,7 @@ import { LikedCard } from "@/layouts/user-profile/videos/liked-card";
 import { RemoveFromLikedDialog } from "@/layouts/user-profile/videos/remove-from-liked-dialog";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
 import { getApiErrorMessage } from "@/libs/auth";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import { clearVideoReaction, videoReactionQueryKeys } from "@/queries/video-reaction";
 
 type LikedSectionProps = {

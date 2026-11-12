@@ -4,10 +4,10 @@ import { Eye, MessageCircle, ThumbsUp } from "lucide-react";
 
 import { PublicUploadCardMenu } from "@/layouts/user-profile/videos/public-upload-card-menu";
 import { WatchedCardSkeleton } from "@/layouts/user-profile/videos/watched-card-skeleton";
-import { commentCount, watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
+import { watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
 import { PlaylistSaveButton } from "@/layouts/single-video/playlist-save-button";
 import { formatCompactNumber } from "@/libs/utils";
-import type { Video } from "@/mocks/videos";
+import type { Video } from "@/types/video";
 import { useAuthStore } from "@/stores/auth-store";
 
 type PublicUploadsSectionProps = {
@@ -83,7 +83,7 @@ type PublicUploadCardProps = {
 function PublicUploadCard({ video, isOwner, isAuthenticated, onSaveToPlaylists }: PublicUploadCardProps) {
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
-  const comments = commentCount(video);
+  const comments = video.comments?.length ?? 0;
   const poster = watchedThumbnail(video);
   const title = video.title || video.video_id;
   const publicId =

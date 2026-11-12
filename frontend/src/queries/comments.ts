@@ -56,6 +56,27 @@ export function countComments(comments: Array<VideoComment>): number {
   return total;
 }
 
+/** Drop soft-deleted comments from the tree; promote surviving replies. */
+export function filterVisibleComments(comments: Array<VideoComment>): Array<VideoComment> {
+  const visible: Array<VideoComment> = [];
+
+  for (const comment of comments) {
+    const replies = filterVisibleComments(comment.replies ?? []);
+
+    if (comment.is_deleted) {
+      visible.push(...replies);
+      continue;
+    }
+
+    visible.push({
+      ...comment,
+      replies,
+    });
+  }
+
+  return visible;
+}
+
 export async function createVideoComment(
   videoId: string | number,
   payload: CommentCreatePayload,

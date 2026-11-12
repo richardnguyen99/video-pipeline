@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
-import { catalogEntityDisplayName } from "@/mocks/videos";
-import type { NamedEntity } from "@/mocks/videos";
+import { catalogEntityDisplayName } from "@/types/video";
+import type { NamedEntity } from "@/types/video";
 import { cn } from "@/libs/utils";
 
 export type EntityVideoFilterKey = "genre" | "maker" | "label" | "director" | "series";
