@@ -60,7 +60,11 @@ export default function HeroSection() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const current = featuredVideos[active];
+  const current: Video | undefined = featuredVideos[active];
+
+  if (typeof current === "undefined") {
+    return null;
+  }
 
   return (
     <section id="trending" className="relative flex min-h-screen flex-col overflow-hidden">

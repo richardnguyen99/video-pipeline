@@ -452,8 +452,10 @@ class VideoService:
                 "views": counts.views,
                 "likes": counts.likes,
                 "dislikes": counts.dislikes,
-                "comments": await self._build_comment_tree(
-                    comments, viewer_id=viewer_id
+                "comments": counts.comments,
+                "comment_tree": await self._build_comment_tree(
+                    comments,
+                    viewer_id=viewer_id,
                 ),
             },
         )

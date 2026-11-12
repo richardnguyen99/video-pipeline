@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { WatchedCardMenu } from "@/layouts/user-profile/videos/watched-card-menu";
 import { watchProgressPercent, watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
 import { formatCompactNumber } from "@/libs/utils";
+import { videoCommentCount } from "@/types/video";
 import type { WatchedVideo } from "@/queries/video-watch";
 
 type WatchedCardProps = {
@@ -16,7 +17,7 @@ type WatchedCardProps = {
 export function WatchedCard({ video, onSaveToPlaylists, onRemoveFromHistory }: WatchedCardProps) {
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
-  const comments = video.comments?.length ?? 0;
+  const comments = videoCommentCount(video);
   const poster = watchedThumbnail(video);
   const progressPercent = watchProgressPercent(video);
 

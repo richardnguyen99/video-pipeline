@@ -1,4 +1,5 @@
 import type { ActressRef, NamedEntity, Video } from "@/types/video";
+import { videoCommentCount } from "@/types/video";
 
 export const ACTRESSES_PAGE_SIZE = 24;
 
@@ -108,7 +109,7 @@ function engagementFromVideos(videos: Array<Video>): Map<
       cur.videoCount += 1;
       cur.totalViews += video.views ?? 0;
       cur.totalLikes += video.likes ?? 0;
-      cur.totalComments += video.comments?.length ?? 0;
+      cur.totalComments += videoCommentCount(video);
 
       if (video.label) cur.labels.set(video.label.id, video.label.name);
       if (video.maker) cur.makers.set(video.maker.id, video.maker.name);

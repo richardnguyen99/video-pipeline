@@ -118,18 +118,15 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
           return current;
         }
 
-        const existing: Array<VideoComment> = current.comments ?? [];
-
-        if (variables.parent_id) {
-          return {
-            ...current,
-            comments: insertReply(existing, variables.parent_id, created),
-          };
-        }
+        const existing = current.comment_tree ?? [];
+        const nextTree = variables.parent_id
+          ? insertReply(existing, variables.parent_id, created)
+          : [...existing, created];
 
         return {
           ...current,
-          comments: [...existing, created],
+          comment_tree: nextTree,
+          comments: (current.comments ?? 0) + 1,
         };
       });
     },
@@ -139,13 +136,16 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
     mutationFn: (commentId: string) => deleteVideoComment(videoId, commentId),
     onSuccess: (_result, commentId) => {
       queryClient.setQueryData<Video>(detailKey, (current) => {
-        if (current == null || !Array.isArray(current.comments)) {
+        if (current == null) {
           return current;
         }
 
+        const existing = current.comment_tree ?? [];
+
         return {
           ...current,
-          comments: removeComment(current.comments, commentId),
+          comment_tree: removeComment(existing, commentId),
+          comments: Math.max(0, (current.comments ?? 0) - 1),
         };
       });
     },
@@ -165,15 +165,16 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
     },
     onSuccess: (result, variables) => {
       queryClient.setQueryData<Video>(detailKey, (current) => {
-        if (current == null || !Array.isArray(current.comments)) {
+        if (current == null) {
           return current;
         }
 
+        const existing = current.comment_tree ?? [];
         const vote = result.is_like === true ? "like" : result.is_like === false ? "dislike" : null;
 
         return {
           ...current,
-          comments: mapCommentsWithUpdate(current.comments, variables.commentId, (comment) => ({
+          comment_tree: mapCommentsWithUpdate(existing, variables.commentId, (comment) => ({
             ...comment,
             likes: result.likes,
             dislikes: result.dislikes,

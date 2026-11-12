@@ -1,6 +1,7 @@
 import type { VideoSort } from "@/libs/discover-videos";
 import { fetchVideoList } from "@/queries/videos";
 import type { NamedEntity, Video } from "@/types/video";
+import { videoCommentCount } from "@/types/video";
 
 /** 4 rows × 4 columns */
 export const ACTRESS_VIDEO_PAGE_SIZE = 16;
@@ -132,9 +133,7 @@ export function sortActressVideos(videos: Array<Video>, sort: ActressVideoSort):
     case "most-liked":
       return list.sort((a, b) => (b.likes ?? 0) - (a.likes ?? 0) || a.video_id.localeCompare(b.video_id));
     case "most-comments":
-      return list.sort(
-        (a, b) => (b.comments?.length ?? 0) - (a.comments?.length ?? 0) || a.video_id.localeCompare(b.video_id),
-      );
+      return list.sort((a, b) => videoCommentCount(b) - videoCommentCount(a) || a.video_id.localeCompare(b.video_id));
     case "title":
       return list.sort((a, b) => a.title.localeCompare(b.title) || a.video_id.localeCompare(b.video_id));
     default:

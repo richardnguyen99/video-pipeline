@@ -60,9 +60,9 @@ function autoBadgeFromReleaseDate(releaseDate: string | null | undefined): Video
 
 export function VideoSidebarCard({
   video,
-  views = 12_400,
-  likes = 820,
-  comments = 64,
+  views = 0,
+  likes = 0,
+  comments = 0,
   uploadedAt,
   uploader,
   badge,

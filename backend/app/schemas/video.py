@@ -215,7 +215,8 @@ class VideoDetailResponse(BaseModel):
     views: int = Field(default=0, ge=0)
     likes: int = Field(default=0, ge=0)
     dislikes: int = Field(default=0, ge=0)
-    comments: list[VideoCommentResponse] = Field(default_factory=list)
+    comments: int = Field(default=0, ge=0)
+    comment_tree: list[VideoCommentResponse] = Field(default_factory=list)
 
 
 class VideoListResponse(BaseModel):

@@ -5,6 +5,7 @@ import { LikedCardMenu } from "@/layouts/user-profile/videos/liked-card-menu";
 import { watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnail";
 import { formatCompactNumber } from "@/libs/utils";
 import type { Video } from "@/types/video";
+import { videoCommentCount } from "@/types/video";
 
 type LikedCardProps = {
   video: Video;
@@ -15,7 +16,7 @@ type LikedCardProps = {
 export function LikedCard({ video, onSaveToPlaylists, onRemoveFromLiked }: LikedCardProps) {
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
-  const comments = video.comments?.length ?? 0;
+  const comments = videoCommentCount(video);
   const poster = watchedThumbnail(video);
 
   return (

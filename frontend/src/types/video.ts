@@ -168,8 +168,10 @@ export interface Video {
   views?: number;
   likes?: number;
   dislikes?: number;
-  /** Detail payloads: comment tree. List payloads: aggregate count. */
-  comments?: Array<VideoComment>;
+  /** Aggregate non-deleted comment count (list and detail). */
+  comments?: number;
+  /** Nested comment tree for the single-video page only. */
+  comment_tree?: Array<VideoComment>;
   makers?: Array<NamedEntity>;
   labels?: Array<NamedEntity>;
   directors?: Array<NamedEntity>;
@@ -179,6 +181,14 @@ export interface Video {
   director?: NamedEntity | null;
   actresses?: Array<ActressRef>;
   genres?: Array<NamedEntity>;
+}
+
+export function videoCommentList(video: Pick<Video, "comment_tree">): Array<VideoComment> {
+  return video.comment_tree ?? [];
+}
+
+export function videoCommentCount(video: Pick<Video, "comments">): number {
+  return video.comments ?? 0;
 }
 
 export function videoDisplayTitle(video: Pick<Video, "title" | "video_aka">): string {

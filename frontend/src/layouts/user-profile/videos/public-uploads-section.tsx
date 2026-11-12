@@ -8,6 +8,7 @@ import { watchedThumbnail } from "@/layouts/user-profile/videos/watched-thumbnai
 import { PlaylistSaveButton } from "@/layouts/single-video/playlist-save-button";
 import { formatCompactNumber } from "@/libs/utils";
 import type { Video } from "@/types/video";
+import { videoCommentCount } from "@/types/video";
 import { useAuthStore } from "@/stores/auth-store";
 
 type PublicUploadsSectionProps = {
@@ -83,7 +84,7 @@ type PublicUploadCardProps = {
 function PublicUploadCard({ video, isOwner, isAuthenticated, onSaveToPlaylists }: PublicUploadCardProps) {
   const views = video.views ?? 0;
   const likes = video.likes ?? 0;
-  const comments = video.comments?.length ?? 0;
+  const comments = videoCommentCount(video);
   const poster = watchedThumbnail(video);
   const title = video.title || video.video_id;
   const publicId =
