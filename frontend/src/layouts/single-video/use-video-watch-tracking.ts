@@ -45,6 +45,8 @@ export function useVideoWatchTracking({
   const startedForVideoRef = useRef<number | null>(null);
   const startRequestIdRef = useRef(0);
   const resumePositionRef = useRef(0);
+  const resumePromptHandledRef = useRef(false);
+  const clearProgressOnNextSessionRef = useRef(false);
   const isEligibleRef = useRef(true);
   const cooldownSecondsRef = useRef(0);
   const eligibleThresholdRef = useRef(30);
@@ -69,6 +71,8 @@ export function useVideoWatchTracking({
     currentTimeRef.current = 0;
     startedForVideoRef.current = null;
     resumePositionRef.current = 0;
+    resumePromptHandledRef.current = false;
+    clearProgressOnNextSessionRef.current = false;
     isEligibleRef.current = true;
     maxPositionRef.current = 0;
     sessionStartedAtRef.current = 0;
@@ -138,9 +142,24 @@ export function useVideoWatchTracking({
           clearRenewTimer();
         }
 
+        if (clearProgressOnNextSessionRef.current) {
+          clearProgressOnNextSessionRef.current = false;
+          resumePositionRef.current = 0;
+          setResumePositionSeconds(0);
+          setResumeDialogOpen(false);
+
+          void sendVideoPlayHeartbeat(nextVideoId, {
+            playback_session_id: result.playback_session_id,
+            position_seconds: 0,
+            watched_seconds_delta: 0,
+          }).catch(() => undefined);
+
+          return;
+        }
+
         const saved = result.position_seconds;
 
-        if (Number.isFinite(saved) && saved > 0 && resumePositionRef.current === 0) {
+        if (Number.isFinite(saved) && saved > 0 && resumePositionRef.current === 0 && !resumePromptHandledRef.current) {
           resumePositionRef.current = saved;
           setResumePositionSeconds(saved);
           setResumeDialogOpen(true);
@@ -271,12 +290,16 @@ export function useVideoWatchTracking({
       seek(target);
     }
 
+    resumePromptHandledRef.current = true;
     setResumeDialogOpen(false);
   }, [seek]);
 
   const onStartOver = useCallback(() => {
     seek(0);
     resumePositionRef.current = 0;
+    resumePromptHandledRef.current = true;
+    clearProgressOnNextSessionRef.current = true;
+    setResumePositionSeconds(0);
     setResumeDialogOpen(false);
     clearRenewTimer();
     sessionIdRef.current = null;
@@ -287,6 +310,7 @@ export function useVideoWatchTracking({
   }, [seek, clearRenewTimer]);
 
   const onDismissResumeDialog = useCallback(() => {
+    resumePromptHandledRef.current = true;
     setResumeDialogOpen(false);
   }, []);
 

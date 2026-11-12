@@ -62,10 +62,10 @@ export async function createVideoComment(
 ): Promise<VideoComment> {
   return apiFetch<VideoComment>(`/videos/${videoId}/comments`, {
     method: "POST",
-    body: JSON.stringify({
+    data: {
       content: payload.content,
       parent_id: payload.parent_id ?? null,
-    }),
+    },
   });
 }
 
@@ -82,7 +82,7 @@ export async function setCommentReaction(
 ): Promise<CommentReactionResponse> {
   return apiFetch<CommentReactionResponse>(`/videos/${videoId}/comments/${commentId}/reaction`, {
     method: "PUT",
-    body: JSON.stringify({ is_like: isLike }),
+    data: { is_like: isLike },
   });
 }
 

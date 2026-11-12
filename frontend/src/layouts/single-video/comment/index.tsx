@@ -11,7 +11,7 @@ import {
   clearCommentReaction,
 } from "@/queries/comments";
 import type { CommentUser, VideoComment } from "@/queries/comments";
-import { videoQueryKeys } from "@/queries/videos";
+import { videoDetailQueryKey } from "@/queries/videos";
 import { useAuthStore } from "@/stores/auth-store";
 import type { Video } from "@/mocks/videos";
 
@@ -109,7 +109,7 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
   const currentUser = toCommentUser(authUser);
   const total = countComments(comments);
 
-  const detailKey = videoQueryKeys.detail(videoId);
+  const detailKey = videoDetailQueryKey(videoId);
 
   const createMutation = useMutation({
     mutationFn: (input: { content: string; parent_id?: string | null }) => createVideoComment(videoId, input),
