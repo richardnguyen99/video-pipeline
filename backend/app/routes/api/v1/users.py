@@ -45,6 +45,7 @@ from app.schemas.user import (
 )
 from app.schemas.user_bio import UserBioResponse
 from app.schemas.video import VideoListResponse
+from app.utils.user_display import preferred_display_name
 
 router = APIRouter(prefix="/users")
 
@@ -87,7 +88,10 @@ async def search_users(
                 id=user.id,
                 username=user.username,
                 email=user.email,
-                display_name=preferred_name,
+                display_name=preferred_display_name(
+                    username=user.username,
+                    full_name=preferred_name,
+                ),
             )
             for user, preferred_name in rows
         ],
@@ -127,18 +131,16 @@ async def get_public_user_preview(
         )
 
     bio = await repository.get_bio_by_user_id(user.id)
+    full_name = None if bio is None else getattr(bio, "full_name", None)
     biography = None if bio is None else getattr(bio, "biography", None)
-    display_name = user.display_name
-
-    if bio is not None:
-        full_name = getattr(bio, "full_name", None)
-        if full_name:
-            display_name = full_name
 
     return UserPreviewResponse(
         id=user.id,
         username=user.username,
-        display_name=display_name,
+        display_name=preferred_display_name(
+            username=user.username,
+            full_name=full_name,
+        ),
         avatar_url=getattr(user, "avatar_url", None),
         created_at=user.created_at,
         biography=biography,

@@ -24,13 +24,11 @@ def test_register_request_accepts_valid_payload() -> None:
         username="alice_1",
         email="alice@example.com",
         password="Secret1!",
-        display_name="Alice",
     )
 
     assert payload.username == "alice_1"
     assert payload.email == "alice@example.com"
     assert payload.password == "Secret1!"
-    assert payload.display_name == "Alice"
 
 
 def test_register_request_normalizes_username_strip() -> None:
@@ -146,19 +144,6 @@ def test_register_request_rejects_password_without_special() -> None:
         )
 
     assert "special" in str(exc_info.value).lower()
-
-
-def test_register_request_blank_display_name_becomes_none() -> None:
-    """Whitespace-only display name normalizes to ``None``."""
-
-    payload = RegisterRequest(
-        username="alice_1",
-        email="alice@example.com",
-        password="Secret1!",
-        display_name="   ",
-    )
-
-    assert payload.display_name is None
 
 
 def test_user_response_from_attributes() -> None:

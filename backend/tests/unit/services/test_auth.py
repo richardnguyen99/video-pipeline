@@ -93,6 +93,7 @@ class FakeAsyncSession:
         self.flushed = 0
         self.committed = 0
         self.refreshed: list[Any] = []
+        self.exec_results: list[Any] = []
 
     def add(self, obj: Any) -> None:
         self.added.append(obj)
@@ -105,6 +106,30 @@ class FakeAsyncSession:
 
     async def refresh(self, obj: Any) -> None:
         self.refreshed.append(obj)
+
+    async def exec(self, _statement: object) -> Any:
+        """Return queued results for bio lookups (default: empty)."""
+
+        class _Result:
+            def __init__(self, value: Any) -> None:
+                self._value = value
+
+            def first(self) -> Any:
+                return self._value
+
+            def all(self) -> list[Any]:
+                if self._value is None:
+                    return []
+
+                if isinstance(self._value, list):
+                    return list(self._value)
+
+                return [self._value]
+
+        if self.exec_results:
+            return _Result(self.exec_results.pop(0))
+
+        return _Result(None)
 
 
 @dataclass
@@ -143,7 +168,6 @@ class FakeUserRepository:
         email: str,
         password_hash: str,
         password_algorithm: str,
-        display_name: Optional[str] = None,
     ) -> FakeUser:
         """Record create args and return a synthetic user."""
 
@@ -153,7 +177,6 @@ class FakeUserRepository:
                 "email": email,
                 "password_hash": password_hash,
                 "password_algorithm": password_algorithm,
-                "display_name": display_name,
             },
         )
 
@@ -168,7 +191,7 @@ class FakeUserRepository:
             id=uuid.UUID("00000000-0000-4000-8000-000000000099"),
             username=username,
             email=email,
-            display_name=display_name,
+            display_name=None,
         )
         self.created_user = user
 
@@ -476,7 +499,6 @@ def _valid_payload(**overrides: Any) -> RegisterRequest:
         "username": "alice_1",
         "email": "alice@example.com",
         "password": "Secret1!",
-        "display_name": "Alice",
     }
     data.update(overrides)
 
@@ -495,7 +517,7 @@ async def test_register_returns_user_response(
     assert isinstance(result, UserResponse)
     assert result.username == "alice_1"
     assert result.email == "alice@example.com"
-    assert result.display_name == "Alice"
+    assert result.display_name == "alice_1"
     assert result.is_active is True
     assert result.email_verified is False
     assert len(repository.create_calls) == 1
@@ -528,32 +550,6 @@ async def test_register_hashes_password_with_bcrypt(
     assert call["password_algorithm"] == PASSWORD_ALGORITHM
     assert call["password_hash"] != plain
     assert verify_password(plain, call["password_hash"])
-
-
-@pytest.mark.asyncio
-async def test_register_passes_display_name(
-    service: AuthService,
-    repository: FakeUserRepository,
-) -> None:
-    """Optional display name is forwarded to the repository."""
-
-    await service.register(_valid_payload(display_name="Alice Wonder"))
-
-    assert repository.create_calls[0]["display_name"] == "Alice Wonder"
-
-
-@pytest.mark.asyncio
-async def test_register_allows_null_display_name(
-    service: AuthService,
-    repository: FakeUserRepository,
-) -> None:
-    """Missing display name is stored as ``None``."""
-
-    await service.register(
-        _valid_payload(display_name=None),
-    )
-
-    assert repository.create_calls[0]["display_name"] is None
 
 
 @pytest.mark.asyncio

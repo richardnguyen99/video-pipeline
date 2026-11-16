@@ -15,6 +15,7 @@ from app.models.associations import t_video_actress
 from app.models.comment_reaction import CommentReaction
 from app.models.comments import Comment
 from app.models.user_activity import UserActivity, UserActivityType
+from app.models.user_bio import UserBio
 from app.models.video import Video
 from app.models.video_reaction import VideoReaction
 from app.models.video_view import VideoView
@@ -49,6 +50,7 @@ from app.schemas.video_watch import (
     VideoWatchProgressResponse,
 )
 from app.services.engagement_cache import notify_like_count_delta
+from app.utils.user_display import preferred_display_name
 
 if TYPE_CHECKING:
     from app.search.service import VideoSearchService
@@ -127,13 +129,22 @@ class VideoService:
         return str(viewer_id) == str(uploader_id)
 
     @staticmethod
-    def _map_comment_user(user: object) -> CommentUserResponse:
+    def _map_comment_user(
+        user: object,
+        *,
+        full_name: str | None = None,
+    ) -> CommentUserResponse:
         """Map an ORM user to the comment author payload."""
+
+        username = str(getattr(user, "username"))
 
         return CommentUserResponse(
             id=str(getattr(user, "id")),
-            username=str(getattr(user, "username")),
-            display_name=getattr(user, "display_name", None),
+            username=username,
+            display_name=preferred_display_name(
+                username=username,
+                full_name=full_name,
+            ),
             avatar_url=getattr(user, "avatar_url", None),
         )
 
@@ -145,13 +156,17 @@ class VideoService:
         dislikes: int = 0,
         viewer_vote: str | None = None,
         replies: list[VideoCommentResponse] | None = None,
+        full_name: str | None = None,
     ) -> VideoCommentResponse:
         """Map one ORM comment to the frontend ``VideoComment`` shape."""
 
         parent_id = getattr(comment, "parent_id", None)
         content = str(getattr(comment, "content"))
         is_deleted = bool(getattr(comment, "is_deleted", False))
-        user = self._map_comment_user(getattr(comment, "user"))
+        user = self._map_comment_user(
+            getattr(comment, "user"),
+            full_name=full_name,
+        )
 
         if is_deleted:
             content = ""
@@ -204,6 +219,31 @@ class VideoService:
                 comment_ids=comment_ids,
             )
 
+        user_ids: list = []
+        seen_users: set = set()
+
+        for comment in comments:
+            user = getattr(comment, "user", None)
+
+            if user is None:
+                continue
+
+            uid = getattr(user, "id", None)
+
+            if uid is None or uid in seen_users:
+                continue
+
+            seen_users.add(uid)
+            user_ids.append(uid)
+
+        full_names: dict = {}
+
+        if user_ids:
+            full_names = await UserBio.full_names_for_user_ids(
+                self._repository.session,
+                user_ids,
+            )
+
         nodes: dict[str, VideoCommentResponse] = {}
         children: dict[str | None, list[str]] = {}
 
@@ -218,11 +258,14 @@ class VideoService:
             elif vote_value is False:
                 viewer_vote = "dislike"
 
+            user = getattr(comment, "user", None)
+            uid = getattr(user, "id", None) if user is not None else None
             node = self._map_comment_node(
                 comment,
                 likes=like_count,
                 dislikes=dislike_count,
                 viewer_vote=viewer_vote,
+                full_name=full_names.get(uid) if uid is not None else None,
             )
             nodes[node.id] = node
             parent_key = node.parent_id
@@ -1336,8 +1379,10 @@ class VideoService:
             )
 
         comment.user = user
+        bio = await UserBio.get_by_user_id(self._repository.session, user_id)
+        full_name = bio.full_name if bio is not None else None
 
-        return self._map_comment_node(comment)
+        return self._map_comment_node(comment, full_name=full_name)
 
     async def delete_comment(
         self,

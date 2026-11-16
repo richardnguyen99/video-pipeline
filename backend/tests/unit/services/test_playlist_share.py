@@ -422,7 +422,7 @@ async def test_add_share_creates_share_for_active_user(
 
     assert result.user_id == target_id
     assert result.username == "friend"
-    assert result.display_name == "Friend"
+    assert result.display_name == "friend"
     assert session.committed == 1
     assert len(session.added) == 1
 
@@ -596,7 +596,7 @@ async def test_list_shares_returns_shared_users(
     assert result.total == 1
     assert result.items[0].user_id == target_id
     assert result.items[0].username == "friend"
-    assert result.items[0].display_name == "Friend"
+    assert result.items[0].display_name == "friend"
 
 
 @pytest.mark.asyncio

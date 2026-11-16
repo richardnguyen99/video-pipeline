@@ -27,7 +27,6 @@ class User(SQLModel, table=True):
         id: Primary key, generated client-side as a UUID4.
         username: Unique handle used for login/display.
         email: Unique contact address.
-        display_name: Optional human-friendly name.
         role: Application role label (e.g. ``user``, ``creator``, ``admin``).
         is_active: Soft-disable flag; false blocks login without
             deleting the row.
@@ -55,11 +54,6 @@ class User(SQLModel, table=True):
         max_length=255,
         unique=True,
         index=True,
-        sa_type=AutoString,
-    )
-    display_name: Optional[str] = Field(
-        default=None,
-        max_length=100,
         sa_type=AutoString,
     )
     role: str = Field(

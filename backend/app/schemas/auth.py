@@ -36,11 +36,6 @@ class RegisterRequest(BaseModel):
             "and one special character."
         ),
     )
-    display_name: Optional[str] = Field(
-        default=None,
-        max_length=100,
-        description="Optional display name.",
-    )
 
     @field_validator("username")
     @classmethod
@@ -95,18 +90,6 @@ class RegisterRequest(BaseModel):
             )
 
         return value
-
-    @field_validator("display_name")
-    @classmethod
-    def normalize_display_name(cls, value: Optional[str]) -> Optional[str]:
-        """Trim display name; empty becomes None."""
-
-        if value is None:
-            return None
-
-        trimmed = value.strip()
-
-        return trimmed or None
 
 
 class LoginRequest(BaseModel):

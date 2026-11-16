@@ -23,10 +23,11 @@ from app.models.user import User
 from app.repositories.user import UserRepository
 from app.utils.password import PASSWORD_ALGORITHM, hash_password
 from cli.async_utils import run_async
+from cli.console import echo
 from cli.db import session_scope
 
 _USERNAME_SAFE = re.compile(r"[^A-Za-z0-9_]")
-_FIELDNAMES = ("username", "email", "password", "display_name")
+_FIELDNAMES = ("username", "email", "password")
 _LOGS_DIR = Path(__file__).resolve().parents[2] / "logs"
 
 
@@ -52,7 +53,6 @@ class UserRecord:
     username: str
     email: str
     password: str
-    display_name: Optional[str] = None
     source_index: int = 0
 
 
@@ -134,7 +134,6 @@ def generate_users(count: int) -> list[dict[str, str]]:
                 "username": username,
                 "email": email,
                 "password": _registration_password(fake),
-                "display_name": str(fake.name()),
             },
         )
 
@@ -181,14 +180,6 @@ def _normalize_record(
     username = str(raw.get("username") or "").strip()
     email = str(raw.get("email") or "").strip().lower()
     password = str(raw.get("password") or "")
-    display_raw = raw.get("display_name")
-    display_name: Optional[str]
-
-    if display_raw is None:
-        display_name = None
-    else:
-        trimmed = str(display_raw).strip()
-        display_name = trimmed or None
 
     if not username or not email or not password:
         raise ValueError(
@@ -199,7 +190,6 @@ def _normalize_record(
         username=username,
         email=email,
         password=password,
-        display_name=display_name,
         source_index=index,
     )
 
@@ -588,7 +578,6 @@ async def _handle_insert(
             email=record.email,
             password_hash=hash_password(record.password),
             password_algorithm=PASSWORD_ALGORITHM,
-            display_name=record.display_name,
         )
     except IntegrityError:
         _ignore(stats, record, "integrity error on insert")
@@ -633,7 +622,6 @@ async def _handle_update(
             email=record.email,
             password_hash=hash_password(record.password),
             password_algorithm=PASSWORD_ALGORITHM,
-            display_name=record.display_name,
         )
     except IntegrityError:
         _ignore(stats, record, "integrity error on update")
@@ -722,11 +710,11 @@ def populate_command(
     try:
         records = load_user_records(file_path=file_path)
     except OSError as exc:
-        typer.echo(f"Error preparing input: {exc}", err=True)
+        echo(f"Error preparing input: {exc}", err=True)
         raise typer.Exit(code=1) from exc
 
     if not records:
-        typer.echo("No user records to process.")
+        echo("No user records to process.")
         raise typer.Exit(code=0)
 
     stats = run_async(
@@ -746,7 +734,7 @@ def populate_command(
             dry_run=not inplace,
         )
 
-    typer.echo(
+    echo(
         _format_summary(
             stats,
             dry_run=not inplace,

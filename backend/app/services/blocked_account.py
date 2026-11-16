@@ -11,18 +11,20 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models.playlist import PlaylistShare
 from app.models.user import User
+from app.models.user_bio import UserBio
 from app.models.user_blocked_account import UserBlockedAccount
 from app.schemas.blocked_account import (
     BlockedAccountItem,
     BlockedAccountListResponse,
     BlockUserRequest,
 )
+from app.utils.user_display import preferred_display_name
 
 
 def _initials_for(user: User) -> str:
     """Derive up to two uppercase initials from display name or username."""
 
-    source = (user.display_name or user.username or "?").strip()
+    source = (user.username or "?").strip()
     parts = [part for part in source.split() if part]
 
     if len(parts) >= 2:
@@ -79,6 +81,7 @@ class BlockedAccountService:
         *,
         blocked_user: User,
         blocked_at: object,
+        full_name: str | None = None,
     ) -> BlockedAccountItem:
         """Map a blocked user + timestamp to the list item schema."""
 
@@ -91,7 +94,10 @@ class BlockedAccountService:
         return BlockedAccountItem(
             id=blocked_user.id,
             username=blocked_user.username,
-            display_name=blocked_user.display_name,
+            display_name=preferred_display_name(
+                username=blocked_user.username,
+                full_name=full_name,
+            ),
             initials=_initials_for(blocked_user),
             blocked_at=at,
         )
@@ -115,6 +121,10 @@ class BlockedAccountService:
         statement = select(User).where(col(User.id).in_(blocked_ids))
         result = await self._session.exec(statement)
         users_by_id = {user.id: user for user in result.all()}
+        full_names = await UserBio.full_names_for_user_ids(
+            self._session,
+            blocked_ids,
+        )
 
         items: list[BlockedAccountItem] = []
 
@@ -128,6 +138,7 @@ class BlockedAccountService:
                 self.__to_item(
                     blocked_user=blocked_user,
                     blocked_at=row.created_at,
+                    full_name=full_names.get(blocked_user.id),
                 ),
             )
 
@@ -156,9 +167,11 @@ class BlockedAccountService:
         )
 
         if existing is not None:
+            bio = await UserBio.get_by_user_id(self._session, target.id)
             return self.__to_item(
                 blocked_user=target,
                 blocked_at=existing.created_at,
+                full_name=bio.full_name if bio is not None else None,
             )
 
         row = UserBlockedAccount.create(
@@ -176,9 +189,12 @@ class BlockedAccountService:
             shared_with_user_id=target.id,
         )
 
+        bio = await UserBio.get_by_user_id(self._session, target.id)
+
         return self.__to_item(
             blocked_user=target,
             blocked_at=row.created_at,
+            full_name=bio.full_name if bio is not None else None,
         )
 
     async def unblock_user(

@@ -30,6 +30,7 @@ from app.schemas.playlist import (
     PlaylistVisibilityChangeRequest,
 )
 from app.services.video import VideoService
+from app.utils.user_display import preferred_display_name
 
 
 class PlaylistService:
@@ -150,15 +151,19 @@ class PlaylistService:
                 detail="Not allowed to view this playlist",
             )
 
-    async def _preferred_display_name(self, user: User) -> str | None:
-        """Prefer biography full name over the account display name."""
+    async def _preferred_display_name(self, user: User) -> str:
+        """Resolve display name from biography full name, else username."""
 
-        bio = await UserBio.get_by_user_id(self._session, user.id)
+        bio = await UserBio.get_by_user_id(
+            self._video_repository.session,
+            user.id,
+        )
+        full_name = bio.full_name if bio is not None else None
 
-        if bio is not None and bio.full_name:
-            return bio.full_name
-
-        return user.display_name
+        return preferred_display_name(
+            username=user.username,
+            full_name=full_name,
+        )
 
     async def create(
         self,

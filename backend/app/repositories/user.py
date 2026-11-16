@@ -76,8 +76,7 @@ class UserRepository(BaseRepository):
         """Return active users whose username or email matches ``query``.
 
         Each row is ``(user, preferred_display_name)`` where the preferred
-        name is ``UserBio.full_name`` when set, otherwise
-        ``User.display_name``.
+        name is ``UserBio.full_name`` when set, otherwise ``None``.
 
         Args:
             query: Case-insensitive substring to match.
@@ -110,10 +109,7 @@ class UserRepository(BaseRepository):
         result = await self.session.exec(statement)
         rows = list(result.all())
 
-        return [
-            (user, full_name if full_name else user.display_name)
-            for user, full_name in rows
-        ]
+        return list(rows)
 
     async def create_with_credential(
         self,
@@ -122,7 +118,6 @@ class UserRepository(BaseRepository):
         email: str,
         password_hash: str,
         password_algorithm: str,
-        display_name: Optional[str] = None,
     ) -> User:
         """Insert a user and credential in one transaction.
 
@@ -131,7 +126,6 @@ class UserRepository(BaseRepository):
             email: Unique contact address.
             password_hash: Pre-hashed password (bcrypt).
             password_algorithm: Algorithm label stored on the credential.
-            display_name: Optional human-friendly name.
 
         Returns:
             The persisted ``User`` (with credential linked in session).
@@ -143,7 +137,6 @@ class UserRepository(BaseRepository):
         user = User.create(
             username=username,
             email=email,
-            display_name=display_name,
             email_verified=False,
         )
         self.session.add(user)
@@ -174,7 +167,6 @@ class UserRepository(BaseRepository):
         email: str,
         password_hash: str,
         password_algorithm: str,
-        display_name: Optional[str] = None,
     ) -> User:
         """Overwrite profile and password hash for an existing user.
 
@@ -184,7 +176,6 @@ class UserRepository(BaseRepository):
             email: New unique contact address.
             password_hash: Pre-hashed password (bcrypt).
             password_algorithm: Algorithm label stored on the credential.
-            display_name: Optional human-friendly name.
 
         Returns:
             The refreshed ``User`` after commit.
@@ -196,7 +187,6 @@ class UserRepository(BaseRepository):
 
         user.username = username
         user.email = email
-        user.display_name = display_name
         self.session.add(user)
 
         credential = await UserCredential.get_by_user_id(

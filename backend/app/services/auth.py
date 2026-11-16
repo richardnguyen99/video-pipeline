@@ -13,7 +13,9 @@ from sqlalchemy.exc import IntegrityError
 from app.config import settings
 from app.models.credentials import UserCredential
 from app.models.refresh_token import RefreshToken
+from app.models.user import User
 from app.models.user_activity import UserActivity, UserActivityType
+from app.models.user_bio import UserBio
 from app.repositories.refresh_token import RefreshTokenRepository
 from app.repositories.user import UserRepository
 from app.schemas.auth import (
@@ -47,6 +49,7 @@ from app.utils.password_reset import (
 )
 from app.utils.refresh_token_hash import hash_refresh_token
 from app.utils.user_agent import format_user_agent
+from app.utils.user_display import preferred_display_name
 
 
 class AuthService:
@@ -66,6 +69,19 @@ class AuthService:
 
         self._repository = repository
         self._refresh_tokens = refresh_tokens
+
+    async def _to_user_response(self, user: User) -> UserResponse:
+        """Build a public profile with the biography full name as display name."""
+
+        bio = await UserBio.get_by_user_id(self._repository.session, user.id)
+        full_name = bio.full_name if bio is not None else None
+        response = UserResponse.model_validate(user)
+        response.display_name = preferred_display_name(
+            username=user.username,
+            full_name=full_name,
+        )
+
+        return response
 
     async def register(self, payload: RegisterRequest) -> UserResponse:
         """Register a new user with a bcrypt-hashed password.
@@ -106,7 +122,6 @@ class AuthService:
                 email=payload.email,
                 password_hash=password_hash,
                 password_algorithm=PASSWORD_ALGORITHM,
-                display_name=payload.display_name,
             )
         except IntegrityError as exc:
             raise HTTPException(
@@ -114,7 +129,7 @@ class AuthService:
                 detail="Username or email is already registered.",
             ) from exc
 
-        response = UserResponse.model_validate(user)
+        response = await self._to_user_response(user)
 
         await UserActivity.record(
             self._repository.session,
@@ -188,7 +203,7 @@ class AuthService:
 
         user = await self._repository.record_login_success(user)
 
-        return UserResponse.model_validate(user)
+        return await self._to_user_response(user)
 
     async def get_current_user(self, user_id: uuid.UUID) -> UserResponse:
         """Load the public profile for an authenticated user id.
@@ -211,7 +226,7 @@ class AuthService:
                 detail="Invalid email or password.",
             )
 
-        return UserResponse.model_validate(user)
+        return await self._to_user_response(user)
 
     async def get_bio(self, user: UserResponse) -> UserBioResponse:
         """Return the biography for the authenticated user.
@@ -841,7 +856,7 @@ class AuthService:
                 detail="Not authenticated.",
             )
 
-        response = UserResponse.model_validate(updated)
+        response = await self._to_user_response(updated)
 
         await UserActivity.record(
             self._repository.session,

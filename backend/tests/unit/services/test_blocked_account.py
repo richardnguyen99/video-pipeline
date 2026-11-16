@@ -12,6 +12,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.models.user import User
+from app.models.user_bio import UserBio
 from app.models.user_blocked_account import UserBlockedAccount
 from app.schemas.blocked_account import BlockUserRequest
 from app.services.blocked_account import BlockedAccountService
@@ -31,6 +32,7 @@ class _SessionSpy:
         self.refreshed: list[Any] = []
         self._users: dict[UUID, User] = {}
         self._by_username: dict[str, User] = {}
+        self.exec_results: list[Any] = []
 
     def add(self, obj: Any) -> None:
         self.added.append(obj)
@@ -49,7 +51,7 @@ class _SessionSpy:
         self._by_username[user.username] = user
 
     async def exec(self, statement: Any) -> Any:
-        """Minimal exec that returns registered users for select(User)."""
+        """Return queued results, otherwise registered users."""
 
         class _Result:
             def __init__(self, rows: list[Any]) -> None:
@@ -61,20 +63,28 @@ class _SessionSpy:
             def all(self) -> list[Any]:
                 return list(self._rows)
 
-        # Best-effort: return all registered users when listing by ids.
+        if self.exec_results:
+            value = self.exec_results.pop(0)
+
+            if value is None:
+                return _Result([])
+
+            if isinstance(value, list):
+                return _Result(value)
+
+            return _Result([value])
+
         return _Result(list(self._users.values()))
 
 
 def _user(
     *,
     username: str = "alice",
-    display_name: Optional[str] = "Alice Wonder",
 ) -> User:
     return User(
         id=uuid4(),
         username=username,
         email=f"{username}@example.com",
-        display_name=display_name,
         role="user",
         is_active=True,
         email_verified=True,
@@ -125,7 +135,7 @@ async def test_list_blocked_maps_users(
     """Blocked rows are joined to user profile fields."""
 
     blocker_id = uuid4()
-    blocked = _user(username="bob", display_name="Bob Builder")
+    blocked = _user(username="bob")
     row = _block(blocker_id=blocker_id, blocked_id=blocked.id)
     session = _SessionSpy()
     session.register_user(blocked)
@@ -137,7 +147,18 @@ async def test_list_blocked_maps_users(
     ) -> list[UserBlockedAccount]:
         return [row]
 
+    async def _full_names(
+        _session: object,
+        user_ids: list[UUID],
+    ) -> dict[UUID, str | None]:
+        return {blocked.id: "Bob Builder"}
+
     monkeypatch.setattr(UserBlockedAccount, "list_by_blocker", _list)
+    monkeypatch.setattr(
+        UserBio,
+        "full_names_for_user_ids",
+        staticmethod(_full_names),
+    )
 
     service = BlockedAccountService(session=cast(Any, session))
     result = await service.list_blocked(blocker_id=blocker_id)
@@ -146,7 +167,7 @@ async def test_list_blocked_maps_users(
     assert result.items[0].id == blocked.id
     assert result.items[0].username == "bob"
     assert result.items[0].display_name == "Bob Builder"
-    assert result.items[0].initials == "BB"
+    assert result.items[0].initials == "BO"
 
 
 @pytest.mark.asyncio
@@ -192,7 +213,7 @@ async def test_block_user_creates_row(
     """Block creates a new association when none exists."""
 
     blocker_id = uuid4()
-    target = _user(username="target", display_name="T User")
+    target = _user(username="target")
     session = _SessionSpy()
     session.register_user(target)
     share_calls: list[tuple[UUID, UUID]] = []
@@ -226,6 +247,11 @@ async def test_block_user_creates_row(
         "app.services.blocked_account.PlaylistShare.revoke_for_owner_and_user",
         _revoke_shares,
     )
+
+    async def _get_bio(_session: object, _user_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(UserBio, "get_by_user_id", staticmethod(_get_bio))
 
     service = BlockedAccountService(session=cast(Any, session))
     result = await service.block_user(
@@ -282,6 +308,11 @@ async def test_block_user_idempotent(
         "app.services.blocked_account.PlaylistShare.revoke_for_owner_and_user",
         _revoke_shares,
     )
+
+    async def _get_bio(_session: object, _user_id: UUID) -> None:
+        return None
+
+    monkeypatch.setattr(UserBio, "get_by_user_id", staticmethod(_get_bio))
 
     service = BlockedAccountService(session=cast(Any, session))
     result = await service.block_user(

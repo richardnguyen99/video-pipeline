@@ -6,7 +6,7 @@ from typing import Any, Optional, cast
 
 from sqlalchemy import Date, Text
 from sqlalchemy.sql.functions import now
-from sqlmodel import Field, Relationship, SQLModel, select
+from sqlmodel import Field, Relationship, SQLModel, col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 from sqlmodel.sql.sqltypes import AutoString
 
@@ -138,3 +138,25 @@ class UserBio(SQLModel, table=True):
         result = await session.exec(statement)
 
         return result.first()
+
+    @staticmethod
+    async def full_names_for_user_ids(
+        session: AsyncSession,
+        user_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, str | None]:
+        """Return ``user_id -> full_name`` for the given users.
+
+        Missing bio rows are omitted; callers should treat absence as
+        ``None`` (fall back to username).
+        """
+
+        if not user_ids:
+            return {}
+
+        statement = select(UserBio.user_id, UserBio.full_name).where(
+            col(UserBio.user_id).in_(user_ids),
+        )
+        result = await session.exec(statement)
+        rows = list(result.all())
+
+        return dict(rows)
