@@ -1,7 +1,6 @@
 import { Quote } from "lucide-react";
-import { Link } from "@tanstack/react-router";
-
 import type { CommentUser } from "@/queries/comments";
+import { UserProfileLink } from "@/components/user/user-hover-card";
 import { cn, formatRelativeDate } from "@/libs/utils";
 
 import { CommentMoreMenu } from "./comment-more-menu";
@@ -55,14 +54,13 @@ export function CommentHeader({
       <div className="flex min-w-0 items-center gap-2.5">
         {showAvatar ? (
           canLinkProfile ? (
-            <Link
-              to="/u/$username"
-              params={{ username: profileUsername }}
+            <UserProfileLink
+              username={profileUsername}
               className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              aria-label={`View ${displayName}'s profile`}
+              ariaLabel={`View ${displayName}'s profile`}
             >
               {avatar}
-            </Link>
+            </UserProfileLink>
           ) : (
             avatar
           )
@@ -71,13 +69,12 @@ export function CommentHeader({
         <div className="min-w-0">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             {canLinkProfile ? (
-              <Link
-                to="/u/$username"
-                params={{ username: profileUsername }}
+              <UserProfileLink
+                username={profileUsername}
                 className="truncate text-sm font-semibold hover:text-primary hover:underline"
               >
                 {displayName}
-              </Link>
+              </UserProfileLink>
             ) : (
               <span className={cn("truncate text-sm font-semibold", isDeleted && "italic text-muted-foreground")}>
                 {displayName}

@@ -38,7 +38,11 @@ from app.schemas.privacy_settings import (
     PrivacySettingsResponse,
     PrivacySettingsUpdateRequest,
 )
-from app.schemas.user import UserSearchItem, UserSearchResponse
+from app.schemas.user import (
+    UserPreviewResponse,
+    UserSearchItem,
+    UserSearchResponse,
+)
 from app.schemas.user_bio import UserBioResponse
 from app.schemas.video import VideoListResponse
 
@@ -87,6 +91,57 @@ async def search_users(
             )
             for user, preferred_name in rows
         ],
+    )
+
+
+@router.get(
+    "/{username}/preview",
+    response_model=UserPreviewResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Return a public user profile preview",
+    responses={
+        status.HTTP_404_NOT_FOUND: {
+            "description": "No user with this username.",
+        },
+    },
+)
+async def get_public_user_preview(
+    username: Annotated[
+        str,
+        Path(
+            min_length=3,
+            max_length=50,
+            description="Public username handle.",
+        ),
+    ],
+    repository: UserRepositoryDep,
+) -> UserPreviewResponse:
+    """Return hover-card fields for a public profile."""
+
+    user = await repository.get_by_username(username)
+
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found.",
+        )
+
+    bio = await repository.get_bio_by_user_id(user.id)
+    biography = None if bio is None else getattr(bio, "biography", None)
+    display_name = user.display_name
+
+    if bio is not None:
+        full_name = getattr(bio, "full_name", None)
+        if full_name:
+            display_name = full_name
+
+    return UserPreviewResponse(
+        id=user.id,
+        username=user.username,
+        display_name=display_name,
+        avatar_url=getattr(user, "avatar_url", None),
+        created_at=user.created_at,
+        biography=biography,
     )
 
 

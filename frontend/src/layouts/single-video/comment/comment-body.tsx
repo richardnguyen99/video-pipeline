@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 
+import { UserProfileLink } from "@/components/user/user-hover-card";
 import { cn } from "@/libs/utils";
 
 interface CommentBodyProps {
@@ -23,17 +23,13 @@ function renderWithMentions(content: string): Array<ReactNode> {
     const username = part.slice(1);
 
     return (
-      <Link
+      <UserProfileLink
         key={`mention-${username}-${index}`}
-        to="/u/$username"
-        params={{ username }}
+        username={username}
         className="font-semibold text-primary underline-offset-2 hover:underline"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
       >
         {part}
-      </Link>
+      </UserProfileLink>
     );
   });
 }

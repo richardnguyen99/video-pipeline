@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { UserProfileLink } from "@/components/user/user-hover-card";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 import type { CommentUser, VideoComment } from "@/queries/comments";
@@ -119,11 +119,10 @@ export function CommentItem({
               </span>
             </span>
           ) : (
-            <Link
-              to="/u/$username"
-              params={{ username: comment.user.username }}
+            <UserProfileLink
+              username={comment.user.username}
               className="size-9 shrink-0 overflow-hidden rounded-full bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              aria-label={`View ${comment.user.display_name ?? comment.user.username}'s profile`}
+              ariaLabel={`View ${comment.user.display_name ?? comment.user.username}'s profile`}
             >
               {comment.user.avatar_url ? (
                 <img
@@ -139,7 +138,7 @@ export function CommentItem({
                   {initial}
                 </span>
               )}
-            </Link>
+            </UserProfileLink>
           )}
 
           {showNestedReplies || (isReplying && canNest) ? (
