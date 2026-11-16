@@ -141,9 +141,7 @@ export function CommentItem({
             </UserProfileLink>
           )}
 
-          {showNestedReplies || (isReplying && canNest) ? (
-            <span className="mt-1 w-px flex-1 bg-border" aria-hidden />
-          ) : null}
+          {showNestedReplies || (isReplying && canNest) ? <span className="w-px flex-1 bg-border" aria-hidden /> : null}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -167,7 +165,11 @@ export function CommentItem({
 
           {isExpanded ? (
             <>
-              <div className={cn(comment.is_deleted ? "mt-2.5 mb-1.5" : "mt-1.5")}>
+              <div
+                className={cn({
+                  "my-2.5": comment.is_deleted,
+                })}
+              >
                 <CommentBody content={comment.content} isDeleted={comment.is_deleted} />
               </div>
 
@@ -214,32 +216,46 @@ export function CommentItem({
         </div>
       </div>
 
-      {isReplying && currentUser != null ? (
-        <div className={cn("ml-4.5", canNest && "pl-4")}>
-          <div className={cn("relative", canNest && hasReplies && "border-l border-border pb-5")}>
-            <CommentComposer
-              key={`reply-${comment.id}-${mentionPrefix}`}
-              currentUser={currentUser}
-              placeholder="Add a reply…"
-              initialValue={mentionPrefix}
-              quotePreview={quoteText}
-              localCandidates={localCandidates}
-              autoFocus
-              showAvatar={false}
-              onCancel={closeComposer}
-              onSubmit={submitReply}
-            />
-          </div>
+      {isReplying && currentUser != null && !canNest ? (
+        <div className="mt-3 ml-4.5">
+          <CommentComposer
+            key={`reply-${comment.id}-${mentionPrefix}`}
+            currentUser={currentUser}
+            placeholder="Add a reply…"
+            initialValue={mentionPrefix}
+            quotePreview={quoteText}
+            localCandidates={localCandidates}
+            autoFocus
+            showAvatar={false}
+            onCancel={closeComposer}
+            onSubmit={submitReply}
+          />
         </div>
       ) : null}
 
-      {showNestedReplies ? (
-        <div className="ml-4.5">
+      {canNest && (isReplying || showNestedReplies) ? (
+        <div className="ml-[--spacing(4.375)]">
           <CommentReplyThread
-            replies={replies}
+            replies={showNestedReplies ? replies : []}
             currentUser={currentUser}
             depth={depth + 1}
             localCandidates={localCandidates}
+            leading={
+              isReplying && currentUser != null ? (
+                <CommentComposer
+                  key={`reply-${comment.id}-${mentionPrefix}`}
+                  currentUser={currentUser}
+                  placeholder="Add a reply…"
+                  initialValue={mentionPrefix}
+                  quotePreview={quoteText}
+                  localCandidates={localCandidates}
+                  autoFocus
+                  showAvatar={false}
+                  onCancel={closeComposer}
+                  onSubmit={submitReply}
+                />
+              ) : null
+            }
             onReply={onReply}
             onDelete={onDelete}
             onVote={onVote}

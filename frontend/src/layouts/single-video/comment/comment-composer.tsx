@@ -301,18 +301,20 @@ export function CommentComposer({
           ) : null}
         </div>
 
-        <p className="text-[11px] text-muted-foreground">Tip: type @ to mention someone</p>
+        <div className="flex justify-between items-center">
+          <p className="text-[11px] text-muted-foreground">Tip: type @ to mention someone</p>
 
-        <div className="flex justify-end gap-2">
-          {onCancel ? (
-            <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
-              Cancel
+          <div className="flex justify-end gap-2">
+            {onCancel ? (
+              <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+                Cancel
+              </Button>
+            ) : null}
+
+            <Button type="submit" size="sm" disabled={!value.trim()}>
+              Comment
             </Button>
-          ) : null}
-
-          <Button type="submit" size="sm" disabled={!value.trim()}>
-            Comment
-          </Button>
+          </div>
         </div>
       </div>
     </form>

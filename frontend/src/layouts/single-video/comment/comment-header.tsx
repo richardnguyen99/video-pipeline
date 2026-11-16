@@ -71,12 +71,12 @@ export function CommentHeader({
             {canLinkProfile ? (
               <UserProfileLink
                 username={profileUsername}
-                className="truncate text-sm font-semibold hover:text-primary hover:underline"
+                className="text-sm font-semibold hover:text-primary hover:underline"
               >
                 {displayName}
               </UserProfileLink>
             ) : (
-              <span className={cn("truncate text-sm font-semibold", isDeleted && "italic text-muted-foreground")}>
+              <span className={cn("text-sm font-semibold", isDeleted && "italic text-muted-foreground")}>
                 {displayName}
               </span>
             )}
