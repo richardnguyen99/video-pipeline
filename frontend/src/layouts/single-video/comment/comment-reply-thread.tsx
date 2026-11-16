@@ -15,6 +15,7 @@ interface CommentReplyThreadProps {
   replies: Array<VideoComment>;
   currentUser: CommentUser | null;
   depth?: number;
+  localCandidates?: Array<CommentUser>;
   onReply?: (parentId: string, content: string) => void;
   onDelete?: (commentId: string) => void;
   onVote?: (commentId: string, next: "like" | "dislike" | null, previous: "like" | "dislike" | null) => void;
@@ -24,6 +25,7 @@ export function CommentReplyThread({
   replies,
   currentUser,
   depth = 0,
+  localCandidates = [],
   onReply,
   onDelete,
   onVote,
@@ -70,6 +72,7 @@ export function CommentReplyThread({
               comment={reply}
               currentUser={currentUser}
               depth={depth + 1}
+              localCandidates={localCandidates}
               onReply={onReply}
               onDelete={onDelete}
               onVote={onVote}

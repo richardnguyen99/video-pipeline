@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
 import type { CommentUser, VideoComment } from "@/queries/comments";
@@ -10,14 +11,31 @@ import { CommentFooter } from "./comment-footer";
 import { CommentHeader } from "./comment-header";
 import { CommentReplyThread } from "./comment-reply-thread";
 
+const MAX_NEST_DEPTH = 6;
+
 interface CommentItemProps {
   comment: VideoComment;
   currentUser: CommentUser | null;
   depth?: number;
   className?: string;
+  localCandidates?: Array<CommentUser>;
   onReply?: (parentId: string, content: string) => void;
   onDelete?: (commentId: string) => void;
   onVote?: (commentId: string, next: "like" | "dislike" | null, previous: "like" | "dislike" | null) => void;
+}
+
+function mentionPrefixFor(comment: VideoComment): string {
+  if (comment.is_deleted) {
+    return "";
+  }
+
+  const username = comment.user.username.trim();
+
+  if (username === "" || username === "deleted") {
+    return "";
+  }
+
+  return `@${username} `;
 }
 
 export function CommentItem({
@@ -25,41 +43,45 @@ export function CommentItem({
   currentUser,
   depth = 0,
   className,
+  localCandidates = [],
   onReply,
   onDelete,
   onVote,
 }: CommentItemProps) {
   const [isReplying, setIsReplying] = useState(false);
   const [quoteText, setQuoteText] = useState<string | undefined>();
+  const [mentionPrefix, setMentionPrefix] = useState("");
   const [isExpanded, setIsExpanded] = useState(true);
 
   const isOwner = currentUser != null && comment.user.id === currentUser.id;
   const replies = comment.replies ?? [];
   const hasReplies = replies.length > 0;
-  const canNest = depth < 6;
+  const canNest = depth < MAX_NEST_DEPTH;
   const replyCount = countReplies(replies);
-  const showThread = isExpanded && canNest && (hasReplies || isReplying);
+  const showNestedReplies = isExpanded && canNest && hasReplies;
 
   const initial = comment.is_deleted
     ? "?"
     : (comment.user.display_name ?? comment.user.username).slice(0, 1).toUpperCase();
 
   function handleQuote() {
-    if (currentUser == null || onReply == null) {
+    if (currentUser == null || onReply == null || comment.is_deleted) {
       return;
     }
 
     setQuoteText(comment.content);
+    setMentionPrefix(mentionPrefixFor(comment));
     setIsReplying(true);
     setIsExpanded(true);
   }
 
   function handleReply() {
-    if (currentUser == null || onReply == null) {
+    if (currentUser == null || onReply == null || comment.is_deleted) {
       return;
     }
 
     setQuoteText(undefined);
+    setMentionPrefix(mentionPrefixFor(comment));
     setIsReplying(true);
     setIsExpanded(true);
   }
@@ -71,30 +93,58 @@ export function CommentItem({
   function closeComposer() {
     setIsReplying(false);
     setQuoteText(undefined);
+    setMentionPrefix("");
+  }
+
+  function submitReply(content: string) {
+    if (onReply == null) {
+      return;
+    }
+
+    const nestedParentId = comment.parent_id;
+    const parentId = canNest || nestedParentId == null || nestedParentId === "" ? comment.id : nestedParentId;
+
+    onReply(parentId, content);
+    closeComposer();
   }
 
   return (
     <article className={cn(className)}>
       <div className="flex gap-2.5">
         <div className="flex w-9 shrink-0 flex-col items-center">
-          <span className="size-9 shrink-0 overflow-hidden rounded-full bg-muted">
-            {comment.user.avatar_url ? (
-              <img
-                src={comment.user.avatar_url}
-                alt=""
-                className="size-full object-cover"
-                width={36}
-                height={36}
-                loading="lazy"
-              />
-            ) : (
+          {comment.is_deleted || comment.user.username === "deleted" ? (
+            <span className="size-9 shrink-0 overflow-hidden rounded-full bg-muted">
               <span className="flex size-full items-center justify-center text-xs font-semibold text-muted-foreground">
                 {initial}
               </span>
-            )}
-          </span>
+            </span>
+          ) : (
+            <Link
+              to="/u/$username"
+              params={{ username: comment.user.username }}
+              className="size-9 shrink-0 overflow-hidden rounded-full bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              aria-label={`View ${comment.user.display_name ?? comment.user.username}'s profile`}
+            >
+              {comment.user.avatar_url ? (
+                <img
+                  src={comment.user.avatar_url}
+                  alt=""
+                  className="size-full object-cover"
+                  width={36}
+                  height={36}
+                  loading="lazy"
+                />
+              ) : (
+                <span className="flex size-full items-center justify-center text-xs font-semibold text-muted-foreground">
+                  {initial}
+                </span>
+              )}
+            </Link>
+          )}
 
-          {hasReplies && showThread ? <span className="mt-1 w-px flex-1 bg-border" aria-hidden /> : null}
+          {showNestedReplies || (isReplying && canNest) ? (
+            <span className="mt-1 w-px flex-1 bg-border" aria-hidden />
+          ) : null}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -138,7 +188,7 @@ export function CommentItem({
                     }
                   />
 
-                  {hasReplies ? (
+                  {hasReplies && canNest ? (
                     <button
                       type="button"
                       className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -165,35 +215,36 @@ export function CommentItem({
         </div>
       </div>
 
-      {showThread ? (
-        <div className="ml-4.5">
-          {isReplying && currentUser != null ? (
-            <div className={cn("relative pl-4", hasReplies && "border-l border-border pb-5")}>
-              <CommentComposer
-                currentUser={currentUser}
-                placeholder="Add a reply…"
-                quotePreview={quoteText}
-                autoFocus
-                showAvatar={false}
-                onCancel={closeComposer}
-                onSubmit={(content) => {
-                  onReply?.(comment.id, content);
-                  closeComposer();
-                }}
-              />
-            </div>
-          ) : null}
-
-          {hasReplies ? (
-            <CommentReplyThread
-              replies={replies}
+      {isReplying && currentUser != null ? (
+        <div className={cn("ml-4.5", canNest && "pl-4")}>
+          <div className={cn("relative", canNest && hasReplies && "border-l border-border pb-5")}>
+            <CommentComposer
+              key={`reply-${comment.id}-${mentionPrefix}`}
               currentUser={currentUser}
-              depth={depth + 1}
-              onReply={onReply}
-              onDelete={onDelete}
-              onVote={onVote}
+              placeholder="Add a reply…"
+              initialValue={mentionPrefix}
+              quotePreview={quoteText}
+              localCandidates={localCandidates}
+              autoFocus
+              showAvatar={false}
+              onCancel={closeComposer}
+              onSubmit={submitReply}
             />
-          ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {showNestedReplies ? (
+        <div className="ml-4.5">
+          <CommentReplyThread
+            replies={replies}
+            currentUser={currentUser}
+            depth={depth + 1}
+            localCandidates={localCandidates}
+            onReply={onReply}
+            onDelete={onDelete}
+            onVote={onVote}
+          />
         </div>
       ) : null}
     </article>

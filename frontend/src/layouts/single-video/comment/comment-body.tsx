@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 
 import { cn } from "@/libs/utils";
 
@@ -8,17 +9,32 @@ interface CommentBodyProps {
   className?: string;
 }
 
+const MENTION_PATTERN = /(@[a-zA-Z0-9_]+)/g;
+const MENTION_EXACT = /^@[a-zA-Z0-9_]+$/;
+
 function renderWithMentions(content: string): Array<ReactNode> {
-  const parts = content.split(/(@[a-zA-Z0-9_]+)/g);
-  return parts.map((part, i) => {
-    if (/^@[a-zA-Z0-9_]+$/.test(part)) {
-      return (
-        <span key={i} className="font-medium text-primary">
-          {part}
-        </span>
-      );
+  const parts = content.split(MENTION_PATTERN);
+
+  return parts.map((part, index) => {
+    if (!MENTION_EXACT.test(part)) {
+      return <span key={`text-${index}`}>{part}</span>;
     }
-    return <span key={i}>{part}</span>;
+
+    const username = part.slice(1);
+
+    return (
+      <Link
+        key={`mention-${username}-${index}`}
+        to="/u/$username"
+        params={{ username }}
+        className="font-semibold text-primary underline-offset-2 hover:underline"
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        {part}
+      </Link>
+    );
   });
 }
 
