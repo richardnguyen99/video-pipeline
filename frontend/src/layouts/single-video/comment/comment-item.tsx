@@ -40,7 +40,9 @@ export function CommentItem({
   const replyCount = countReplies(replies);
   const showThread = isExpanded && canNest && (hasReplies || isReplying);
 
-  const initial = (comment.user.display_name ?? comment.user.username).slice(0, 1).toUpperCase();
+  const initial = comment.is_deleted
+    ? "?"
+    : (comment.user.display_name ?? comment.user.username).slice(0, 1).toUpperCase();
 
   function handleQuote() {
     if (currentUser == null || onReply == null) {
@@ -101,21 +103,22 @@ export function CommentItem({
             createdAt={comment.created_at}
             isEdited={comment.is_edited}
             isOwner={isOwner}
+            isDeleted={comment.is_deleted}
             showAvatar={false}
-            onQuote={currentUser != null && onReply != null ? handleQuote : undefined}
+            onQuote={!comment.is_deleted && currentUser != null && onReply != null ? handleQuote : undefined}
             onDelete={
-              isOwner && onDelete != null
+              !comment.is_deleted && isOwner && onDelete != null
                 ? () => {
                     onDelete(comment.id);
                   }
                 : undefined
             }
-            onReport={!isOwner ? () => undefined : undefined}
+            onReport={!comment.is_deleted && !isOwner ? () => undefined : undefined}
           />
 
           {isExpanded ? (
             <>
-              <div className="mt-1.5">
+              <div className={cn(comment.is_deleted ? "mt-2.5 mb-1.5" : "mt-1.5")}>
                 <CommentBody content={comment.content} isDeleted={comment.is_deleted} />
               </div>
 

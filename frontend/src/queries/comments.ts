@@ -56,15 +56,42 @@ export function countComments(comments: Array<VideoComment>): number {
   return total;
 }
 
-/** Drop soft-deleted comments from the tree; promote surviving replies. */
+function redactDeletedComment(comment: VideoComment): VideoComment {
+  return {
+    ...comment,
+    content: "",
+    is_deleted: true,
+    user: {
+      ...comment.user,
+      username: "deleted",
+      display_name: "Deleted",
+      avatar_url: null,
+    },
+  };
+}
+
+/**
+ * Top-level deleted comments with no remaining replies are removed.
+ * Deleted comments that are nested, or top-level with a reply tree, stay
+ * in place with author and body redacted.
+ */
 export function filterVisibleComments(comments: Array<VideoComment>): Array<VideoComment> {
   const visible: Array<VideoComment> = [];
 
   for (const comment of comments) {
     const replies = filterVisibleComments(comment.replies ?? []);
+    const isNested = comment.parent_id != null && comment.parent_id !== "";
 
     if (comment.is_deleted) {
-      visible.push(...replies);
+      if (replies.length > 0 || isNested) {
+        visible.push(
+          redactDeletedComment({
+            ...comment,
+            replies,
+          }),
+        );
+      }
+
       continue;
     }
 

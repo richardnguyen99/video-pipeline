@@ -80,25 +80,31 @@ function insertReply(comments: Array<VideoComment>, parentId: string, reply: Vid
   });
 }
 
-function removeComment(comments: Array<VideoComment>, commentId: string): Array<VideoComment> {
-  const next: Array<VideoComment> = [];
-
-  for (const comment of comments) {
+function markCommentDeleted(comments: Array<VideoComment>, commentId: string): Array<VideoComment> {
+  return comments.map((comment) => {
     if (comment.id === commentId) {
-      if (comment.replies != null && comment.replies.length > 0) {
-        next.push(...comment.replies);
-      }
-
-      continue;
+      return {
+        ...comment,
+        content: "",
+        is_deleted: true,
+        user: {
+          ...comment.user,
+          username: "deleted",
+          display_name: "Deleted",
+          avatar_url: null,
+        },
+      };
     }
 
-    next.push({
-      ...comment,
-      replies: comment.replies != null && comment.replies.length > 0 ? removeComment(comment.replies, commentId) : [],
-    });
-  }
+    if (comment.replies != null && comment.replies.length > 0) {
+      return {
+        ...comment,
+        replies: markCommentDeleted(comment.replies, commentId),
+      };
+    }
 
-  return next;
+    return comment;
+  });
 }
 
 export function VideoComments({ comments, videoId }: VideoCommentsProps) {
@@ -144,7 +150,7 @@ export function VideoComments({ comments, videoId }: VideoCommentsProps) {
 
         return {
           ...current,
-          comment_tree: removeComment(existing, commentId),
+          comment_tree: markCommentDeleted(existing, commentId),
           comments: Math.max(0, (current.comments ?? 0) - 1),
         };
       });

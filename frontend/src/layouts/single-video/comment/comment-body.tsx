@@ -24,7 +24,16 @@ function renderWithMentions(content: string): Array<ReactNode> {
 
 export function CommentBody({ content, isDeleted, className }: CommentBodyProps) {
   if (isDeleted) {
-    return <p className={cn("text-sm italic text-muted-foreground", className)}>This comment was deleted.</p>;
+    return (
+      <p
+        className={cn(
+          "rounded-md border border-border/50 bg-muted/40 px-3 py-2.5 text-sm italic leading-relaxed text-muted-foreground",
+          className,
+        )}
+      >
+        This comment was deleted.
+      </p>
+    );
   }
 
   return (

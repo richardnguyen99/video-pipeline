@@ -151,14 +151,21 @@ class VideoService:
         parent_id = getattr(comment, "parent_id", None)
         content = str(getattr(comment, "content"))
         is_deleted = bool(getattr(comment, "is_deleted", False))
+        user = self._map_comment_user(getattr(comment, "user"))
 
         if is_deleted:
             content = ""
+            user = CommentUserResponse(
+                id=user.id,
+                username="deleted",
+                display_name="Deleted",
+                avatar_url=None,
+            )
 
         return VideoCommentResponse(
             id=str(getattr(comment, "id")),
             video_id=int(getattr(comment, "video_id")),
-            user=self._map_comment_user(getattr(comment, "user")),
+            user=user,
             content=content,
             is_edited=bool(getattr(comment, "is_edited", False)),
             is_deleted=is_deleted,
