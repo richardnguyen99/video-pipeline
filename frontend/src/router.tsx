@@ -72,6 +72,7 @@ export function getRouter() {
           display_name: null,
           is_active: true,
           email_verified: false,
+          role: "user",
           created_at: "",
           updated_at: "",
         });

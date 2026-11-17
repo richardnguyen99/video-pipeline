@@ -2,6 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { createRootRouteWithContext } from "@tanstack/react-router";
 
 import appCss from "../styles/styles.css?url";
+import editorCss from "../components/editor/style.css?url";
 import { AuthPendingShell } from "@/components/auth/auth-pending-shell";
 import { ErrorPage } from "@/components/error/error-page";
 import { NotFoundPage } from "@/components/not-found/not-found-page";
@@ -21,7 +22,7 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   headers: () => ({
     "Cache-Control": "private, no-store",
   }),
-  beforeLoad: async ({ context }): Promise<{ auth: AuthRouterContext }> => {
+  beforeLoad: async ({ context }) => {
     const auth = await loadAuthSession(context.queryClient);
 
     return { auth };
@@ -43,6 +44,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "stylesheet",
+        href: editorCss,
       },
     ],
   }),

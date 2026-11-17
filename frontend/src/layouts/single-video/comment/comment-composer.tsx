@@ -1,6 +1,7 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { CommentRichEditor } from "@/components/comment-editor/comment-rich-editor";
 import { Button } from "@/components/ui/button";
 import type { CommentUser } from "@/queries/comments";
 import { userSearchQueryOptions } from "@/queries/users";
@@ -98,13 +99,14 @@ export function CommentComposer({
   className,
 }: CommentComposerProps) {
   const listId = useId();
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const [value, setValue] = useState(initialValue);
-  const [caret, setCaret] = useState(initialValue.length);
+  const [draftHtml, setDraftHtml] = useState(initialValue);
+  const [draftText, setDraftText] = useState(initialValue);
+  const [isEmpty, setIsEmpty] = useState(initialValue.trim() === "");
+  const [editorKey, setEditorKey] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [mentionDismissed, setMentionDismissed] = useState(false);
 
-  const activeMention = useMemo(() => extractActiveMention(value, caret), [value, caret]);
+  const activeMention = useMemo(() => extractActiveMention(draftText, draftText.length), [draftText]);
   const mentionQuery = activeMention == null ? "" : activeMention.query;
   const searchEnabled = activeMention != null && !mentionDismissed;
 
@@ -119,18 +121,16 @@ export function CommentComposer({
   );
 
   const showSuggestions = searchEnabled && suggestions.length > 0;
-  const safeActiveIndex = showSuggestions ? activeIndex % suggestions.length : 0;
+  const safeActiveIndex = suggestions.length === 0 ? 0 : Math.min(activeIndex, suggestions.length - 1);
 
-  const initial = (currentUser.display_name ?? currentUser.username).slice(0, 1).toUpperCase();
+  const initial = (currentUser.display_name?.trim() || currentUser.username).slice(0, 1).toUpperCase();
 
-  function updateCaretFromTextarea() {
-    const el = textareaRef.current;
-
-    if (el == null) {
-      return;
-    }
-
-    setCaret(el.selectionStart);
+  function handleEditorChange(payload: { html: string; markdown: string; text: string; isEmpty: boolean }) {
+    setDraftHtml(payload.html);
+    setDraftText(payload.text);
+    setIsEmpty(payload.isEmpty);
+    setMentionDismissed(false);
+    setActiveIndex(0);
   }
 
   function applyMention(username: string) {
@@ -138,84 +138,34 @@ export function CommentComposer({
       return;
     }
 
-    const insertion = `@${username} `;
-    const nextValue = `${value.slice(0, activeMention.start)}${insertion}${value.slice(activeMention.end)}`;
-    const nextCaret = activeMention.start + insertion.length;
-
-    setValue(nextValue);
-    setCaret(nextCaret);
+    const before = draftText.slice(0, activeMention.start);
+    const after = draftText.slice(activeMention.end);
+    const nextText = `${before}@${username} ${after}`;
+    setDraftText(nextText);
+    setDraftHtml(`<p>${nextText.replace(/\n/g, "<br />")}</p>`);
+    setIsEmpty(nextText.trim() === "");
     setMentionDismissed(true);
     setActiveIndex(0);
-
-    requestAnimationFrame(() => {
-      const el = textareaRef.current;
-
-      if (el == null) {
-        return;
-      }
-
-      el.focus();
-      el.setSelectionRange(nextCaret, nextCaret);
-    });
-  }
-
-  function handleChange(event: React.ChangeEvent<HTMLTextAreaElement>) {
-    const next = event.target.value;
-    const nextCaret = event.target.selectionStart;
-
-    setValue(next);
-    setCaret(nextCaret);
-    setMentionDismissed(false);
-    setActiveIndex(0);
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (!showSuggestions) {
-      return;
-    }
-
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setActiveIndex((current) => (current + 1) % suggestions.length);
-
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setActiveIndex((current) => (current - 1 + suggestions.length) % suggestions.length);
-
-      return;
-    }
-
-    if (event.key === "Enter" || event.key === "Tab") {
-      event.preventDefault();
-      const selected = suggestions.at(safeActiveIndex);
-
-      if (selected !== undefined) {
-        applyMention(selected.username);
-      }
-
-      return;
-    }
-
-    if (event.key === "Escape") {
-      event.preventDefault();
-      setMentionDismissed(true);
-    }
   }
 
   function handleSubmit(event: React.SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmed = value.trim();
 
-    if (!trimmed) {
+    if (isEmpty) {
       return;
     }
 
-    onSubmit?.(trimmed);
-    setValue("");
-    setCaret(0);
+    const content = draftHtml.trim() === "" || draftHtml === "<p></p>" ? draftText.trim() : draftHtml;
+
+    if (!content.trim()) {
+      return;
+    }
+
+    onSubmit?.(content);
+    setDraftHtml("");
+    setDraftText("");
+    setIsEmpty(true);
+    setEditorKey((key) => key + 1);
     setMentionDismissed(false);
     setActiveIndex(0);
   }
@@ -242,22 +192,22 @@ export function CommentComposer({
         ) : null}
 
         <div className="relative">
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onClick={updateCaretFromTextarea}
-            onKeyUp={updateCaretFromTextarea}
-            onSelect={updateCaretFromTextarea}
+          <CommentRichEditor
+            key={editorKey}
+            initialValue={draftHtml || draftText}
             placeholder={placeholder}
             autoFocus={autoFocus}
-            rows={2}
-            role="combobox"
-            aria-expanded={showSuggestions}
-            aria-controls={showSuggestions ? listId : undefined}
-            aria-autocomplete="list"
-            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            onChange={handleEditorChange}
+            onSubmitKey={() => {
+              if (!isEmpty) {
+                const content = draftHtml.trim() === "" || draftHtml === "<p></p>" ? draftText.trim() : draftHtml;
+                onSubmit?.(content);
+                setDraftHtml("");
+                setDraftText("");
+                setIsEmpty(true);
+                setEditorKey((key) => key + 1);
+              }
+            }}
           />
 
           {showSuggestions ? (
@@ -301,8 +251,10 @@ export function CommentComposer({
           ) : null}
         </div>
 
-        <div className="flex justify-between items-center">
-          <p className="text-[11px] text-muted-foreground">Tip: type @ to mention someone</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] text-muted-foreground">
+            Tip: type @ to mention · switch to markdown with the code icon
+          </p>
 
           <div className="flex justify-end gap-2">
             {onCancel ? (
@@ -311,7 +263,7 @@ export function CommentComposer({
               </Button>
             ) : null}
 
-            <Button type="submit" size="sm" disabled={!value.trim()}>
+            <Button type="submit" size="sm" disabled={isEmpty}>
               Comment
             </Button>
           </div>

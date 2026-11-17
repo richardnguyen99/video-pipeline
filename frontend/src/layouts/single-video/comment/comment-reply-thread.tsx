@@ -120,7 +120,6 @@ export function CommentReplyThread({
         <li className="relative pl-4">
           {hasReplies ? <Spine /> : null}
           <div className="flex gap-2.5">
-            <span className="w-9 shrink-0" aria-hidden />
             <div className="min-w-0 flex-1">{leading}</div>
           </div>
         </li>

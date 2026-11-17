@@ -114,6 +114,7 @@ export default defineConfig([
       "cypress.config.js",
       "src/routeTree.gen.ts",
       "src/components/ui/*.tsx",
+      "src/components/editor/**/*.{js,ts,jsx,tsx}",
       ".agents/skills/**/*.{js,ts,jsx,tsx}",
     ],
   },
